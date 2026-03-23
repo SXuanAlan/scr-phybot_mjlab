@@ -1,0 +1,28 @@
+[project]
+name = "spider_rl_mjlab"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["mjlab"]
+
+[project.entry-points."mjlab.tasks"]
+spider_rl_mjlab = "spider_rl_mjlab.tasks"
+
+[project.scripts]
+spider-train = "mjlab.scripts.train:main"
+spider-play = "mjlab.scripts.play:main"
+spider-list-envs = "mjlab.scripts.list_envs:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"

@@ -1,0 +1,7 @@
+[console_scripts]
+spider-list-envs = mjlab.scripts.list_envs:main
+spider-play = mjlab.scripts.play:main
+spider-train = mjlab.scripts.train:main
+
+[mjlab.tasks]
+spider_rl_mjlab = spider_rl_mjlab.tasks
