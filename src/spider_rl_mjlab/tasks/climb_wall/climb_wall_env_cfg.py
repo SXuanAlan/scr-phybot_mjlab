@@ -17,7 +17,7 @@ from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from spider_rl_mjlab.microspine import MicrospineController, MicrospineCfg
+from spider_rl_mjlab.assets.microspine import MicrospineController, MicrospineCfg
 from spider_rl_mjlab.tasks.climb_wall import mdp
 
 
@@ -32,21 +32,21 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   ##
 
   observations = {
-    "policy": ObservationGroupCfg(
+    "actor": ObservationGroupCfg(
       terms={
-        "base_lin_vel": ObservationTermCfg(func=mdp.base_lin_vel),
-        "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel),
-        "projected_gravity": ObservationTermCfg(func=mdp.projected_gravity),
-        "joint_pos_rel": ObservationTermCfg(func=mdp.joint_pos_rel),
-        "joint_vel_rel": ObservationTermCfg(func=mdp.joint_vel_rel),
-        "last_action": ObservationTermCfg(func=mdp.last_action),
+        "base_lin_vel": ObservationTermCfg(func=mdp.base_lin_vel),  # (num_envs, 3) [vx, vy, vz]
+        "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel),  # (num_envs, 3) [wx, wy, wz]
+        "projected_gravity": ObservationTermCfg(func=mdp.projected_gravity),  # (num_envs, 3) [gx, gy, gz]
+        "joint_pos_rel": ObservationTermCfg(func=mdp.joint_pos_rel),  # (num_envs, num_dof)
+        "joint_vel_rel": ObservationTermCfg(func=mdp.joint_vel_rel),  # (num_envs, num_dof)
+        "last_action": ObservationTermCfg(func=mdp.last_action),  # (num_envs, num_actions)
       },
-      concatenate_terms=True,
-      enable_corruption=False,
+      concatenate_terms=True,  # Concatenate all terms into a single vector.
+      enable_corruption=False, # Enable observation corruption (e.g., adding noise).
     ),
-    "privileged": ObservationGroupCfg(
+    "critic": ObservationGroupCfg(
       terms={
-        "microspine_state": ObservationTermCfg(func=mdp.microspine_privileged_obs),
+        "microspine_state": ObservationTermCfg(func=mdp.microspine_privileged_obs),  # (num_envs, num_ee * 5)
       },
       concatenate_terms=True,
       enable_corruption=False,
@@ -134,6 +134,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "asset_cfg": SceneEntityCfg("robot"),
         "microspine_cfg": MicrospineCfg(),
+        "wall_cfg": SceneEntityCfg("wall"),
       },
     ),
     "reset_scene_to_default": EventTermCfg(
@@ -194,7 +195,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.002),
+      mujoco=MujocoCfg(timestep=0.002, ccd_iterations=200),
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,

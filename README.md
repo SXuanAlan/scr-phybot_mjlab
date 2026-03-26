@@ -377,32 +377,32 @@ pip install -e .
 
 ```bash
 # Default training (128 envs, 100k iterations)
-python scripts/train.py Mjlab-Climb-Wall-Phybot-C2
+python scripts/train.py Mjlab-Climb-Wall-Phybot-V8
 
 # Custom settings
-python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 \
+python scripts/train.py Mjlab-Climb-Wall-Phybot-V8 \
   --env.scene.num-envs 256 \
   --agent.max-iterations 50000
 
 # Multi-GPU
-python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
+python scripts/train.py Mjlab-Climb-Wall-Phybot-V8 --gpu-ids "[0, 1]"
 ```
 
 ### Evaluation
 
 ```bash
 # Zero agent (all-zeros action)
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent zero --num-envs 4
+python scripts/play.py Mjlab-Climb-Wall-Phybot-V8 --agent zero --num-envs 4
 
 # Random agent
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent random --num-envs 4
+python scripts/play.py Mjlab-Climb-Wall-Phybot-V8 --agent random --num-envs 4
 
 # Trained policy
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
+python scripts/play.py Mjlab-Climb-Wall-Phybot-V8 \
   --checkpoint-file logs/rsl_rl/phybot_climb_wall/*/model_*.pt
 
 # With video recording
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
+python scripts/play.py Mjlab-Climb-Wall-Phybot-V8 \
   --checkpoint-file path/model.pt --video
 ```
 

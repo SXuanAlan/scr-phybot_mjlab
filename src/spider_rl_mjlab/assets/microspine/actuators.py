@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import mujoco
 
 if TYPE_CHECKING:
-    from spider_rl_mjlab.microspine.config import MicrospineCfg
+    from spider_rl_mjlab.assets.microspine.config import MicrospineCfg
 
 
 def add_adhesion_actuators(

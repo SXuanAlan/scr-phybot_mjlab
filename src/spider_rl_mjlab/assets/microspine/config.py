@@ -6,6 +6,7 @@ for rough surface grasping."
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 
@@ -26,7 +27,7 @@ class MicrospineCfg:
     )
 
     # -- Spine mechanics (Jiang et al.) ----------------------------------------
-    n_spines: int = 20
+    n_spines: int = 81*12
     """Number of spines per tile."""
 
     d_unit: float = 0.008
@@ -70,20 +71,40 @@ class MicrospineCfg:
     eta_range: tuple[float, float] = (0.027, 0.53)
     """Uniform range for domain randomization of eta."""
 
+    # -- Spine/asperity geometry ----------------------------------------------
+    h_mis: float = 0.001
+    """Average asperity height above the spine contact point [m]. (1 mm)
+    Measured from the excursion of the spine tip in the normal direction
+    during engagement. See Eq. 1 and p. 676 of Jiang et al. 2018."""
+
     # -- Opposed array (Section 4) --------------------------------------------
     preload_force: float = 1.0
     """Preload spring initial force [N]."""
-
-    theta_threshold: float = 0.8
-    """Loading angle limit [rad]. Beyond this angle, spines slip."""
 
     # -- Engagement geometry --------------------------------------------------
     contact_threshold: float = 0.05
     """Maximum distance to wall surface for spine engagement [m]."""
 
-    # -- Wall reference -------------------------------------------------------
-    wall_x_offset: float = 1.5
-    """Wall inner face x-position relative to each env origin [m]."""
+    contact_hysteresis: float = 0.02
+    """Extra distance beyond contact_threshold before losing contact [m].
+    Prevents rapid toggling at the boundary. Disengage at
+    contact_threshold + contact_hysteresis."""
+
+    # -- Anchor PID constraint model -------------------------------------------
+    anchor_kp: float = 100000.0
+    """Proportional gain [N/m]. Immediate spring response.
+    100N load → 1mm displacement."""
+
+    anchor_ki: float = 50000.0
+    """Integral gain [N/(m·s)]. Builds up holding force over time for
+    smooth steady-state load bearing. Eliminates steady-state error."""
+
+    anchor_kd: float = 500.0
+    """Derivative gain [N·s/m]. Damping to suppress oscillation.
+    Ramps up over 0.5s after contact to avoid initial impulse."""
+
+    anchor_integral_limit: float = 0.01
+    """Integral windup limit [m·s]. Prevents excessive force buildup."""
 
     # -- Randomization --------------------------------------------------------
     randomize_surface: bool = True
@@ -91,6 +112,16 @@ class MicrospineCfg:
     on reset. Useful for sim-to-real domain randomization."""
 
     # -- Derived properties ---------------------------------------------------
+    @property
+    def theta_threshold(self) -> float:
+        """Loading angle limit [rad].
+
+        From Eq. 1: tan(θ_m) = h_mis / d_unit, so θ_th = arctan(h_mis / d_unit).
+        A spine disengages when arctan(F_n / F_s) ≥ θ_th (Eq. 8).
+        With h_mis=1 mm, d_unit=8 mm → θ_th ≈ 0.124 rad (7.1°).
+        """
+        return math.atan(self.h_mis / self.d_unit)
+
     @property
     def K(self) -> float:
         """Spine stiffness [N/m]. K = F_max / d_stroke."""

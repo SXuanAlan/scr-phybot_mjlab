@@ -26,3 +26,14 @@ select = ["E", "F", "I", "W"]
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
+extraPaths = ["src"]
+
+[[tool.ty.overrides]]
+include = ["src/spider_rl_mjlab/tasks/climb_wall/climb_wall_env_cfg.py"]
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
+
+[[tool.ty.overrides]]
+include = ["src/spider_rl_mjlab/microspine/actuators.py"]
+[tool.ty.overrides.rules]
+unresolved-attribute = "ignore"

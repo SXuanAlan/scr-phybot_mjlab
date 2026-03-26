@@ -1,0 +1,9 @@
+{
+    "pythonVersion": "3.11",
+    "pythonPlatform": "Linux",
+    "venvPath": "/home/sxuan/miniconda3/envs",
+    "venv": "env_mjlab",
+    "include": ["src"],
+    "extraPaths": ["src"],
+    "typeCheckingMode": "basic"
+}

@@ -40,6 +40,7 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
       max_grad_norm=1.0,
     ),
     experiment_name="phybot_climb_wall",
+    logger="tensorboard",
     save_interval=500,
     num_steps_per_env=24,
     max_iterations=100_000,

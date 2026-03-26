@@ -9,6 +9,8 @@ Reference equations from the paper:
 - Eq. 4: Expected shear stress E[σ]
 - Eq. 5: Single spine force F(x) = K·(d_stroke - x)
 - Eq. 6-8: Opposed array force balance
+- Eq. 1/8: Loading angle limit θ_th = arctan(h_mis / d_unit); spine fails when
+           arctan(F_n / F_s) ≥ θ_th (pull-out condition)
 """
 
 from __future__ import annotations
@@ -137,38 +139,102 @@ def compute_expected_shear_stress(
     return stress
 
 
-def compute_adhesion_activation(
-    n_engaged: torch.Tensor,
-    n_spines: int,
-    alpha: torch.Tensor,
-    lambda_: torch.Tensor,
-    eta: torch.Tensor,
+def compute_loading_angle_failure(
+    v_pullout: torch.Tensor,
+    v_shear: torch.Tensor,
+    theta_th: float,
 ) -> torch.Tensor:
-    """Map spine engagement state to adhesion actuator ctrl value [0, 1].
+    """Check whether the loading angle exceeds the pull-out threshold (Eq. 8).
 
-    The activation combines the engagement ratio with a surface quality
-    factor derived from the asperity parameters.
+    A spine/asperity contact fails when the force direction tilts too far away
+    from the surface plane:
+
+        arctan(F_n / F_s) ≥ θ_th    (Eq. 8)
+
+    Force direction is proxied by EE velocity direction: v_pullout is the
+    wall-normal component directed away from the surface; v_shear is the
+    wall-parallel speed magnitude.
 
     Args:
-        n_engaged: Number of engaged spines per EE. Shape: (batch, n_ee).
-        n_spines: Total spines per tile.
-        alpha: Surface alpha parameter. Shape: (batch,) or (batch, 1).
-        lambda_: Surface lambda parameter. Shape: (batch,) or (batch, 1).
-        eta: Surface eta parameter. Shape: (batch,) or (batch, 1).
+        v_pullout: Wall-normal pull-out speed per EE [m/s], clamped ≥ 0.
+                   Shape: (N, E).
+        v_shear:   Wall-parallel speed magnitude per EE [m/s]. Shape: (N, E).
+        theta_th:  Loading angle limit [rad] = arctan(h_mis / d_unit).
 
     Returns:
-        Adhesion activation in [0, 1]. Shape: (batch, n_ee).
+        Boolean tensor, True where the loading angle exceeds theta_th and
+        spines should disengage. Shape: (N, E).
     """
-    engaged_ratio = n_engaged.float() / n_spines  # (batch, n_ee)
+    loading_angle = torch.atan2(v_pullout.clamp(min=0.0), v_shear + 1e-6)
+    return loading_angle >= theta_th
 
-    # Surface quality: higher eta and lambda → better adhesion
-    # Normalize to roughly [0, 1] range based on parameter ranges
-    if alpha.dim() == 1:
-        alpha = alpha.unsqueeze(-1)
-        lambda_ = lambda_.unsqueeze(-1)
-        eta = eta.unsqueeze(-1)
 
-    surface_quality = (eta * lambda_ / 0.49).clamp(0.0, 1.0)  # (batch, 1)
+def compute_total_shear_force(
+    travel: torch.Tensor,
+    engaged: torch.Tensor,
+    K: float,
+    d_stroke: float,
+    F_max: float,
+) -> torch.Tensor:
+    """Total shear force per EE from all engaged spines.
 
-    activation = engaged_ratio * surface_quality  # (batch, n_ee)
-    return activation.clamp(0.0, 1.0)
+    Each engaged spine contributes F(x) = K·(d_stroke - x).
+    The total is the sum over engaged spines per EE.
+
+    Args:
+        travel: Spine travel distances. Shape: (N, E, S).
+        engaged: Boolean mask of engaged spines. Shape: (N, E, S).
+        K: Spine stiffness [N/m].
+        d_stroke: Maximum travel [m].
+        F_max: Maximum force per spine [N].
+
+    Returns:
+        Total shear force per EE [N]. Shape: (N, E).
+    """
+    force_per_spine = compute_spine_force(travel, K, d_stroke, F_max)  # (N, E, S)
+    return (force_per_spine * engaged.float()).sum(dim=-1)  # (N, E)
+
+
+def compute_shear_direction(
+    ee_vel: torch.Tensor,
+    wall_normal: torch.Tensor,
+    gravity_dir: torch.Tensor,
+    speed_threshold: float = 0.01,
+) -> torch.Tensor:
+    """Compute shear direction per EE, constrained to the wall's upward axis.
+
+    The shear direction is restricted to the wall's vertical (up) axis —
+    i.e., the component of world-up that lies in the wall tangent plane.
+    This prevents any lateral (y) force component.
+
+    When moving: sign opposes the velocity component along wall-up.
+    When stationary: opposes gravity (points wall-up).
+
+    All inputs are in world frame. Works for any wall orientation.
+
+    Args:
+        ee_vel: EE linear velocity [m/s]. Shape: (N, E, 3).
+        wall_normal: Outward wall normal (unit). Shape: (1, 1, 3).
+        gravity_dir: Gravity unit vector (e.g. [0,0,-1]). Shape: (1, 1, 3).
+        speed_threshold: Below this speed along wall-up, use gravity fallback.
+
+    Returns:
+        Unit direction vectors for shear force. Shape: (N, E, 3).
+    """
+    # Wall-up axis: project world-up (-gravity_dir) onto wall tangent plane.
+    world_up = -gravity_dir  # (1, 1, 3)
+    up_dot_n = (world_up * wall_normal).sum(dim=-1, keepdim=True)  # (1, 1, 1)
+    wall_up = world_up - up_dot_n * wall_normal  # (1, 1, 3)
+    wall_up = wall_up / (wall_up.norm(dim=-1, keepdim=True) + 1e-8)  # unit (1, 1, 3)
+
+    # Project EE velocity onto wall-up axis (scalar).
+    v_along_up = (ee_vel * wall_up).sum(dim=-1, keepdim=True)  # (N, E, 1)
+
+    # Oppose velocity along wall-up when moving, oppose gravity when stationary.
+    moving = v_along_up.abs() > speed_threshold  # (N, E, 1)
+    direction = torch.where(
+        moving,
+        -torch.sign(v_along_up) * wall_up,  # oppose sliding direction
+        wall_up,  # oppose gravity → point upward
+    )
+    return direction  # (N, E, 3)

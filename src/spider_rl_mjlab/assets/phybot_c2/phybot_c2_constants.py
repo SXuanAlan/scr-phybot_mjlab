@@ -32,8 +32,8 @@ def get_spec() -> mujoco.MjSpec:
   spec.assets = get_assets(spec.meshdir)
 
   # Add MuJoCo adhesion actuators for microspine end-effectors.
-  from spider_rl_mjlab.microspine.actuators import add_adhesion_actuators
-  from spider_rl_mjlab.microspine.config import MicrospineCfg
+  from spider_rl_mjlab.assets.microspine.actuators import add_adhesion_actuators
+  from spider_rl_mjlab.assets.microspine.config import MicrospineCfg
 
   add_adhesion_actuators(spec, MicrospineCfg())
   return spec

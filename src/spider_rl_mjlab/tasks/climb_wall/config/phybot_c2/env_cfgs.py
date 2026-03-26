@@ -22,6 +22,6 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   if play:
     cfg.episode_length_s = int(1e9)
-    cfg.observations["policy"].enable_corruption = False
+    cfg.observations["actor"].enable_corruption = False
 
   return cfg
