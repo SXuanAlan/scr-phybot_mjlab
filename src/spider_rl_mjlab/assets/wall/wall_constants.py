@@ -1,6 +1,6 @@
 """Wall asset constants and configuration.
 
-Follows the pattern from phybot_c2_constants.py.
+Follows the pattern from phybot_big_v2_constants.py.
 """
 
 import mujoco

@@ -1,9 +1,9 @@
 """Play/evaluate RL agent — delegates to mjlab's play script after registering tasks.
 
 Supports --agent zero|random|trained modes:
-  python scripts/play.py Mjlab-ClimbWall-Phybot-C2 --agent zero
-  python scripts/play.py Mjlab-ClimbWall-Phybot-C2 --agent random
-  python scripts/play.py Mjlab-ClimbWall-Phybot-C2 --checkpoint-file path/to/model.pt
+  python scripts/play.py Mjlab-Climb-Wall-Phybot-Big-V2 --agent zero
+  python scripts/play.py Mjlab-Climb-Wall-Phybot-Big-V2 --agent random
+  python scripts/play.py Mjlab-Climb-Wall-Phybot-Big-V2 --checkpoint-file path/to/model.pt
 """
 
 import os

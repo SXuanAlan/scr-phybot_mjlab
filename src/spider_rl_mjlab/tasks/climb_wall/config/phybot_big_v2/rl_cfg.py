@@ -1,4 +1,4 @@
-"""RL configuration for PHYBot C2 wall-climbing task."""
+"""RL configuration for PHYBot Big V2 wall-climbing task."""
 
 from mjlab.rl import (
   RslRlModelCfg,
@@ -7,8 +7,8 @@ from mjlab.rl import (
 )
 
 
-def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
-  """Create RL runner configuration for PHYBot C2 wall-climbing task."""
+def phybot_big_v2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+  """Create RL runner configuration for PHYBot Big V2 wall-climbing task."""
   return RslRlOnPolicyRunnerCfg(
     actor=RslRlModelCfg(
       hidden_dims=(256, 128, 64),
@@ -39,7 +39,7 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
       desired_kl=0.01,
       max_grad_norm=1.0,
     ),
-    experiment_name="phybot_climb_wall",
+    experiment_name="phybot_big_v2_climb_wall",
     logger="tensorboard",
     save_interval=500,
     num_steps_per_env=24,

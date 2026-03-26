@@ -17,7 +17,6 @@ from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from spider_rl_mjlab.assets.microspine import MicrospineController, MicrospineCfg
 from spider_rl_mjlab.tasks.climb_wall import mdp
 
 
@@ -43,13 +42,6 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       },
       concatenate_terms=True,  # Concatenate all terms into a single vector.
       enable_corruption=False, # Enable observation corruption (e.g., adding noise).
-    ),
-    "critic": ObservationGroupCfg(
-      terms={
-        "microspine_state": ObservationTermCfg(func=mdp.microspine_privileged_obs),  # (num_envs, num_ee * 5)
-      },
-      concatenate_terms=True,
-      enable_corruption=False,
     ),
   }
 
@@ -85,15 +77,6 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=40.0,
       params={"asset_cfg": robot_cfg},
     ),
-    # Microspine adhesion (replaces proximity-based wall_contact and near_wall)
-    "microspine_adhesion": RewardTermCfg(
-      func=mdp.microspine_adhesion_reward,
-      weight=10.0,
-    ),
-    "spine_engagement": RewardTermCfg(
-      func=mdp.spine_engagement_reward,
-      weight=5.0,
-    ),
     # Penalize body angular velocity
     "torso_ang_vel_xy": RewardTermCfg(
       func=mdp.torso_ang_vel_xy,
@@ -128,15 +111,6 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   ##
 
   events = {
-    "microspine_adhesion": EventTermCfg(
-      func=MicrospineController,
-      mode="step",
-      params={
-        "asset_cfg": SceneEntityCfg("robot"),
-        "microspine_cfg": MicrospineCfg(),
-        "wall_cfg": SceneEntityCfg("wall"),
-      },
-    ),
     "reset_scene_to_default": EventTermCfg(
       func=envs_mdp.reset_scene_to_default,
       mode="reset",
