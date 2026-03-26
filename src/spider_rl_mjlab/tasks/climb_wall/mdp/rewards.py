@@ -61,10 +61,10 @@ def lin_vel_xy(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tenso
 def wall_contact_reward(
   env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg, wall_x: float = 1.5, threshold: float = 0.1
 ) -> torch.Tensor:
-  """Reward for being very close to the wall (proxy for hand contact).
+  """Reward for being very close to the wall (proxy for contact).
 
-  Without gecko adhesion controller, this uses proximity as a stand-in for
-  actual contact detection. Returns 1.0 when within threshold, else 0.0.
+  Uses proximity as a stand-in for actual contact detection.
+  Returns 1.0 when within threshold, else 0.0.
   """
   asset: Entity = env.scene[asset_cfg.name]
   root_pos_x_env = asset.data.root_link_pos_w[:, 0] - env.scene.env_origins[:, 0]
@@ -74,29 +74,3 @@ def wall_contact_reward(
     torch.ones_like(distance_to_wall),
     torch.zeros_like(distance_to_wall),
   )
-
-
-def microspine_adhesion_reward(env: ManagerBasedRlEnv) -> torch.Tensor:
-  """Reward based on total microspine adhesion force capacity.
-
-  Returns the mean adhesion activation across all 4 end-effectors,
-  derived from the stochastic spine engagement model.
-  """
-  controller = env.event_manager.get_term_cfg("microspine_adhesion").func
-  obs = controller.get_privileged_obs()  # (num_envs, 20)
-  # Index 1 of each EE's 5-dim block is shear_capacity (activation).
-  shear_caps = obs[:, 1::5]  # (num_envs, 4)
-  return shear_caps.mean(dim=1)
-
-
-def spine_engagement_reward(env: ManagerBasedRlEnv) -> torch.Tensor:
-  """Reward for having spines engaged on the wall.
-
-  Returns the mean engaged ratio across all 4 end-effectors.
-  Higher when more spines are successfully hooked onto asperities.
-  """
-  controller = env.event_manager.get_term_cfg("microspine_adhesion").func
-  obs = controller.get_privileged_obs()  # (num_envs, 20)
-  # Index 0 of each EE's 5-dim block is engaged_ratio.
-  engaged_ratios = obs[:, 0::5]  # (num_envs, 4)
-  return engaged_ratios.mean(dim=1)
