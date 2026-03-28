@@ -1,5 +1,9 @@
 """Asset configurations."""
 
+from spider_rl_mjlab.assets.forearm_hand import (
+  FOREARM_HAND_ACTION_SCALE,
+  get_forearm_hand_robot_cfg,
+)
 from spider_rl_mjlab.assets.phybot_big_v2 import (
   PHYBOT_BIG_V2_ACTION_SCALE,
   get_phybot_big_v2_robot_cfg,
@@ -10,6 +14,8 @@ from spider_rl_mjlab.assets.wall import (
 )
 
 __all__ = [
+  "get_forearm_hand_robot_cfg",
+  "FOREARM_HAND_ACTION_SCALE",
   "get_phybot_big_v2_robot_cfg",
   "PHYBOT_BIG_V2_ACTION_SCALE",
   "get_wall_cfg",

@@ -170,6 +170,8 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     sim=SimulationCfg(
       mujoco=MujocoCfg(timestep=0.002, ccd_iterations=200),
+      njmax=200,
+      nconmax=100,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,
