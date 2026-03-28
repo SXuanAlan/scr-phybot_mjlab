@@ -40,6 +40,8 @@ def get_wall_spec() -> mujoco.MjSpec:
     type=mujoco.mjtGeom.mjGEOM_BOX,
     size=WALL_HALF_SIZE,
     rgba=[0.6, 0.6, 0.6, 1.0],
+    solref=[0.001, 2],   # match robot XML global default
+    solimp=[0.9, 0.99, 0.0005, 0.5, 2],  # high impedance, 0.5mm transition zone
   )
   return spec
 

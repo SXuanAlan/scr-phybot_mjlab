@@ -8,6 +8,7 @@ from pathlib import Path
 import mujoco
 
 from mjlab.actuator import BuiltinPositionActuatorCfg
+from spider_rl_mjlab.assets.microspine import MicrospineCfg, add_adhesion_actuators
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 from mjlab.utils.os import update_assets
 from mjlab.utils.spec_config import CollisionCfg
@@ -29,6 +30,7 @@ def get_assets(meshdir: str) -> dict[str, bytes]:
 def get_spec() -> mujoco.MjSpec:
   spec = mujoco.MjSpec.from_file(str(PHYBOT_BIG_V2_XML))
   spec.assets = get_assets(spec.meshdir)
+  add_adhesion_actuators(spec, MicrospineCfg())
   return spec
 
 

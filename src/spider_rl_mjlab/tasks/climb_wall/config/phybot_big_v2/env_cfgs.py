@@ -2,8 +2,11 @@
 
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from spider_rl_mjlab.assets import PHYBOT_BIG_V2_ACTION_SCALE, get_phybot_big_v2_robot_cfg, get_wall_cfg
+from spider_rl_mjlab.assets.microspine import MicrospineCfg, MicrospineController
 from spider_rl_mjlab.tasks.climb_wall.climb_wall_env_cfg import make_climb_wall_env_cfg
 
 
@@ -50,6 +53,17 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
     "robot": robot_cfg,
     "wall": wall_cfg,
   }
+
+  # Microspine adhesion (contactfilter + adhesion actuator).
+  cfg.events["microspine_adhesion"] = EventTermCfg(
+    func=MicrospineController,
+    mode="step",
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "microspine_cfg": MicrospineCfg(),
+      "wall_cfg": SceneEntityCfg("wall"),
+    },
+  )
 
   joint_pos_action = cfg.actions["joint_pos"]
   assert isinstance(joint_pos_action, JointPositionActionCfg)
