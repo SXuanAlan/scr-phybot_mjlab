@@ -1,7 +1,7 @@
 """Microspine adhesion model for wall climbing.
 
 Stochastic spine-asperity interaction (Jiang et al. 2018) with
-constraint-based anisotropic friction via MuJoCo Warp contactfilter.
+constraint-based friction via MuJoCo's default contact model (friction=6).
 """
 
 from spider_rl_mjlab.assets.microspine.actuators import add_adhesion_actuators

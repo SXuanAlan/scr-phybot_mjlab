@@ -54,7 +54,7 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
     "wall": wall_cfg,
   }
 
-  # Microspine adhesion (contactfilter + adhesion actuator).
+  # Microspine adhesion (adhesion actuator + default friction=6).
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",

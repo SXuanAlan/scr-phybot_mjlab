@@ -1,5 +1,7 @@
 """Forearm+hand microspine test environment configurations."""
 
+import mujoco
+
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.event_manager import EventTermCfg
@@ -9,6 +11,8 @@ from spider_rl_mjlab.assets.forearm_hand import FOREARM_HAND_ACTION_SCALE, get_f
 from spider_rl_mjlab.assets.microspine import MicrospineCfg, MicrospineController
 from spider_rl_mjlab.assets.wall import get_wall_cfg
 from spider_rl_mjlab.tasks.microspine_test.microspine_test_env_cfg import make_microspine_test_env_cfg
+
+
 
 
 def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
@@ -42,14 +46,38 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
   }
 
   # Wall center at (0.5, 0, 2.5): inner face at x=0, covers z=[0, 5].
-  wall_cfg.init_state.pos = (0.55, 0.0, 2.5)
+  wall_cfg.init_state.pos = (0.58, 0.0, 2.5)
 
   cfg.scene.entities = {
     "robot": robot_cfg,
     "wall": wall_cfg,
   }
 
-  # Microspine adhesion (only right hand).
+  # Sub-geom names on the hand end face (must match forearm_hand.xml).
+  # 2x4 grid: rows 0-1, cols 0-3.
+  _hand_sub_geoms = [
+    f"right_hand_c_{i}_{j}"
+    for i in range(2)
+    for j in range(4)
+  ]
+
+  def _add_hand_wall_pairs(spec: mujoco.MjSpec) -> None:
+    for gname in _hand_sub_geoms:
+      pair = spec.add_pair()
+      pair.geomname1 = f"robot/{gname}"
+      pair.geomname2 = "wall/wall_geom"
+      pair.condim = 3
+      pair.friction = [30.0, 30.0, 0.005, 0.0001, 0.0001]
+      pair.solref = [0.02, 1.5]             # unified: 20ms time constant, moderate overdamping
+      pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]  # unified impedance
+      pair.solreffriction = [0.02, 1.5]
+      pair.margin = 0.005
+      pair.gap = 0.0
+
+  cfg.scene.spec_fn = _add_hand_wall_pairs
+
+  # Microspine controller: adhesion + external force + contact damping.
+  # Handles all xfrc_applied writes for the hand body in a single call.
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
@@ -57,10 +85,27 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
       "asset_cfg": SceneEntityCfg("robot"),
       "microspine_cfg": MicrospineCfg(
         ee_body_names=("right_hand",),
-        max_penetration=0.15,        # allow up to 15cm penetration before disengaging
+        max_penetration=0.15,
         penetration_hysteresis=0.05,
       ),
       "wall_cfg": SceneEntityCfg("wall"),
+      "total_force": (20.0, 0.0, 0.0),
+      "duration": 3.0,
+      "total_force_after": (0.0, 0.0, -300.0),
+      "k_damp": 5000.0,
+    },
+  )
+
+  # Contact force debug visualization (independent of controller).
+  from spider_rl_mjlab.tasks.microspine_test.mdp import ContactForceVis
+  cfg.events["contact_force_vis"] = EventTermCfg(
+    func=ContactForceVis,
+    mode="step",
+    params={
+      "target_geom_patterns": ["right_hand_c_"],
+      "wall_geom_name": "wall/wall_geom",
+      "force_scale": 0.003,
+      "ext_force_body_names": ["right_hand", "right_elbow_pitch"],
     },
   )
 

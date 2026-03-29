@@ -130,27 +130,17 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
         },
       },
     ),
-    # Phase 1 [0–1s]: 2N in +x on the hand, gently press against wall.
+    # External force (controller does NOT write xfrc_applied, only adhesion).
     "external_force_hand": EventTermCfg(
-      func=mdp.apply_timed_force,
+      func=mdp.apply_distributed_pressure,
       mode="step",
       params={
         "asset_cfg": SceneEntityCfg("robot"),
-        "force": (2.0, 0.0, 0.0),
-        "duration": 1.0,
-        "force_after": (0.0, 0.0, 0.0),
         "body_name": "right_hand",
-      },
-    ),
-    # Phase 2 [1s–∞]: 50N in -z on the arm root, test shear adhesion.
-    "external_force_arm": EventTermCfg(
-      func=mdp.apply_timed_force,
-      mode="step",
-      params={
-        "asset_cfg": SceneEntityCfg("robot"),
-        "force": (0.0, 0.0, 0.0),
-        "duration": 1.0,
-        "force_after": (0.0, 0.0, -300.0),
+        "geom_prefix": "right_hand_c_",
+        "total_force": (20.0, 0.0, 0.0),
+        "duration": 3.0,
+        "total_force_after": (0.0, 0.0, -300.0),
       },
     ),
   }
@@ -180,9 +170,9 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.002, ccd_iterations=2000, gravity=(0.0, 0.0, 0.0)),
-      njmax=200,
-      nconmax=100,
+      mujoco=MujocoCfg(timestep=0.0005, iterations=100, cone="elliptic", ccd_iterations=2000, gravity=(0.0, 0.0, 0.0), impratio=5.0),
+      njmax=1000,
+      nconmax=500,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,
