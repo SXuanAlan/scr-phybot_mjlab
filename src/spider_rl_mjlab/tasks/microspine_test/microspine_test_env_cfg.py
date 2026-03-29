@@ -130,19 +130,8 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
         },
       },
     ),
-    # External force (controller does NOT write xfrc_applied, only adhesion).
-    "external_force_hand": EventTermCfg(
-      func=mdp.apply_distributed_pressure,
-      mode="step",
-      params={
-        "asset_cfg": SceneEntityCfg("robot"),
-        "body_name": "right_hand",
-        "geom_prefix": "right_hand_c_",
-        "total_force": (20.0, 0.0, 0.0),
-        "duration": 3.0,
-        "total_force_after": (0.0, 0.0, -300.0),
-      },
-    ),
+    # External force is handled by MicrospineController via xfrc_applied.
+    # See env_cfgs.py for force params (total_force, total_force_after).
   }
 
   ##

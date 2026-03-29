@@ -12,7 +12,7 @@ from mjlab.actuator import BuiltinPositionActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 from mjlab.utils.os import update_assets
 from mjlab.utils.spec_config import CollisionCfg
-from spider_rl_mjlab.assets.microspine import MicrospineCfg, add_adhesion_actuators
+
 
 ##
 # MJCF and assets.
@@ -34,9 +34,6 @@ def get_assets(meshdir: str) -> dict[str, bytes]:
 def get_spec() -> mujoco.MjSpec:
   spec = mujoco.MjSpec.from_file(str(FOREARM_HAND_XML))
   spec.assets = get_assets(spec.meshdir)
-  # Only right hand for this model.
-  microspine_cfg = MicrospineCfg(ee_body_names=("right_hand",))
-  add_adhesion_actuators(spec, microspine_cfg)
   return spec
 
 

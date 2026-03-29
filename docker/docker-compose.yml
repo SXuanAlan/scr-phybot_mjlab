@@ -1,0 +1,28 @@
+services:
+  mjlab:
+    build: .
+    container_name: spider_mjlab_dev
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    volumes:
+      # Mount project (read-write so Claude Code can edit)
+      - ..:/workspace
+      # Mount Claude Code config for API key access
+      - ~/.claude:/home/dev/.claude
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - MUJOCO_GL=osmesa
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Install project in editable mode on start
+    command: >
+      bash -lc "
+        pip install -e /workspace --no-deps &&
+        exec bash -l
+      "
