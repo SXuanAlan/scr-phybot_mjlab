@@ -69,9 +69,11 @@ FOREARM_HAND_KEYFRAME = EntityCfg.InitialStateCfg(
 ##
 
 FOREARM_HAND_COLLISION = CollisionCfg(
-  geom_names_expr=(".*_collision.*",),
+  geom_names_expr=(".*_collision.*", "right_hand_c_.*"),
   condim=3,
-  friction=(1.0, 0.1, 0.1),
+  friction=(6.0, 6.0, 0.1),
+  solref=(0.02, 1.5),
+  solimp=(0.9, 0.99, 0.001, 0.5, 2),
 )
 
 ##

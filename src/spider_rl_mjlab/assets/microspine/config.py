@@ -50,11 +50,11 @@ class MicrospineCfg:
     preload_force: float = 15.0
     """Minimum normal contact load [N] before spine engagement is allowed."""
 
-    # -- Contact friction (anisotropic via contactfilter) ----------------------
-    engaged_friction: float = 1000.0
+    # -- Contact friction (via default contact model) --------------------------
+    engaged_friction: float = 6.0
     """Friction coefficient along wall-up (tangent1) when spines are engaged."""
 
-    lateral_friction: float = 0.1
+    lateral_friction: float = 6.0
     """Friction coefficient along lateral direction (tangent2) when engaged."""
 
     # -- Surface asperity parameters (domain-randomizable) --------------------
