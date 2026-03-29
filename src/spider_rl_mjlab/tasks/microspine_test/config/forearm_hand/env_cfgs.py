@@ -39,7 +39,7 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
   # Elbow cylinders max +x edge: B_x + 0.04 < 0.05 → elbow does NOT hit wall. ✓
   #
   # The 300 N force in -z tests pure shear adhesion of the microspine.
-  robot_cfg.init_state.pos = (-0.04, 0.0, 1.5)  # sphere edge ~1cm from wall; phase-1 force pushes in gently
+  robot_cfg.init_state.pos = (0.005, 0.0, 1.5)  # hand sub-geoms ~3mm from wall face; phase-1 push engages quickly
   robot_cfg.init_state.rot = (0, 1, 0.0, 0.0)  # 180° around x: arm extends upward, hand presses wall in +x
   robot_cfg.init_state.joint_pos = {
     "right_elbow_yaw": 0.0,
@@ -76,8 +76,23 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
 
   cfg.scene.spec_fn = _add_hand_wall_pairs
 
-  # Microspine controller: adhesion + external force + contact damping.
-  # Handles all xfrc_applied writes for the hand body in a single call.
+  # Two-phase test force: Phase 1 push (+x) then Phase 2 shear (-z).
+  # This is the test harness — DO NOT add adhesion logic here.
+  from spider_rl_mjlab.tasks.microspine_test.mdp import PhaseForce
+  cfg.events["phase_force"] = EventTermCfg(
+    func=PhaseForce,
+    mode="step",
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "body_name": "right_hand",
+      "phase1_force": (20.0, 0.0, 0.0),
+      "phase1_duration": 3.0,
+      "phase2_force": (0.0, 0.0, -300.0),
+    },
+  )
+
+  # Microspine controller: skeleton for future approach implementation (Path A/B/C).
+  # Currently a no-op. Adhesion/damping logic will be added here.
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
@@ -89,10 +104,6 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
         penetration_hysteresis=0.05,
       ),
       "wall_cfg": SceneEntityCfg("wall"),
-      "total_force": (20.0, 0.0, 0.0),
-      "duration": 3.0,
-      "total_force_after": (0.0, 0.0, -300.0),
-      "k_damp": 5000.0,
     },
   )
 
