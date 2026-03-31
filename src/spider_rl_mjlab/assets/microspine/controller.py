@@ -1,6 +1,9 @@
-"""Microspine controller — skeleton for future approach implementation.
+"""Microspine controller — skeleton for approach implementation.
 
-The actual adhesion/damping logic will be implemented here when tuning begins.
+Path A: Contact-Triggered Equality Constraint (connect constraint + state machine)
+Path B: Custom Force Model (spring-damper-friction via xfrc_applied)
+
+The actual logic will be implemented by the respective tuning agent.
 Test-phase forces are handled separately by mdp.phase_force.
 """
 
@@ -19,9 +22,9 @@ if TYPE_CHECKING:
 class MicrospineController:
   """Step-mode event for microspine adhesion physics.
 
-  Currently a no-op skeleton. The three tuning approaches (Path A/B/C)
-  will add adhesion force logic, directional damping, and solver
-  parameter overrides here.
+  Currently a no-op skeleton. Two tuning approaches will implement here:
+  - Path A: Equality constraint state machine (engage/disengage connect constraints)
+  - Path B: Custom force model (spring-damper-friction via xfrc_applied)
 
   Params (from EventTermCfg.params):
     asset_cfg: SceneEntityCfg for the robot.

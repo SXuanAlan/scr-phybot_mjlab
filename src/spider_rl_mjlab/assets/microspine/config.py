@@ -9,7 +9,9 @@ import dataclasses
 class MicrospineCfg:
   """Configuration for microspine adhesion parameters.
 
-  Fields are placeholders for the three tuning approaches (Path A/B/C).
+  Fields are placeholders for two tuning approaches:
+  - Path A: Contact-Triggered Equality Constraint
+  - Path B: Custom Force Model (xfrc_applied)
   """
 
   ee_body_names: tuple[str, ...] = ("right_hand",)
