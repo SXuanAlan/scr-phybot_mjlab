@@ -61,7 +61,8 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     for j in range(4)
   ]
 
-  def _add_hand_wall_pairs(spec: mujoco.MjSpec) -> None:
+  def _add_hand_wall_pairs_and_constraints(spec: mujoco.MjSpec) -> None:
+    # Contact pairs for detection.
     for gname in _hand_sub_geoms:
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
@@ -74,7 +75,20 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
       pair.margin = 0.005
       pair.gap = 0.0
 
-  cfg.scene.spec_fn = _add_hand_wall_pairs
+    # Equality connect constraints: one per hand sub-geom.
+    # Initially disabled; activated at runtime by MicrospineController.
+    for i, gname in enumerate(_hand_sub_geoms):
+      eq = spec.add_equality()
+      eq.type = mujoco.mjtEq.mjEQ_CONNECT
+      eq.name1 = "robot/right_hand"
+      eq.name2 = "wall/wall_body"
+      eq.objtype = mujoco.mjtObj.mjOBJ_BODY
+      eq.active = False
+      eq.data = [0.0] * 11  # Anchor points set dynamically
+      eq.solref = [0.001, 1.0]   # Very stiff: 1ms timeconst
+      eq.solimp = [0.99, 0.999, 0.001, 0.5, 2.0]  # High impedance
+
+  cfg.scene.spec_fn = _add_hand_wall_pairs_and_constraints
 
   # Two-phase test force: Phase 1 push (+x) then Phase 2 shear (-z).
   # This is the test harness — DO NOT add adhesion logic here.
