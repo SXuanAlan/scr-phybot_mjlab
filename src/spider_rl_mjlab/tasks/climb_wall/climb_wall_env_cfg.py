@@ -43,6 +43,18 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       concatenate_terms=True,  # Concatenate all terms into a single vector.
       enable_corruption=False, # Enable observation corruption (e.g., adding noise).
     ),
+    "critic": ObservationGroupCfg(
+      terms={
+        "base_lin_vel": ObservationTermCfg(func=mdp.base_lin_vel),
+        "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel),
+        "projected_gravity": ObservationTermCfg(func=mdp.projected_gravity),
+        "joint_pos_rel": ObservationTermCfg(func=mdp.joint_pos_rel),
+        "joint_vel_rel": ObservationTermCfg(func=mdp.joint_vel_rel),
+        "last_action": ObservationTermCfg(func=mdp.last_action),
+      },
+      concatenate_terms=True,
+      enable_corruption=False,
+    ),
   }
 
   ##
