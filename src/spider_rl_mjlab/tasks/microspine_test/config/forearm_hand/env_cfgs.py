@@ -100,8 +100,6 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
       "asset_cfg": SceneEntityCfg("robot"),
       "microspine_cfg": MicrospineCfg(
         ee_body_names=("right_hand",),
-        max_penetration=0.15,
-        penetration_hysteresis=0.05,
       ),
       "wall_cfg": SceneEntityCfg("wall"),
     },
