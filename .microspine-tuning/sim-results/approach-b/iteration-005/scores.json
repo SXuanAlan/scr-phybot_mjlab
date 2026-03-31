@@ -1,0 +1,158 @@
+{
+  "num_envs": 16,
+  "per_env": {
+    "env_0": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.0149153470993042,
+      "max_x_drift_m": 0.004624366760253906,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007457215106114745,
+      "terminated_early": true
+    },
+    "env_1": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014918208122253418,
+      "max_x_drift_m": 0.0047168731689453125,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007458744221366942,
+      "terminated_early": true
+    },
+    "env_2": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014968633651733398,
+      "max_x_drift_m": 0.0029740333557128906,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007483719964511693,
+      "terminated_early": true
+    },
+    "env_3": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014917850494384766,
+      "max_x_drift_m": 0.004675388336181641,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007458492182195187,
+      "terminated_early": true
+    },
+    "env_4": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014896273612976074,
+      "max_x_drift_m": 0.004132628440856934,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007447730749845505,
+      "terminated_early": true
+    },
+    "env_5": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.01490628719329834,
+      "max_x_drift_m": 0.004391312599182129,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007452802965417504,
+      "terminated_early": true
+    },
+    "env_6": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014920711517333984,
+      "max_x_drift_m": 0.004683732986450195,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007459867629222572,
+      "terminated_early": true
+    },
+    "env_7": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014906048774719238,
+      "max_x_drift_m": 0.0043489933013916016,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007452623685821891,
+      "terminated_early": true
+    },
+    "env_8": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014994382858276367,
+      "max_x_drift_m": 0.002973198890686035,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007496800390072167,
+      "terminated_early": true
+    },
+    "env_9": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014962315559387207,
+      "max_x_drift_m": 0.0029430389404296875,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007480775821022689,
+      "terminated_early": true
+    },
+    "env_10": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014896988868713379,
+      "max_x_drift_m": 0.004146695137023926,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007448140531778336,
+      "terminated_early": true
+    },
+    "env_11": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014922380447387695,
+      "max_x_drift_m": 0.003699779510498047,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007456085877493024,
+      "terminated_early": true
+    },
+    "env_12": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014956951141357422,
+      "max_x_drift_m": 0.0059814453125,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007477878825739026,
+      "terminated_early": true
+    },
+    "env_13": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.015008807182312012,
+      "max_x_drift_m": 0.002918243408203125,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007504032109864056,
+      "terminated_early": true
+    },
+    "env_14": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.014902353286743164,
+      "max_x_drift_m": 0.0040454864501953125,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007445015362463892,
+      "terminated_early": true
+    },
+    "env_15": {
+      "final_z_displacement_m": 0.0,
+      "final_x_displacement_m": 0.0,
+      "max_z_drift_m": 0.01489710807800293,
+      "max_x_drift_m": 0.004140377044677734,
+      "phase2_survival_s": 6.994999885559082,
+      "z_stability_std": 0.0007448134128935635,
+      "terminated_early": true
+    }
+  },
+  "mean": {
+    "final_z_displacement_m": 0.0,
+    "final_x_displacement_m": 0.0,
+    "max_z_drift_m": 0.014930665493011475,
+    "max_x_drift_m": 0.00408722460269928,
+    "phase2_survival_s": 6.994999885559082,
+    "z_stability_std": 0.0007464253576472402,
+    "pct_survived_full": 1.0
+  }
+}
