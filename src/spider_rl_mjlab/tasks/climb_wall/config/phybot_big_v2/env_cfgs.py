@@ -35,7 +35,8 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   wall_cfg = get_wall_cfg()
 
   # Override initial state at task level.
-  robot_cfg.init_state.pos = (0, 0.0, 1.1)
+  # Position robot so hands are touching wall inner face (x=0.3).
+  robot_cfg.init_state.pos = (-0.17, 0.0, 1.1)
   robot_cfg.init_state.joint_pos = {
     "left_hip_pitch": -0.2,
     "left_hip_roll": 0.0,
@@ -51,15 +52,15 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
     "right_ankle_roll": 0.0,
     "waist_yaw": 0.0,
     "waist_roll": 0.0,
-    "left_shoulder_pitch": -2.79,
-    "left_shoulder_roll": 0.0,
-    "left_shoulder_yaw": 0.0,
-    "left_elbow_pitch": -0.27,
+    "left_shoulder_pitch": -1.59,
+    "left_shoulder_roll": -0.17,
+    "left_shoulder_yaw": 0.43,
+    "left_elbow_pitch": -0.26,
     "left_elbow_yaw": 0.0,
-    "right_shoulder_pitch": -2.79,
-    "right_shoulder_roll": 0.0,
-    "right_shoulder_yaw": 0.0,
-    "right_elbow_pitch": -0.27,
+    "right_shoulder_pitch": -1.59,
+    "right_shoulder_roll": 0.16,
+    "right_shoulder_yaw": -0.43,
+    "right_elbow_pitch": -0.26,
     "right_elbow_yaw": 0.0,
   }
 
@@ -73,30 +74,25 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # EE body names for adhesion actuators.
   _EE_BODY_NAMES = ("left_hand", "right_hand")
-  _ADHESION_FORCE = 400.0
+  _ADHESION_FORCE = 800.0
 
   # Contact pairs: hand/foot geoms vs wall with condim=6 + high sliding friction.
-  # Also add adhesion actuators for each EE body.
-  def _add_ee_wall_pairs_and_adhesion(spec: mujoco.MjSpec) -> None:
+  def _add_ee_wall_pairs(spec: mujoco.MjSpec) -> None:
     for gname in _EE_GEOMS:
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
       pair.geomname2 = "wall/wall_geom"
       pair.condim = 6
       pair.friction = [30.0, 30.0, 0.01, 0.01, 0.01]
-      pair.solref = [0.02, 1.5]
+      pair.solref = [0.02, 5.0]
       pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]
-      pair.solreffriction = [0.02, 1.5]
+      pair.solreffriction = [0.02, 5.0]
       pair.margin = 0.005
       pair.gap = 0.0
-    add_adhesion_actuators(spec, _EE_BODY_NAMES, _ADHESION_FORCE)
 
-  cfg.scene.spec_fn = _add_ee_wall_pairs_and_adhesion
+  cfg.scene.spec_fn = _add_ee_wall_pairs
 
-  # Microspine adhesion: all 4 limbs.
-  # Hands: sphere at (-0.02, 0, 0) r=0.035 → +x extent from body = 0.015
-  # Feet: cylinders at (0.05, ±0.03, -0.042) r=0.015 → +x extent from body ≈ 0.065
-  # Use conservative offset (closer to hand value) with generous thresholds.
+  # Per-sphere microspine adhesion via external wrench.
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
@@ -105,10 +101,6 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       "microspine_cfg": MicrospineCfg(
         ee_body_names=("left_hand", "right_hand"),
         adhesion_force=_ADHESION_FORCE,
-        max_penetration=0.15,
-        penetration_hysteresis=0.05,
-        contact_offset=-0.07,
-        use_actuator=True,
       ),
       "wall_cfg": SceneEntityCfg("wall"),
     },

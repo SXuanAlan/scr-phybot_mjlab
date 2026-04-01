@@ -65,9 +65,9 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   robot_cfg = SceneEntityCfg("robot")
 
   rewards = {
-    # Primary: reward upward velocity (climbing)
-    "climb_vel": RewardTermCfg(
-      func=mdp.base_height,
+    # Primary: all 16 hand sub-geoms in contact with wall
+    "hands_on_wall": RewardTermCfg(
+      func=mdp.hands_on_wall,
       weight=20.0,
       params={"asset_cfg": robot_cfg},
     ),
@@ -77,34 +77,16 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=5.0,
       params={"asset_cfg": robot_cfg, "wall_x": 0.3},
     ),
-    # Hands on wall (contact maintenance via adhesion actuator state)
-    "hands_on_wall": RewardTermCfg(
-      func=mdp.hands_on_wall,
-      weight=10.0,
-      params={"asset_cfg": robot_cfg},
-    ),
-    # Orientation: stay upright (reduced to not dominate)
+    # Orientation: stay upright
     "torso_orientation": RewardTermCfg(
       func=mdp.torso_orientation,
-      weight=5.0,
-      params={"asset_cfg": robot_cfg},
-    ),
-    # Penalize body angular velocity
-    "torso_ang_vel_xy": RewardTermCfg(
-      func=mdp.torso_ang_vel_xy,
-      weight=-0.5,
-      params={"asset_cfg": robot_cfg},
-    ),
-    # Penalize lateral drift
-    "lin_vel_xy": RewardTermCfg(
-      func=mdp.lin_vel_xy,
-      weight=-0.5,
+      weight=2.0,
       params={"asset_cfg": robot_cfg},
     ),
     # Smoothness: penalize jerky actions
     "action_rate": RewardTermCfg(
       func=envs_mdp.action_rate_l2,
-      weight=-0.1,
+      weight=-0.01,
     ),
     # Energy: penalize large torques
     "joint_torques": RewardTermCfg(
