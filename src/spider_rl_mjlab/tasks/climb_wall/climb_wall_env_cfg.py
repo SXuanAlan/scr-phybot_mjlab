@@ -65,34 +65,46 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   robot_cfg = SceneEntityCfg("robot")
 
   rewards = {
-    # Primary: climb higher
-    "base_height": RewardTermCfg(
+    # Primary: reward upward velocity (climbing)
+    "climb_vel": RewardTermCfg(
       func=mdp.base_height,
-      weight=5.0,
+      weight=20.0,
       params={"asset_cfg": robot_cfg},
     ),
-    # Orientation: stay upright
+    # Keep COM close to wall
+    "com_near_wall": RewardTermCfg(
+      func=mdp.com_near_wall,
+      weight=5.0,
+      params={"asset_cfg": robot_cfg, "wall_x": 0.3},
+    ),
+    # Hands on wall (contact maintenance via adhesion actuator state)
+    "hands_on_wall": RewardTermCfg(
+      func=mdp.hands_on_wall,
+      weight=10.0,
+      params={"asset_cfg": robot_cfg},
+    ),
+    # Orientation: stay upright (reduced to not dominate)
     "torso_orientation": RewardTermCfg(
       func=mdp.torso_orientation,
-      weight=40.0,
+      weight=5.0,
       params={"asset_cfg": robot_cfg},
     ),
     # Penalize body angular velocity
     "torso_ang_vel_xy": RewardTermCfg(
       func=mdp.torso_ang_vel_xy,
-      weight=-2.0,
+      weight=-0.5,
       params={"asset_cfg": robot_cfg},
     ),
     # Penalize lateral drift
     "lin_vel_xy": RewardTermCfg(
       func=mdp.lin_vel_xy,
-      weight=-2.0,
+      weight=-0.5,
       params={"asset_cfg": robot_cfg},
     ),
     # Smoothness: penalize jerky actions
     "action_rate": RewardTermCfg(
       func=envs_mdp.action_rate_l2,
-      weight=-0.6,
+      weight=-0.1,
     ),
     # Energy: penalize large torques
     "joint_torques": RewardTermCfg(
@@ -102,7 +114,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     # Joint limit penalties
     "dof_pos_limits": RewardTermCfg(
       func=envs_mdp.joint_pos_limits,
-      weight=-10.0,
+      weight=-5.0,
     ),
   }
 
@@ -129,7 +141,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "pose_range": {
           "x": (0.0, 0.0),
-          "y": (-0.3, 0.3),
+          "y": (0.0, 0.0),
           "z": (0.0, 0.0),
         },
         "velocity_range": {
@@ -154,6 +166,10 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=envs_mdp.root_height_below_minimum,
       params={"minimum_height": 0.3},
     ),
+    "bad_state": TerminationTermCfg(
+      func=mdp.bad_state,
+      params={"asset_cfg": robot_cfg},
+    ),
   }
 
   ##
@@ -162,16 +178,16 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
 
   return ManagerBasedRlEnvCfg(
     decimation=10,
-    episode_length_s=10.0,
+    episode_length_s=30.0,
     scene=SceneCfg(
       num_envs=num_envs,
       env_spacing=env_spacing,
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.002, ccd_iterations=200),
-      njmax=200,
-      nconmax=100,
+      mujoco=MujocoCfg(timestep=0.002, cone="elliptic", integrator="implicitfast", impratio=10.0, ccd_iterations=100),
+      njmax=500,
+      nconmax=200,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,

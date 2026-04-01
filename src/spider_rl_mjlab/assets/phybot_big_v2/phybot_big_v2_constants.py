@@ -168,9 +168,21 @@ CLIMB_WALL_KEYFRAME = EntityCfg.InitialStateCfg(
 ##
 
 PHYBOT_BIG_V2_COLLISION = CollisionCfg(
-  geom_names_expr=(".*_collision.*",),
-  condim=3,
-  friction=(1.0, 0.1, 0.1),
+  geom_names_expr=(".*_collision.*", r"(left|right)_hand_c_\d+_\d+"),
+  condim={
+    r"^(left|right)_hand_c_\d+_\d+$": 6,
+    r"^(left|right)_ankle_roll_collision_\d+$": 6,
+    ".*": 3,
+  },
+  friction={
+    r"^(left|right)_hand_c_\d+_\d+$": (30.0, 0.01, 0.01),
+    r"^(left|right)_ankle_roll_collision_\d+$": (30.0, 0.01, 0.01),
+    ".*": (1.0, 0.1, 0.1),
+  },
+  priority={
+    r"^(left|right)_hand_c_\d+_\d+$": 1,
+    r"^(left|right)_ankle_roll_collision_\d+$": 1,
+  },
 )
 
 ##

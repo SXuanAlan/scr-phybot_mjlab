@@ -17,9 +17,13 @@ if TYPE_CHECKING:
 
 
 def base_height(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  """Reward the robot's z-position (height). Encourages climbing higher."""
+  """Reward upward velocity (climbing speed) rather than absolute height.
+
+  Returns clipped vz so only upward movement is rewarded.
+  """
   asset: Entity = env.scene[asset_cfg.name]
-  return asset.data.root_link_pos_w[:, 2]
+  vz = asset.data.root_link_lin_vel_w[:, 2]
+  return vz.clamp(min=0.0)
 
 
 def torso_orientation(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -58,19 +62,44 @@ def lin_vel_xy(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tenso
   return torch.sum(torch.square(asset.data.root_link_lin_vel_w[:, :2]), dim=1)
 
 
-def wall_contact_reward(
-  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg, wall_x: float = 1.5, threshold: float = 0.1
+def com_near_wall(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  wall_x: float = 0.3,
 ) -> torch.Tensor:
-  """Reward for being very close to the wall (proxy for contact).
+  """Reward COM proximity to wall inner face.
 
-  Uses proximity as a stand-in for actual contact detection.
-  Returns 1.0 when within threshold, else 0.0.
+  Returns exp(-|dx|/0.1). Highest when base x equals wall_x.
   """
   asset: Entity = env.scene[asset_cfg.name]
-  root_pos_x_env = asset.data.root_link_pos_w[:, 0] - env.scene.env_origins[:, 0]
-  distance_to_wall = torch.abs(root_pos_x_env - wall_x)
-  return torch.where(
-    distance_to_wall < threshold,
-    torch.ones_like(distance_to_wall),
-    torch.zeros_like(distance_to_wall),
-  )
+  root_x = asset.data.root_link_pos_w[:, 0] - env.scene.env_origins[:, 0]
+  dist = torch.abs(root_x - wall_x)
+  return torch.exp(-dist / 0.1)
+
+
+def hands_on_wall(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  adhesion_actuator_names: tuple[str, ...] = (
+    "robot/adhesion_left_hand",
+    "robot/adhesion_right_hand",
+  ),
+) -> torch.Tensor:
+  """Reward hands maintaining contact with wall via adhesion actuator ctrl.
+
+  Returns the mean adhesion ctrl value across hands (0=disengaged, 1=fully engaged).
+  The ctrl is set by the MicrospineController based on actual contact state.
+  """
+  total = torch.zeros(env.num_envs, device=env.device)
+  for act_name in adhesion_actuator_names:
+    act_id = env.sim.mj_model.actuator(act_name).id
+    total += env.sim.data.ctrl[:, act_id]
+  return total / len(adhesion_actuator_names)
+
+
+def base_lin_vel_z_penalty(
+  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+  """Penalize vertical velocity oscillation (promotes smooth climbing)."""
+  asset: Entity = env.scene[asset_cfg.name]
+  return torch.square(asset.data.root_link_lin_vel_w[:, 2])

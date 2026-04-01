@@ -25,6 +25,7 @@ def phybot_big_v2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
       activation="elu",
       obs_normalization=True,
     ),
+    obs_groups={"actor": ("actor",), "critic": ("actor",)},
     algorithm=RslRlPpoAlgorithmCfg(
       value_loss_coef=1.0,
       use_clipped_value_loss=True,

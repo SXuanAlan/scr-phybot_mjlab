@@ -202,11 +202,12 @@ class PhaseForce:
       width=0.008,
     )
 
-    # Text label with magnitude and phase info
-    elapsed = self._env.episode_length_buf[0].item() * self._dt
-    phase = "P1" if elapsed < self._phase1_duration else "P2"
-    visualizer.add_text(
-      position=body_pos + force * scale,
-      text=f"{phase}: {force_mag:.0f}N",
-      color=(1.0, 0.7, 0.0, 1.0),
-    )
+    # Text label with magnitude and phase info (skip if viewer doesn't support it).
+    if hasattr(visualizer, "add_text"):
+      elapsed = self._env.episode_length_buf[0].item() * self._dt
+      phase = "P1" if elapsed < self._phase1_duration else "P2"
+      visualizer.add_text(
+        position=body_pos + force * scale,
+        text=f"{phase}: {force_mag:.0f}N",
+        color=(1.0, 0.7, 0.0, 1.0),
+      )
