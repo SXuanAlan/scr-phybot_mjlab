@@ -77,24 +77,52 @@ def com_near_wall(
   return torch.exp(-dist / 0.1)
 
 
+class _SphereGeomCache:
+  """Lazily caches per-sphere geom IDs and wall face position."""
+  _instance: _SphereGeomCache | None = None
+  geom_ids: torch.Tensor
+  wall_face_x: float
+  wall_sign: float
+  wall_axis: int
+  initialized: bool = False
+
+  @classmethod
+  def get(cls, env: ManagerBasedRlEnv) -> _SphereGeomCache:
+    if cls._instance is None or not cls._instance.initialized:
+      cls._instance = cls()
+      mj = env.sim.mj_model
+      ids = []
+      for side in ("left", "right"):
+        for i in range(2):
+          for j in range(4):
+            ids.append(mj.geom(f"robot/{side}_hand_c_{i}_{j}").id)
+      cls._instance.geom_ids = torch.tensor(ids, dtype=torch.long, device=env.device)
+      # Wall face: wall_normal default (-1,0,0) → axis=0, sign=-1
+      cls._instance.wall_axis = 0
+      cls._instance.wall_sign = -1.0
+      wall = env.scene["wall"]
+      wall_x = wall.data.root_link_pos_w[0, 0].item()
+      cls._instance.wall_face_x = wall_x + cls._instance.wall_sign * 0.5
+      cls._instance.initialized = True
+    return cls._instance
+
+
 def hands_on_wall(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
-  adhesion_actuator_names: tuple[str, ...] = (
-    "robot/adhesion_left_hand",
-    "robot/adhesion_right_hand",
-  ),
+  contact_threshold: float = 0.015,
 ) -> torch.Tensor:
-  """Reward hands maintaining contact with wall via adhesion actuator ctrl.
+  """Reward fraction of hand spheres in contact with wall.
 
-  Returns the mean adhesion ctrl value across hands (0=disengaged, 1=fully engaged).
-  The ctrl is set by the MicrospineController based on actual contact state.
+  Checks all 16 spheres (8 per hand). Returns ratio within contact_threshold
+  of the wall face (0=none, 1=all touching).
   """
-  total = torch.zeros(env.num_envs, device=env.device)
-  for act_name in adhesion_actuator_names:
-    act_id = env.sim.mj_model.actuator(act_name).id
-    total += env.sim.data.ctrl[:, act_id]
-  return total / len(adhesion_actuator_names)
+  cache = _SphereGeomCache.get(env)
+  ax = cache.wall_axis
+  geom_x = env.sim.data.geom_xpos[:, cache.geom_ids, ax]  # (E, 16)
+  dist = (cache.wall_face_x - geom_x) * cache.wall_sign
+  in_contact = (dist.abs() < contact_threshold).float()
+  return in_contact.mean(dim=1)
 
 
 def base_lin_vel_z_penalty(

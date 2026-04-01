@@ -25,14 +25,18 @@ class MicrospineCfg:
   """Hysteresis band for adhesion engagement/disengagement [m]."""
 
   adhesion_force: float = 50.0
-  """Adhesion (pull-in) force per EE body when fully engaged [N].
-  In actuator mode this is the gain of the adhesion actuator."""
+  """Total adhesion (pull-in) force across all spheres when fully engaged [N].
+  Split equally among spheres (force_per_sphere = adhesion_force / 8)."""
+
+  damping: float = 50.0
+  """Velocity damping coefficient [N·s/m] applied to engaged spheres.
+  Counteracts oscillation by applying force opposing sphere velocity."""
 
   engage_threshold: float = 0.001
-  """Minimum penetration depth to consider spines engaged [m]."""
+  """Surface distance below which spines engage [m]. Negative = penetration."""
 
   disengage_threshold: float = 0.01
-  """Separation distance at which spines fully disengage [m]."""
+  """Surface distance above which spines disengage [m]."""
 
   wall_normal: tuple[float, float, float] = (-1.0, 0.0, 0.0)
   """Inward normal direction of the wall surface (pointing from wall toward robot).
@@ -44,6 +48,4 @@ class MicrospineCfg:
   Negative = contact surface in -x local direction (phybot climbing)."""
 
   use_actuator: bool = False
-  """If True, use MuJoCo adhesion actuators instead of external wrench.
-  Adhesion actuators work through the constraint solver at contact points,
-  providing more stable and physically accurate adhesion."""
+  """If True, use MuJoCo adhesion actuators instead of external wrench."""

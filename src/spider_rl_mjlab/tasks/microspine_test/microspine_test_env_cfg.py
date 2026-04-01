@@ -160,7 +160,7 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     sim=SimulationCfg(
       mujoco=MujocoCfg(timestep=0.0005, iterations=100, cone="elliptic", integrator="implicitfast", ccd_iterations=100, gravity=(0.0, 0.0, 0.0), impratio=10.0),
-      njmax=200,
+      njmax=500,
       nconmax=100,
     ),
     viewer=ViewerConfig(
