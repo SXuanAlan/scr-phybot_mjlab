@@ -85,9 +85,10 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     params={
       "asset_cfg": SceneEntityCfg("robot"),
       "body_name": "right_hand",
-      "phase1_force": (20.0, 0.0, 0.0),
       "phase1_duration": 3.0,
-      "phase2_force": (0.0, 0.0, -300.0),
+      "phase1_mag_range": (20.0, 100.0),
+      "phase2_mag_range": (50.0, 300.0),
+      "phase2_angle_range": (0.0, 20.0),
     },
   )
 
