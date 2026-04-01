@@ -121,7 +121,7 @@ def run_evaluation(num_envs: int = 4, device: str = "cuda:0") -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate microspine adhesion")
-    parser.add_argument("--num-envs", type=int, default=4)
+    parser.add_argument("--num-envs", type=int, default=1024)
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--output", type=str, default=None, help="Output JSON path")
     args = parser.parse_args()
