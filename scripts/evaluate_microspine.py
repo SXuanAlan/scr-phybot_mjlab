@@ -10,6 +10,7 @@ Outputs JSON metrics for the evaluator.
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 import torch
@@ -47,6 +48,11 @@ def run_evaluation(num_envs: int = 4, device: str = "cuda:0") -> dict:
     termination_step = torch.full((num_envs,), total_steps, dtype=torch.long, device=device)
 
     # Run simulation
+    # Sync CUDA before timing to exclude setup overhead
+    if device.startswith("cuda"):
+        torch.cuda.synchronize()
+    wall_start = time.perf_counter()
+
     for step_i in range(total_steps):
         actions = torch.zeros(num_envs, 1, device=device)
         obs, rewards, terminated, truncated, info = env.step(actions)
@@ -71,13 +77,26 @@ def run_evaluation(num_envs: int = 4, device: str = "cuda:0") -> dict:
         if terminated_envs.all():
             break
 
+    # Measure wall-clock time for simulation
+    if device.startswith("cuda"):
+        torch.cuda.synchronize()
+    wall_end = time.perf_counter()
+    wall_clock_s = wall_end - wall_start
+
+    # Actual simulated time (steps executed * dt)
+    steps_executed = step_i + 1 if total_steps > 0 else 0
+    simulated_time_s = steps_executed * dt
+    rt_ratio = simulated_time_s / wall_clock_s if wall_clock_s > 0 else float('inf')
+
     # Compute final metrics
     final_pos = robot.data.root_link_pos_w[:, :3]
     z_displacement = (final_pos[:, 2] - initial_pos[:, 2])
     x_displacement = (final_pos[:, 0] - initial_pos[:, 0])
 
     # Time survived in phase 2 (seconds after phase2 start)
-    phase2_survival_steps = termination_step.float() - phase2_start_step
+    # +1 because termination_step is the step index where termination was detected,
+    # meaning the env survived through that step.
+    phase2_survival_steps = (termination_step.float() + 1) - phase2_start_step
     phase2_survival_s = (phase2_survival_steps.clamp(min=0) * dt)
 
     # Stability: std of z position in last 2 seconds of phase 2
@@ -114,6 +133,9 @@ def run_evaluation(num_envs: int = 4, device: str = "cuda:0") -> dict:
         "phase2_survival_s": phase2_survival_s.mean().item(),
         "z_stability_std": z_stability.mean().item(),
         "pct_survived_full": (phase2_survival_s >= 6.5).float().mean().item(),
+        "rt_ratio": rt_ratio,
+        "wall_clock_s": wall_clock_s,
+        "simulated_time_s": simulated_time_s,
     }
 
     return metrics
