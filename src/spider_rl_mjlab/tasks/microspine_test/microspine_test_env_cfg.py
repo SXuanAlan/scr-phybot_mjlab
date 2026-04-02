@@ -159,9 +159,9 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.0005, iterations=100, cone="elliptic", ccd_iterations=2000, gravity=(0.0, 0.0, 0.0), impratio=5.0),
-      njmax=1000,
-      nconmax=500,
+      mujoco=MujocoCfg(timestep=0.0005, iterations=100, cone="elliptic", integrator="implicitfast", ccd_iterations=100, gravity=(0.0, 0.0, 0.0), impratio=10.0),
+      njmax=500,
+      nconmax=100,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,

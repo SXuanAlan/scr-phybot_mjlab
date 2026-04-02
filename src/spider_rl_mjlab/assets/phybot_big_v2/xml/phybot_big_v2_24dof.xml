@@ -227,7 +227,34 @@
                     <body name="left_hand" pos="0 0 -0.05">
                       <inertial pos="0 0 0" mass="0.3" diaginertia="0.0002 0.0002 0.0002"/>
                       <geom name="left_hand_visual" type="sphere" size="0.06" contype="0" conaffinity="0" group="1" density="0" rgba="0.9 0.7 0.5 1"/>
-                      <geom name="left_hand_collision" type="sphere" pos="-0.02 0 0" size="0.035" rgba="0.9 0.7 0.5 1"/>
+                      <!-- Cylinder visual reference (mirrored forearm_hand: -x faces wall) -->
+                      <geom name="left_hand_collision" type="cylinder" pos="-0.04 0 0" quat="0.707 0 0.707 0" size="0.06 0.04" contype="0" conaffinity="0" group="1" rgba="0.9 0.7 0.5 0.1"/>
+                      <!-- Sub-body 2x4 sphere grid on the -x face. Each sphere is a separate
+                           body (welded to hand, no joint) so it can have its own adhesion actuator. -->
+                      <body name="left_hand_c_0_0" pos="-0.07 -0.019 -0.043">
+                        <geom name="left_hand_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_0_1" pos="-0.07 -0.019 -0.014">
+                        <geom name="left_hand_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_0_2" pos="-0.07 -0.019  0.014">
+                        <geom name="left_hand_c_0_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_0_3" pos="-0.07 -0.019  0.043">
+                        <geom name="left_hand_c_0_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_1_0" pos="-0.07  0.019 -0.043">
+                        <geom name="left_hand_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_1_1" pos="-0.07  0.019 -0.014">
+                        <geom name="left_hand_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_1_2" pos="-0.07  0.019  0.014">
+                        <geom name="left_hand_c_1_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="left_hand_c_1_3" pos="-0.07  0.019  0.043">
+                        <geom name="left_hand_c_1_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
                     </body>
                   </body>
                 </body>
@@ -262,7 +289,34 @@
                     <body name="right_hand" pos="0 0 -0.05">
                       <inertial pos="0 0 0" mass="0.3" diaginertia="0.0002 0.0002 0.0002"/>
                       <geom name="right_hand_visual" type="sphere" size="0.06" contype="0" conaffinity="0" group="1" density="0" rgba="0.9 0.7 0.5 1"/>
-                      <geom name="right_hand_collision" type="sphere" pos="-0.02 0 0" size="0.035" rgba="0.9 0.7 0.5 1"/>
+                      <!-- Cylinder visual reference (mirrored forearm_hand: -x faces wall) -->
+                      <geom name="right_hand_collision" type="cylinder" pos="-0.04 0 0" quat="0.707 0 0.707 0" size="0.06 0.04" contype="0" conaffinity="0" group="1" rgba="0.9 0.7 0.5 0.1"/>
+                      <!-- Sub-body 2x4 sphere grid on the -x face. Each sphere is a separate
+                           body (welded to hand, no joint) so it can have its own adhesion actuator. -->
+                      <body name="right_hand_c_0_0" pos="-0.07 -0.019 -0.043">
+                        <geom name="right_hand_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_0_1" pos="-0.07 -0.019 -0.014">
+                        <geom name="right_hand_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_0_2" pos="-0.07 -0.019  0.014">
+                        <geom name="right_hand_c_0_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_0_3" pos="-0.07 -0.019  0.043">
+                        <geom name="right_hand_c_0_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_1_0" pos="-0.07  0.019 -0.043">
+                        <geom name="right_hand_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_1_1" pos="-0.07  0.019 -0.014">
+                        <geom name="right_hand_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_1_2" pos="-0.07  0.019  0.014">
+                        <geom name="right_hand_c_1_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
+                      <body name="right_hand_c_1_3" pos="-0.07  0.019  0.043">
+                        <geom name="right_hand_c_1_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                      </body>
                     </body>
                   </body>
                 </body>

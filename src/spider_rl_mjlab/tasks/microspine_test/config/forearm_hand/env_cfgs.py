@@ -8,7 +8,7 @@ from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from spider_rl_mjlab.assets.forearm_hand import FOREARM_HAND_ACTION_SCALE, get_forearm_hand_robot_cfg
-from spider_rl_mjlab.assets.microspine import MicrospineCfg, MicrospineController
+from spider_rl_mjlab.assets.microspine import MicrospineCfg, MicrospineController, add_adhesion_actuators
 from spider_rl_mjlab.assets.wall import get_wall_cfg
 from spider_rl_mjlab.tasks.microspine_test.microspine_test_env_cfg import make_microspine_test_env_cfg
 
@@ -61,16 +61,18 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     for j in range(4)
   ]
 
+  _ADHESION_FORCE = 1200.0  # same as climb_wall
+
   def _add_hand_wall_pairs(spec: mujoco.MjSpec) -> None:
     for gname in _hand_sub_geoms:
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
       pair.geomname2 = "wall/wall_geom"
-      pair.condim = 3
-      pair.friction = [30.0, 30.0, 0.005, 0.0001, 0.0001]
-      pair.solref = [0.02, 1.5]             # unified: 20ms time constant, moderate overdamping
-      pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]  # unified impedance
-      pair.solreffriction = [0.02, 1.5]
+      pair.condim = 6
+      pair.friction = [30.0, 30.0, 0.01, 0.01, 0.01]
+      pair.solref = [0.02, 5.0]
+      pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]
+      pair.solreffriction = [0.02, 5.0]
       pair.margin = 0.005
       pair.gap = 0.0
 
@@ -85,9 +87,10 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     params={
       "asset_cfg": SceneEntityCfg("robot"),
       "body_name": "right_hand",
-      "phase1_force": (20.0, 0.0, 0.0),
       "phase1_duration": 3.0,
-      "phase2_force": (0.0, 0.0, -300.0),
+      "phase1_mag_range": (20.0, 100.0),
+      "phase2_mag_range": (50.0, 300.0),
+      "phase2_angle_range": (0.0, 45.0),
     },
   )
 
@@ -100,8 +103,7 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
       "asset_cfg": SceneEntityCfg("robot"),
       "microspine_cfg": MicrospineCfg(
         ee_body_names=("right_hand",),
-        max_penetration=0.15,
-        penetration_hysteresis=0.05,
+        adhesion_force=_ADHESION_FORCE,
       ),
       "wall_cfg": SceneEntityCfg("wall"),
     },
