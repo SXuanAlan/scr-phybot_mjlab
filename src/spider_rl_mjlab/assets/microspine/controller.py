@@ -121,15 +121,28 @@ class MicrospineController:
     env_ids: torch.Tensor | None,
     **kwargs,
   ) -> None:
-    surf_dist = self._surface_distances(env)
+    surf_dist = self._surface_distances(env)  # (E, S)
 
     self._engaged = (
       (self._engaged | (surf_dist < self._mcfg.engage_threshold))
       & (surf_dist <= self._mcfg.disengage_threshold)
     )
 
-    force_scale = (1.0 - surf_dist / self._mcfg.disengage_threshold).clamp(0.0, 1.0)
-    adhesion_mag = self._force_per_sphere * force_scale * self._engaged.float()
+    engaged_f = self._engaged.float()  # (E, S)
+
+    # Dynamic adhesion: 80% uniform base + 20% distributed by peel distance.
+    # Spheres being pulled away get slightly more force, but all spheres
+    # keep most of their adhesion to prevent cascading detachment.
+    disengage = self._mcfg.disengage_threshold
+    base_force = self._force_per_sphere * 0.8  # 80% guaranteed
+
+    peel_weight = surf_dist.clamp(min=0.0, max=disengage) * engaged_f  # (E, S)
+    weight_sum = peel_weight.sum(dim=1, keepdim=True).clamp(min=1e-6)
+    num_engaged = engaged_f.sum(dim=1, keepdim=True).clamp(min=1)
+    dynamic_budget = self._force_per_sphere * 0.2 * num_engaged
+
+    adhesion_mag = (base_force + dynamic_budget * peel_weight / weight_sum) * engaged_f
+
     forces = adhesion_mag.unsqueeze(-1) * self._force_dir_expanded
     torques = torch.zeros_like(forces)
 

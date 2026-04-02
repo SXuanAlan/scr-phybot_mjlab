@@ -32,10 +32,10 @@ class MicrospineCfg:
   """Velocity damping coefficient [N·s/m] applied to engaged spheres.
   Counteracts oscillation by applying force opposing sphere velocity."""
 
-  engage_threshold: float = 0.001
+  engage_threshold: float = 0.005
   """Surface distance below which spines engage [m]. Negative = penetration."""
 
-  disengage_threshold: float = 0.01
+  disengage_threshold: float = 0.03
   """Surface distance above which spines disengage [m]."""
 
   wall_normal: tuple[float, float, float] = (-1.0, 0.0, 0.0)
