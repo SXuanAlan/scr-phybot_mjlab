@@ -1,11 +1,14 @@
 """Two-phase test force event for the microspine adhesion test.
 
 Phase 1 [0, duration):     push force (e.g. 20-100N +x) to engage hand against wall.
-Phase 2 [duration, inf):   shear force (e.g. 50-300N, 0-20° from -z) to test adhesion.
+Phase 2 [duration, inf):   shear/pull force with randomized direction in xyz.
 
-Supports domain randomization:
-  - Phase 1: magnitude sampled per env on reset.
-  - Phase 2: magnitude and direction evolve slowly via Ornstein-Uhlenbeck process.
+Phase 2 force is composed of:
+  - A constant -z (downward) shear component (gravity-like pull).
+  - Randomized ±x component (push into / pull off wall).
+  - Randomized ±y component (lateral shear).
+All three components evolve via independent OU processes, biased toward
+large magnitudes so the adhesion is thoroughly tested.
 """
 
 from __future__ import annotations
@@ -27,17 +30,21 @@ if TYPE_CHECKING:
 class PhaseForce:
   """Step-mode event that applies a two-phase external force to a body.
 
+  Phase 2 uses independent OU processes for each axis force component:
+    fz: always negative (downward shear), magnitude from phase2_mag_range.
+    fx: ±x (push/pull relative to wall), magnitude up to fz * tan(max_angle).
+    fy: ±y (lateral shear), magnitude up to fz * tan(max_angle).
+
   Params (from EventTermCfg.params):
     asset_cfg: SceneEntityCfg for the entity containing the target body.
     body_name: Name of the body to apply forces to.
     phase1_duration: Duration of phase 1 [s].
     phase1_mag_range: (min, max) magnitude of phase 1 +x push [N].
-    phase2_mag_range: (min, max) magnitude of phase 2 shear [N].
-    phase2_angle_range: (min, max) angle from -z axis [degrees].
-    phase2_ou_theta: OU mean-reversion rate [1/s]. Higher = faster reversion. Default 1.0.
-    phase2_ou_sigma_mag: OU noise std for magnitude [N/sqrt(s)]. Default 30.0.
-    phase2_ou_sigma_angle: OU noise std for polar angle [rad/sqrt(s)]. Default 0.05.
-    phase2_ou_sigma_azimuth: OU noise std for azimuth [rad/sqrt(s)]. Default 0.3.
+    phase2_mag_range: (min, max) magnitude of phase 2 -z shear [N].
+    phase2_angle_range: (min, max) deviation angle from -z [degrees].
+        Controls max ±x and ±y force relative to z: fx,fy_max = fz * tan(angle).
+    phase2_ou_theta: OU mean-reversion rate [1/s]. Default 1.0.
+    phase2_ou_sigma: OU noise std for all components [fraction/sqrt(s)]. Default 0.5.
   """
 
   def __init__(self, cfg, env):
@@ -49,17 +56,13 @@ class PhaseForce:
     self._body_name: str = cfg.params["body_name"]
     self._phase1_duration: float = cfg.params["phase1_duration"]
 
-    # Randomization ranges
     self._phase1_mag_range = cfg.params["phase1_mag_range"]
     self._phase2_mag_range = cfg.params["phase2_mag_range"]
-    self._phase2_angle_min = math.radians(cfg.params["phase2_angle_range"][0])
-    self._phase2_angle_max = math.radians(cfg.params["phase2_angle_range"][1])
+    max_angle_deg = cfg.params["phase2_angle_range"][1]
+    self._tan_max_angle = math.tan(math.radians(max_angle_deg))
 
-    # OU process parameters
     self._ou_theta = cfg.params.get("phase2_ou_theta", 1.0)
-    self._ou_sigma_mag = cfg.params.get("phase2_ou_sigma_mag", 30.0)
-    self._ou_sigma_angle = cfg.params.get("phase2_ou_sigma_angle", 0.05)
-    self._ou_sigma_azimuth = cfg.params.get("phase2_ou_sigma_azimuth", 0.3)
+    self._ou_sigma = cfg.params.get("phase2_ou_sigma", 0.5)
 
     self._asset: Entity = env.scene[self._asset_cfg.name]
     body_ids, _ = self._asset.find_bodies([self._body_name])
@@ -72,86 +75,94 @@ class PhaseForce:
     # Phase 1: fixed per episode
     self._phase1_forces = torch.zeros(num_envs, 1, 3, device=device)
 
-    # Phase 2 OU state: magnitude, polar angle (from -z), azimuth
-    self._p2_mag = torch.zeros(num_envs, device=device)
-    self._p2_theta = torch.zeros(num_envs, device=device)
-    self._p2_azimuth = torch.zeros(num_envs, device=device)
-    # Per-env mean-reversion targets (sampled on reset)
-    self._p2_mag_mu = torch.zeros(num_envs, device=device)
-    self._p2_theta_mu = torch.zeros(num_envs, device=device)
-    self._p2_azimuth_mu = torch.zeros(num_envs, device=device)
+    # Phase 2 OU state: independent fz, fx_ratio, fy_ratio
+    # fz: magnitude of -z force (always negative z)
+    # fx_ratio, fy_ratio: in [-1, 1], multiplied by fz * tan(max_angle) for fx, fy
+    self._p2_fz = torch.zeros(num_envs, device=device)
+    self._p2_fx_ratio = torch.zeros(num_envs, device=device)
+    self._p2_fy_ratio = torch.zeros(num_envs, device=device)
+    # OU targets
+    self._p2_fz_mu = torch.zeros(num_envs, device=device)
+    self._p2_fx_ratio_mu = torch.zeros(num_envs, device=device)
+    self._p2_fy_ratio_mu = torch.zeros(num_envs, device=device)
 
-    # Output buffer
     self._phase2_forces = torch.zeros(num_envs, 1, 3, device=device)
 
-    # Initialize all envs
     self._sample_reset(torch.arange(num_envs, device=device))
 
   def _sample_reset(self, env_ids: torch.Tensor) -> None:
-    """Sample initial OU state and phase 1 forces for given env indices."""
     n = env_ids.shape[0]
     device = env_ids.device
 
-    # Phase 1: random magnitude in +x
+    # Phase 1: +x push
     mag1_min, mag1_max = self._phase1_mag_range
     mag1 = torch.empty(n, device=device).uniform_(mag1_min, mag1_max)
     self._phase1_forces[env_ids, 0, 0] = mag1
     self._phase1_forces[env_ids, 0, 1] = 0.0
     self._phase1_forces[env_ids, 0, 2] = 0.0
 
-    # Phase 2: sample OU targets and init state
+    # Phase 2: biased toward large values via Beta(2,1)
     mag2_min, mag2_max = self._phase2_mag_range
-    mag_mu = torch.empty(n, device=device).uniform_(mag2_min, mag2_max)
-    theta_mu = torch.empty(n, device=device).uniform_(self._phase2_angle_min, self._phase2_angle_max)
-    azimuth_mu = torch.empty(n, device=device).uniform_(0, 2 * math.pi)
+    fz_beta = torch.distributions.Beta(2.0, 1.0).sample((n,)).to(device)
+    fz_mu = mag2_min + (mag2_max - mag2_min) * fz_beta
 
-    self._p2_mag_mu[env_ids] = mag_mu
-    self._p2_theta_mu[env_ids] = theta_mu
-    self._p2_azimuth_mu[env_ids] = azimuth_mu
+    # fx ratio: biased toward -1 (pull off wall, -x direction) via Beta(1, 3)
+    # Beta(1,3) has mean=0.25, mapped to [-1,1] gives mean=-0.5 (biased negative)
+    fx_beta = torch.distributions.Beta(1.0, 3.0).sample((n,)).to(device)
+    fx_ratio_mu = fx_beta * 2.0 - 1.0  # map [0,1] to [-1,1], mean ≈ -0.5
+    # fy ratio: concentrated near 0 via Beta(3, 3) (bell-shaped around 0.5)
+    fy_beta = torch.distributions.Beta(3.0, 3.0).sample((n,)).to(device)
+    fy_ratio_mu = fy_beta * 2.0 - 1.0  # map [0,1] to [-1,1], mean = 0, concentrated
 
-    # Start at the mean
-    self._p2_mag[env_ids] = mag_mu
-    self._p2_theta[env_ids] = theta_mu
-    self._p2_azimuth[env_ids] = azimuth_mu
+    self._p2_fz_mu[env_ids] = fz_mu
+    self._p2_fx_ratio_mu[env_ids] = fx_ratio_mu
+    self._p2_fy_ratio_mu[env_ids] = fy_ratio_mu
+
+    self._p2_fz[env_ids] = fz_mu
+    self._p2_fx_ratio[env_ids] = fx_ratio_mu
+    self._p2_fy_ratio[env_ids] = fy_ratio_mu
 
     self._update_phase2_forces(env_ids)
 
   def _ou_step(self) -> None:
-    """Advance OU process one step for all envs."""
     dt = self._dt
     theta = self._ou_theta
     sqrt_dt = math.sqrt(dt)
+    sigma = self._ou_sigma
 
-    # mag
-    self._p2_mag += theta * (self._p2_mag_mu - self._p2_mag) * dt \
-        + self._ou_sigma_mag * sqrt_dt * torch.randn_like(self._p2_mag)
-    self._p2_mag.clamp_(self._phase2_mag_range[0], self._phase2_mag_range[1])
+    mag_min, mag_max = self._phase2_mag_range
 
-    # polar angle
-    self._p2_theta += theta * (self._p2_theta_mu - self._p2_theta) * dt \
-        + self._ou_sigma_angle * sqrt_dt * torch.randn_like(self._p2_theta)
-    self._p2_theta.clamp_(self._phase2_angle_min, self._phase2_angle_max)
+    # fz magnitude
+    self._p2_fz += theta * (self._p2_fz_mu - self._p2_fz) * dt \
+        + sigma * (mag_max - mag_min) * sqrt_dt * torch.randn_like(self._p2_fz)
+    self._p2_fz.clamp_(mag_min, mag_max)
 
-    # azimuth (free to wrap)
-    self._p2_azimuth += theta * (self._p2_azimuth_mu - self._p2_azimuth) * dt \
-        + self._ou_sigma_azimuth * sqrt_dt * torch.randn_like(self._p2_azimuth)
+    # fx/fy ratios
+    self._p2_fx_ratio += theta * (self._p2_fx_ratio_mu - self._p2_fx_ratio) * dt \
+        + sigma * sqrt_dt * torch.randn_like(self._p2_fx_ratio)
+    self._p2_fx_ratio.clamp_(-1.0, 1.0)
+
+    self._p2_fy_ratio += theta * (self._p2_fy_ratio_mu - self._p2_fy_ratio) * dt \
+        + sigma * sqrt_dt * torch.randn_like(self._p2_fy_ratio)
+    self._p2_fy_ratio.clamp_(-1.0, 1.0)
 
   def _update_phase2_forces(self, env_ids: torch.Tensor | None = None) -> None:
-    """Convert OU state (mag, theta, azimuth) to Cartesian force."""
     if env_ids is None:
-      mag = self._p2_mag
-      theta = self._p2_theta
-      azimuth = self._p2_azimuth
-      self._phase2_forces[:, 0, 0] = mag * torch.sin(theta) * torch.cos(azimuth)
-      self._phase2_forces[:, 0, 1] = mag * torch.sin(theta) * torch.sin(azimuth)
-      self._phase2_forces[:, 0, 2] = -mag * torch.cos(theta)
+      fz = self._p2_fz
+      fx_ratio = self._p2_fx_ratio
+      fy_ratio = self._p2_fy_ratio
+      lateral_max = fz * self._tan_max_angle
+      self._phase2_forces[:, 0, 0] = fx_ratio * lateral_max
+      self._phase2_forces[:, 0, 1] = fy_ratio * lateral_max
+      self._phase2_forces[:, 0, 2] = -fz
     else:
-      mag = self._p2_mag[env_ids]
-      theta = self._p2_theta[env_ids]
-      azimuth = self._p2_azimuth[env_ids]
-      self._phase2_forces[env_ids, 0, 0] = mag * torch.sin(theta) * torch.cos(azimuth)
-      self._phase2_forces[env_ids, 0, 1] = mag * torch.sin(theta) * torch.sin(azimuth)
-      self._phase2_forces[env_ids, 0, 2] = -mag * torch.cos(theta)
+      fz = self._p2_fz[env_ids]
+      fx_ratio = self._p2_fx_ratio[env_ids]
+      fy_ratio = self._p2_fy_ratio[env_ids]
+      lateral_max = fz * self._tan_max_angle
+      self._phase2_forces[env_ids, 0, 0] = fx_ratio * lateral_max
+      self._phase2_forces[env_ids, 0, 1] = fy_ratio * lateral_max
+      self._phase2_forces[env_ids, 0, 2] = -fz
 
   def __call__(
     self,
@@ -159,31 +170,24 @@ class PhaseForce:
     env_ids: torch.Tensor | None,
     **kwargs,
   ) -> None:
-    """Apply phase-dependent force every step."""
-    num_envs = env.num_envs
-    device = env.device
-
-    # Advance OU and recompute phase 2 forces
     self._ou_step()
     self._update_phase2_forces()
 
-    elapsed = env.episode_length_buf.float() * env.step_dt  # (num_envs,)
+    num_envs = env.num_envs
+    device = env.device
+    elapsed = env.episode_length_buf.float() * env.step_dt
     in_phase1 = (elapsed < self._phase1_duration).view(num_envs, 1, 1)
 
     forces = torch.where(in_phase1, self._phase1_forces, self._phase2_forces)
     torques = torch.zeros(num_envs, 1, 3, device=device)
 
-    # Cache current applied force for env 0 visualization
     self._last_forces = forces
-
     self._asset.write_external_wrench_to_sim(forces, torques, body_ids=self._body_ids)
 
   def reset(self, env_ids: torch.Tensor) -> None:
-    """Re-sample OU targets and state for reset environments."""
     self._sample_reset(env_ids)
 
   def debug_vis(self, visualizer: DebugVisualizer) -> None:
-    """Draw applied phase force arrow on env 0."""
     if not hasattr(self, "_last_forces"):
       return
 
@@ -194,15 +198,14 @@ class PhaseForce:
     if force_mag < 0.1:
       return
 
-    scale = 0.003  # m/N, same as ContactForceVis
+    scale = 0.003
     visualizer.add_arrow(
       start=body_pos,
       end=body_pos + force * scale,
-      color=(1.0, 0.7, 0.0, 1.0),  # orange for applied test force
+      color=(1.0, 0.7, 0.0, 1.0),
       width=0.008,
     )
 
-    # Text label with magnitude and phase info (skip if viewer doesn't support it).
     if hasattr(visualizer, "add_text"):
       elapsed = self._env.episode_length_buf[0].item() * self._dt
       phase = "P1" if elapsed < self._phase1_duration else "P2"

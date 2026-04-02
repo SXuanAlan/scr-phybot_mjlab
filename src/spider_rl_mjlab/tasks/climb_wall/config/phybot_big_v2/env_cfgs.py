@@ -36,7 +36,7 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # Override initial state at task level.
   # Position robot so hands are touching wall inner face (x=0.3).
-  robot_cfg.init_state.pos = (-0.17, 0.0, 1.1)
+  robot_cfg.init_state.pos = (-0.10, 0.0, 1.1)
   robot_cfg.init_state.joint_pos = {
     "left_hip_pitch": -0.2,
     "left_hip_roll": 0.0,
@@ -52,16 +52,16 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
     "right_ankle_roll": 0.0,
     "waist_yaw": 0.0,
     "waist_roll": 0.0,
-    "left_shoulder_pitch": -1.59,
+    "left_shoulder_pitch": -2.0,
     "left_shoulder_roll": -0.17,
-    "left_shoulder_yaw": 0.43,
+    "left_shoulder_yaw": -0.5,
     "left_elbow_pitch": -0.26,
-    "left_elbow_yaw": 0.0,
-    "right_shoulder_pitch": -1.59,
+    "left_elbow_yaw": 1.5,
+    "right_shoulder_pitch": -2.0,
     "right_shoulder_roll": 0.16,
-    "right_shoulder_yaw": -0.43,
+    "right_shoulder_yaw": 0.5,
     "right_elbow_pitch": -0.26,
-    "right_elbow_yaw": 0.0,
+    "right_elbow_yaw": -1.5,
   }
 
   # Wall: center position in world frame.
@@ -74,7 +74,7 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # EE body names for adhesion actuators.
   _EE_BODY_NAMES = ("left_hand", "right_hand")
-  _ADHESION_FORCE = 800.0
+  _ADHESION_FORCE = 1200.0
 
   # Contact pairs: hand/foot geoms vs wall with condim=6 + high sliding friction.
   def _add_ee_wall_pairs(spec: mujoco.MjSpec) -> None:

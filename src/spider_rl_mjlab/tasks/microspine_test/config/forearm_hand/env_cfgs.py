@@ -61,7 +61,7 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     for j in range(4)
   ]
 
-  _ADHESION_FORCE = 800.0  # same as climb_wall
+  _ADHESION_FORCE = 1200.0  # same as climb_wall
 
   def _add_hand_wall_pairs(spec: mujoco.MjSpec) -> None:
     for gname in _hand_sub_geoms:
@@ -90,7 +90,7 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
       "phase1_duration": 3.0,
       "phase1_mag_range": (20.0, 100.0),
       "phase2_mag_range": (50.0, 300.0),
-      "phase2_angle_range": (0.0, 20.0),
+      "phase2_angle_range": (0.0, 45.0),
     },
   )
 
