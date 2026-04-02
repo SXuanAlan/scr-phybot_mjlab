@@ -4,7 +4,7 @@
   </option>
   <size njmax="500" nconmax="100" />
   <default>
-      <geom condim='4' solref='0.02 1.5' solimp='0.9 0.99 0.001 0.5 2' friction='1.0 0.5 0.5'/>
+      <geom condim='6' solref='0.02 1.5' solimp='0.9 0.99 0.001 0.5 2' friction='1.0 0.01 0.01'/>
       <equality solref='0.02 1.5'/>
       <default class="forearm">
           <joint damping="1" armature="0.1"/>
@@ -57,16 +57,32 @@
           <geom name="right_hand_visual" type="mesh" mesh="right_hand" contype="0" conaffinity="0" group="1" density="0" rgba="0.9 0.7 0.5 1"/>
           <!-- Original cylinder kept as visual reference only -->
           <geom name="right_hand_collision" type="cylinder" pos="0.04 0 0" quat="0.707 0 0.707 0" size="0.06 0.04" contype="0" conaffinity="0" rgba="0.9 0.7 0.5 0.1"/>
-          <!-- Sub-geom 2x4 grid on the +x end face (radius~0.06, center at x=0.08) -->
-          <!-- 8 larger boxes covering the same circular area as the old 20-geom grid -->
-          <geom name="right_hand_c_0_0" type="box" size="0.002 0.019 0.014" pos="0.08 -0.019 -0.043" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_0_1" type="box" size="0.002 0.019 0.014" pos="0.08 -0.019 -0.014" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_0_2" type="box" size="0.002 0.019 0.014" pos="0.08 -0.019  0.014" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_0_3" type="box" size="0.002 0.019 0.014" pos="0.08 -0.019  0.043" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_1_0" type="box" size="0.002 0.019 0.014" pos="0.08  0.019 -0.043" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_1_1" type="box" size="0.002 0.019 0.014" pos="0.08  0.019 -0.014" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_1_2" type="box" size="0.002 0.019 0.014" pos="0.08  0.019  0.014" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
-          <geom name="right_hand_c_1_3" type="box" size="0.002 0.019 0.014" pos="0.08  0.019  0.043" contype="1" conaffinity="1" rgba="0.9 0.7 0.5 0.0" mass="0"/>
+          <!-- Sub-body 2x4 sphere grid on the +x face (matching phybot_big_v2 layout).
+               Each sphere is a separate body (welded to hand, no joint) for per-sphere adhesion. -->
+          <body name="right_hand_c_0_0" pos="0.07 -0.019 -0.043">
+            <geom name="right_hand_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_0_1" pos="0.07 -0.019 -0.014">
+            <geom name="right_hand_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_0_2" pos="0.07 -0.019  0.014">
+            <geom name="right_hand_c_0_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_0_3" pos="0.07 -0.019  0.043">
+            <geom name="right_hand_c_0_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_1_0" pos="0.07  0.019 -0.043">
+            <geom name="right_hand_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_1_1" pos="0.07  0.019 -0.014">
+            <geom name="right_hand_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_1_2" pos="0.07  0.019  0.014">
+            <geom name="right_hand_c_1_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
+          <body name="right_hand_c_1_3" pos="0.07  0.019  0.043">
+            <geom name="right_hand_c_1_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+          </body>
         </body>
       </body>
     </body>

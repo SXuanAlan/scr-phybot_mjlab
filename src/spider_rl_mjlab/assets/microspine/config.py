@@ -9,7 +9,10 @@ import dataclasses
 class MicrospineCfg:
   """Configuration for microspine adhesion parameters.
 
-  Fields are placeholders for the three tuning approaches (Path A/B/C).
+  Models the physical behavior of microspine arrays: once spines engage
+  with a surface (detected via contact penetration), they provide an
+  adhesion (pull-in) force that maintains normal contact, enabling
+  friction to resist tangential loads.
   """
 
   ee_body_names: tuple[str, ...] = ("right_hand",)
@@ -20,3 +23,29 @@ class MicrospineCfg:
 
   penetration_hysteresis: float = 0.05
   """Hysteresis band for adhesion engagement/disengagement [m]."""
+
+  adhesion_force: float = 50.0
+  """Total adhesion (pull-in) force across all spheres when fully engaged [N].
+  Split equally among spheres (force_per_sphere = adhesion_force / 8)."""
+
+  damping: float = 50.0
+  """Velocity damping coefficient [N·s/m] applied to engaged spheres.
+  Counteracts oscillation by applying force opposing sphere velocity."""
+
+  engage_threshold: float = 0.005
+  """Surface distance below which spines engage [m]. Negative = penetration."""
+
+  disengage_threshold: float = 0.03
+  """Surface distance above which spines disengage [m]."""
+
+  wall_normal: tuple[float, float, float] = (-1.0, 0.0, 0.0)
+  """Inward normal direction of the wall surface (pointing from wall toward robot).
+  Default (-1,0,0) means the wall face is at +x and the robot approaches from -x."""
+
+  contact_offset: float = 0.082
+  """Local x offset from EE body origin to contact surface [m].
+  Positive = contact surface in +x local direction (forearm_hand).
+  Negative = contact surface in -x local direction (phybot climbing)."""
+
+  use_actuator: bool = False
+  """If True, use MuJoCo adhesion actuators instead of external wrench."""
