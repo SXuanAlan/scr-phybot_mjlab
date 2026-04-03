@@ -24,7 +24,7 @@ for i in range(mj_model.nu):
     print(f"  [{i}] {act.name} gainprm={act.gainprm[:3]}")
 
 # Find adhesion actuator index
-adhesion_idx = mj_model.actuator("robot/adhesion_right_hand").id
+adhesion_idx = mj_model.actuator("robot/adh_right_hand_c_0_0").id
 print(f"Adhesion actuator at index: {adhesion_idx}")
 
 # Find hand body

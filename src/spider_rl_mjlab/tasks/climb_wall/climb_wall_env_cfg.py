@@ -52,7 +52,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   actions = {
     "joint_pos": JointPositionActionCfg(
       entity_name="robot",
-      actuator_names=(".*",),
+      actuator_names=(r"^(?!adh_).*",),
       scale=0.25,  # Override per-robot.
       use_default_offset=True,
     ),
@@ -174,7 +174,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "bad_state": TerminationTermCfg(
       func=mdp.bad_state,
-      params={"asset_cfg": robot_cfg},
+      params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
     ),
   }
 
@@ -191,9 +191,9 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.002, cone="elliptic", integrator="implicitfast", impratio=10.0, ccd_iterations=100),
-      njmax=500,
-      nconmax=200,
+      mujoco=MujocoCfg(timestep=0.002, cone="elliptic", integrator="implicitfast", impratio=10.0, ccd_iterations=500),
+      njmax=1000,
+      nconmax=500,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,

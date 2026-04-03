@@ -36,7 +36,7 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # Override initial state at task level.
   # Position robot so hands are touching wall inner face (x=0.3).
-  robot_cfg.init_state.pos = (-0.10, 0.0, 1.1)
+  robot_cfg.init_state.pos = (-0.18, 0.0, 1.1)
   robot_cfg.init_state.joint_pos = {
     "left_hip_pitch": -0.2,
     "left_hip_roll": 0.0,
@@ -52,13 +52,13 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
     "right_ankle_roll": 0.0,
     "waist_yaw": 0.0,
     "waist_roll": 0.0,
-    "left_shoulder_pitch": -2.0,
+    "left_shoulder_pitch": -2.79,
     "left_shoulder_roll": -0.17,
     "left_shoulder_yaw": -0.5,
     "left_elbow_pitch": -0.26,
     "left_elbow_yaw": 1.5,
-    "right_shoulder_pitch": -2.0,
-    "right_shoulder_roll": 0.16,
+    "right_shoulder_pitch": -2.79,
+    "right_shoulder_roll": 0.34,
     "right_shoulder_yaw": 0.5,
     "right_elbow_pitch": -0.26,
     "right_elbow_yaw": -1.5,
@@ -76,23 +76,24 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   _EE_BODY_NAMES = ("left_hand", "right_hand")
   _ADHESION_FORCE = 1200.0
 
-  # Contact pairs: hand/foot geoms vs wall with condim=6 + high sliding friction.
-  def _add_ee_wall_pairs(spec: mujoco.MjSpec) -> None:
+  # Contact pairs + adhesion actuators via spec_fn.
+  def _spec_fn(spec: mujoco.MjSpec) -> None:
     for gname in _EE_GEOMS:
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
       pair.geomname2 = "wall/wall_geom"
       pair.condim = 6
-      pair.friction = [30.0, 30.0, 0.01, 0.01, 0.01]
+      pair.friction = [30.0, 30.0, 1.0, 1.0, 1.0]
       pair.solref = [0.02, 5.0]
       pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]
       pair.solreffriction = [0.02, 5.0]
-      pair.margin = 0.005
-      pair.gap = 0.0
+      pair.margin = 0.01
+      pair.gap = 0.01
+    add_adhesion_actuators(spec, _EE_BODY_NAMES, _ADHESION_FORCE)
 
-  cfg.scene.spec_fn = _add_ee_wall_pairs
+  cfg.scene.spec_fn = _spec_fn
 
-  # Per-sphere microspine adhesion via external wrench.
+  # Per-sphere microspine adhesion via MuJoCo adhesion actuators.
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
@@ -102,7 +103,6 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
         ee_body_names=("left_hand", "right_hand"),
         adhesion_force=_ADHESION_FORCE,
       ),
-      "wall_cfg": SceneEntityCfg("wall"),
     },
   )
 

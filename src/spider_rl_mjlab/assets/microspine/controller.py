@@ -1,15 +1,11 @@
-"""Microspine controller — per-sphere adhesion via external wrench.
+"""Microspine controller — per-sphere adhesion via MuJoCo adhesion actuators.
 
 Each hand has 8 contact spheres (2x4 grid), each in its own sub-body.
-The controller independently tracks whether each sphere is engaged
-with the wall using hysteresis on **surface**-to-wall distance (geom
-origin distance minus geom radius). For each engaged sphere, a
-wall-normal adhesion force is applied to its sub-body.
+MuJoCo adhesion actuators are added to each sub-body via spec_fn.
+The controller simply sets ctrl=1 for all adhesion actuators each step;
+MuJoCo only applies adhesion force at actual contact points.
 
-Oscillation is suppressed via contact solver damping (solref[1]) rather
-than explicit velocity damping forces.
-
-All operations are batched across envs and spheres.
+All operations are batched across envs — GPU friendly.
 """
 
 from __future__ import annotations
@@ -45,75 +41,57 @@ def add_adhesion_actuators(
   adhesion_force: float,
   robot_prefix: str = "robot",
 ) -> None:
-  """No-op kept for import compatibility."""
-  pass
+  """Add MuJoCo adhesion actuators for each contact sphere sub-body.
+
+  Args:
+    spec: MuJoCo spec to modify.
+    ee_body_names: End-effector body names (e.g. ("left_hand", "right_hand")).
+    adhesion_force: Total adhesion force [N] distributed across all spheres.
+    robot_prefix: Robot entity name prefix in the spec.
+  """
+  num_spheres = len(ee_body_names) * _GEOMS_PER_HAND
+  force_per_sphere = adhesion_force / num_spheres
+
+  for bname in ee_body_names:
+    side = bname.split("_")[0]
+    for sname in _sphere_body_names(side):
+      act = spec.add_actuator()
+      act.name = f"{robot_prefix}/adh_{sname}"
+      act.target = f"{robot_prefix}/{sname}"
+      act.trntype = mujoco.mjtTrn.mjTRN_BODY
+      act.set_to_adhesion(gain=force_per_sphere)
+      act.ctrlrange[0] = 0.0
+      act.ctrlrange[1] = 1.0
+      act.ctrllimited = True
+      act.forcelimited = True
+      act.forcerange[0] = 0.0
+      act.forcerange[1] = force_per_sphere
 
 
 class MicrospineController:
-  """Per-sphere adhesion via external wrench (GPU-batched)."""
+  """Per-sphere adhesion via MuJoCo adhesion actuators (GPU-batched).
+
+  Sets ctrl=1 for all adhesion actuators every step. MuJoCo's contact
+  detection determines when adhesion force is actually applied — force
+  only acts at real contact points, eliminating the "engage at distance"
+  problem of the external wrench approach.
+  """
 
   def __init__(self, cfg: EventTermCfg, env: ManagerBasedRlEnv):
     self._mcfg: MicrospineCfg = cfg.params["microspine_cfg"]
-    self._robot = env.scene[cfg.params["asset_cfg"].name]
-    self._wall = env.scene[cfg.params["wall_cfg"].name]
-
-    num_envs = env.num_envs
-    device = env.device
     mj_model = env.sim.mj_model
     robot_prefix = cfg.params["asset_cfg"].name
+    device = env.device
 
-    # Wall geometry.
-    wn = torch.tensor(self._mcfg.wall_normal, dtype=torch.float32, device=device)
-    self._force_dir = -wn / wn.norm()
-    wn_abs = wn.abs()
-    self._wall_axis = int(wn_abs.argmax().item())
-    self._wall_sign = -1.0 if wn[self._wall_axis] < 0 else 1.0
-
-    wall_prefix = cfg.params["wall_cfg"].name
-    wall_geom_id = mj_model.geom(f"{wall_prefix}/wall_geom").id
-    self._wall_half = float(mj_model.geom_size[wall_geom_id, self._wall_axis])
-
-    self._force_per_sphere = self._mcfg.adhesion_force / _GEOMS_PER_HAND
-
-    # Collect geom IDs, body IDs, and radii.
-    geom_ids: list[int] = []
-    sphere_body_ids: list[int] = []
-    radii: list[float] = []
-
+    # Collect adhesion actuator IDs.
+    actuator_ids: list[int] = []
     for bname in self._mcfg.ee_body_names:
       side = bname.split("_")[0]
       for sname in _sphere_body_names(side):
-        full_gname = f"{robot_prefix}/{sname}"
-        gid = mj_model.geom(full_gname).id
-        geom_ids.append(gid)
+        act_name = f"{robot_prefix}/adh_{sname}"
+        actuator_ids.append(mj_model.actuator(act_name).id)
 
-        geom_type = int(mj_model.geom_type[gid])
-        if geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
-          r = float(mj_model.geom_size[gid, 0])
-        elif geom_type == mujoco.mjtGeom.mjGEOM_BOX:
-          r = float(mj_model.geom_size[gid, self._wall_axis])
-        else:
-          r = float(mj_model.geom_size[gid, 0])
-        radii.append(r)
-
-        body_ids_found, _ = self._robot.find_bodies([sname])
-        sphere_body_ids.append(body_ids_found[0])
-
-    self._num_spheres = len(geom_ids)
-    self._geom_ids = torch.tensor(geom_ids, dtype=torch.long, device=device)
-    self._sphere_body_ids = sphere_body_ids
-    self._radii = torch.tensor(radii, dtype=torch.float32, device=device)
-    self._force_dir_expanded = self._force_dir.unsqueeze(0).unsqueeze(0)
-
-    self._engaged = torch.zeros(num_envs, self._num_spheres, dtype=torch.bool, device=device)
-
-  def _surface_distances(self, env: ManagerBasedRlEnv) -> torch.Tensor:
-    """Surface-to-wall distance. Positive=gap, negative=penetration."""
-    ax = self._wall_axis
-    wall_face = self._wall.data.root_link_pos_w[:, ax] + self._wall_sign * self._wall_half
-    geom_x = env.sim.data.geom_xpos[:, self._geom_ids, ax]
-    origin_dist = (wall_face.unsqueeze(1) - geom_x) * self._wall_sign
-    return origin_dist - self._radii.unsqueeze(0)
+    self._actuator_ids = torch.tensor(actuator_ids, dtype=torch.long, device=device)
 
   def __call__(
     self,
@@ -121,38 +99,8 @@ class MicrospineController:
     env_ids: torch.Tensor | None,
     **kwargs,
   ) -> None:
-    surf_dist = self._surface_distances(env)  # (E, S)
-
-    self._engaged = (
-      (self._engaged | (surf_dist < self._mcfg.engage_threshold))
-      & (surf_dist <= self._mcfg.disengage_threshold)
-    )
-
-    engaged_f = self._engaged.float()  # (E, S)
-
-    # Dynamic adhesion: 80% uniform base + 20% distributed by peel distance.
-    # Spheres being pulled away get slightly more force, but all spheres
-    # keep most of their adhesion to prevent cascading detachment.
-    disengage = self._mcfg.disengage_threshold
-    base_force = self._force_per_sphere * 0.8  # 80% guaranteed
-
-    peel_weight = surf_dist.clamp(min=0.0, max=disengage) * engaged_f  # (E, S)
-    weight_sum = peel_weight.sum(dim=1, keepdim=True).clamp(min=1e-6)
-    num_engaged = engaged_f.sum(dim=1, keepdim=True).clamp(min=1)
-    dynamic_budget = self._force_per_sphere * 0.2 * num_engaged
-
-    adhesion_mag = (base_force + dynamic_budget * peel_weight / weight_sum) * engaged_f
-
-    forces = adhesion_mag.unsqueeze(-1) * self._force_dir_expanded
-    torques = torch.zeros_like(forces)
-
-    self._robot.write_external_wrench_to_sim(
-      forces, torques, body_ids=self._sphere_body_ids
-    )
-
-  @property
-  def engaged(self) -> torch.Tensor:
-    return self._engaged
+    # MuJoCo only applies adhesion at actual contact points.
+    env.sim.data.ctrl[:, self._actuator_ids] = self._mcfg.ctrl_value
 
   def reset(self, env_ids: torch.Tensor) -> None:
-    self._engaged[env_ids] = False
+    pass
