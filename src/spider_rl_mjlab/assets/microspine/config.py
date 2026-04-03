@@ -7,45 +7,20 @@ import dataclasses
 
 @dataclasses.dataclass
 class MicrospineCfg:
-  """Configuration for microspine adhesion parameters.
+  """Configuration for microspine adhesion via MuJoCo adhesion actuators.
 
-  Models the physical behavior of microspine arrays: once spines engage
-  with a surface (detected via contact penetration), they provide an
-  adhesion (pull-in) force that maintains normal contact, enabling
-  friction to resist tangential loads.
+  Each end-effector has a grid of contact spheres. An adhesion actuator
+  is added per sphere; MuJoCo applies adhesion force only at real contact
+  points, so no manual engage/disengage thresholds are needed.
   """
 
   ee_body_names: tuple[str, ...] = ("right_hand",)
   """End-effector body names that have microspine contact surfaces."""
 
-  max_penetration: float = 0.15
-  """Maximum allowed contact penetration depth [m]."""
-
-  penetration_hysteresis: float = 0.05
-  """Hysteresis band for adhesion engagement/disengagement [m]."""
-
   adhesion_force: float = 50.0
-  """Total adhesion (pull-in) force across all spheres when fully engaged [N].
-  Split equally among spheres (force_per_sphere = adhesion_force / 8)."""
+  """Total adhesion force across all spheres [N].
+  Split equally among spheres (force_per_sphere = adhesion_force / num_spheres)."""
 
-  damping: float = 50.0
-  """Velocity damping coefficient [N·s/m] applied to engaged spheres.
-  Counteracts oscillation by applying force opposing sphere velocity."""
-
-  engage_threshold: float = 0.005
-  """Surface distance below which spines engage [m]. Negative = penetration."""
-
-  disengage_threshold: float = 0.03
-  """Surface distance above which spines disengage [m]."""
-
-  wall_normal: tuple[float, float, float] = (-1.0, 0.0, 0.0)
-  """Inward normal direction of the wall surface (pointing from wall toward robot).
-  Default (-1,0,0) means the wall face is at +x and the robot approaches from -x."""
-
-  contact_offset: float = 0.082
-  """Local x offset from EE body origin to contact surface [m].
-  Positive = contact surface in +x local direction (forearm_hand).
-  Negative = contact surface in -x local direction (phybot climbing)."""
-
-  use_actuator: bool = False
-  """If True, use MuJoCo adhesion actuators instead of external wrench."""
+  ctrl_value: float = 1.0
+  """Adhesion actuator control signal [0, 1]. Actual force = gain * ctrl.
+  Lower values reduce contact oscillation at the cost of weaker adhesion."""

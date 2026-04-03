@@ -61,22 +61,24 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     for j in range(4)
   ]
 
-  _ADHESION_FORCE = 1200.0  # same as climb_wall
+  _ADHESION_FORCE = 1200.0
+  _EE_BODY_NAMES = ("right_hand",)
 
-  def _add_hand_wall_pairs(spec: mujoco.MjSpec) -> None:
+  def _spec_fn(spec: mujoco.MjSpec) -> None:
     for gname in _hand_sub_geoms:
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
       pair.geomname2 = "wall/wall_geom"
       pair.condim = 6
-      pair.friction = [30.0, 30.0, 0.01, 0.01, 0.01]
+      pair.friction = [30.0, 30.0, 1.0, 1.0, 1.0]
       pair.solref = [0.02, 5.0]
       pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]
       pair.solreffriction = [0.02, 5.0]
-      pair.margin = 0.005
-      pair.gap = 0.0
+      pair.margin = 0.01
+      pair.gap = 0.01
+    add_adhesion_actuators(spec, _EE_BODY_NAMES, _ADHESION_FORCE)
 
-  cfg.scene.spec_fn = _add_hand_wall_pairs
+  cfg.scene.spec_fn = _spec_fn
 
   # Two-phase test force: Phase 1 push (+x) then Phase 2 shear (-z).
   # This is the test harness — DO NOT add adhesion logic here.
@@ -94,8 +96,7 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     },
   )
 
-  # Microspine controller: skeleton for future approach implementation (Path A/B/C).
-  # Currently a no-op. Adhesion/damping logic will be added here.
+  # Per-sphere microspine adhesion via MuJoCo adhesion actuators.
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
@@ -104,8 +105,8 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
       "microspine_cfg": MicrospineCfg(
         ee_body_names=("right_hand",),
         adhesion_force=_ADHESION_FORCE,
+        ctrl_value=1.0,
       ),
-      "wall_cfg": SceneEntityCfg("wall"),
     },
   )
 

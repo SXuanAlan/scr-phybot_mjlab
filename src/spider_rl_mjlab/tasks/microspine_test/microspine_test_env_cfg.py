@@ -52,7 +52,7 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
   actions = {
     "joint_pos": JointPositionActionCfg(
       entity_name="robot",
-      actuator_names=(".*",),
+      actuator_names=(r"^(?!adh_).*",),
       scale=0.25,
       use_default_offset=True,
     ),
@@ -159,9 +159,9 @@ def make_microspine_test_env_cfg() -> ManagerBasedRlEnvCfg:
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.0005, iterations=100, cone="elliptic", integrator="implicitfast", ccd_iterations=100, gravity=(0.0, 0.0, 0.0), impratio=10.0),
-      njmax=500,
-      nconmax=100,
+      mujoco=MujocoCfg(timestep=0.0005, iterations=100, cone="elliptic", integrator="implicitfast", ccd_iterations=500, gravity=(0.0, 0.0, 0.0), impratio=10.0),
+      njmax=1000,
+      nconmax=500,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,
