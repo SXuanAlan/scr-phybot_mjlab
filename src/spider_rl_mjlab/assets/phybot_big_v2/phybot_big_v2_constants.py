@@ -133,7 +133,7 @@ PHYBOT_BIG_V2_ACTUATOR_ELBOW_YAW = BuiltinPositionActuatorCfg(
 ##
 
 CLIMB_WALL_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 1.1),
+  pos=(-0.7, 0.0, 2.0),
   joint_pos={
     "left_hip_pitch": -0.2,
     "left_hip_roll": 0.0,
@@ -149,16 +149,16 @@ CLIMB_WALL_KEYFRAME = EntityCfg.InitialStateCfg(
     "right_ankle_roll": 0.0,
     "waist_yaw": 0.0,
     "waist_roll": 0.0,
-    "left_shoulder_pitch": 0.0,
+    "left_shoulder_pitch": -2.79,
     "left_shoulder_roll": 0.0,
-    "left_shoulder_yaw": 0.0,
-    "left_elbow_pitch": 0.0,
-    "left_elbow_yaw": 0.0,
-    "right_shoulder_pitch": 0.0,
-    "right_shoulder_roll": 0.0,
-    "right_shoulder_yaw": 0.0,
-    "right_elbow_pitch": 0.0,
-    "right_elbow_yaw": 0.0,
+    "left_shoulder_yaw": -0.5,
+    "left_elbow_pitch": -0.4,
+    "left_elbow_yaw": 0.45,
+    "right_shoulder_pitch": -2.79,
+    "right_shoulder_roll": 0.17,
+    "right_shoulder_yaw": 0.5,
+    "right_elbow_pitch": -0.4,
+    "right_elbow_yaw": -0.45,
   },
   joint_vel={".*": 0.0},
 )

@@ -24,73 +24,98 @@
       <global offwidth="2560" offheight="1440" elevation="-20" azimuth="120"/>
   </visual>
   <asset>
-      <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+      <mesh name="right_shoulder_pitch" file="right_shoulder_pitch.STL"/>
+      <mesh name="right_shoulder_roll" file="right_shoulder_roll.STL"/>
+      <mesh name="right_shoulder_yaw" file="right_shoulder_yaw.STL"/>
       <mesh name="right_elbow_pitch" file="right_elbow_pitch.STL"/>
       <mesh name="right_elbow_yaw" file="right_elbow_yaw.STL"/>
       <mesh name="right_hand" file="right_hand.stl" scale="0.001 0.001 0.001"/>
-      <texture builtin="gradient" height="100" rgb1=".4 .5 .6" rgb2="0 0 0" type="skybox" width="100"/>
-      <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="100" height="100"/>
-      <material name="MatPlane" reflectance="0.5" texture="texplane" texrepeat="1 1" texuniform="true"/>
   </asset>
 
   <worldbody>
-    <geom name="floor" friction="1 .1 .1" pos="0 0 0.0" size="50 50 0.125" type="plane" material="MatPlane" condim="3" conaffinity="1" contype="1" group="2" rgba="0.8 0.9 0.8 1"/>
-    <light cutoff="100" diffuse="1 1 1" dir="-0 0 -1.3" directional="true" exponent="1" pos="0 0 1.3" specular=".1 .1 .1" castshadow="false"/>
+    <!-- Base mount: fixed by mjlab's auto-mocap wrap. No joint here. -->
+    <body name="base_mount" pos="-0.1 0 1.5">
+      <!-- Passive x-axis slide rail BELOW the mocap-fixed body. Allows the
+           arm to shift toward/away from the wall under adhesion load instead
+           of forcing the shoulder to absorb all the force. Spring-damper
+           keeps it near nominal; no actuator (policy observes but doesn't
+           control it). -->
+      <body name="base_slide" pos="0 0 0">
+        <inertial pos="0 0 0" mass="0.5" diaginertia="0.001 0.001 0.001"/>
+        <joint name="base_x" type="slide" axis="1 0 0" range="-0.05 0.05" stiffness="5000" damping="200"/>
+        <!-- 180° y quat flips both x and z so the chain extends UP (climb-wall
+             posture) with the -x palm face pointing toward world +x (the wall).
+             shoulder_yaw body is welded (no joint) per task spec. -->
+        <body name="right_shoulder_pitch" pos="0 0 0" quat="0 0 1 0" childclass="forearm">
+      <inertial pos="-8.03863e-06 -0.0687158 1.26731e-08" quat="0.455587 0.54077 -0.542578 0.45345" mass="1.10129" diaginertia="0.00131395 0.00116967 0.000838653"/>
+      <joint name="right_shoulder_pitch" pos="0 0 0" axis="0 1 0" range="-2.79 0.87" actuatorfrcrange="-200 200"/>
+      <geom name="right_shoulder_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_shoulder_pitch"/>
 
-    <!-- Forearm base: right_elbow_pitch with free joint -->
-    <!-- No rotation: chain hangs in -z (forearm vertical, hand pressing against wall in +x) -->
-    <body name="right_elbow_pitch" pos="0 0 1.5" quat="1 0 0 0" childclass="forearm">
-      <inertial pos="-0.00255364 -0.00288876 -0.00638524" quat="0.971457 0.0955752 0.215551 -0.0259581" mass="0.845839" diaginertia="0.00080846 0.00070795 0.00062105"/>
-      <joint name="floating_base_joint" type="free" limited="false" actuatorfrclimited="false"/>
+      <body name="right_shoulder_roll" pos="0 -0.0775 0">
+        <inertial pos="0.00336042 -9.44353e-07 -0.0182446" quat="0.581199 0.40275 0.40275 0.581199" mass="0.244845" diaginertia="0.00052763 0.000435671 0.000368519"/>
+        <joint name="right_shoulder_roll" pos="0 0 0" axis="1 0 0" range="-3.14 0.34" actuatorfrcrange="-135 135"/>
+        <geom name="right_shoulder_roll_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_shoulder_roll"/>
+        <geom name="right_shoulder_roll_collision" type="sphere" rgba="0.792157 0.819608 0.933333 1" pos="0 0 -0.012" size="0.042"/>
 
-      <geom name="right_elbow_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_elbow_pitch"/>
-      <geom name="right_elbow_pitch_collision" type="cylinder" rgba="0.792157 0.819608 0.933333 1" pos="0 0 -0.06" quat="1 0 0 0" size="0.035 0.06 0"/>
+        <!-- shoulder_yaw: body present but no joint (locked). -->
+        <body name="right_shoulder_yaw" pos="0 0 -0.06">
+          <inertial pos="-0.00120651 9.41796e-06 -0.0668674" quat="0.999653 0.000233295 0.0190492 -0.0181654" mass="1.06054" diaginertia="0.00428895 0.00418292 0.000906191"/>
+          <geom name="right_shoulder_yaw_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_shoulder_yaw"/>
+          <geom name="right_shoulder_yaw_collision" type="cylinder" rgba="0.792157 0.819608 0.933333 1" pos="0 0 -0.12" size="0.035 0.07"/>
 
-      <body name="right_elbow_yaw" pos="-0.01 0 -0.123">
-        <inertial pos="0 0 0.0343762" mass="0.746923" diaginertia="0.000577754 0.000577754 0.000420109"/>
-        <joint name="right_elbow_yaw" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" actuatorfrcrange="-58 58"/>
-        <geom name="right_elbow_yaw_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_elbow_yaw"/>
-        <geom name="right_elbow_yaw_collision" type="cylinder" rgba="0.792157 0.819608 0.933333 1" pos="0 0 0.02" quat="1 0 0 0" size="0.03 0.05 0"/>
+          <body name="right_elbow_pitch" pos="0.01 0 -0.195">
+            <inertial pos="-0.00255364 -0.00288876 -0.00638524" quat="0.971457 0.0955752 0.215551 -0.0259581" mass="0.845839" diaginertia="0.00080846 0.00070795 0.00062105"/>
+            <joint name="right_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-89 89"/>
+            <geom name="right_elbow_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_elbow_pitch"/>
+            <geom name="right_elbow_pitch_collision" type="cylinder" rgba="0.792157 0.819608 0.933333 1" pos="0 0 -0.06" size="0.035 0.06"/>
 
-        <body name="right_hand" pos="0 0 -0.05">
-          <inertial pos="0 0 0" mass="0.3" diaginertia="0.0002 0.0002 0.0002"/>
-          <geom name="right_hand_visual" type="mesh" mesh="right_hand" contype="0" conaffinity="0" group="1" density="0" rgba="0.9 0.7 0.5 1"/>
-          <!-- Original cylinder kept as visual reference only -->
-          <geom name="right_hand_collision" type="cylinder" pos="0.04 0 0" quat="0.707 0 0.707 0" size="0.06 0.04" contype="0" conaffinity="0" rgba="0.9 0.7 0.5 0.1"/>
-          <!-- Sub-body 2x4 sphere grid on the +x face (matching phybot_big_v2 layout).
-               Each sphere is a separate body (welded to hand, no joint) for per-sphere adhesion. -->
-          <body name="right_hand_c_0_0" pos="0.07 -0.019 -0.043">
-            <geom name="right_hand_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+            <body name="right_elbow_yaw" pos="-0.01 0 -0.123">
+              <inertial pos="0 0 0.0343762" mass="0.746923" diaginertia="0.000577754 0.000577754 0.000420109"/>
+              <joint name="right_elbow_yaw" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" actuatorfrcrange="-58 58"/>
+              <geom name="right_elbow_yaw_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_elbow_yaw"/>
+              <geom name="right_elbow_yaw_collision" type="cylinder" rgba="0.792157 0.819608 0.933333 1" pos="0 0 0.02" size="0.03 0.05"/>
+
+              <body name="right_hand" pos="0 0 -0.05">
+                <inertial pos="0 0 0" mass="0.3" diaginertia="0.0002 0.0002 0.0002"/>
+                <geom name="right_hand_visual" type="mesh" mesh="right_hand" contype="0" conaffinity="0" group="1" density="0" rgba="0.9 0.7 0.5 1"/>
+                <geom name="right_hand_collision" type="cylinder" pos="-0.04 0 0" quat="0.707 0 0.707 0" size="0.06 0.04" contype="0" conaffinity="0" rgba="0.9 0.7 0.5 0.1"/>
+                <!-- 2x4 contact sphere grid on the -x face (phybot layout). -->
+                <body name="right_hand_c_0_0" pos="-0.07 -0.019 -0.043">
+                  <geom name="right_hand_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_0_1" pos="-0.07 -0.019 -0.014">
+                  <geom name="right_hand_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_0_2" pos="-0.07 -0.019  0.014">
+                  <geom name="right_hand_c_0_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_0_3" pos="-0.07 -0.019  0.043">
+                  <geom name="right_hand_c_0_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_1_0" pos="-0.07  0.019 -0.043">
+                  <geom name="right_hand_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_1_1" pos="-0.07  0.019 -0.014">
+                  <geom name="right_hand_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_1_2" pos="-0.07  0.019  0.014">
+                  <geom name="right_hand_c_1_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+                <body name="right_hand_c_1_3" pos="-0.07  0.019  0.043">
+                  <geom name="right_hand_c_1_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                </body>
+              </body>
+            </body>
           </body>
-          <body name="right_hand_c_0_1" pos="0.07 -0.019 -0.014">
-            <geom name="right_hand_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
-          <body name="right_hand_c_0_2" pos="0.07 -0.019  0.014">
-            <geom name="right_hand_c_0_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
-          <body name="right_hand_c_0_3" pos="0.07 -0.019  0.043">
-            <geom name="right_hand_c_0_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
-          <body name="right_hand_c_1_0" pos="0.07  0.019 -0.043">
-            <geom name="right_hand_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
-          <body name="right_hand_c_1_1" pos="0.07  0.019 -0.014">
-            <geom name="right_hand_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
-          <body name="right_hand_c_1_2" pos="0.07  0.019  0.014">
-            <geom name="right_hand_c_1_2" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
-          <body name="right_hand_c_1_3" pos="0.07  0.019  0.043">
-            <geom name="right_hand_c_1_3" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
-          </body>
+        </body>
+      </body>
         </body>
       </body>
     </body>
   </worldbody>
 
   <keyframe>
-    <key name="home"
-      qpos="0 0 1.5 1 0 0 0
-             0" />
+    <!-- 5 joints: base_x (slide), shoulder_pitch, shoulder_roll, elbow_pitch, elbow_yaw. -->
+    <key name="home" qpos="0 0 0 0 0" />
   </keyframe>
 </mujoco>

@@ -1,4 +1,4 @@
-"""Forearm+hand microspine test environment configurations."""
+"""PHYBot Big V2 microspine test environment configurations."""
 
 import mujoco
 
@@ -7,65 +7,78 @@ from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
-from spider_rl_mjlab.assets.forearm_hand import FOREARM_HAND_ACTION_SCALE, get_forearm_hand_robot_cfg
+from spider_rl_mjlab.assets import PHYBOT_BIG_V2_ACTION_SCALE, get_phybot_big_v2_robot_cfg, get_wall_cfg
 from spider_rl_mjlab.assets.microspine import MicrospineCfg, MicrospineController, add_adhesion_actuators
-from spider_rl_mjlab.assets.wall import get_wall_cfg
 from spider_rl_mjlab.tasks.microspine_test.microspine_test_env_cfg import make_microspine_test_env_cfg
 
 
+# Hand sub-geom 2x4 grid + foot collision geoms (same as climb_wall).
+_HAND_GEOMS = [
+  f"{side}_hand_c_{i}_{j}"
+  for side in ("left", "right")
+  for i in range(2)
+  for j in range(4)
+]
+_FOOT_GEOMS = [
+  f"{side}_ankle_roll_collision_{i}"
+  for side in ("left", "right")
+  for i in (1, 2)
+]
+_EE_GEOMS = _HAND_GEOMS + _FOOT_GEOMS
 
 
 def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
-  """Create forearm+hand microspine test configuration."""
+  """Create PHYBot Big V2 microspine test configuration."""
   cfg = make_microspine_test_env_cfg()
+  # Train: only Phase 1 (engage). Play: full Phase 1→2→3 to visualize holding.
+  cfg.episode_length_s = 12.0 if play else 5.0
 
-  robot_cfg = get_forearm_hand_robot_cfg()
+  robot_cfg = get_phybot_big_v2_robot_cfg()
   wall_cfg = get_wall_cfg()
 
-  # "Hand standing upright" posture: forearm hangs vertically, hand presses against wall.
-  #
-  # 180° rotation around z: flips -x body axis to +x (world), so the hand sphere
-  # (local pos=(-0.02,0,0)) ends up at +x relative to the arm chain.
-  #
-  # Geometry (180° z rotation, chain still extends in -z):
-  #   Base (elbow)   : (B_x,       0, 1.5)
-  #   Hand body      : (B_x+0.01,  0, 1.327)
-  #   Sphere center  : (B_x+0.03,  0, 1.327)  [sphere pos=(-0.02,0,0) → (0.02,0,0) after rotation]
-  #   Sphere radius  : 0.035 m
-  #   Sphere +x edge : B_x + 0.065
-  #
-  # Wall center at (0.55, 0, 2.5): inner face at x = env_origin_x + 0.05
-  # With B_x = 0 (robot init at env origin): sphere edge = 0.065 > 0.05 → ~15mm initial penetration.
-  # Elbow cylinders max +x edge: B_x + 0.04 < 0.05 → elbow does NOT hit wall. ✓
-  #
-  # The 300 N force in -z tests pure shear adhesion of the microspine.
-  robot_cfg.init_state.pos = (0.005, 0.0, 1.5)  # hand sub-geoms ~3mm from wall face; phase-1 push engages quickly
-  robot_cfg.init_state.rot = (0, 1, 0.0, 0.0)  # 180° around x: arm extends upward, hand presses wall in +x
+  # Position robot close to wall — hands should be near the wall inner face.
+  robot_cfg.init_state.pos = (-0.05, 0.0, 1.0)
   robot_cfg.init_state.joint_pos = {
-    "right_elbow_yaw": 0.0,
+    "left_hip_pitch": -0.2,
+    "left_hip_roll": 0.0,
+    "left_hip_yaw": 0.0,
+    "left_knee": 0.4,
+    "left_ankle_pitch": -0.2,
+    "left_ankle_roll": 0.0,
+    "right_hip_pitch": -0.2,
+    "right_hip_roll": 0.0,
+    "right_hip_yaw": 0.0,
+    "right_knee": 0.4,
+    "right_ankle_pitch": -0.2,
+    "right_ankle_roll": 0.0,
+    "waist_yaw": 0.0,
+    "waist_roll": 0.0,
+    "left_shoulder_pitch": -2.79,
+    "left_shoulder_roll": -0.17,
+    "left_shoulder_yaw": -0.5,
+    "left_elbow_pitch": -0.26,
+    "left_elbow_yaw": 1.5,
+    "right_shoulder_pitch": -2.79,
+    "right_shoulder_roll": 0.34,
+    "right_shoulder_yaw": 0.5,
+    "right_elbow_pitch": -0.26,
+    "right_elbow_yaw": -1.5,
   }
 
-  # Wall center at (0.5, 0, 2.5): inner face at x=0, covers z=[0, 5].
-  wall_cfg.init_state.pos = (0.58, 0.0, 2.5)
+  # Wall position (same as climb_wall).
+  wall_cfg.init_state.pos = (0.8, 0.0, 2.5)
 
   cfg.scene.entities = {
     "robot": robot_cfg,
     "wall": wall_cfg,
   }
 
-  # Sub-geom names on the hand end face (must match forearm_hand.xml).
-  # 2x4 grid: rows 0-1, cols 0-3.
-  _hand_sub_geoms = [
-    f"right_hand_c_{i}_{j}"
-    for i in range(2)
-    for j in range(4)
-  ]
-
   _ADHESION_FORCE = 1200.0
-  _EE_BODY_NAMES = ("right_hand",)
+  _EE_BODY_NAMES = ("left_hand", "right_hand")
 
+  # Contact pairs + adhesion actuators via spec_fn (same as climb_wall).
   def _spec_fn(spec: mujoco.MjSpec) -> None:
-    for gname in _hand_sub_geoms:
+    for gname in _EE_GEOMS:
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
       pair.geomname2 = "wall/wall_geom"
@@ -83,29 +96,57 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
   # Two-phase test force: Phase 1 push (+x) then Phase 2 shear (-z).
   # This is the test harness — DO NOT add adhesion logic here.
   from spider_rl_mjlab.tasks.microspine_test.mdp import PhaseForce
+  # Train: zero external force in Phase 1 — policy must press the wall using
+  # joint actions alone. Play: full P1→P2→P3 stress test.
+  phase_force_params: dict = {
+    "asset_cfg": SceneEntityCfg("robot"),
+    "body_name": "right_hand",
+    "phase1_duration": 5.0,
+    "phase1_mag_range": (0.0, 0.0),
+    "phase1_local_torque": (0.0, 0.0, 0.0),
+  }
+  if play:
+    phase_force_params.update({
+      "phase2_duration": 4.0,
+      "phase2_mag_range": (50.0, 300.0),
+      "phase2_angle_range": (0.0, 45.0),
+      "phase3_mag_range": (50.0, 200.0),
+    })
+  else:
+    phase_force_params.update({
+      "phase2_duration": 0.0,
+      "phase2_mag_range": (0.0, 0.0),
+      "phase2_angle_range": (0.0, 0.0),
+    })
   cfg.events["phase_force"] = EventTermCfg(
     func=PhaseForce,
     mode="step",
-    params={
-      "asset_cfg": SceneEntityCfg("robot"),
-      "body_name": "right_hand",
-      "phase1_duration": 3.0,
-      "phase1_mag_range": (20.0, 100.0),
-      "phase2_mag_range": (50.0, 300.0),
-      "phase2_angle_range": (0.0, 45.0),
-    },
+    params=phase_force_params,
   )
 
-  # Per-sphere microspine adhesion via MuJoCo adhesion actuators.
+  # Play only: freeze policy joint targets after Phase 1 ends, so the test
+  # forces in Phase 2/3 hit a static pose maintained purely by adhesion.
+  if play:
+    from spider_rl_mjlab.tasks.microspine_test.mdp import FreezeAfterPhase1
+    cfg.events["freeze_after_phase1"] = EventTermCfg(
+      func=FreezeAfterPhase1,
+      mode="step",
+      params={"phase1_duration": 3.0},
+    )
+
+  # Per-sphere microspine adhesion via MuJoCo adhesion actuators (same as climb_wall).
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
     params={
       "asset_cfg": SceneEntityCfg("robot"),
       "microspine_cfg": MicrospineCfg(
-        ee_body_names=("right_hand",),
+        ee_body_names=("left_hand", "right_hand"),
         adhesion_force=_ADHESION_FORCE,
-        ctrl_value=1.0,
+        engage_force_threshold=2.0,
+        engage_min_fraction=0.75,  # 6 of 8 spheres — tolerates small palm tilt
+        wall_geom_name="wall/wall_geom",
+        debug=True,
       ),
     },
   )
@@ -116,19 +157,18 @@ def forearm_hand_microspine_test_env_cfg(play: bool = False) -> ManagerBasedRlEn
     func=ContactForceVis,
     mode="step",
     params={
-      "target_geom_patterns": ["right_hand_c_"],
+      "target_geom_patterns": ["left_hand_c_", "right_hand_c_"],
       "wall_geom_name": "wall/wall_geom",
       "force_scale": 0.003,
-      "ext_force_body_names": ["right_hand", "right_elbow_pitch"],
+      "ext_force_body_names": ["left_hand", "right_hand"],
     },
   )
 
   joint_pos_action = cfg.actions["joint_pos"]
   assert isinstance(joint_pos_action, JointPositionActionCfg)
-  joint_pos_action.scale = FOREARM_HAND_ACTION_SCALE
+  joint_pos_action.scale = PHYBOT_BIG_V2_ACTION_SCALE
 
   if play:
-    cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
 
   return cfg

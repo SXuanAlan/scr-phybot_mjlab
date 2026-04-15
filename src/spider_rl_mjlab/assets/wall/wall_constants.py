@@ -12,8 +12,8 @@ from mjlab.utils.spec_config import CollisionCfg
 # Wall geometry.
 ##
 
-WALL_HALF_SIZE = [0.5, 1.5, 2.5]  # 1m thick, 3m wide, 5m tall
-WALL_OFFSET = (2.0, 0.0, 2.5)  # center offset from env origin
+WALL_HALF_SIZE = [0.5, 1.5, 5.0]  # 1m thick, 3m wide, 10m tall
+WALL_OFFSET = (2.0, 0.0, 5.0)  # center offset from env origin
 
 ##
 # Collision config.

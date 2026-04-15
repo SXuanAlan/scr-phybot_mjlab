@@ -1,7 +1,7 @@
 """Forearm + hand robot constants and configuration.
 
-Minimal model: right elbow (2 DOF) + hand for microspine adhesion testing.
-Reuses meshes from phybot_big_v2.
+Minimal model: right arm (4 active DoFs) + hand for microspine adhesion testing.
+Reuses meshes from phybot_big_v2. Arm is fixed-base at the shoulder_pitch body.
 """
 
 from pathlib import Path
@@ -21,7 +21,6 @@ from mjlab.utils.spec_config import CollisionCfg
 FOREARM_HAND_XML: Path = Path(__file__).resolve().parent / "xml" / "forearm_hand.xml"
 assert FOREARM_HAND_XML.exists(), f"MJCF not found: {FOREARM_HAND_XML}"
 
-# Meshes live in the phybot_big_v2 directory.
 PHYBOT_MESHES: Path = Path(__file__).resolve().parent.parent / "phybot_big_v2" / "meshes"
 
 
@@ -38,8 +37,29 @@ def get_spec() -> mujoco.MjSpec:
 
 
 ##
-# Actuator config.
+# Actuator config (matches phybot_big_v2 PD gains for arm joints).
 ##
+
+FOREARM_HAND_ACTUATOR_SHOULDER_PITCH = BuiltinPositionActuatorCfg(
+  target_names_expr=("right_shoulder_pitch",),
+  stiffness=50.0,
+  damping=5.0,
+  effort_limit=200.0,
+)
+
+FOREARM_HAND_ACTUATOR_SHOULDER_ROLL = BuiltinPositionActuatorCfg(
+  target_names_expr=("right_shoulder_roll",),
+  stiffness=50.0,
+  damping=5.0,
+  effort_limit=135.0,
+)
+
+FOREARM_HAND_ACTUATOR_ELBOW_PITCH = BuiltinPositionActuatorCfg(
+  target_names_expr=("right_elbow_pitch",),
+  stiffness=50.0,
+  damping=5.0,
+  effort_limit=89.0,
+)
 
 FOREARM_HAND_ACTUATOR_ELBOW_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=("right_elbow_yaw",),
@@ -53,9 +73,13 @@ FOREARM_HAND_ACTUATOR_ELBOW_YAW = BuiltinPositionActuatorCfg(
 ##
 
 FOREARM_HAND_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 1.5),
-  rot=(1.0, 0.0, 0.0, 0.0),  # no rotation — arm hangs in -z
+  pos=(0.0, 0.0, 0.0),
+  rot=(1.0, 0.0, 0.0, 0.0),
   joint_pos={
+    "base_x": 0.0,
+    "right_shoulder_pitch": 0.0,
+    "right_shoulder_roll": 0.0,
+    "right_elbow_pitch": 0.0,
     "right_elbow_yaw": 0.0,
   },
   joint_vel={".*": 0.0},
@@ -79,8 +103,16 @@ FOREARM_HAND_COLLISION = CollisionCfg(
 ##
 
 FOREARM_HAND_ARTICULATION = EntityArticulationInfoCfg(
-  actuators=(FOREARM_HAND_ACTUATOR_ELBOW_YAW,),
-  soft_joint_pos_limit_factor=0.9,
+  actuators=(
+    FOREARM_HAND_ACTUATOR_SHOULDER_PITCH,
+    FOREARM_HAND_ACTUATOR_SHOULDER_ROLL,
+    FOREARM_HAND_ACTUATOR_ELBOW_PITCH,
+    FOREARM_HAND_ACTUATOR_ELBOW_YAW,
+  ),
+  # 1.0 = no soft clamp. right_elbow_pitch range [-2.36, 0] makes the default
+  # pose (all joints at 0) sit at the edge of the range; with factor < 1.0
+  # mjlab would push the keyframe into the interior and break the geometry.
+  soft_joint_pos_limit_factor=1.0,
 )
 
 

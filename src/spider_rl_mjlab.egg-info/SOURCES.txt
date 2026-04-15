@@ -30,6 +30,7 @@ src/spider_rl_mjlab/tasks/climb_wall/config/phybot_big_v2/env_cfgs.py
 src/spider_rl_mjlab/tasks/climb_wall/config/phybot_big_v2/rl_cfg.py
 src/spider_rl_mjlab/tasks/climb_wall/mdp/__init__.py
 src/spider_rl_mjlab/tasks/climb_wall/mdp/commands.py
+src/spider_rl_mjlab/tasks/climb_wall/mdp/curriculums.py
 src/spider_rl_mjlab/tasks/climb_wall/mdp/observations.py
 src/spider_rl_mjlab/tasks/climb_wall/mdp/rewards.py
 src/spider_rl_mjlab/tasks/climb_wall/mdp/terminations.py

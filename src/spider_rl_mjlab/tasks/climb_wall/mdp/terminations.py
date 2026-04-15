@@ -18,15 +18,37 @@ def bad_state(
   asset_cfg: SceneEntityCfg,
   max_displacement: float = 10.0,
   max_velocity: float = 50.0,
+  max_ang_velocity: float = 200.0,
+  max_joint_velocity: float = 200.0,
 ) -> torch.Tensor:
-  """Terminate when simulation diverges (position or velocity explodes).
+  """Terminate when simulation diverges (NaN/Inf or magnitude explodes).
+
+  Covers every state tensor that feeds the actor observations so any
+  divergence is caught before NaN propagates to the policy:
+    - root pos (env-local), lin vel, ang vel, quat
+    - joint pos, joint vel
 
   Uses env-local position to avoid false positives from env spacing.
   """
   asset: Entity = env.scene[asset_cfg.name]
   pos = asset.data.root_link_pos_w - env.scene.env_origins
-  vel = asset.data.root_link_lin_vel_w
+  lin_vel = asset.data.root_link_lin_vel_w
+  ang_vel = asset.data.root_link_ang_vel_w
+  quat = asset.data.root_link_quat_w
+  jpos = asset.data.joint_pos
+  jvel = asset.data.joint_vel
 
-  pos_bad = torch.isnan(pos).any(dim=1) | (pos.abs() > max_displacement).any(dim=1)
-  vel_bad = torch.isnan(vel).any(dim=1) | (vel.abs() > max_velocity).any(dim=1)
-  return pos_bad | vel_bad
+  def _bad(t: torch.Tensor, limit: float | None = None) -> torch.Tensor:
+    b = (~torch.isfinite(t)).any(dim=1)
+    if limit is not None:
+      b = b | (t.abs() > limit).any(dim=1)
+    return b
+
+  return (
+    _bad(pos, max_displacement)
+    | _bad(lin_vel, max_velocity)
+    | _bad(ang_vel, max_ang_velocity)
+    | _bad(quat)
+    | _bad(jpos)
+    | _bad(jvel, max_joint_velocity)
+  )

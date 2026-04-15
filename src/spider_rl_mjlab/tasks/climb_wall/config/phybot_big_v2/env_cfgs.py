@@ -2,6 +2,7 @@
 
 import mujoco
 
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.event_manager import EventTermCfg
@@ -34,38 +35,44 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   robot_cfg = get_phybot_big_v2_robot_cfg()
   wall_cfg = get_wall_cfg()
 
-  # Override initial state at task level.
-  # Position robot so hands are touching wall inner face (x=0.3).
-  robot_cfg.init_state.pos = (-0.18, 0.0, 1.1)
-  robot_cfg.init_state.joint_pos = {
-    "left_hip_pitch": -0.2,
-    "left_hip_roll": 0.0,
-    "left_hip_yaw": 0.0,
-    "left_knee": 0.4,
-    "left_ankle_pitch": -0.2,
-    "left_ankle_roll": 0.0,
-    "right_hip_pitch": -0.2,
-    "right_hip_roll": 0.0,
-    "right_hip_yaw": 0.0,
-    "right_knee": 0.4,
-    "right_ankle_pitch": -0.2,
-    "right_ankle_roll": 0.0,
-    "waist_yaw": 0.0,
-    "waist_roll": 0.0,
-    "left_shoulder_pitch": -2.79,
-    "left_shoulder_roll": -0.17,
-    "left_shoulder_yaw": -0.5,
-    "left_elbow_pitch": -0.26,
-    "left_elbow_yaw": 1.5,
-    "right_shoulder_pitch": -2.79,
-    "right_shoulder_roll": 0.34,
-    "right_shoulder_yaw": 0.5,
-    "right_elbow_pitch": -0.26,
-    "right_elbow_yaw": -1.5,
-  }
+  # Override initial state at task level. IMPORTANT: build a fresh
+  # InitialStateCfg rather than mutating robot_cfg.init_state in place — the
+  # robot factory returns a shared keyframe singleton that is also used by
+  # other tasks (e.g. microspine_test). Mutating it would cause the last task
+  # registered to overwrite init poses for earlier ones.
+  robot_cfg.init_state = EntityCfg.InitialStateCfg(
+    pos=(-0.67, 0.0, 2.0),
+    rot=(1.0, 0.0, 0.0, 0.0),
+    joint_pos={
+      "left_hip_pitch": -0.2,
+      "left_hip_roll": 0.0,
+      "left_hip_yaw": 0.0,
+      "left_knee": 0.4,
+      "left_ankle_pitch": -0.2,
+      "left_ankle_roll": 0.0,
+      "right_hip_pitch": -0.2,
+      "right_hip_roll": 0.0,
+      "right_hip_yaw": 0.0,
+      "right_knee": 0.4,
+      "right_ankle_pitch": -0.2,
+      "right_ankle_roll": 0.0,
+      "waist_yaw": 0.0,
+      "waist_roll": 0.0,
+      "left_shoulder_pitch": -2.79,
+      "left_shoulder_roll": 0.0,
+      "left_shoulder_yaw": -0.5,
+      "left_elbow_pitch": -0.4,
+      "left_elbow_yaw": 0.45,
+      "right_shoulder_pitch": -2.79,
+      "right_shoulder_roll": 0.17,
+      "right_shoulder_yaw": 0.5,
+      "right_elbow_pitch": -0.4,
+      "right_elbow_yaw": -0.45,
+    },
+  )
 
-  # Wall: center position in world frame.
-  wall_cfg.init_state.pos = (0.8, 0.0, 2.5)
+  # Wall: center position in world frame (10m tall wall centered at z=5).
+  wall_cfg.init_state.pos = (0, 0.0, 5.0)
 
   cfg.scene.entities = {
     "robot": robot_cfg,
@@ -74,7 +81,7 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # EE body names for adhesion actuators.
   _EE_BODY_NAMES = ("left_hand", "right_hand")
-  _ADHESION_FORCE = 1200.0
+  _ADHESION_FORCE = 600.0
 
   # Contact pairs + adhesion actuators via spec_fn.
   def _spec_fn(spec: mujoco.MjSpec) -> None:
@@ -90,6 +97,15 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       pair.margin = 0.01
       pair.gap = 0.01
     add_adhesion_actuators(spec, _EE_BODY_NAMES, _ADHESION_FORCE)
+    # Disable the terrain ground plane — the gravity-tilt curriculum replaces
+    # the role of a floor, and removing the plane keeps the robot honest
+    # about needing to grip the wall.
+    try:
+      terrain_geom = spec.geom("terrain/terrain")
+      terrain_geom.contype = 0
+      terrain_geom.conaffinity = 0
+    except Exception:
+      pass
 
   cfg.scene.spec_fn = _spec_fn
 
@@ -102,6 +118,16 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       "microspine_cfg": MicrospineCfg(
         ee_body_names=("left_hand", "right_hand"),
         adhesion_force=_ADHESION_FORCE,
+        engage_force_threshold=5.0,
+        # Lenient engagement: any single sphere in contact is enough, as long
+        # as the hand is roughly parallel to the (tilted) wall surface.
+        engage_min_spheres=1,
+        engage_parallel_cos_threshold=0.9397,  # cos(20°)
+        # Latched adhesion releases when the friction force on the hand along
+        # its local-up direction exceeds this (N).
+        disengage_friction_threshold=50.0,
+        wall_geom_name="wall/wall_geom",
+        wall_entity_name="wall",
       ),
     },
   )
@@ -115,5 +141,8 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   if play:
     cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
+    # Play-only debug: print engage/disengage transitions for env 0 and
+    # draw the current gravity vector in the viewer.
+    cfg.events["microspine_adhesion"].params["microspine_cfg"].debug = True
 
   return cfg
