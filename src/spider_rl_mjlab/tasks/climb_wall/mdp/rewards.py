@@ -17,87 +17,6 @@ if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
 
-def base_height(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  """Reward upward velocity (climbing speed) rather than absolute height.
-
-  Returns clipped vz so only upward movement is rewarded.
-  """
-  asset: Entity = env.scene[asset_cfg.name]
-  vz = asset.data.root_link_lin_vel_w[:, 2]
-  return vz.clamp(min=0.0)
-
-
-def torso_orientation(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  """Reward upright orientation using projected gravity.
-
-  Returns exp(-||g_xy||^2) where g_xy are x,y components of gravity in the
-  base frame. Value is 1.0 when perfectly upright, decays toward 0 when tilted.
-  """
-  asset: Entity = env.scene[asset_cfg.name]
-  gravity_b = asset.data.projected_gravity_b
-  return torch.exp(-torch.sum(torch.square(gravity_b[:, :2]), dim=1))
-
-
-def near_wall(
-  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg, wall_x: float = 1.5
-) -> torch.Tensor:
-  """Reward proximity to the wall in the x-direction.
-
-  Returns exp(-dist/0.1), highest when robot base is close to wall_x.
-  """
-  asset: Entity = env.scene[asset_cfg.name]
-  root_pos_x_env = asset.data.root_link_pos_w[:, 0] - env.scene.env_origins[:, 0]
-  dist_to_wall = torch.abs(root_pos_x_env - wall_x)
-  return torch.exp(-dist_to_wall / 0.1)
-
-
-def torso_ang_vel_xy(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  """Penalize angular velocity around x and y axes (body shaking)."""
-  asset: Entity = env.scene[asset_cfg.name]
-  return torch.sum(torch.square(asset.data.root_link_ang_vel_w[:, :2]), dim=1)
-
-
-def lin_vel_xy(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  """Penalize lateral linear velocity (x and y)."""
-  asset: Entity = env.scene[asset_cfg.name]
-  return torch.sum(torch.square(asset.data.root_link_lin_vel_w[:, :2]), dim=1)
-
-
-def com_near_wall(
-  env: ManagerBasedRlEnv,
-  asset_cfg: SceneEntityCfg,
-  wall_x: float = 0.3,
-) -> torch.Tensor:
-  """Reward COM proximity to wall inner face.
-
-  Uses the signed perpendicular distance from the robot base to the wall plane,
-  so it works correctly for tilted walls (curriculum-varied angle).
-  ``wall_x`` kept for backwards-compat but no longer referenced.
-  """
-  del wall_x  # Unused: wall face is queried from mocap pose.
-  asset: Entity = env.scene[asset_cfg.name]
-  base_pos_w = asset.data.root_link_pos_w  # (E, 3)
-  wall_pos_w, normal_w = _SphereGeomCache.wall_plane(env)
-  wall_half = _SphereGeomCache.get(env).wall_half
-  signed = ((base_pos_w - wall_pos_w) * normal_w).sum(dim=-1) - wall_half
-  return torch.exp(-signed.abs() / 0.5)
-
-
-def forward_velocity(
-  env: ManagerBasedRlEnv,
-  asset_cfg: SceneEntityCfg,
-) -> torch.Tensor:
-  """Reward velocity component toward the wall (along inward-normal).
-
-  Works for tilted walls: uses wall's current outward normal instead of +x.
-  """
-  asset: Entity = env.scene[asset_cfg.name]
-  v_w = asset.data.root_link_lin_vel_w  # (E, 3)
-  _, normal_w = _SphereGeomCache.wall_plane(env)
-  v_toward_wall = -(v_w * normal_w).sum(dim=-1)
-  return v_toward_wall.clamp(min=0.0, max=1.0)
-
-
 class _SphereGeomCache:
   """Lazily caches per-sphere geom IDs, radii, and wall geometry.
 
@@ -181,27 +100,6 @@ def hands_on_wall(
   return in_contact.mean(dim=1)
 
 
-def both_hands_bonus(
-  env: ManagerBasedRlEnv,
-  asset_cfg: SceneEntityCfg,
-  contact_threshold: float = 0.02,
-) -> torch.Tensor:
-  """Bonus reward when BOTH hands have contact with wall.
-
-  Computes per-hand contact ratio (0~1), then returns their product.
-  Only gives reward when both hands are touching:
-    left=0.8, right=0.0 → 0.0 (no bonus)
-    left=0.8, right=0.5 → 0.4 (partial bonus)
-    left=1.0, right=1.0 → 1.0 (full bonus)
-  """
-  surf_dist = _SphereGeomCache.surface_distances(env)  # (E, 16)
-  in_contact = (surf_dist.abs() < contact_threshold).float()
-  # First 8 = left hand, last 8 = right hand.
-  left_ratio = in_contact[:, :8].mean(dim=1)
-  right_ratio = in_contact[:, 8:].mean(dim=1)
-  return left_ratio * right_ratio
-
-
 def hands_toward_wall(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
@@ -221,19 +119,24 @@ def hand_orientation_toward_wall(
   asset_cfg: SceneEntityCfg,
   hand_body_names: tuple[str, ...] = ("left_hand", "right_hand"),
 ) -> torch.Tensor:
-  """Reward hand contact face pointing toward the wall.
+  """Reward hand contact face pointing toward the wall, gated by stance.
 
-  The contact spheres are on each hand's local -x face. We reward alignment
-  of that face-normal with the (inward) wall direction. For a tilted wall,
-  the target direction is ``-wall_outward_normal``. Returns mean over hands
-  in [0, 1].
+  Each hand's face-normal (local -x in world) is scored for alignment with
+  the wall's inward direction. The per-hand score is then multiplied by the
+  gait scheduler's desired-contact signal ``C_h^cmd`` — so a hand is only
+  penalised for misalignment while it *should* be anchored to the wall.
+  During its swing phase the hand is free to rotate away to reach upward.
+
+  Returns a scalar in [0, 2] (each hand contributes up to 1 during stance).
   """
   asset: Entity = env.scene[asset_cfg.name]
   _, wall_normal = _SphereGeomCache.wall_plane(env)  # (E, 3)
   target = -wall_normal  # direction from robot into wall
 
+  c = _desired_contact(env)  # (E, 2) stance weight per hand
+
   total = torch.zeros(env.num_envs, device=env.device)
-  for bname in hand_body_names:
+  for h, bname in enumerate(hand_body_names):
     ids, _ = asset.find_bodies([bname])
     body_id = ids[0]
     quat = asset.data.body_link_quat_w[:, body_id, :]  # (E, 4) wxyz
@@ -244,53 +147,83 @@ def hand_orientation_toward_wall(
     fz = -2.0 * (x * z - w * y)
     face = torch.stack([fx, fy, fz], dim=-1)  # (E, 3)
     dot = (face * target).sum(dim=-1).clamp(-1.0, 1.0)
-    total += (dot + 1.0) * 0.5
-  return total / len(hand_body_names)
-
-
-def base_lin_vel_z_penalty(
-  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg
-) -> torch.Tensor:
-  """Penalize vertical velocity oscillation (promotes smooth climbing)."""
-  asset: Entity = env.scene[asset_cfg.name]
-  return torch.square(asset.data.root_link_lin_vel_w[:, 2])
+    total += c[:, h] * (dot + 1.0) * 0.5
+  return total
 
 
 # ---------------------------------------------------------------------------
-# Gait rewards (adapted from Um et al. 2025 "RL-based Wall Climbing", Table I).
-# Two-hand trot: left hand swings in φ ∈ [0, 0.5); right hand offset by 0.5.
+# Gait rewards (adapted from Margolis & Agrawal 2022 "Walk These Ways",
+# Table 1, with a soft von-Mises-style contact schedule).
+# Two-hand trot: left hand stance plateau p ∈ [0.5, 1); right hand offset 0.5.
 # ---------------------------------------------------------------------------
 
 
-def _phase_and_swing_masks(env: ManagerBasedRlEnv) -> tuple[torch.Tensor, torch.Tensor]:
-  """Return (swing_left, swing_right) ∈ {0,1} masks, shape (E,).
+_SCHEDULE_SIGMA = 0.03  # phase-units half-width of the stance↔swing transition
 
-  A hand is "in swing" for the first half of its own phase cycle.
+
+def _stance_bump(x: torch.Tensor, sigma: float) -> torch.Tensor:
+  """Smooth periodic square wave with stance plateau on [0.5, 1).
+
+  Uses two shifted Gaussian-CDF plateaus (primary at [0.5, 1], wrap tail at
+  the end of the previous cycle) so the schedule is continuous across p=0
+  and p=1. σ controls the transition half-width in phase units.
+  """
+  sqrt2 = math.sqrt(2.0)
+  a = 0.5 * (
+    torch.erf((x - 0.5) / (sigma * sqrt2))
+    - torch.erf((x - 1.0) / (sigma * sqrt2))
+  )
+  b = 0.5 * (
+    torch.erf((x + 0.5) / (sigma * sqrt2))
+    - torch.erf(x / (sigma * sqrt2))
+  )
+  return (a + b).clamp(0.0, 1.0)
+
+
+def _desired_contact(env: ManagerBasedRlEnv) -> torch.Tensor:
+  """Smooth desired contact schedule C_h^cmd(p) ∈ [0, 1], shape (E, 2).
+
+  Left hand stance plateau p ∈ [0.5, 1); right hand offset by 0.5.
+  Transitions are Gaussian-CDF smoothed over ±~`_SCHEDULE_SIGMA` so the
+  policy gets a continuous gradient across swing↔stance boundaries (matches
+  Walk-These-Ways). σ=0.03 ≈ 6% of a cycle on each side.
   """
   from spider_rl_mjlab.tasks.climb_wall.mdp.observations import gait_phase
 
-  p = gait_phase(env)                       # (E,)
-  p_left = p
-  p_right = (p + 0.5) % 1.0
-  swing_left = (p_left < 0.5).float()
-  swing_right = (p_right < 0.5).float()
-  return swing_left, swing_right
+  p = gait_phase(env)  # (E,)
+  c_l = _stance_bump(p, _SCHEDULE_SIGMA)
+  c_r = _stance_bump((p + 0.5) % 1.0, _SCHEDULE_SIGMA)
+  return torch.stack([c_l, c_r], dim=1)  # (E, 2)
 
 
-def _get_engaged(env: ManagerBasedRlEnv) -> torch.Tensor | None:
-  """Fetch the live per-(env, hand) engaged bool tensor from MicrospineController.
+def stance_phase_velocity(
+  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg, sigma: float = 0.3
+) -> torch.Tensor:
+  """R_cst — "Walk These Ways" stance phase tracking (velocity).
 
-  Returns None if the controller isn't attached (e.g., in tasks without it).
+  During stance (C^cmd ≈ 1), the hand should not SLIDE along the wall:
+
+      r = Σ_h C_h^cmd · exp(−‖v_h,tan‖² / σ²)
+
+  ``v_h,tan`` is the component of the hand's world velocity in the wall
+  plane (normal component projected out). Normal motion into/out of the
+  wall is not penalised — small elastic compression against the wall is
+  expected even during a solid grip. Returns a scalar in [0, 2].
   """
-  try:
-    term = env.event_manager.get_term_cfg("microspine_adhesion")
-  except Exception:
-    return None
-  ctrl = term.func
-  engaged = getattr(ctrl, "engaged", None)
-  if engaged is None:
-    return None
-  return engaged.float()  # (E, 2)
+  asset: Entity = env.scene[asset_cfg.name]
+  body_ids = _hand_body_ids(env, asset_cfg)
+  _, normal_w = _SphereGeomCache.wall_plane(env)  # (E, 3)
+
+  v_l = asset.data.body_link_lin_vel_w[:, body_ids[0], :]  # (E, 3)
+  v_r = asset.data.body_link_lin_vel_w[:, body_ids[1], :]
+  v_l_tan = v_l - (v_l * normal_w).sum(-1, keepdim=True) * normal_w
+  v_r_tan = v_r - (v_r * normal_w).sum(-1, keepdim=True) * normal_w
+  speed_sq = torch.stack(
+    [v_l_tan.pow(2).sum(-1), v_r_tan.pow(2).sum(-1)], dim=1
+  )
+  C = _desired_contact(env)
+  kernel = torch.exp(-speed_sq / (sigma * sigma))
+  return (C * kernel).sum(dim=1)
 
 
 def _hand_body_ids(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> list[int]:
@@ -302,125 +235,134 @@ def _hand_body_ids(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> list[in
   return ids
 
 
-def gait_match(
-  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg
-) -> torch.Tensor:
-  """R_g — SOFT sinusoidal swing/stance matching.
-
-  Instead of a hard ±1 step, the desired stance signal is
-      s_i(φ) = −sin(2π · φ_i)        ∈ [−1, +1]
-  so that s_i ≈ +1 at the stance peak (φ=0.75) and s_i ≈ −1 at the swing
-  peak (φ=0.25), and s_i ≈ 0 at the boundaries (φ=0, 0.5).
-
-  The reward for each hand is  g_i = s_i · (2·c_i − 1)  where c_i ∈ {0, 1}
-  is the engaged flag. Peak-phase mismatches cost the full ±1; near the
-  swing↔stance boundaries the pressure relaxes to ≈0 so the policy is free
-  to overshoot either way — i.e. **overlap emerges naturally** when the
-  policy finds it beneficial (e.g. keep the next hand gripping early to
-  avoid a fall). Returns 0.5·(g_L + g_R) ∈ [−1, 1].
-  """
-  engaged = _get_engaged(env)
-  if engaged is None:
-    return torch.zeros(env.num_envs, device=env.device)
-
-  from spider_rl_mjlab.tasks.climb_wall.mdp.observations import gait_phase
-
-  p = gait_phase(env)                      # (E,)
-  two_pi = 2.0 * math.pi
-  s_l = -torch.sin(two_pi * p)             # left  desired-stance signal
-  s_r = -torch.sin(two_pi * ((p + 0.5) % 1.0))  # right (phase offset 0.5)
-
-  c_l = engaged[:, 0]
-  c_r = engaged[:, 1]
-
-  g_l = s_l * (2.0 * c_l - 1.0)
-  g_r = s_r * (2.0 * c_r - 1.0)
-  return 0.5 * (g_l + g_r)
-
-
 def swing_hand_height(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
-  lift_target: float = 0.5,
+  lift_amplitude: float = 0.2,
+  sigma: float = 0.08,
+  r_floor: float = 0.3,
 ) -> torch.Tensor:
-  """R_fh — Gaussian shaping to keep the swing hand ~lift_target (m) above base.
+  """Track each hand's distance-to-wall against a sinusoidal reference.
 
-  Only the swing hand contributes; stance side masked out. Returns a value
-  in (0, 0.5]. Continuous gradient everywhere — this is the main "teach
-  the hand to lift" signal.
+  Ported from "Custom Sine Waves Are Enough for Imitation Learning of
+  Bipedal Gaits" (Wu et al. 2022, arXiv:2204.04157). The reference
+  trajectory for each hand's perpendicular distance to the wall surface:
+
+      d_ref_L(p) = amp · max(0, sin(2π · p))
+      d_ref_R(p) = amp · max(0, sin(2π · (p + 0.5)))
+
+  - Stance (sine ≤ 0 → clipped to 0): hand should be ON the wall (d ≈ 0).
+  - Swing peak (p = 0.25 for left, 0.75 for right): d_ref = amp.
+  - The sine arc captures the whole lift-peak-lower motion, not just the apex.
+
+  This works as a stance reference because the wall has a fixed world
+  position — "hand on wall surface" is a single geometric target that does
+  NOT drift as the robot climbs (analogous to Cassie's foot-on-ground
+  reference during stance).
+
+  Reward: sharpened Gaussian with reward-floor normalisation.
+
+      raw = exp(−Σ_h (d_h − d_ref_h)² / σ²)
+      r   = max(0, (raw − r_floor) / (1 − r_floor))
   """
-  asset: Entity = env.scene[asset_cfg.name]
-  base_z = asset.data.root_link_pos_w[:, 2]
-  body_ids = _hand_body_ids(env, asset_cfg)
-  z_l = asset.data.body_link_pos_w[:, body_ids[0], 2]
-  z_r = asset.data.body_link_pos_w[:, body_ids[1], 2]
+  surf_dist = _SphereGeomCache.surface_distances(env)        # (E, 16)
+  d_l = surf_dist[:, :8].mean(dim=1)                         # (E,)
+  d_r = surf_dist[:, 8:].mean(dim=1)
 
-  sw_l, sw_r = _phase_and_swing_masks(env)
-  dz_l = (z_l - base_z) - lift_target
-  dz_r = (z_r - base_z) - lift_target
-  err = sw_l * dz_l.pow(2) + sw_r * dz_r.pow(2)
-  return 0.5 * torch.exp(-err)
+  from spider_rl_mjlab.tasks.climb_wall.mdp.observations import gait_phase
+
+  p = gait_phase(env)                                        # (E,)
+  two_pi = 2.0 * math.pi
+  d_ref_l = lift_amplitude * torch.sin(two_pi * p).clamp(min=0.0)
+  d_ref_r = lift_amplitude * torch.sin(two_pi * ((p + 0.5) % 1.0)).clamp(min=0.0)
+
+  err = (d_l - d_ref_l).pow(2) + (d_r - d_ref_r).pow(2)
+  raw = torch.exp(-err / (sigma * sigma))
+  return ((raw - r_floor).clamp(min=0.0) / (1.0 - r_floor))
 
 
-def swing_hand_clearance(
+def swing_hand_reach_up(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
-  lift_target: float = 0.5,
+  reach_height: float = 0.35,
+  sigma: float = 0.18,
+  r_floor: float = 0.3,
 ) -> torch.Tensor:
-  """R_fc — strong penalty for a swing hand that is NOT lifted and is still
-  moving (would correspond to "shuffling on the wall" rather than truly
-  swinging up).
+  """Reward each hand reaching UP (world +z) above the torso during swing.
 
-  Active only when the hand is not engaged AND below lift_target. Multiplied
-  by sqrt of |v_z| so it fires harder when the hand is moving without lift.
-  Returns a positive scalar (apply with negative weight in env cfg).
+  Tracks a sinusoidal reference for ``(hand_z - root_z)``, peaking at
+  ``reach_height`` during each hand's swing phase and falling to 0 during
+  stance. Combined with ``swing_hand_height`` (which rewards pulling AWAY
+  from the wall), this drives the full "peel off → reach UP → re-plant higher"
+  arc needed for climbing progress.
+
+  Uses the same clamped-sine schedule as ``swing_hand_height`` so both
+  rewards peak simultaneously per hand.
   """
+  from spider_rl_mjlab.tasks.climb_wall.mdp.observations import gait_phase
+
   asset: Entity = env.scene[asset_cfg.name]
-  engaged = _get_engaged(env)
-  if engaged is None:
-    return torch.zeros(env.num_envs, device=env.device)
-  c_l, c_r = engaged[:, 0], engaged[:, 1]
-
   body_ids = _hand_body_ids(env, asset_cfg)
-  base_z = asset.data.root_link_pos_w[:, 2]
-  z_l = asset.data.body_link_pos_w[:, body_ids[0], 2] - base_z
-  z_r = asset.data.body_link_pos_w[:, body_ids[1], 2] - base_z
-  vz_l = asset.data.body_link_lin_vel_w[:, body_ids[0], 2]
-  vz_r = asset.data.body_link_lin_vel_w[:, body_ids[1], 2]
+  root_z = asset.data.root_link_pos_w[:, 2]                               # (E,)
+  z_l = asset.data.body_link_pos_w[:, body_ids[0], 2] - root_z            # (E,)
+  z_r = asset.data.body_link_pos_w[:, body_ids[1], 2] - root_z            # (E,)
 
-  # deficit: how far below the lift target (0 if already at/above)
-  deficit_l = (lift_target - z_l).clamp(min=0.0)
-  deficit_r = (lift_target - z_r).clamp(min=0.0)
+  p = gait_phase(env)                                                    # (E,)
+  two_pi = 2.0 * math.pi
+  z_ref_l = reach_height * torch.sin(two_pi * p).clamp(min=0.0)
+  z_ref_r = reach_height * torch.sin(two_pi * ((p + 0.5) % 1.0)).clamp(min=0.0)
 
-  pen_l = (1.0 - c_l) * deficit_l.pow(2) * vz_l.abs().clamp(min=1e-3).sqrt()
-  pen_r = (1.0 - c_r) * deficit_r.pow(2) * vz_r.abs().clamp(min=1e-3).sqrt()
-  return pen_l + pen_r
+  err = (z_l - z_ref_l).pow(2) + (z_r - z_ref_r).pow(2)
+  raw = torch.exp(-err / (sigma * sigma))
+  return ((raw - r_floor).clamp(min=0.0) / (1.0 - r_floor))
 
 
-def stance_hand_anchor(
+def airborne_penalty(
   env: ManagerBasedRlEnv,
-  asset_cfg: SceneEntityCfg,
+  event_term_name: str = "microspine_adhesion",
 ) -> torch.Tensor:
-  """R_fs — penalty for stance-side hand sliding (non-zero speed while in
-  contact). Encourages solid grip. Apply with negative weight."""
-  asset: Entity = env.scene[asset_cfg.name]
-  engaged = _get_engaged(env)
-  if engaged is None:
-    return torch.zeros(env.num_envs, device=env.device)
-  c_l, c_r = engaged[:, 0], engaged[:, 1]
+  """Penalise steps where NEITHER hand is engaged — the "jump" state.
 
-  body_ids = _hand_body_ids(env, asset_cfg)
-  v_l = asset.data.body_link_lin_vel_w[:, body_ids[0], :]
-  v_r = asset.data.body_link_lin_vel_w[:, body_ids[1], :]
-  return c_l * v_l.pow(2).sum(dim=-1) + c_r * v_r.pow(2).sum(dim=-1)
+  Reads the microspine controller's per-hand latch flags. Returns 1.0 on
+  every env where both hands are disengaged, else 0.0. Pair with a negative
+  weight in the reward config so the policy pays for flying.
+  """
+  term_cfg = env.event_manager.get_term_cfg(event_term_name)
+  engaged = term_cfg.func.engaged  # (E, H) bool
+  both_off = (~engaged).all(dim=-1)  # (E,)
+  return both_off.float()
 
 
 def climb_vz(
   env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg
 ) -> torch.Tensor:
-  """Reward upward base velocity (the actual climbing objective).
+  """Reward upward base velocity (climbing-progress objective).
 
-  Clipped to [0, 0.5 m/s] so the policy doesn't game it with bursts.
+  The wall is always vertical in world frame, so "up the wall" is world
+  +z. Clipped to [0, 0.5 m/s] — above this cap the extra speed gives no
+  extra reward, which removes the incentive to launch off the wall in
+  ballistic bursts. Smooth, sustained climbing at ~0.5 m/s strictly
+  dominates 2 m/s burst + free-fall.
   """
   asset: Entity = env.scene[asset_cfg.name]
   return asset.data.root_link_lin_vel_w[:, 2].clamp(min=0.0, max=0.5)
+
+
+def climb_height(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  baseline_z: float = 2.0,
+) -> torch.Tensor:
+  """Reward current height above spawn (world +z, meters).
+
+  Position-based — rewards BEING high, not moving up. Integrated over an
+  episode, this naturally prefers "climb fast early and hold high" to any
+  bursty/oscillating pattern: time at altitude accrues reward, whereas a
+  climb-then-fall trajectory accrues less because the robot spends time
+  near the bottom.
+
+  Returns ``max(0, root_z - baseline_z)`` so the baseline (no climb) gives
+  zero reward rather than a flat bias from the spawn altitude.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  return (asset.data.root_link_pos_w[:, 2] - baseline_z).clamp(min=0.0)

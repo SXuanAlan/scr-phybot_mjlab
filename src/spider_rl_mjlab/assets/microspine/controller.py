@@ -183,6 +183,9 @@ class MicrospineController:
     all_actuator_ids: list[int] = []
     self._hand_actuator_slices: list[tuple[int, int]] = []
     sphere_geom_ids_flat: list[int] = []
+    # Flat list of entity-local body IDs for every contact sphere, same order
+    # as ``_actuator_ids`` so the sphere-index → hand-index mapping is shared.
+    self._sphere_body_ids: list[int] = []
 
     offset = 0
     for bname in self._mcfg.ee_body_names:
@@ -193,6 +196,8 @@ class MicrospineController:
         act_name = f"{robot_prefix}/adh_{sname}"
         hand_act_ids.append(mj_model.actuator(act_name).id)
         hand_geom_ids.append(mj_model.geom(f"{robot_prefix}/{sname}").id)
+        body_ids, _ = asset.find_bodies([sname])
+        self._sphere_body_ids.append(body_ids[0])
       all_actuator_ids.extend(hand_act_ids)
       sphere_geom_ids_flat.extend(hand_geom_ids)
       self._hand_actuator_slices.append((offset, offset + len(hand_act_ids)))
@@ -296,6 +301,10 @@ class MicrospineController:
       # oscillation when CCD jitter spikes friction.
       self._reengage_cooldown = torch.zeros(
         self._num_envs, self._num_hands, dtype=torch.long, device=device
+      )
+      # Reusable zero-torque buffer for the per-sphere body wrench write.
+      self._zero_sphere_torque = torch.zeros(
+        self._num_envs, self._num_spheres, 3, device=device
       )
 
   def _cache_warp_tensors(self, env: ManagerBasedRlEnv) -> None:
@@ -538,17 +547,16 @@ class MicrospineController:
     min_count = self._mcfg.engage_min_spheres
     cos_thresh = self._mcfg.engage_parallel_cos_threshold
 
-    # Wall inward normal in world (per env), for the parallel check.
-    wall_inward = None
-    if cos_thresh > 0:
-      wall = env.scene[self._mcfg.wall_entity_name]
-      wquat = wall.data.root_link_quat_w  # (E, 4) wxyz
-      ww, wx, wy, wz = wquat[:, 0], wquat[:, 1], wquat[:, 2], wquat[:, 3]
-      # Wall outward normal = R(-1,0,0); inward = -outward.
-      inward_x = (1.0 - 2.0 * (wy * wy + wz * wz))
-      inward_y = 2.0 * (wx * wy + ww * wz)
-      inward_z = 2.0 * (wx * wz - ww * wy)
-      wall_inward = torch.stack([inward_x, inward_y, inward_z], dim=-1)  # (E, 3)
+    # Wall inward normal in world (per env). Used both by the parallel-engage
+    # check and by the body-level adhesion force application below, so always
+    # compute it.
+    wall = env.scene[self._mcfg.wall_entity_name]
+    wquat = wall.data.root_link_quat_w  # (E, 4) wxyz
+    ww, wx, wy, wz = wquat[:, 0], wquat[:, 1], wquat[:, 2], wquat[:, 3]
+    inward_x = (1.0 - 2.0 * (wy * wy + wz * wz))
+    inward_y = 2.0 * (wx * wy + ww * wz)
+    inward_z = 2.0 * (wx * wz - ww * wy)
+    wall_inward = torch.stack([inward_x, inward_y, inward_z], dim=-1)  # (E, 3)
 
     # Cooldown mask: engagement blocked while any cooldown steps remain.
     cooldown_active = self._reengage_cooldown > 0  # (E, H)
@@ -700,15 +708,49 @@ class MicrospineController:
       ctrl_scale = self._start_ctrl_scale * torch.exp(self._log_ratio * progress)
     else:
       ctrl_scale = torch.ones_like(self._engage_steps, dtype=torch.float32)
-    # (E, H) scaled ctrl value per hand, zero when not engaged.
-    hand_ctrl = self.engaged.float() * ctrl_scale * self._mcfg.ctrl_value
 
-    # --- Scatter per-hand ctrl to per-sphere actuators ---
-    ctrl = torch.zeros(self._num_envs, self._num_spheres, device=self._device)
-    for h in range(self._num_hands):
-      s_start, s_end = self._hand_actuator_slices[h]
-      ctrl[:, s_start:s_end] = hand_ctrl[:, h].unsqueeze(1)
-    env.sim.data.ctrl[:, self._actuator_ids] = ctrl
+    # --- Adhesion via per-sphere body-level external wrench ---
+    # Apply the force on each contact-sphere sub-body rather than on the hand
+    # CoM. Distributing the pull across the 8 spheres on a hand produces the
+    # restoring moment that keeps the hand flat against the wall: a hand-CoM
+    # force lets the top edge peel off while the bottom row pivots in contact,
+    # whereas per-sphere force pulls every sphere (including the non-contacting
+    # upper row) into the wall.
+    # ``adhesion_force`` is the per-hand maximum: every latched hand can pull
+    # up to this many newtons independently. Within a hand it is split evenly
+    # across the 8 contact spheres.
+    spheres_per_hand = self._num_spheres // self._num_hands
+    force_per_sphere = self._mcfg.adhesion_force / spheres_per_hand
+    # Broadcast per-hand engage + ramp onto each sphere.
+    engaged_per_sphere = self.engaged.float()[:, self._sphere_to_hand]  # (E, S)
+    scale_per_sphere = ctrl_scale[:, self._sphere_to_hand]              # (E, S)
+    sphere_mag = engaged_per_sphere * scale_per_sphere * force_per_sphere  # (E, S)
+    sphere_force = sphere_mag.unsqueeze(-1) * wall_inward.unsqueeze(1)     # (E, S, 3)
+    self._asset.write_external_wrench_to_sim(
+      forces=sphere_force,
+      torques=self._zero_sphere_torque,
+      body_ids=self._sphere_body_ids,
+    )
+
+    # Per-sphere adhesion actuators are now redundant: zero their ctrl so
+    # they don't double-apply on whichever spheres happen to be in contact.
+    env.sim.data.ctrl[:, self._actuator_ids] = 0.0
+
+    if self._debug:
+      step = env.episode_length_buf[0].item()
+      if step % 50 == 0:
+        for h in range(self._num_hands):
+          if bool(self.engaged[0, h].item()):
+            bname = self._mcfg.ee_body_names[h]
+            fx = wall_inward[0, 0].item()
+            fy = wall_inward[0, 1].item()
+            fz = wall_inward[0, 2].item()
+            s_start, s_end = self._hand_actuator_slices[h]
+            mag_sum = sphere_mag[0, s_start:s_end].sum().item()
+            n_contact = int((normal_forces[0, s_start:s_end] >= 0.5).sum().item())
+            print(f"[Microspine] APPLIED step={step} {bname} eng=1 "
+                  f"|F|={mag_sum:.1f}N dir=({fx:.2f},{fy:.2f},{fz:.2f}) "
+                  f"contact_spheres={n_contact}/{s_end - s_start}")
 
     # Periodic status print removed — only transitions (engage/disengage) log.
 

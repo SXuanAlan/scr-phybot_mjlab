@@ -26,8 +26,10 @@ class MicrospineCfg:
   """End-effector body names that have microspine contact surfaces."""
 
   adhesion_force: float = 50.0
-  """Total adhesion force across all spheres [N].
-  Split equally among spheres (force_per_sphere = adhesion_force / num_spheres)."""
+  """Per-hand adhesion force when engaged [N]. Each latched hand pulls its
+  contact face into the wall with up to this many newtons, independently of
+  other hands. Internally split evenly across the 8 contact spheres on the
+  hand (force_per_sphere = adhesion_force / spheres_per_hand)."""
 
   ctrl_value: float = 1.0
   """Adhesion actuator control signal [0, 1]. Actual force = gain * ctrl.

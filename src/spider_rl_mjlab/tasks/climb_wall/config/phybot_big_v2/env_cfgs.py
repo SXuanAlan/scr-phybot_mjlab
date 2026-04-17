@@ -44,22 +44,22 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
     pos=(-0.67, 0.0, 2.0),
     rot=(1.0, 0.0, 0.0, 0.0),
     joint_pos={
-      "left_hip_pitch": -0.2,
-      "left_hip_roll": 0.0,
-      "left_hip_yaw": 0.0,
+      "left_hip_pitch": -0.435,
+      "left_hip_roll": 0.64,
+      "left_hip_yaw": 0.955,
       "left_knee": 0.4,
       "left_ankle_pitch": -0.2,
       "left_ankle_roll": 0.0,
-      "right_hip_pitch": -0.2,
-      "right_hip_roll": 0.0,
-      "right_hip_yaw": 0.0,
+      "right_hip_pitch": -0.435,
+      "right_hip_roll": -0.64,
+      "right_hip_yaw": -0.955,
       "right_knee": 0.4,
       "right_ankle_pitch": -0.2,
       "right_ankle_roll": 0.0,
       "waist_yaw": 0.0,
       "waist_roll": 0.0,
       "left_shoulder_pitch": -2.79,
-      "left_shoulder_roll": 0.0,
+      "left_shoulder_roll": -0.17,
       "left_shoulder_yaw": -0.5,
       "left_elbow_pitch": -0.4,
       "left_elbow_yaw": 0.45,
@@ -81,7 +81,7 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # EE body names for adhesion actuators.
   _EE_BODY_NAMES = ("left_hand", "right_hand")
-  _ADHESION_FORCE = 600.0
+  _ADHESION_FORCE = 2000.0
 
   # Contact pairs + adhesion actuators via spec_fn.
   def _spec_fn(spec: mujoco.MjSpec) -> None:
@@ -124,8 +124,17 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
         engage_min_spheres=1,
         engage_parallel_cos_threshold=0.9397,  # cos(20°)
         # Latched adhesion releases when the friction force on the hand along
-        # its local-up direction exceeds this (N).
-        disengage_friction_threshold=50.0,
+        # its local-up direction exceeds this (N). Must sit well above the
+        # natural arm-loading band (~100-200 N during stance) so the latch
+        # doesn't flap on routine motion — only a deliberate upward yank from
+        # the policy should trigger release.
+        disengage_friction_threshold=200.0,
+        # Suppress single-step CCD jitter oscillations: require sustained
+        # overload for 5 frames before actually releasing, and block
+        # re-engagement for 20 frames after release so a brief jitter spike
+        # can't cause engage→release→engage on consecutive steps.
+        disengage_consecutive_steps=5,
+        reengage_cooldown_steps=20,
         wall_geom_name="wall/wall_geom",
         wall_entity_name="wall",
       ),
