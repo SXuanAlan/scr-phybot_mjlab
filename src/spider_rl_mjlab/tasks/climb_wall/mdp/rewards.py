@@ -284,37 +284,89 @@ def swing_hand_height(
 def swing_hand_reach_up(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
-  reach_height: float = 0.35,
-  sigma: float = 0.18,
-  r_floor: float = 0.3,
+  reach_height: float = 0.15,
+  sigma: float = 0.20,
 ) -> torch.Tensor:
-  """Reward each hand reaching UP (world +z) above the torso during swing.
+  """Sine-arc reference on the z-DIFFERENTIAL between the two hands.
 
-  Tracks a sinusoidal reference for ``(hand_z - root_z)``, peaking at
-  ``reach_height`` during each hand's swing phase and falling to 0 during
-  stance. Combined with ``swing_hand_height`` (which rewards pulling AWAY
-  from the wall), this drives the full "peel off → reach UP → re-plant higher"
-  arc needed for climbing progress.
+  Paper arXiv:2204.04157 sine reference, adapted for climbing anatomy
+  (hands always above root, so hand-minus-root is a poor reference).
+  Instead the reference is the **hand-to-hand** z delta, which is
+  anatomy-invariant and symmetric:
 
-  Uses the same clamped-sine schedule as ``swing_hand_height`` so both
-  rewards peak simultaneously per hand.
+      Δz_ref(p) = reach_peak · sin(2π · p)    (no clamp — symmetric)
+      Δz        = z_L − z_R
+      R         = exp(−(Δz − Δz_ref)² / σ²)
+
+  Behaviour:
+    - p = 0.25 (left swing peak)  → Δz_ref = +peak → want L higher by peak
+    - p = 0.75 (right swing peak) → Δz_ref = −peak → want R higher by peak
+    - p ∈ {0, 0.5} (hand swap)    → Δz_ref = 0    → hands at equal height
+
+  The earlier ``max(0, sin)`` clamped hand-minus-root version was broken
+  for climbing: it rewarded "bring hand down to root level" which is
+  opposite of what we want (arms reaching up to wall). Policy learnt to
+  drop arms (posture degraded) without producing climbing motion.
   """
   from spider_rl_mjlab.tasks.climb_wall.mdp.observations import gait_phase
 
   asset: Entity = env.scene[asset_cfg.name]
   body_ids = _hand_body_ids(env, asset_cfg)
-  root_z = asset.data.root_link_pos_w[:, 2]                               # (E,)
-  z_l = asset.data.body_link_pos_w[:, body_ids[0], 2] - root_z            # (E,)
-  z_r = asset.data.body_link_pos_w[:, body_ids[1], 2] - root_z            # (E,)
+  z_l = asset.data.body_link_pos_w[:, body_ids[0], 2]  # (E,)
+  z_r = asset.data.body_link_pos_w[:, body_ids[1], 2]
+  delta = z_l - z_r
 
-  p = gait_phase(env)                                                    # (E,)
-  two_pi = 2.0 * math.pi
-  z_ref_l = reach_height * torch.sin(two_pi * p).clamp(min=0.0)
-  z_ref_r = reach_height * torch.sin(two_pi * ((p + 0.5) % 1.0)).clamp(min=0.0)
+  p = gait_phase(env)  # (E,)
+  delta_ref = reach_height * torch.sin(2.0 * math.pi * p)
 
-  err = (z_l - z_ref_l).pow(2) + (z_r - z_ref_r).pow(2)
-  raw = torch.exp(-err / (sigma * sigma))
-  return ((raw - r_floor).clamp(min=0.0) / (1.0 - r_floor))
+  err = (delta - delta_ref).pow(2)
+  return torch.exp(-err / (sigma * sigma))
+
+
+def swing_hand_reach_higher(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  reach_delta: float = 0.3,
+  sigma: float = 0.18,
+  hand_body_names: tuple[str, ...] = ("left_hand", "right_hand"),
+) -> torch.Tensor:
+  """Reward the swing hand for being HIGHER than the stance hand.
+
+  During each hand's swing phase (``1 - C_h^cmd`` close to 1), the swing
+  hand's world-z should be ``reach_delta`` above the OTHER hand's z. The
+  other hand, being in stance, stays anchored — this differential is
+  exactly the "reach up with the free hand while the other holds" motion
+  that lets the policy climb without ever having both hands off the wall.
+
+  Combined with the strict ``both_hands_unlatched`` termination, this
+  creates a proper **overlap gait** training signal: stance hand stays
+  engaged while swing hand reaches, then re-engages at the higher spot
+  before the original stance hand releases.
+
+  Gaussian shaping with sigma=0.18 m — 18 cm tracking tolerance, wide
+  enough that partial progress gets gradient. Returns sum over hands
+  (each hand contributes up to 1 during its swing phase), so effective
+  max per step ≈ 1 (since hands alternate).
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  body_ids = [asset.find_bodies([bn])[0][0] for bn in hand_body_names]
+  z_l = asset.data.body_link_pos_w[:, body_ids[0], 2]  # (E,)
+  z_r = asset.data.body_link_pos_w[:, body_ids[1], 2]
+
+  c = _desired_contact(env)  # (E, 2): stance weight per hand
+  swing_l = 1.0 - c[:, 0]
+  swing_r = 1.0 - c[:, 1]
+
+  # swing left: want z_l − z_r ≈ +reach_delta
+  # swing right: want z_r − z_l ≈ +reach_delta
+  err_l = (z_l - z_r - reach_delta).pow(2)
+  err_r = (z_r - z_l - reach_delta).pow(2)
+
+  inv_sigma_sq = 1.0 / (sigma * sigma)
+  return (
+    swing_l * torch.exp(-err_l * inv_sigma_sq)
+    + swing_r * torch.exp(-err_r * inv_sigma_sq)
+  )
 
 
 def airborne_penalty(
@@ -339,13 +391,36 @@ def climb_vz(
   """Reward upward base velocity (climbing-progress objective).
 
   The wall is always vertical in world frame, so "up the wall" is world
-  +z. Clipped to [0, 0.5 m/s] — above this cap the extra speed gives no
-  extra reward, which removes the incentive to launch off the wall in
-  ballistic bursts. Smooth, sustained climbing at ~0.5 m/s strictly
-  dominates 2 m/s burst + free-fall.
+  +z. Clipped to [0, 0.3 m/s] — a deliberately low cap. Any velocity
+  above 0.3 m/s earns no extra reward, so there is no incentive to lunge
+  or burst upward; the policy's best strategy is smooth, steady climbing
+  at ~0.3 m/s, with ``climb_height`` doing the long-horizon pulling.
   """
   asset: Entity = env.scene[asset_cfg.name]
-  return asset.data.root_link_lin_vel_w[:, 2].clamp(min=0.0, max=0.5)
+  return asset.data.root_link_lin_vel_w[:, 2].clamp(min=0.0, max=0.3)
+
+
+def track_lin_vel(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  axis: int,
+  target: float = 0.0,
+  sigma: float = 0.3,
+) -> torch.Tensor:
+  """Gaussian-kernel velocity tracking reward along a single world axis.
+
+  $$ R = \\exp\\!\\left(-\\frac{(v_{\\text{cmd}} - v_{\\text{now}})^2}{\\sigma^2}\\right) $$
+
+  Used to drive the robot to match a commanded linear velocity. Unlike a
+  clamp-style reward that only rewards "at least v_cmd", this **symmetric**
+  kernel also penalises overshoot — robot going faster than commanded
+  loses reward. Combined with ``axis`` (0=x, 1=y, 2=z) this lets us set
+  per-axis velocity targets independently (e.g. vz>0 to climb, vx=vy=0
+  to stay aligned with the wall normal).
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  v = asset.data.root_link_lin_vel_w[:, axis]  # (E,)
+  return torch.exp(-(target - v).pow(2) / (sigma * sigma))
 
 
 def climb_height(
@@ -353,16 +428,13 @@ def climb_height(
   asset_cfg: SceneEntityCfg,
   baseline_z: float = 2.0,
 ) -> torch.Tensor:
-  """Reward current height above spawn (world +z, meters).
+  """Position-based climb reward (currently unused; kept as fallback).
 
-  Position-based — rewards BEING high, not moving up. Integrated over an
-  episode, this naturally prefers "climb fast early and hold high" to any
-  bursty/oscillating pattern: time at altitude accrues reward, whereas a
-  climb-then-fall trajectory accrues less because the robot spends time
-  near the bottom.
-
-  Returns ``max(0, root_z - baseline_z)`` so the baseline (no climb) gives
-  zero reward rather than a flat bias from the spawn altitude.
+  Signed ``z_b - baseline_z``. Tested but removed — needed a z observation
+  to be learnable (partial observability otherwise), and even with that
+  had either a "hang near baseline" local optimum (clamp version) or
+  large persistent negative reward at rest (signed version). ``climb_vz``
+  alone handles the climbing objective more simply.
   """
   asset: Entity = env.scene[asset_cfg.name]
-  return (asset.data.root_link_pos_w[:, 2] - baseline_z).clamp(min=0.0)
+  return asset.data.root_link_pos_w[:, 2] - baseline_z

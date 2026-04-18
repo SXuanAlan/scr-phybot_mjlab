@@ -756,7 +756,13 @@ class MicrospineController:
 
   def reset(self, env_ids: torch.Tensor) -> None:
     if self._threshold > 0:
-      self.engaged[env_ids] = False
+      # Start every episode with both hands already latched. The robot init
+      # pose places the hands near/on the wall; seeding ``engaged=True`` at
+      # reset means adhesion fires on frame 0 (pulls hands flush to the
+      # wall immediately) and avoids the "episode starts with zero grip"
+      # bootstrap window. The ``both_hands_unlatched`` termination no
+      # longer needs a grace period because this initial state is valid.
+      self.engaged[env_ids] = True
       self.disengaged_this_step[env_ids] = False
       self.last_normal_forces[env_ids] = 0.0
       self.peak_soft_count[env_ids] = 0.0

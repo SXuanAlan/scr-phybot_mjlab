@@ -17,77 +17,108 @@
 
 ## 观测项
 
-下面 9 项按顺序拼接，**总维度 133**。
+下面 12 项按顺序在 last 维拼接成 `(E, 139)` 的张量送进 actor。`E = num_envs`。
 
-### `base_lin_vel`（3 维）
+### `base_lin_vel` — `(E, 3)`
 $$
-o = \mathbf{R}_b^\top \mathbf{v}_w \in \mathbb{R}^3
+o[e] = \mathbf{R}_{b,e}^\top \mathbf{v}_{w,e}
 $$
-来源 `asset.data.root_link_lin_vel_b`。base **本体系**下的线速度
-$(v_x^b, v_y^b, v_z^b)$。
+来源 `asset.data.root_link_lin_vel_b`，shape `(E, 3)`。base **本体系**下的
+线速度 $(v_x^b, v_y^b, v_z^b)$。
 
-### `base_ang_vel`（3 维）
+### `base_ang_vel` — `(E, 3)`
 $$
-o = \mathbf{R}_b^\top \boldsymbol{\omega}_w \in \mathbb{R}^3
+o[e] = \mathbf{R}_{b,e}^\top \boldsymbol{\omega}_{w,e}
 $$
-来源 `asset.data.root_link_ang_vel_b`。base 本体系下的角速度
-$(\omega_x^b, \omega_y^b, \omega_z^b)$。
+来源 `asset.data.root_link_ang_vel_b`，shape `(E, 3)`。base 本体系下的
+角速度 $(\omega_x^b, \omega_y^b, \omega_z^b)$。
 
-### `projected_gravity`（3 维）
+### `projected_gravity` — `(E, 3)`
 $$
-o = \mathbf{R}_b^\top \hat{\mathbf{g}}_w,\quad \hat{\mathbf{g}}_w = (0, 0, -1)
+o[e] = \mathbf{R}_{b,e}^\top \hat{\mathbf{g}}_w,\quad \hat{\mathbf{g}}_w = (0, 0, -1)
 $$
-来源 `asset.data.projected_gravity_b`。机器人完全竖直时 $o \approx (0, 0, -1)$；
-前倾时 $o_x > 0$，侧倾时 $o_y \neq 0$。**不随 curriculum 重力倾角变化**——
-由设计如此，姿态类 reward 仍以世界竖直为参考。
+来源 `asset.data.projected_gravity_b`，shape `(E, 3)`。机器人完全竖直时
+$o \approx (0, 0, -1)$；前倾时 $o_x > 0$，侧倾时 $o_y \neq 0$。**不随
+curriculum 重力倾角变化**——由设计如此，姿态类 reward 仍以世界竖直为参考。
 
-### `joint_pos_rel`（24 维）
+### `joint_pos_rel` — `(E, 24)`
 $$
-o_j = q_j - q_j^{\text{default}},\quad j = 1, \dots, 24
+o[e, j] = q_{e, j} - q_j^{\text{default}},\quad j = 0, \dots, 23
 $$
 24 DOF：腿 12 + 腰 2 + 双臂 10。
 
-### `joint_vel_rel`（24 维）
+### `joint_vel_rel` — `(E, 24)`
 $$
-o_j = \dot{q}_j - \dot{q}_j^{\text{default}} = \dot{q}_j
+o[e, j] = \dot{q}_{e, j} - \dot{q}_j^{\text{default}} = \dot{q}_{e, j}
 $$
 （默认速度全为 0，所以等于关节绝对速度。）
 
-### `last_action`（24 维）
+### `last_action` — `(E, 24)`
 $$
-o = \mathbf{a}_t
+o[e] = \mathbf{a}_{t, e}
 $$
 当前步策略输出（缩放前的 raw action，由 action_manager 维护）。
 
-### `prev_action`（24 维）
+### `prev_action` — `(E, 24)`
 $$
-o = \mathbf{a}_{t-1}
+o[e] = \mathbf{a}_{t-1, e}
 $$
 来自 `action_manager.prev_action`，env reset 时清零。
 
-### `prev_prev_action`（24 维）
+### `prev_prev_action` — `(E, 24)`
 $$
-o = \mathbf{a}_{t-2}
+o[e] = \mathbf{a}_{t-2, e}
 $$
 来自 `action_manager.prev_prev_action`，env reset 时清零。
 
-### `gait_clock`（4 维）
-相位：
+### `gait_clock` — `(E, 4)`
+相位（标量按 env 广播）：
 $$
-p(t) = \left(\frac{t \cdot dt}{T_{\text{gait}}}\right) \bmod 1,\qquad
-p_L = p,\quad p_R = (p + 0.5) \bmod 1
+p_e(t) = \left(\frac{t_e \cdot dt}{T_{\text{gait}}}\right) \bmod 1,\qquad
+p_{L,e} = p_e,\quad p_{R,e} = (p_e + 0.5) \bmod 1
 $$
 观测：
 $$
-o = \big[\sin(2\pi p_L),\ \cos(2\pi p_L),\ \sin(2\pi p_R),\ \cos(2\pi p_R)\big]
+o[e] = \big[\sin(2\pi p_{L,e}),\ \cos(2\pi p_{L,e}),\ \sin(2\pi p_{R,e}),\ \cos(2\pi p_{R,e})\big]
 $$
 $(\sin, \cos)$ 编码避免 $p = 1 \to 0$ 处的跳变。
 
+### `height_above_spawn` — `(E, 1)`
+$$
+o[e] = z_{b,e} - z_{\text{spawn}},\quad z_{\text{spawn}} = 2.0
+$$
+
+机器人 base 相对出生点 z 高度。即便当前没用位置式 reward，这个观测仍有
+价值——critic 能据此判断 state value 如何随高度变化（爬高离掉地 terminate
+就越远、episode 更稳定等）。未来若加回 `climb_height` 也无需再改 obs。
+
+### `velocity_command` — `(E, 3)`
+$$
+o[e] = (v_{x,\text{cmd}},\ v_{y,\text{cmd}},\ v_{z,\text{cmd}})
+$$
+
+世界系命令速度，目前固定为 $(0, 0, 0.3)$。policy 看到这个命令就知道期望
+的运动方向和速率，配合 `track_vx/vy/vz` 奖励做标准的 commanded-velocity
+policy。未来可以接 command manager 做 per-env 命令随机化。
+
+### `hand_engaged_state` — `(E, 2)`
+$$
+o[e] = \big[\mathbb{1}[c_{L,e} = 1],\ \mathbb{1}[c_{R,e} = 1]\big]
+$$
+
+microspine 左/右手当前 latch 状态，直接从 `event_manager.get_term_cfg("microspine_adhesion").func.engaged`
+读（bool → float）。让 policy 能和抓墙状态协调动作（已抓住的手别再"试抓"）。
+
 ## 维度小结
 
-$$
-3 + 3 + 3 + 24 + 24 + 24 + 24 + 24 + 4 = 133
-$$
+```
+concat([(E,3), (E,3), (E,3), (E,24), (E,24), (E,24), (E,24), (E,24), (E,4), (E,2), (E,1), (E,3)], dim=-1)
+= (E, 139)
+```
+
+十二项依次：base_lin_vel、base_ang_vel、projected_gravity、joint_pos_rel、
+joint_vel_rel、last_action、prev_action、prev_prev_action、gait_clock、
+hand_engaged_state、height_above_spawn、velocity_command。
 
 ## EMA 低通滤波（备用，当前未启用）
 
@@ -108,6 +139,8 @@ $$
 
 - 没有特权 critic 组。要走 sim-to-real 时应该升级成 asymmetric actor-critic
   + state estimator（参考 arXiv:2510.20174）。
-- microspine 的 `engaged`（每手吸附状态）**没有放进 obs**，而是 reward 直接读取。
-  把它（2 维）加进观测是性价比最高的下一步——能直接告诉 policy "我吸住了吗"，
-  对学步态有立竿见影的帮助。
+- `height_above_spawn` 是**绝对位置信息**——真机部署需要外部测量（视觉定位
+  / 起点 anchor）。若不可观测，替代方案是去掉 `climb_height` reward、只保留
+  velocity tracking。
+- `velocity_command` 目前是全 env 共享常量；后续可以换成 CommandManager
+  做随机化，让 policy 学出 "任意 vz 目标 → 对应爬升速度" 的条件策略。

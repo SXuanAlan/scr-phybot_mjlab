@@ -13,6 +13,28 @@ if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
 
+def both_hands_unlatched(
+  env: ManagerBasedRlEnv,
+  event_term_name: str = "microspine_adhesion",
+) -> torch.Tensor:
+  """Terminate the instant both hands are unlatched.
+
+  Climbing is defined as an **overlap gait**: at least one hand must be
+  anchored at every moment. The policy transitions by (1) keeping the
+  stance hand engaged, (2) releasing the swing hand, reaching to a higher
+  wall location, (3) re-engaging the swing hand at the new height — both
+  are engaged at the overlap — (4) releasing the original stance hand,
+  repeating.
+
+  There is no legitimate "both-off" window in this gait, so termination
+  is strict (0-frame tolerance). Climbing itself is guided by the
+  ``track_vz`` velocity-tracking reward.
+  """
+  term_cfg = env.event_manager.get_term_cfg(event_term_name)
+  engaged = term_cfg.func.engaged  # (E, H) bool
+  return (~engaged).all(dim=-1)  # (E,)
+
+
 def bad_state(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,

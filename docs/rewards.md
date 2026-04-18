@@ -1,178 +1,193 @@
 # 奖励（Rewards）
 
-配置：`src/spider_rl_mjlab/tasks/climb_wall/climb_wall_env_cfg.py:70`。
+配置：`src/spider_rl_mjlab/tasks/climb_wall/climb_wall_env_cfg.py:72`。
 自定义 reward 函数：`src/spider_rl_mjlab/tasks/climb_wall/mdp/rewards.py`。
 
-下表里的"默认权重"是 `RewardTermCfg` 里声明的初始值，**curriculum 会在运行时
-覆盖**（详见 `curriculum.md`），所以这一列只是 curriculum 启动前的初值。
+## 当前启用状态总览
+
+| 分组 | 项 | 角色 |
+|---|---|---|
+| 贴墙 shaping | `hands_toward_wall`, `hand_orientation`, `hands_on_wall`, `posture` | 引导贴墙，权重适中避免静态白嫖 |
+| **速度命令跟踪** | `track_vx`, `track_vy`, `track_vz` | base world velocity 高斯核跟踪 |
+| **Swing sine-arc shaping** | `swing_hand_height`, `swing_hand_reach_up` | paper arXiv:2204.04157：swing 手 task-space 正弦轨迹（水平+竖直） |
+| 反滑动 | `stance_phase_velocity` | 支撑相位手静止 |
+| 关闭 | `climb_height` | 保留 fallback，weight=0 |
+
+**当前版本不限制"两手同时脱粘"**——`both_hands_unlatched` termination 已禁用、
+`airborne_penalty` reward 也删了。让 policy 纯靠 velocity tracking 自己探索，
+看能否自然涌现出 overlap gait。函数都还在 codebase 里做 fallback。
 
 ## 符号约定
 
-- $E$ 环境数；$h \in \{L, R\}$ 左/右手；$s \in \{1,\dots,16\}$ 16 个吸附球（每手 8）。
-- $p \in [0, 1)$ 步态相位，$p_L = p$，$p_R = (p + 0.5) \bmod 1$。
-- $c_h \in \{0, 1\}$：第 $h$ 手的 `engaged` 锁定状态。
-- $\mathbf{n}_w$：墙的 inward normal（指向机器人方向，世界系）。
-- $d_s$：第 $s$ 个球面到墙面的有符号距离（正=有缝，零=贴墙，负=穿透）。
-- $\mathbf{g}_b$：base 系下重力方向。
-- $z_b$：base 在世界系下的 z 坐标；$z_h$：第 $h$ 手在世界系下的 z 坐标。
+- $E$ 环境数；$h \in \{L, R\}$ 左/右手；$s \in \{1,\dots,16\}$ 16 个吸附球。
+- $p$ 步态相位；$c_h$ 第 $h$ 手的 `engaged`；$C_h^{\text{cmd}}(p)$ 软 gait schedule。
+- $\mathbf{n}_w$ 墙 outward normal；$d_s$ 球面到墙面有符号距离。
+- $z_b$ base 世界 z；$\mathbf{v}_b$ base 世界系线速度；$\mathbf{v}_{\text{cmd}}$ 命令速度。
 
 ---
 
-## 抓墙类（Phase 0+，从 iter 0 就生效）
+## 贴墙 shaping
 
-### `hands_toward_wall`（默认权重 +15.0）
+### `hands_toward_wall`（weight +8.0 → +3.0 at P1_END）
+
 $$
 R = -\min\!\left(\overline{|d_s|},\ 0.5\right)
 $$
-对 16 个球的 $|d_s|$ 取均值并 clip，靠近=负值更小=奖励更高。任意距离都有
-连续梯度。
 
-### `hand_orientation`（默认权重 +15.0）
-设 $\mathbf{f}_h$ 为第 $h$ 手 local $-x$ 面在世界系下的方向向量（接触面法线），
-墙的 inward 方向为 $\mathbf{t} = -\mathbf{n}_w^{\text{outward}}$，则：
+16 个球 $|d_s|$ 均值并 clip。P1_END 后衰减到 3。
+
+### `hand_orientation`（weight +15.0，stance 相位门控）
+
 $$
-R = \frac{1}{2}\sum_{h \in \{L,R\}} \frac{\mathbf{f}_h \cdot \mathbf{t} + 1}{2}
-\in [0, 1]
+R = \sum_{h} C_h^{\text{cmd}}(p) \cdot \frac{\mathbf{f}_h \cdot (-\mathbf{n}_w) + 1}{2} \in [0, 2]
 $$
 
-### `hands_on_wall`（默认权重 +20.0）
-$$
-R = \frac{1}{16}\sum_{s=1}^{16} \mathbb{1}\!\left[|d_s| < 0.02\,\text{m}\right]
-$$
+$\mathbf{f}_h$ 是第 $h$ 手 local $-x$ 面在世界系下的方向。只 stance 相位奖励
+对齐，swing 相位不罚。
+
+### `hands_on_wall`（weight +8.0）
+
 16 个球面距墙 < 20 mm 的占比。
 
-### `both_hands_bonus`（默认权重 +30.0）
-$$
-R = \left(\tfrac{1}{8}\sum_{s \in L} \mathbb{1}[|d_s| < 0.02]\right) \cdot
-    \left(\tfrac{1}{8}\sum_{s \in R} \mathbb{1}[|d_s| < 0.02]\right)
-$$
-两手接触率的乘积。任一手脱离 → 0。
+### `posture`（weight +3.0）
 
-### `com_near_wall`（默认权重 +5.0）
-设 base 在世界系下到墙平面的有符号垂直距离为 $\delta_\perp$，则：
-$$
-R = \exp\!\left(-\frac{|\delta_\perp|}{0.5}\right)
-$$
-墙平面位姿来自 wall mocap，curriculum 改墙倾角时自动跟随。
+mjlab 内置 Gaussian kernel，按关节组分别设 std：waist 0.3、hip 0.5、knee/ankle
+0.6、shoulder/elbow 1.2。腰/腿严，臂松。
 
 ---
 
-## 稳定性 / 姿态（常数权重）
+## 速度命令跟踪（主驱动）
 
-### `torso_orientation`（默认权重 +5.0）
-$$
-R = \exp\!\left(-\|\mathbf{g}_b^{xy}\|^2\right)
-$$
-完全竖直时 $R=1$，倾斜后衰减。
+所有三项共享高斯核：
 
-### `flat_orientation`（默认权重 −5.0；curriculum −2.0）
 $$
-R = \|\mathbf{g}_b^{xy}\|^2
-$$
-mjlab 内置 `flat_orientation_l2`，配负权重当罚项。
-
-### `base_height_penalty`（默认权重 −10.0）
-$$
-R = \max(0,\ z_{\min} - z_b),\quad z_{\min} = 0.9\,\text{m}
-$$
-低于阈值时按差值线性罚。
-
-### `posture`（默认权重 +5.0；curriculum +1.0）
-$$
-R = \exp\!\left(-\sum_{j=1}^{24}\frac{(q_j - q_j^{\text{default}})^2}{2\sigma_j^2}\right),\quad \sigma_j = 0.5
+R_{\text{axis}} = \exp\!\left(-\frac{(v_{\text{cmd}, i} - v_{b, i})^2}{\sigma^2}\right)
 $$
 
-### `torso_ang_vel`（默认权重 −1.0）
-$$
-R = \omega_x^2 + \omega_y^2
-$$
+$v_b$ 是 base 世界系线速度（`root_link_lin_vel_w`）。命令来自
+`velocity_command` 观测（目前固定 $(0, 0, 0.3)$，之后可换 command manager）。
 
-### `lin_vel_xy`（默认权重 −1.0）
-$$
-R = v_x^2 + v_y^2
-$$
+| 项 | weight | $v_{\text{cmd}}$ | $\sigma$ | 作用 |
+|---|---:|---:|---:|---|
+| `track_vx` | 6 | 0 m/s | 0.5 m/s | 不沿墙面 x 方向漂；sigma 宽避免严惩伸手时的小扰动 |
+| `track_vy` | 6 | 0 m/s | 0.5 m/s | 不沿墙面 y 方向漂 |
+| `track_vz` | **40** | **+0.3 m/s** | 0.25 m/s | **主目标：稳定向上爬**；sigma 窄强信号 |
 
-### `forward_velocity`（默认权重 +10.0；curriculum 0.0，关闭）
-$$
-R = \mathrm{clip}\!\left(-\mathbf{v}_b \cdot \mathbf{n}_w^{\text{outward}},\ 0,\ 1\right)
-$$
-朝墙方向速度，clip 到 [0, 1]。
+权重比：`vz (40) > vx + vy (12) > posture/stance (3)`。vz 单项就比 vx+vy 合计
+还高，确保 "爬升" 明确优于 "完全静止"。vx/vy 的 sigma 放宽到 0.5 是关键：
+早期训练里用 0.3 sigma 会严惩伸手时的微小 body 漂移（~0.2 m/s），导致
+policy 学到 "完全不动 > 爬升"；0.5 sigma 允许 reach 动作造成的暂时扰动不
+被惩罚太狠。
+
+**高斯核对称**——robot vz = 0.3 拿满分，vz = 0（静止）和 vz = 0.6（冲刺）都
+惩罚。这天然消除"冲刺"激励而不需要额外 clamp。
 
 ---
 
-## 平滑 / 代价
+## 反滑动
 
-| 项 | 公式 | 默认权重 |
-|---|---|---:|
-| `action_rate` | $R = \|\mathbf{a}_t - \mathbf{a}_{t-1}\|^2$ | −0.1 |
-| `joint_torques` | $R = \sum_j \tau_j^2$ | −1e-6 |
-| `dof_pos_limits` | $R = \sum_j \max(0,\ q_j - q_j^{\max}) + \max(0,\ q_j^{\min} - q_j)$ | −5.0 |
+### `stance_phase_velocity`（weight +3.0）
+
+$$
+R = \sum_h C_h^{\text{cmd}}(p) \cdot \exp\!\left(-\frac{\|\mathbf{v}_{h,\tan}\|^2}{\sigma^2}\right),\quad \sigma = 0.15\,\text{m/s}
+$$
+
+stance 相位时手切向速度接近 0 → 满奖励。
 
 ---
 
-## 步态类（Phase 1+，curriculum 在 `P0_END = 5000` iter 之后打开）
+## Swing sine-arc shaping（paper arXiv:2204.04157）
 
-参考 Um 等人 2025（arXiv:2510.20174）Table I。两手 trot：左手在 $p \in [0, 0.5)$
-摆动，右手相位偏 0.5。
+Wu 等人 2022 "Custom Sine Waves Are Enough" 的 task-space 正弦参考。对每只手
+的 swing 相位（$p_h \in [0, 0.5)$），给出世界系两条 sine 参考曲线：
 
-下面五项默认权重都是 `0.0`，curriculum 切到目标值。
+### `swing_hand_height`（weight +10.0，水平分量）
 
-### `gait_match`（curriculum +8.0）
-软正弦版（与论文硬 ±1 阶梯不同，允许 overlap 自然出现）：
 $$
-s_h(p) = -\sin(2\pi p_h),\quad
-g_h = s_h \cdot (2 c_h - 1),\quad
-R = \tfrac{1}{2}(g_L + g_R) \in [-1, 1]
+d_{\text{ref}, h}(p) = \text{lift\_amp} \cdot \max(0,\ \sin(2\pi p_h)),\quad \text{lift\_amp} = 0.1\,\text{m}
 $$
-- $p_h$ 中段（摆动峰 $p=0.25$ 或支撑峰 $p=0.75$）惩罚峰值 ±1；
-- $p_h = 0, 0.5$ 边界 $s_h \approx 0$，策略可自由选择是否提前抓住下一手。
 
-### `swing_hand_height`（curriculum +10.0）
-$$
-\Delta z_h = z_h - z_b - 0.5,\qquad
-R = 0.5 \cdot \exp\!\left(-\sum_{h:\text{swing}} \Delta z_h^2\right)
-$$
-摆动手相对 base 抬高目标 0.5 m，高斯 shaping，仅 swing 手贡献。
+$d_h$ 是第 $h$ 手 8 个球到墙面的均值法向距离。swing 中段（$p_h = 0.25$）
+峰值 0.1 m 离墙；stance 阶段 sine 负半波被 clamp 到 0（手应贴墙）。高斯
+tracking：$R = \exp(-\sum_h (d_h - d_{\text{ref}})^2 / \sigma^2)$，$\sigma = 0.18$。
 
-### `swing_hand_clearance`（curriculum −50.0，惩罚项）
-$$
-\text{deficit}_h = \max(0,\ 0.5 - (z_h - z_b))
-$$
-$$
-R = \sum_{h \in \{L,R\}} (1 - c_h) \cdot \text{deficit}_h^2 \cdot \sqrt{\max(|v_{z,h}|, 10^{-3})}
-$$
-未脱开（$c_h=0$）且抬不起来还在墙上"蹭"的手（$|v_z|$ 越大越罚）。
+### `swing_hand_reach_up`（weight +15.0，竖直分量——**hand-to-hand 差分**）
 
-### `stance_hand_anchor`（curriculum −2.0，惩罚项）
 $$
-R = \sum_{h \in \{L,R\}} c_h \cdot \|\mathbf{v}_h\|^2
+\Delta z_{\text{ref}}(p) = \text{reach\_peak} \cdot \sin(2\pi p),\quad \text{reach\_peak} = 0.15\,\text{m}
 $$
-支撑手（$c_h=1$）速度越大越罚——惩罚滑动。
 
-### `climb_vz`（curriculum +20.0）
 $$
-R = \mathrm{clip}(v_{z,\text{base}},\ 0,\ 0.5)
+\Delta z = z_L - z_R,\quad R = \exp\!\left(-\frac{(\Delta z - \Delta z_{\text{ref}})^2}{\sigma^2}\right),\quad \sigma = 0.20
 $$
-真正的爬升目标，clip 到 0.5 m/s 防止策略用突发速度刷分。
+
+**不 clamp**，单条对称正弦波同时编码两手交替：
+- $p = 0.25$（左手 swing peak）：$\Delta z_{\text{ref}} = +0.15$ → 左手高 15cm
+- $p = 0.75$（右手 swing peak）：$\Delta z_{\text{ref}} = -0.15$ → 右手高 15cm
+- $p \in \{0, 0.5\}$（换手瞬间）：$\Delta z_{\text{ref}} = 0$ → 两手平
+
+**为什么不用 hand-vs-root**：初版用 `z_h - z_{\text{root}}` 跟 clamped sine
+出过坑——climbing 的手长期在 root 上方（手臂伸向墙），clamped sine
+stance ref=0 会要求"把手拉到 root 水平"，和 climbing 物理相反，policy
+学成了"拱背把手往下拉"（posture 指标持续衰减）。
+差分公式 anatomy-invariant，支撑手 baseline 位置由物理决定而非 reward。
+
+**两项合一起 = 完整的 3D swing 弧**：手先拉离墙（horizontal +）同时抬高
+（vertical +），在中段达到"悬臂最远最高"的 reach 姿态，然后弧线回落到
+下一个 stance 贴墙点。这正是 paper 对 Cassie swing foot 的设计迁移到
+climbing 场景。
+
+**幅度选择**：初版用 0.2 m / 0.3 m（对应完整的 reach 姿态）训练时 policy 难
+触及，只能偶尔 spike。按 paper 对 Cassie clearance ~15 cm 的量级缩到
+**0.1 m / 0.15 m**，并把 sigma 放宽到 **0.18 / 0.20**，这样 5–10 cm 的小幅
+swing 也能拿到显著 reward，early-learning basin 更宽、更易触发。policy 学
+出初步 swing 行为后可以再用 curriculum 把幅度阶跃放大到真实 climbing 需要
+的尺度。
 
 ---
 
-## 吸附状态信号
+## 关闭项
 
-`gait_match`、`swing_hand_clearance`、`stance_hand_anchor` 都通过
-`_get_engaged()`（`rewards.py:280`）读取 microspine 控制器的 `engaged`
-（每手 bool）。如果 microspine event 没挂，函数会静默返回 0。
+### `climb_height`（函数保留，未启用）
+需要配合 `height_above_spawn` 观测才学得出位置式信号，曾有"挂在 baseline
+附近白嫖"的局部最优问题；现在靠 velocity tracking 替代。
+`height_above_spawn` 观测留着给 critic 做 state 描述用。
+
+### 原 `climb_vz`（clamp 版本）、`swing_hand_reach_higher`、`airborne_penalty`、
+### `both_hands_unlatched` termination
+
+全部禁用。`climb_vz` 被 `track_vz` 取代（对称高斯核）；`swing_hand_reach_higher`
+过度约束 gait 反而干扰探索；`airborne_penalty` + 硬 termination 组合在训练
+早期打断 policy 探索（observed: entropy 反而上升，value loss 不降）。当前版本
+**完全不约束手的 latch 状态**，看 policy 能否靠纯 velocity tracking 自己学出
+合理的爬升。
+
+---
+
+## 权重量纲对比
+
+vz_cmd = 0.3 m/s。假设 shaping 都接近满分：
+
+| 场景 | $v_z$ | swing sine arc | 其他分解 | 总和 |
+|---|---:|:---:|---|---:|
+| 静态双 stance，不动 | 0 | 两项 ≈ 0（stance ref=0，手确实贴墙）| $8 + 15 + 8 + 3 + 6 + 6 + 9.5 + 3 = 58.5$ | **~59** |
+| 匀爬 vz=0.3，不 swing | 0.3 | 两项 ≈ 0 | $8 + 15 + 8 + 3 + 6 + 6 + 40 + 3 = 89$ | **~89** |
+| **匀爬 vz=0.3 + 正确 swing** | 0.3 | swing_height +10，swing_reach +15 | $89 + 10 + 15 = 114$ | **~114** |
+| 匀爬但 swing 方向错（反贴墙）| 0.3 | 两项 ≈ 0 | $89$ | **~89** |
+| 冲刺 vz=0.6 | 0.6 | ≈ 0 | $40 e^{-1.44} \approx 9.5$ | **~59** |
+
+关键梯度：
+- 静止 59 → 匀爬 89：每步 **+30**，vz tracking 驱动
+- 匀爬 89 → 匀爬+正确 swing 114：每步 **+25**，sine arc 额外驱动 swing 动作
+- 完整从静止到"匀爬 + 正确 swing"：**+55/step**，非常清晰
+- 冲刺过速和静止一样低（对称高斯天然压制）
+- regularization（posture + stance ≈ 6/step）不 dominant，只约束姿态
+
+sine arc 在 gait 周期里 **mid-swing 时给出最强信号**，专门引导手的 task-space
+轨迹——之前 policy 卡在"双手 stance 不动"的根本原因就是 swing 没有任何激励项，
+加上这两项后 swing 有明确 +25/step 的 reward 目标。
 
 ## 墙几何辅助
 
-`_SphereGeomCache`（`rewards.py:101`）懒加载缓存：
-- 16 个球 geom 的 ID 和半径（每手 8 个 × 2）
-- 墙的半厚（来自 `wall/wall_geom`）
-- 每步从 wall mocap 拿墙位姿和内法线（curriculum 改变墙倾角时自动跟随）
-
-球面到墙面的有符号距离：
-$$
-d_s = (\mathbf{p}_s^{\text{center}} - \mathbf{p}_{\text{wall}}) \cdot \mathbf{n}_w^{\text{outward}}
-      - \tfrac{1}{2}\text{wall\_thickness} - r_s
-$$
-其中 $r_s$ 是球半径。正=有缝，零=触墙，负=穿透。
+`_SphereGeomCache` 懒加载缓存 16 球 geom ID、半径、墙半厚；每步从 wall
+mocap 拿墙位姿和 outward normal（curriculum 改墙倾角自动跟随）。

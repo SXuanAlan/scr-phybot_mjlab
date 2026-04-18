@@ -44,6 +44,17 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         "prev_action": ObservationTermCfg(func=mdp.prev_action),       # a_{t-1}
         "prev_prev_action": ObservationTermCfg(func=mdp.prev_prev_action),  # a_{t-2}
         "gait_clock": ObservationTermCfg(func=mdp.gait_clock),
+        # Per-hand latch state (left, right). Lets the policy coordinate
+        # motion with grip transitions.
+        "hand_engaged_state": ObservationTermCfg(func=mdp.hand_engaged_state),
+        # Robot z above spawn — critic needs this to value climbing.
+        "height_above_spawn": ObservationTermCfg(func=mdp.height_above_spawn),
+        # Commanded world-frame velocity (vx, vy, vz). Currently fixed;
+        # ``track_lin_vel`` rewards try to match the commanded values.
+        "velocity_command": ObservationTermCfg(
+          func=mdp.velocity_command,
+          params={"vx_cmd": 0.0, "vy_cmd": 0.0, "vz_cmd": 0.3},
+        ),
       },
       concatenate_terms=True,  # Concatenate all terms into a single vector.
       enable_corruption=False, # Enable observation corruption (e.g., adding noise).
@@ -73,13 +84,13 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     # Shaping: guide hands toward wall (continuous, works at any distance)
     "hands_toward_wall": RewardTermCfg(
       func=mdp.hands_toward_wall,
-      weight=15.0,
+      weight=8.0,
       params={"asset_cfg": robot_cfg},
     ),
     # Hand contact face orientation: local -x should point toward wall (+x)
     "hand_orientation": RewardTermCfg(
       func=mdp.hand_orientation_toward_wall,
-      weight=40.0,
+      weight=15.0,
       params={"asset_cfg": robot_cfg},
     ),
     # Posture regularisation: penalise deviation from the init keyframe.
@@ -88,7 +99,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     # learn. Uses mjlab's built-in Gaussian posture reward.
     "posture": RewardTermCfg(
       func=envs_mdp.posture,
-      weight=4.0,
+      weight=3.0,
       params={
         "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
         "std": {
@@ -104,46 +115,59 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     # Reward contact (per-sphere average)
     "hands_on_wall": RewardTermCfg(
       func=mdp.hands_on_wall,
-      weight=20.0,
+      weight=8.0,
       params={"asset_cfg": robot_cfg},
     ),
-    # --- Gait rewards (Walk-These-Ways + custom-sine-waves style) -----------
-    # Two-hand trot: left stance plateau p ∈ [0.5, 1); right offset by 0.5.
-    # Sine-arc hand-to-wall distance tracking (arXiv:2204.04157 Wu 2022):
+    # Paper (arXiv:2204.04157) sine-arc swing reference — horizontal
+    # component: swing hand traces an arc AWAY from wall with peak
+    # distance ``lift_amplitude`` (mid-swing) and returns to 0 at stance.
+    # Amplitude 0.1 m and sigma 0.18 m are deliberately small/wide to give
+    # early learning a broad reward basin: tiny swing attempts (a few cm
+    # off the wall) still get meaningful reward. Scale up later if needed.
     "swing_hand_height": RewardTermCfg(
       func=mdp.swing_hand_height,
-      weight=0.0,
-      params={"asset_cfg": robot_cfg, "lift_amplitude": 0.4, "sigma": 0.18},
+      weight=10.0,
+      params={"asset_cfg": robot_cfg, "lift_amplitude": 0.1, "sigma": 0.18},
     ),
-    # Primary climbing objective: current height above spawn.
-    # Position-based — "be high" is the reward, not "move up fast".
-    # spawn z = 2.0 (robot_cfg.init_state.pos), wall top at z ≈ 10.
-    "climb_height": RewardTermCfg(
-      func=mdp.climb_height,
-      weight=30.0,
-      params={"asset_cfg": robot_cfg, "baseline_z": 2.0},
+    # Paper sine-arc swing reference — vertical component: swing hand
+    # traces an arc UPWARD (hand_z above root_z) with peak reach at
+    # mid-swing, falling to 0 at stance. Together with ``swing_hand_height``
+    # this fully specifies the task-space swing trajectory (pull away from
+    # wall + reach up). Reach peak 0.15 m matches the paper's clearance
+    # height order of magnitude (Cassie uses ~15 cm). sigma 0.20 widens
+    # the tracking basin for easier exploration.
+    "swing_hand_reach_up": RewardTermCfg(
+      func=mdp.swing_hand_reach_up,
+      weight=15.0,
+      params={"asset_cfg": robot_cfg, "reach_height": 0.15, "sigma": 0.20},
     ),
-    # Secondary: small velocity bonus kept as a dense gradient during early
-    # training, before the policy has yet climbed high enough for
-    # ``climb_height`` to differentiate behaviours.
-    "climb_vz": RewardTermCfg(
-      func=mdp.climb_vz,
-      weight=20.0,
-      params={"asset_cfg": robot_cfg},
+    # World-frame velocity tracking, per axis. Gaussian kernel
+    # exp(-(v_cmd - v)^2 / sigma^2) — symmetric around the command, so
+    # under- and over-shoot both cost reward. Commands are fixed here
+    # (xy=0, vz=+0.3 m/s) and exposed via ``velocity_command`` obs.
+    # Weighting: vz > vx ≈ vy > regularization (posture, stance). vz
+    # is the primary climbing signal; vx/vy keep the robot from drifting
+    # along the wall.
+    "track_vx": RewardTermCfg(
+      func=mdp.track_lin_vel,
+      weight=6.0,
+      params={"asset_cfg": robot_cfg, "axis": 0, "target": 0.0, "sigma": 0.5},
     ),
-    # Heavy penalty when BOTH hands are unlatched (robot in free-fly).
-    # Removes the burst-hop exploit of climb_vz: a second of flight loses
-    # more reward than the height you could gain by hopping.
-    "airborne_penalty": RewardTermCfg(
-      func=mdp.airborne_penalty,
-      weight=-30.0,
-      params={},
+    "track_vy": RewardTermCfg(
+      func=mdp.track_lin_vel,
+      weight=6.0,
+      params={"asset_cfg": robot_cfg, "axis": 1, "target": 0.0, "sigma": 0.5},
+    ),
+    "track_vz": RewardTermCfg(
+      func=mdp.track_lin_vel,
+      weight=40.0,
+      params={"asset_cfg": robot_cfg, "axis": 2, "target": 0.3, "sigma": 0.25},
     ),
     # Stance anti-slide: penalise tangential velocity when hand should be
     # anchored (σ=0.15 m/s — clear sliding threshold for spider scale).
     "stance_phase_velocity": RewardTermCfg(
       func=mdp.stance_phase_velocity,
-      weight=0.0,
+      weight=3.0,
       params={"asset_cfg": robot_cfg, "sigma": 0.15},
     ),
   }
@@ -172,8 +196,8 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "hands_toward_wall",
         "weight_stages": [
-          {"iter": 0,      "weight": 15.0},
-          {"iter": P1_END, "weight": 5.0},
+          {"iter": 0,      "weight": 8.0},
+          {"iter": P1_END, "weight": 3.0},
         ],
       },
     ),
@@ -182,7 +206,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "hand_orientation",
         "weight_stages": [
-          {"iter": 0, "weight": 40.0},
+          {"iter": 0, "weight": 15.0},
         ],
       },
     ),
@@ -191,7 +215,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "posture",
         "weight_stages": [
-          {"iter": 0, "weight": 4.0},
+          {"iter": 0, "weight": 3.0},
         ],
       },
     ),
@@ -200,7 +224,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "hands_on_wall",
         "weight_stages": [
-          {"iter": 0, "weight": 20.0},
+          {"iter": 0, "weight": 8.0},
         ],
       },
     ),
@@ -210,34 +234,43 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "swing_hand_height",
         "weight_stages": [
-          {"iter": 0, "weight": 0.0},
+          {"iter": 0, "weight": 10.0},
         ],
       },
     ),
-    "climb_height_weight": CurriculumTermCfg(
+    "swing_hand_reach_up_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
-        "reward_name": "climb_height",
+        "reward_name": "swing_hand_reach_up",
         "weight_stages": [
-          {"iter": 0, "weight": 30.0},
+          {"iter": 0, "weight": 15.0},
         ],
       },
     ),
-    "climb_vz_weight": CurriculumTermCfg(
+    "track_vx_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
-        "reward_name": "climb_vz",
+        "reward_name": "track_vx",
         "weight_stages": [
-          {"iter": 0, "weight": 20.0},
+          {"iter": 0, "weight": 6.0},
         ],
       },
     ),
-    "airborne_penalty_weight": CurriculumTermCfg(
+    "track_vy_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
-        "reward_name": "airborne_penalty",
+        "reward_name": "track_vy",
         "weight_stages": [
-          {"iter": 0, "weight": -30.0},
+          {"iter": 0, "weight": 6.0},
+        ],
+      },
+    ),
+    "track_vz_weight": CurriculumTermCfg(
+      func=reward_weight,
+      params={
+        "reward_name": "track_vz",
+        "weight_stages": [
+          {"iter": 0, "weight": 40.0},
         ],
       },
     ),
@@ -247,7 +280,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "stance_phase_velocity",
         "weight_stages": [
-          {"iter": 0, "weight": 10.0},
+          {"iter": 0, "weight": 3.0},
         ],
       },
     ),
@@ -256,7 +289,11 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=gravity_angle,
       params={
         "angle_stages": [
-          {"iter": 0,      "angle_deg": 30.0},
+          # Start very easy: 10° means gravity is mostly +x (pressing into
+          # wall) and only 17% along wall (-z). Robot can discover reach
+          # motion without body weight fighting the arm. Ramp to 30° by
+          # P1_END once a climbing gait has emerged, then to 90° by P2_END.
+          {"iter": 0,      "angle_deg": 10.0},
           {"iter": P1_END, "angle_deg": 30.0},
           {"iter": P2_END, "angle_deg": 90.0},
         ],
@@ -316,6 +353,9 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.bad_state,
       params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
     ),
+    # ``both_hands_unlatched`` termination DISABLED — letting policy
+    # explore freely without hand-grip hard constraints. The function is
+    # kept in terminations.py as a fallback to re-enable later.
   }
 
   ##

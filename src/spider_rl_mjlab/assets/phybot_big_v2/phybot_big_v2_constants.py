@@ -205,7 +205,7 @@ PHYBOT_BIG_V2_ARTICULATION = EntityArticulationInfoCfg(
     PHYBOT_BIG_V2_ACTUATOR_ELBOW_PITCH,
     PHYBOT_BIG_V2_ACTUATOR_ELBOW_YAW,
   ),
-  soft_joint_pos_limit_factor=0.9,
+  soft_joint_pos_limit_factor=1.0,
 )
 
 

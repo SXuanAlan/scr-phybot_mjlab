@@ -97,3 +97,61 @@ def gait_clock(env: ManagerBasedRlEnv) -> torch.Tensor:
     ],
     dim=-1,
   )
+
+
+def height_above_spawn(
+  env: ManagerBasedRlEnv, baseline_z: float = 2.0
+) -> torch.Tensor:
+  """Robot base z-coordinate relative to spawn height. Shape (E, 1).
+
+  CRITICAL for learning the ``climb_height`` reward. Without this, the
+  critic cannot estimate V(s) based on current altitude, so the
+  position-based reward turns into pure noise from the policy's point of
+  view — every state looks the same to it, but the reward varies ±360 with
+  invisible z. Adding z-above-spawn as an observation collapses that
+  hidden-state variance and lets both V and π learn height-conditioned
+  behaviour.
+  """
+  z = env.scene["robot"].data.root_link_pos_w[:, 2]  # (E,)
+  return (z - baseline_z).unsqueeze(-1)  # (E, 1)
+
+
+def velocity_command(
+  env: ManagerBasedRlEnv,
+  vx_cmd: float = 0.0,
+  vy_cmd: float = 0.0,
+  vz_cmd: float = 0.3,
+) -> torch.Tensor:
+  """Commanded linear velocity (world frame), shape (E, 3).
+
+  Currently a fixed per-env command — x/y are 0 (robot should stay aligned
+  with the wall normal, not drift side-to-side), z is the target climb
+  rate. Exposed as observation so the policy knows what velocity it is
+  being asked to produce (pairs with the ``track_lin_vel`` rewards).
+
+  Later this can be swapped for a per-env command manager that varies
+  targets for domain randomisation / conditional policies.
+  """
+  cmd = torch.tensor(
+    [vx_cmd, vy_cmd, vz_cmd],
+    device=env.device,
+    dtype=torch.float32,
+  )
+  return cmd.unsqueeze(0).expand(env.num_envs, 3)
+
+
+def hand_engaged_state(
+  env: ManagerBasedRlEnv,
+  event_term_name: str = "microspine_adhesion",
+) -> torch.Tensor:
+  """Per-hand microspine latch state. Shape (E, 2) float in {0, 1}.
+
+  Tells the policy whether each hand is currently gripping the wall. This
+  is the same ``engaged`` flag that ``airborne_penalty`` reads from the
+  event manager — exposing it as an observation lets the policy
+  coordinate motion with latch transitions (e.g. don't try to reach with
+  a hand that's still engaged).
+  """
+  term_cfg = env.event_manager.get_term_cfg(event_term_name)
+  engaged = term_cfg.func.engaged  # (E, H) bool
+  return engaged.float()
