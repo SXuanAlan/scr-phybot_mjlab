@@ -46,7 +46,14 @@ class WallAngleStage(TypedDict):
 
 
 def _interp_angle(current_iter: int, stages: list[WallAngleStage]) -> float:
-  """Piecewise-linear interpolation of wall angle over iterations."""
+  """Piecewise interpolation of wall angle over iterations, in sin(angle)
+  space.
+
+  Since along-wall gravity load equals g·sin(angle), interpolating the
+  sin linearly gives a *uniform* physics-load ramp between waypoints.
+  Linear-in-angle interpolation (the naive approach) makes load change
+  fast early and slow late — exactly backwards for stable learning.
+  """
   if current_iter <= stages[0]["iter"]:
     return stages[0]["angle_deg"]
   for i in range(len(stages) - 1):
@@ -54,7 +61,12 @@ def _interp_angle(current_iter: int, stages: list[WallAngleStage]) -> float:
     if a["iter"] <= current_iter <= b["iter"]:
       span = max(b["iter"] - a["iter"], 1)
       alpha = (current_iter - a["iter"]) / span
-      return a["angle_deg"] + alpha * (b["angle_deg"] - a["angle_deg"])
+      sin_a = math.sin(math.radians(a["angle_deg"]))
+      sin_b = math.sin(math.radians(b["angle_deg"]))
+      sin_mid = sin_a + alpha * (sin_b - sin_a)
+      # clamp for numerical safety at the endpoint
+      sin_mid = max(-1.0, min(1.0, sin_mid))
+      return math.degrees(math.asin(sin_mid))
   return stages[-1]["angle_deg"]
 
 

@@ -69,7 +69,12 @@ def prev_prev_action(env: "ManagerBasedRlEnv") -> torch.Tensor:
 # Gait clock period (seconds). A full cycle = one swing + one stance for each
 # hand. Left hand: swing in φ ∈ [0, 0.5), stance in [0.5, 1). Right hand is
 # offset by 0.5 so exactly one hand is always swinging.
-GAIT_PERIOD_S = 2.0
+#
+# Sized to match arm reach. Each half cycle the body is pulled up by the
+# stance arm's elbow flexion, capped physically at one upper-arm length
+# (shoulder → elbow ≈ 0.20 m on PHYBot Big V2). With period = 4 s and
+# vz_cmd = 0.08 m/s, per-step lift ≈ 0.16 m ≈ 80 % of that limit.
+GAIT_PERIOD_S = 4.0
 
 
 def gait_phase(env: ManagerBasedRlEnv) -> torch.Tensor:
@@ -120,7 +125,7 @@ def velocity_command(
   env: ManagerBasedRlEnv,
   vx_cmd: float = 0.0,
   vy_cmd: float = 0.0,
-  vz_cmd: float = 0.3,
+  vz_cmd: float = 0.08,
 ) -> torch.Tensor:
   """Commanded linear velocity (world frame), shape (E, 3).
 

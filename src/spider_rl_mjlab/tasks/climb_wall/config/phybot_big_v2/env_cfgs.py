@@ -84,13 +84,19 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   _ADHESION_FORCE = 2000.0
 
   # Contact pairs + adhesion actuators via spec_fn.
+  # Hands: microspine-scale friction (30) to anchor against the wall.
+  # Feet:  normal shoe-scale friction (1.5) so the policy cannot use them
+  # as a second pair of "grippers" to kick up along the wall.
   def _spec_fn(spec: mujoco.MjSpec) -> None:
     for gname in _EE_GEOMS:
+      is_hand = gname in _HAND_GEOMS
+      tan_friction = 30.0 if is_hand else 1.5
+      other_friction = 1.0 if is_hand else 0.5
       pair = spec.add_pair()
       pair.geomname1 = f"robot/{gname}"
       pair.geomname2 = "wall/wall_geom"
       pair.condim = 6
-      pair.friction = [30.0, 30.0, 1.0, 1.0, 1.0]
+      pair.friction = [tan_friction, tan_friction, other_friction, other_friction, other_friction]
       pair.solref = [0.02, 5.0]
       pair.solimp = [0.9, 0.99, 0.001, 0.5, 2]
       pair.solreffriction = [0.02, 5.0]
@@ -123,12 +129,14 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
         # as the hand is roughly parallel to the (tilted) wall surface.
         engage_min_spheres=1,
         engage_parallel_cos_threshold=0.9397,  # cos(20°)
-        # Latched adhesion releases when the friction force on the hand along
-        # its local-up direction exceeds this (N). Must sit well above the
-        # natural arm-loading band (~100-200 N during stance) so the latch
-        # doesn't flap on routine motion — only a deliberate upward yank from
-        # the policy should trigger release.
-        disengage_friction_threshold=200.0,
+        # Latched adhesion releases when friction along hand-up exceeds
+        # this (N). Low threshold (50 N) keeps release physically
+        # achievable at all curriculum stages — at 10° gravity the entire
+        # robot z-load is only ~85 N, so anything above ~80 N would be
+        # unreachable. 50 N sits just above resting per-hand load (~42 N
+        # double-stance at 10°), leaves clear headroom for policy to
+        # trigger release by transferring weight to one hand.
+        disengage_friction_threshold=50.0,
         # Suppress single-step CCD jitter oscillations: require sustained
         # overload for 5 frames before actually releasing, and block
         # re-engagement for 20 frames after release so a brief jitter spike

@@ -25,7 +25,7 @@ from spider_rl_mjlab.tasks.climb_wall.mdp.curriculums import gravity_angle, rewa
 def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   """Create base wall-climbing task configuration."""
 
-  num_envs = 128
+  num_envs = 4096
   env_spacing = 8.0
 
   ##
@@ -53,7 +53,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         # ``track_lin_vel`` rewards try to match the commanded values.
         "velocity_command": ObservationTermCfg(
           func=mdp.velocity_command,
-          params={"vx_cmd": 0.0, "vy_cmd": 0.0, "vz_cmd": 0.3},
+          params={"vx_cmd": 0.0, "vy_cmd": 0.0, "vz_cmd": 0.08},
         ),
       },
       concatenate_terms=True,  # Concatenate all terms into a single vector.
@@ -80,95 +80,122 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
 
   robot_cfg = SceneEntityCfg("robot")
 
+  # ---- Joint name patterns (used by multiple regulation terms) -----------
+  _LEG_ALL = [".*_hip_.*", ".*_knee", ".*_ankle_.*"]
+  _LEG_HIP_KNEE = [".*_hip_.*", ".*_knee"]
+  _ANKLE_ONLY = [".*_ankle_.*"]
+  _HIP_YAW_ROLL = [".*_hip_yaw", ".*_hip_roll"]
+  _TORSO = ["waist_yaw", "waist_roll"]
+
   rewards = {
-    # Shaping: guide hands toward wall (continuous, works at any distance)
-    "hands_toward_wall": RewardTermCfg(
-      func=mdp.hands_toward_wall,
-      weight=8.0,
-      params={"asset_cfg": robot_cfg},
-    ),
-    # Hand contact face orientation: local -x should point toward wall (+x)
+    # ====================================================================
+    # Task-specific rewards (drive climbing behaviour)
+    # ====================================================================
+    # Hand contact face orientation: local -x should point toward wall (+x).
+    # Gait-phase-agnostic: both hands rewarded for staying oriented.
     "hand_orientation": RewardTermCfg(
       func=mdp.hand_orientation_toward_wall,
       weight=15.0,
       params={"asset_cfg": robot_cfg},
     ),
-    # Posture regularisation: penalise deviation from the init keyframe.
-    # Tight std on torso/legs keeps the body compact and stable; looser std
-    # on shoulders/elbows allows the reach-engage motion the policy must
-    # learn. Uses mjlab's built-in Gaussian posture reward.
-    "posture": RewardTermCfg(
-      func=envs_mdp.posture,
-      weight=3.0,
-      params={
-        "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-        "std": {
-          ".*waist_.*": 0.3,
-          ".*hip_.*": 0.5,
-          ".*knee": 0.6,
-          ".*ankle_.*": 0.6,
-          ".*shoulder_.*": 1.2,
-          ".*elbow_.*": 1.2,
-        },
-      },
+    # Gait: climbing port of IsaacLab ``feet_air_time_positive_biped``.
+    # Strict single-stance (∑e == 1). See mdp/rewards.py for details.
+    "hand_grip_time": RewardTermCfg(
+      func=mdp.hand_grip_time_min_climb(),
+      weight=30.0,
+      params={"tau": 0.5, "vz_cmd": 0.08, "cmd_eps": 0.0},
     ),
-    # Reward contact (per-sphere average)
-    "hands_on_wall": RewardTermCfg(
-      func=mdp.hands_on_wall,
-      weight=8.0,
+    # Velocity command tracking (climbing analog of ``track_lin_vel_xy_exp``).
+    # Only vz — xy tracking not meaningful for wall climbing.
+    "track_vz": RewardTermCfg(
+      func=mdp.climb_vz_gauss,
+      weight=40.0,
+      params={"asset_cfg": robot_cfg, "target": 0.08, "sigma": 0.05},
+    ),
+    # Pelvis upright — roll-only Gaussian (σ=0.3). Pitch is loose (climbing
+    # needs some pelvis pitch toward the wall).
+    "flat_orientation": RewardTermCfg(
+      func=mdp.flat_orientation_gauss,
+      weight=10.0,
+      params={"asset_cfg": robot_cfg, "sigma": 0.3, "pitch_scale": 0.0, "roll_scale": 1.0},
+    ),
+    # Torso upright — closes the waist-bend exploit where pelvis stays
+    # level but ``waist_roll`` body folds sideways.
+    "torso_orientation": RewardTermCfg(
+      func=mdp.torso_orientation_gauss,
+      weight=10.0,
+      params={"asset_cfg": robot_cfg, "body_name": "waist_roll",
+              "sigma": 0.3, "pitch_scale": 0.0, "roll_scale": 1.0},
+    ),
+
+    # ====================================================================
+    # G1-walking-style regulation (ported from
+    # isaaclab_tasks.manager_based.locomotion.velocity.config.g1).
+    # Weights copied verbatim where they translate directly; joint-set
+    # scopes adapted for climbing (arms are NOT regulated because they're
+    # active climbing executors).
+    # ====================================================================
+    # is_terminated — fires only on failure termination (not time_out).
+    # Weight −200 matches G1 exactly.
+    "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-200.0),
+    # Climbing analog of G1 ``feet_slide``: penalise tangential motion of
+    # an engaged hand. Weight −0.1 matches G1.
+    "hand_slide": RewardTermCfg(
+      func=mdp.hand_slide_penalty,
+      weight=-0.1,
       params={"asset_cfg": robot_cfg},
     ),
-    # Paper (arXiv:2204.04157) sine-arc swing reference — horizontal
-    # component: swing hand traces an arc AWAY from wall with peak
-    # distance ``lift_amplitude`` (mid-swing) and returns to 0 at stance.
-    # Amplitude 0.1 m and sigma 0.18 m are deliberately small/wide to give
-    # early learning a broad reward basin: tiny swing attempts (a few cm
-    # off the wall) still get meaningful reward. Scale up later if needed.
-    "swing_hand_height": RewardTermCfg(
-      func=mdp.swing_hand_height,
-      weight=10.0,
-      params={"asset_cfg": robot_cfg, "lift_amplitude": 0.1, "sigma": 0.18},
+    # G1 ``dof_pos_limits`` on ankles (weight −1.0). Ankles are the joints
+    # most at risk of hitting soft limits for both walking and climbing
+    # posture; other joints have plenty of travel room.
+    "dof_pos_limits": RewardTermCfg(
+      func=mdp.joint_pos_limits,
+      weight=-1.0,
+      params={"asset_cfg": SceneEntityCfg("robot", joint_names=_ANKLE_ONLY)},
     ),
-    # Paper sine-arc swing reference — vertical component: swing hand
-    # traces an arc UPWARD (hand_z above root_z) with peak reach at
-    # mid-swing, falling to 0 at stance. Together with ``swing_hand_height``
-    # this fully specifies the task-space swing trajectory (pull away from
-    # wall + reach up). Reach peak 0.15 m matches the paper's clearance
-    # height order of magnitude (Cassie uses ~15 cm). sigma 0.20 widens
-    # the tracking basin for easier exploration.
-    "swing_hand_reach_up": RewardTermCfg(
-      func=mdp.swing_hand_reach_up,
-      weight=15.0,
-      params={"asset_cfg": robot_cfg, "reach_height": 0.15, "sigma": 0.20},
+    # G1 ``joint_deviation_hip`` (hip_yaw + hip_roll, weight −0.1). Keeps
+    # legs from splaying outward.
+    "joint_deviation_hip": RewardTermCfg(
+      func=mdp.joint_deviation_l1,
+      weight=-0.1,
+      params={"asset_cfg": SceneEntityCfg("robot", joint_names=_HIP_YAW_ROLL)},
     ),
-    # World-frame velocity tracking, per axis. Gaussian kernel
-    # exp(-(v_cmd - v)^2 / sigma^2) — symmetric around the command, so
-    # under- and over-shoot both cost reward. Commands are fixed here
-    # (xy=0, vz=+0.3 m/s) and exposed via ``velocity_command`` obs.
-    # Weighting: vz > vx ≈ vy > regularization (posture, stance). vz
-    # is the primary climbing signal; vx/vy keep the robot from drifting
-    # along the wall.
-    "track_vx": RewardTermCfg(
-      func=mdp.track_lin_vel,
-      weight=6.0,
-      params={"asset_cfg": robot_cfg, "axis": 0, "target": 0.0, "sigma": 0.5},
+    # G1 ``joint_deviation_torso`` (weight −0.1). ``waist_yaw`` + ``waist_roll``
+    # should not twist — torso_orientation handles roll; this also pins yaw
+    # (which the orientation rewards do not cover).
+    "joint_deviation_torso": RewardTermCfg(
+      func=mdp.joint_deviation_l1,
+      weight=-0.1,
+      params={"asset_cfg": SceneEntityCfg("robot", joint_names=_TORSO)},
     ),
-    "track_vy": RewardTermCfg(
-      func=mdp.track_lin_vel,
-      weight=6.0,
-      params={"asset_cfg": robot_cfg, "axis": 1, "target": 0.0, "sigma": 0.5},
+    # NOTE: G1 also penalises ``joint_deviation_arms`` (shoulders, elbows)
+    # and ``joint_deviation_fingers``. Deliberately OMITTED for climbing —
+    # arms are the primary climbing actuators and deviating far from the
+    # keyframe is exactly what the task requires. PHYBot Big V2 has no
+    # fingers either.
+    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.005),
+    # G1 ``dof_acc_l2`` on hip + knee. In G1 these are the big-torque
+    # leg joints; for climbing, same scope keeps the legs from
+    # dynamically whipping.
+    "dof_acc_l2": RewardTermCfg(
+      func=mdp.joint_acc_l2,
+      weight=-1.25e-7,
+      params={"asset_cfg": SceneEntityCfg("robot", joint_names=_LEG_HIP_KNEE)},
     ),
-    "track_vz": RewardTermCfg(
-      func=mdp.track_lin_vel,
-      weight=40.0,
-      params={"asset_cfg": robot_cfg, "axis": 2, "target": 0.3, "sigma": 0.25},
+    # G1 ``dof_torques_l2`` on hip + knee + ankle. Standard locomotion
+    # effort cost applied to the full leg chain.
+    "dof_torques_l2": RewardTermCfg(
+      func=mdp.joint_torques_l2,
+      weight=-1.5e-7,
+      params={"asset_cfg": SceneEntityCfg("robot", joint_names=_LEG_ALL)},
     ),
-    # Stance anti-slide: penalise tangential velocity when hand should be
-    # anchored (σ=0.15 m/s — clear sliding threshold for spider scale).
-    "stance_phase_velocity": RewardTermCfg(
-      func=mdp.stance_phase_velocity,
-      weight=3.0,
-      params={"asset_cfg": robot_cfg, "sigma": 0.15},
+    # Quiet legs: penalize large leg joint velocities so the lower body
+    # doesn't flail. L2 quadratic — tiny for small motions, grows fast
+    # for big ones, discouraging the "kick wall upward" style.
+    "dof_vel_legs_l2": RewardTermCfg(
+      func=mdp.joint_vel_l2,
+      weight=-0.005,
+      params={"asset_cfg": SceneEntityCfg("robot", joint_names=_LEG_ALL)},
     ),
   }
 
@@ -184,23 +211,13 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   #   Phase 3 [P2_END → ...    ]  fully vertical wall
   ##
 
-  P1_END = 15000   # gait learned at 30° gravity
-  P2_END = 45000   # gravity reached full vertical
+  P1_END = 1000   # gait learned at 45°→60° gravity (scaled for 4096 envs)
+  P2_END = 3000   # gravity reached full vertical
 
   curriculum = {
     # --- Wall-gripping rewards : shape "move hands to wall → orient →
     # contact → both hands engaged". Fade the strongest shapers out once
     # gait is established so they don't fight the alternating pattern.
-    "hands_toward_wall_weight": CurriculumTermCfg(
-      func=reward_weight,
-      params={
-        "reward_name": "hands_toward_wall",
-        "weight_stages": [
-          {"iter": 0,      "weight": 8.0},
-          {"iter": P1_END, "weight": 3.0},
-        ],
-      },
-    ),
     "hand_orientation_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
@@ -210,58 +227,13 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         ],
       },
     ),
-    "posture_weight": CurriculumTermCfg(
+    # --- Gait reward (min-grip-time) : active from iter 0 -------------------
+    "hand_grip_time_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
-        "reward_name": "posture",
+        "reward_name": "hand_grip_time",
         "weight_stages": [
-          {"iter": 0, "weight": 3.0},
-        ],
-      },
-    ),
-    "hands_on_wall_weight": CurriculumTermCfg(
-      func=reward_weight,
-      params={
-        "reward_name": "hands_on_wall",
-        "weight_stages": [
-          {"iter": 0, "weight": 8.0},
-        ],
-      },
-    ),
-    # --- Gait rewards : active from iter 0 alongside gripping shapers ------
-    "swing_hand_height_weight": CurriculumTermCfg(
-      func=reward_weight,
-      params={
-        "reward_name": "swing_hand_height",
-        "weight_stages": [
-          {"iter": 0, "weight": 10.0},
-        ],
-      },
-    ),
-    "swing_hand_reach_up_weight": CurriculumTermCfg(
-      func=reward_weight,
-      params={
-        "reward_name": "swing_hand_reach_up",
-        "weight_stages": [
-          {"iter": 0, "weight": 15.0},
-        ],
-      },
-    ),
-    "track_vx_weight": CurriculumTermCfg(
-      func=reward_weight,
-      params={
-        "reward_name": "track_vx",
-        "weight_stages": [
-          {"iter": 0, "weight": 6.0},
-        ],
-      },
-    ),
-    "track_vy_weight": CurriculumTermCfg(
-      func=reward_weight,
-      params={
-        "reward_name": "track_vy",
-        "weight_stages": [
-          {"iter": 0, "weight": 6.0},
+          {"iter": 0, "weight": 30.0},
         ],
       },
     ),
@@ -274,13 +246,30 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         ],
       },
     ),
-    # --- Stance anti-slide ---------------------------------------------------
-    "stance_phase_velocity_weight": CurriculumTermCfg(
+    "hand_slide_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
-        "reward_name": "stance_phase_velocity",
+        "reward_name": "hand_slide",
         "weight_stages": [
-          {"iter": 0, "weight": 3.0},
+          {"iter": 0, "weight": -0.1},
+        ],
+      },
+    ),
+    "flat_orientation_weight": CurriculumTermCfg(
+      func=reward_weight,
+      params={
+        "reward_name": "flat_orientation",
+        "weight_stages": [
+          {"iter": 0, "weight": 10.0},
+        ],
+      },
+    ),
+    "torso_orientation_weight": CurriculumTermCfg(
+      func=reward_weight,
+      params={
+        "reward_name": "torso_orientation",
+        "weight_stages": [
+          {"iter": 0, "weight": 10.0},
         ],
       },
     ),
@@ -289,13 +278,26 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=gravity_angle,
       params={
         "angle_stages": [
-          # Start very easy: 10° means gravity is mostly +x (pressing into
-          # wall) and only 17% along wall (-z). Robot can discover reach
-          # motion without body weight fighting the arm. Ramp to 30° by
-          # P1_END once a climbing gait has emerged, then to 90° by P2_END.
-          {"iter": 0,      "angle_deg": 10.0},
-          {"iter": P1_END, "angle_deg": 30.0},
-          {"iter": P2_END, "angle_deg": 90.0},
+          # Hold at 45° through iter P1_END so policy can first learn basic
+          # grip + alternation at a fixed load. Then ramp 45° → 90° over
+          # iter 1000-3000, with waypoints evenly spaced in sin(angle) =
+          # along-wall gravity load (so load increases at a uniform rate,
+          # not bursty early / stale late like linear-in-angle would be).
+          # Interp function _interp_angle does sin-space interpolation.
+          #   iter    angle     sin(angle) = wall-load
+          #   ----    -----     ----------
+          #      0    45°       0.707      start
+          #   1000    45°       0.707      ← P1_END (hold, grip + gait stable)
+          #   1500    51°       0.777
+          #   2000    59°       0.857
+          #   2500    68°       0.927
+          #   3000    90°       1.000      ← P2_END (full vertical)
+          {"iter": 0,         "angle_deg": 45.0},
+          {"iter": P1_END,    "angle_deg": 45.0},
+          {"iter": 1500,      "angle_deg": 51.0},
+          {"iter": 2000,      "angle_deg": 59.0},
+          {"iter": 2500,      "angle_deg": 68.0},
+          {"iter": P2_END,    "angle_deg": 90.0},
         ],
       },
     ),
@@ -343,19 +345,36 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   # Terminations
   ##
 
+  # ====================================================================
+  # Terminations — G1-walking minimal set adapted for climbing.
+  # G1 has: ``time_out`` + ``base_contact`` (torso touches ground).
+  # Climb analog: ``time_out`` + ``base_height`` (robot fell off the wall
+  # below the spawn floor). ``bad_state`` stays purely as NaN / physics
+  # divergence safety.
+  # ====================================================================
   terminations = {
     "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+    # Climb analog of G1's ``base_contact``: the robot has lost grip and
+    # fallen below the spawn floor. No terrain collision is active, so
+    # without this termination a fallen robot floats into void.
     "base_height": TerminationTermCfg(
       func=envs_mdp.root_height_below_minimum,
       params={"minimum_height": 0.3},
     ),
+    # NaN / magnitude divergence guard. Not in G1 (IsaacLab has a global
+    # NaN sink elsewhere); mjlab does not, so we keep this defensively.
     "bad_state": TerminationTermCfg(
       func=mdp.bad_state,
       params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
     ),
-    # ``both_hands_unlatched`` termination DISABLED — letting policy
-    # explore freely without hand-grip hard constraints. The function is
-    # kept in terminations.py as a fallback to re-enable later.
+    # Both hands off the wall: the robot has lost all grip. Triggers
+    # ``termination_penalty`` (-200) via ``is_terminated`` and kills the
+    # "single-hand cheat" strategy — if the held hand ever releases
+    # without the other engaging, the episode ends with big penalty.
+    "both_hands_unlatched": TerminationTermCfg(
+      func=mdp.both_hands_unlatched,
+      params={"event_term_name": "microspine_adhesion"},
+    ),
   }
 
   ##
@@ -371,9 +390,9 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       terrain=TerrainEntityCfg(terrain_type="plane"),
     ),
     sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.002, cone="elliptic", integrator="implicitfast", impratio=10.0, ccd_iterations=1000),
-      njmax=1000,
-      nconmax=500,
+      mujoco=MujocoCfg(timestep=0.002, cone="elliptic", integrator="implicitfast", impratio=10.0, ccd_iterations=100),
+      njmax=250,
+      nconmax=50,
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,

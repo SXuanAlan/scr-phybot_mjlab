@@ -1,6 +1,6 @@
 <mujoco model="phybot_c2">
   <compiler angle="radian" meshdir="../new_meshes/" autolimits="true"/>
-  <option timestep="0.002" iterations='10' solver='PGS' gravity='0 0 -9.81' apirate='1000'>
+  <option timestep="0.002" iterations='10' solver='PGS' gravity='0 0 -9.81'>
   </option>
   <size njmax="500" nconmax="100" />
   <default>
@@ -284,51 +284,6 @@
     </body>
   </worldbody>
 
-  <actuator>
-      <motor name="left_hip_pitch" joint="left_hip_pitch" gear="1" ctrllimited="true" ctrlrange="-160 160" />
-      <motor name="left_hip_roll" joint="left_hip_roll" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-      <motor name="left_hip_yaw" joint="left_hip_yaw" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="left_knee" joint="left_knee" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-      <motor name="left_ankle_pitch" joint="left_ankle_pitch" gear="1" ctrllimited="true" ctrlrange="-90.0 90.0" />
-      <motor name="left_ankle_roll" joint="left_ankle_roll" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-
-      <motor name="right_hip_pitch" joint="right_hip_pitch" gear="1" ctrllimited="true" ctrlrange="-160 160" />
-      <motor name="right_hip_roll" joint="right_hip_roll" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-      <motor name="right_hip_yaw" joint="right_hip_yaw" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="right_knee" joint="right_knee" gear="1" ctrllimited="true" ctrlrange="-100 100" />
-      <motor name="right_ankle_pitch" joint="right_ankle_pitch" gear="1" ctrllimited="true" ctrlrange="-90.0 90.0" />
-      <motor name="right_ankle_roll" joint="right_ankle_roll" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-
-      <motor name="waist_yaw" joint="waist_yaw" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-
-      <motor name="left_shoulder_pitch" joint="left_shoulder_pitch" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="left_shoulder_roll" joint="left_shoulder_roll" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="left_shoulder_yaw" joint="left_shoulder_yaw" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="left_elbow_pitch" joint="left_elbow_pitch" gear="1" ctrllimited="true" ctrlrange="-90 90" />    
-
-      <motor name="right_shoulder_pitch" joint="right_shoulder_pitch" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="right_shoulder_roll" joint="right_shoulder_roll" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="right_shoulder_yaw" joint="right_shoulder_yaw" gear="1" ctrllimited="true" ctrlrange="-90 90" />
-      <motor name="right_elbow_pitch" joint="right_elbow_pitch" gear="1" ctrllimited="true" ctrlrange="-90 90" />    
-       
-      <motor name="neck_yaw" joint="neck_yaw" gear="1" ctrllimited="true" ctrlrange="-30 30" />
-      <motor name="neck_pitch" joint="neck_pitch" gear="1" ctrllimited="true" ctrlrange="-30 30" />
-  </actuator>  
-
-  <!-- <sensor>
-      <accelerometer name="imu_acc"             site="site_imu" noise='0.005' cutoff='157'/>
-      <framequat     name='orientation'         objtype='site'  noise='0.001' objname='site_imu'/>
-      <framepos      name='position'            objtype='site'  noise='0.001' objname='site_imu'/>
-      <gyro          name='angular-velocity'    site='site_imu' noise='0.005' cutoff='34.9'/>
-      <velocimeter   name='linear-velocity'     site='site_imu' noise='0.001' cutoff='30'/>
-      <magnetometer  name='magnetometer'        site='site_imu'/>
-  </sensor> -->
-  <sensor>
-      <framequat name="baselink-quat" objtype="site" objname="site_imu" />
-      <velocimeter name="baselink-velocity" site="site_imu" />
-      <gyro name="baselink-gyro" site="site_imu" />
-      <accelerometer name="baselink-baseAcc" site="site_imu" />
-  </sensor>
   <keyframe>
       <key name="home"
       qpos="0 0 0.70

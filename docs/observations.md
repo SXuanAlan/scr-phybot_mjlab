@@ -13,7 +13,7 @@
   `gravity_vec_w`，**不**跟 curriculum 倾，仍指向世界 −z）。
 - $\mathbf{q} \in \mathbb{R}^{24}$：24 DOF 的关节角；$\mathbf{q}^{\text{default}}$
   默认姿态。
-- $T_{\text{gait}} = 2.0\,\text{s}$，$dt$：单步仿真步长（policy step）。
+- $T_{\text{gait}} = 4.0\,\text{s}$，$dt$：单步仿真步长（policy step）。
 
 ## 观测项
 
@@ -83,6 +83,11 @@ o[e] = \big[\sin(2\pi p_{L,e}),\ \cos(2\pi p_{L,e}),\ \sin(2\pi p_{R,e}),\ \cos(
 $$
 $(\sin, \cos)$ 编码避免 $p = 1 \to 0$ 处的跳变。
 
+> ⚠️ 当前 gait reward (`hand_grip_time`) 已经不使用 gait clock——步态节奏由
+> 事件驱动（`engaged` 状态转变）而非时钟。`gait_clock` 仍保留在 obs 中作为
+> 辅助节奏参考：policy 可以选用这 4 维帮助学出周期性动作，也可以完全忽略。
+> 未来如果确认 policy 不需要，可以一并删掉。
+
 ### `height_above_spawn` — `(E, 1)`
 $$
 o[e] = z_{b,e} - z_{\text{spawn}},\quad z_{\text{spawn}} = 2.0
@@ -97,9 +102,10 @@ $$
 o[e] = (v_{x,\text{cmd}},\ v_{y,\text{cmd}},\ v_{z,\text{cmd}})
 $$
 
-世界系命令速度，目前固定为 $(0, 0, 0.3)$。policy 看到这个命令就知道期望
-的运动方向和速率，配合 `track_vx/vy/vz` 奖励做标准的 commanded-velocity
-policy。未来可以接 command manager 做 per-env 命令随机化。
+世界系命令速度，目前固定为 $(0, 0, 0.08)$。policy 看到这个命令就知道期望
+的运动方向和速率，配合 `track_vz` 奖励做标准的 commanded-velocity policy。
+`hand_grip_time` 也读 $v_z^{\text{cmd}}$ 作为 move-gate 的判据。未来可以接
+command manager 做 per-env 命令随机化。
 
 ### `hand_engaged_state` — `(E, 2)`
 $$

@@ -44,7 +44,7 @@ def phybot_big_v2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
     logger="wandb",
     wandb_project="spider-climb-wall",
     wandb_tags=("phybot_big_v2",),
-    save_interval=50,
+    save_interval=25,
     num_steps_per_env=24,
-    max_iterations=100_000,
+    max_iterations=8000,
   )

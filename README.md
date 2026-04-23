@@ -9,7 +9,9 @@
 - **目标**: 两手交替贴墙向上爬（trot-like gait）
 - **Adhesion**: 微刺式吸附（MuJoCo adhesion actuator + 自定义 engage/disengage 逻辑）
 
-详细 reward / curriculum 设计见 [`docs/gait_rewards.md`](docs/gait_rewards.md)。
+详细 reward / curriculum 设计见 [`docs/rewards.md`](docs/rewards.md) 和
+[`docs/curriculum.md`](docs/curriculum.md)（`docs/gait_rewards.md` 是早期
+设计稿，已不对齐当前实现）。
 
 ## 安装
 
@@ -28,16 +30,17 @@ python scripts/list_envs.py
 
 ### 训练
 ```bash
-# 默认训练（128 envs）
-python scripts/train.py Mjlab-Climb-Wall-Phybot-Big-V2
-
-# 自定义环境数 / 迭代数
-python scripts/train.py Mjlab-Climb-Wall-Phybot-Big-V2 \
-  --env.scene.num-envs 256 \
-  --agent.max-iterations 60000
-
 # 多 GPU
 python scripts/train.py Mjlab-Climb-Wall-Phybot-Big-V2 --gpu-ids "[0, 1]"
+
+# headless
+nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-Big-V2 \
+  --env.scene.num-envs 4096 \
+  --agent.max-iterations 8000 \
+  > train.log 2>&1 &
+
+ps -fu $USER | grep -E 'train|python' | grep -v grep
+kill <PID>
 ```
 
 ### 可视化 / 评估
@@ -90,7 +93,11 @@ python -m spider_rl_mjlab.assets.phybot_big_v2.phybot_big_v2_constants
 ```
 spider_rl_mjlab/
 ├── README.md                                    # 本文件
-├── docs/gait_rewards.md                         # Reward / curriculum 详细设计
+├── docs/
+│   ├── rewards.md                               # 当前 reward 设计（权威）
+│   ├── curriculum.md                            # 当前 curriculum + termination
+│   ├── observations.md                          # 当前 obs 设计
+│   └── gait_rewards.md                          # 早期方案（历史参考）
 ├── scripts/
 │   ├── train.py                                 # 训练入口
 │   ├── play.py                                  # 评估 / 可视化
@@ -106,8 +113,9 @@ spider_rl_mjlab/
     └── tasks/climb_wall/
         ├── climb_wall_env_cfg.py                # 核心: obs/action/reward/curriculum
         ├── mdp/
-        │   ├── observations.py                  # gait_clock (sin/cos)
-        │   ├── rewards.py                       # gait_match / swing_hand_* / climb_vz ...
+        │   ├── observations.py                  # gait_clock / height_above_spawn / velocity_command ...
+        │   ├── rewards.py                       # hand_grip_time / hand_slide / climb_vz_gauss ...
+        │   ├── terminations.py                  # static_hang / both_hands_off / excessive_tilt ...
         │   └── curriculums.py                   # gravity_angle / reward_weight
         └── config/phybot_big_v2/
             ├── env_cfgs.py                      # 任务级 override（姿态、墙位置、adhesion）
@@ -116,23 +124,37 @@ spider_rl_mjlab/
 
 ## Curriculum 概要
 
-一条统一时间轴，4 个 phase：
+一条统一时间轴。机器人出生就贴墙，所有 reward 从 iter 0 全量激活，
+curriculum 只调 gravity 倾角：
 
-| Phase | iter | 做什么 | 重力 |
-|---|---|---|---|
-| 0 | `0 → 5k` | 抓住墙（单手 + 双手接触） | 30° |
-| 1 | `5k → 15k` | 学步态（两手交替 swing/stance） | 30° |
-| 2 | `15k → 45k` | 重力从 30° 升到 90° | 30° → 90° |
-| 3 | `45k → ∞` | 稳定垂直爬墙 | 90° |
+| Phase | iter | 重力 |
+|---|---|---|
+| 1 | `0 → 15k` | 10° → 30°（低载荷 motor pattern 发现） |
+| 2 | `15k → 45k` | 30° → 90°（线性升到垂直） |
+| 3 | `45k → ∞` | 90°（标准垂直爬墙） |
 
-关键 reward（Phase 1+ 打开）：
-- `gait_match`（±1 节律匹配）
-- `swing_hand_height`（swing 手抬高到 base+50cm）
-- `swing_hand_clearance`（别在墙上蹭）
-- `stance_hand_anchor`（支撑手防滑）
-- `climb_vz`（向上速度）
+核心 reward 集合（全程激活）：
+- `hand_grip_time` — strict single-stance 版迁自 G1 `feet_air_time_positive_biped`
+- `track_vz` — 非对称高斯竖直爬升驱动（target 0.08 m/s）
+- `hand_orientation` — 手面朝墙（两相位都激活）
+- `flat_orientation` / `torso_orientation` — pelvis + 腰绕 body-x 侧翻罚
 
-详见 [`docs/gait_rewards.md`](docs/gait_rewards.md)。
+Regulation（对齐 G1 walking 模板，权重全部 G1 原样）：
+- `hand_slide` (−0.1) 迁自 G1 `feet_slide`
+- `termination_penalty` (−200)
+- `joint_deviation_hip` (−0.1，hip_yaw + hip_roll)
+- `joint_deviation_torso` (−0.1，waist_yaw + waist_roll)
+- `dof_pos_limits` (−1.0，ankles)
+- `action_rate_l2` (−0.005)
+- `dof_acc_l2` (−1.25e-7，hip + knee)
+- `dof_torques_l2` (−1.5e-7，hip + knee + ankle)
+- 故意不迁 `joint_deviation_arms`（手臂是爬墙主动执行器）
+
+Termination（极简，对齐 G1）：
+- `time_out` / `base_height`（climb 里 `base_contact` 的对偶，robot 掉下墙）
+ / `bad_state`（NaN 数值守护）
+
+详见 [`docs/rewards.md`](docs/rewards.md) 和 [`docs/curriculum.md`](docs/curriculum.md)。
 
 ## 主要依赖
 

@@ -5,11 +5,11 @@
 
 单一统一时间轴。机器人初始位姿就在墙边（`(-0.7, 0, 2)`），手臂朝墙伸出，
 不需要"先学走路"阶段。贴墙 + 爬升 reward **从 iter 0 就全部激活**，curriculum
-只做两件事：
+只做一件事：
 
-1. 把 `hands_toward_wall` 的权重从 15 阶跃降到 5（P1_END 后）——gait 建立后
-   削弱"靠近墙"这个过度 shaping。
-2. 把 gravity 从 30°（倾斜，等价缓坡）线性插值到 90°（完全垂直墙）。
+1. 把 gravity 从 10°（缓坡）线性插值到 30° 再到 90°（完全垂直墙）。
+
+所有 reward weight 都是单 stage 常量（iter 0 开始就是目标值）。
 
 ## 阶段边界
 
@@ -36,23 +36,32 @@
 
 ### 按项展开
 
-| Reward | iter 0 | P1_END | 备注 |
-|---|---:|---:|---|
-| `hands_toward_wall` | 8.0 | **3.0** | gait 建立后衰减 shaping |
-| `hand_orientation` | 15.0 | （不变） | stance 相位门控 |
-| `posture` | 3.0 | （不变） | Gaussian kernel per joint group |
-| `hands_on_wall` | 8.0 | （不变） | 接触密度 |
-| `swing_hand_height` | **10.0** | （不变） | paper sine arc 水平分量（离墙法向距离） |
-| `swing_hand_reach_up` | **15.0** | （不变） | paper sine arc 竖直分量（hand_z - root_z）|
-| `track_vx` | 6.0 | （不变） | $v_x$ 命令跟踪（cmd=0，σ=0.5 宽容伸手扰动） |
-| `track_vy` | 6.0 | （不变） | $v_y$ 命令跟踪（cmd=0，σ=0.5） |
-| `track_vz` | **40.0** | （不变） | **主目标**，$v_z$ 命令跟踪（cmd=0.3 m/s，σ=0.25 强信号） |
-| `stance_phase_velocity` | 3.0 | （不变） | 反滑动 |
+**任务奖励**（curriculum 只对这几项开权重 stage；regulation 在 iter 0 就是常量）
 
-> 注：`airborne_penalty`、`both_hands_unlatched` termination、`climb_vz` (clamp)、
-> `climb_height`、`swing_hand_reach_higher` **全部禁用**，纯靠 `track_vx/vy/vz`
-> 三个高斯速度跟踪项驱动 policy 自由探索。`height_above_spawn` obs 仍保留
-> 供 critic 描述 state。
+| Reward | iter 0 | 备注 |
+|---|---:|---|
+| `hand_orientation` | +15.0 | 两相位都激活 |
+| `hand_grip_time` | +30.0 | 迁自 G1 `feet_air_time_positive_biped`（strict ∑e == 1） |
+| `track_vz` | +40.0 | 迁自 G1 `track_lin_vel_xy_exp`（vz-only 非对称高斯） |
+| `flat_orientation` | +10.0 | pelvis roll-only, σ=0.3 |
+| `torso_orientation` | +10.0 | `waist_roll` body roll-only, σ=0.3 |
+| `hand_slide` | −0.1 | 迁自 G1 `feet_slide`（engaged-gated） |
+
+**Regulation**（对齐 G1 walking，无 curriculum 调度，全程常量）
+
+| Reward | weight | joint scope / 备注 |
+|---|---:|---|
+| `termination_penalty` | −200.0 | `is_terminated`（不含 timeout） |
+| `dof_pos_limits` | −1.0 | ankles（G1 原样） |
+| `joint_deviation_hip` | −0.1 | hip_yaw + hip_roll（G1 原样） |
+| `joint_deviation_torso` | −0.1 | waist_yaw + waist_roll |
+| `action_rate_l2` | −0.005 | 全 action dim |
+| `dof_acc_l2` | −1.25e-7 | hip + knee |
+| `dof_torques_l2` | −1.5e-7 | hip + knee + ankle |
+
+> **故意不迁**：G1 的 `joint_deviation_arms` / `joint_deviation_fingers`。
+> 肩、肘在爬墙时是主动执行器（必须大幅偏离 keyframe 才能抓上去），再
+> 加约束会把任务禁掉；PHYBot Big V2 也没有 fingers。
 
 ## 重力 curriculum
 
@@ -94,10 +103,20 @@ $$
 
 ## Termination 兜底
 
-Curriculum 不控制 termination——极端状态由三个 termination 项兜底：
-- `time_out`：episode_length 到上限（30s）
-- `base_height`：base z < 0.3 m（掉下墙）
-- `bad_state`：速度 > 20 m/s 或 NaN/Inf（物理爆炸）
+对齐 G1 walking 的极简集合——G1 只有 `time_out + base_contact`，我们对应
+把"base 掉下墙"替换 base_contact，再加一条纯数值安全网：
 
-注：`both_hands_unlatched` termination 当前**禁用**，让 policy 自由探索 overlap
-gait 而不是被硬约束卡住。函数保留在 `terminations.py` 里做 fallback。
+- `time_out`: episode_length 到上限（30 s）
+- `base_height`: base z < 0.3 m（**掉下墙**，爬墙里 G1 `base_contact` 的
+  对偶——没有地面碰撞可用，用高度下限替代）
+- `bad_state`: 速度 > 20 m/s 或 NaN/Inf 等数值发散守护
+
+**已删除的 termination**（从上一版保留）：`excessive_tilt`、`torso_roll_excessive`、
+`static_hang`、`both_hands_off`。这些都是为了堵特定退化解手工加的硬约束；
+切换到 G1-style 后改为靠 reward 层（`flat_orientation` + `torso_orientation`
++ `joint_deviation_*`）软塑形 + 加强 `termination_penalty`，让 policy 在
+连续梯度里学，而不是碰到边界硬 reset。
+
+这和 G1 walking 的哲学一致——只保留最小必要的硬 termination，其余全部
+交给 shaped reward。如果发现 policy 仍然钻新空子，首选是调 reward
+权重，其次才是加回硬约束。

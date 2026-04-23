@@ -17,22 +17,17 @@ def both_hands_unlatched(
   env: ManagerBasedRlEnv,
   event_term_name: str = "microspine_adhesion",
 ) -> torch.Tensor:
-  """Terminate the instant both hands are unlatched.
+  """Terminate when neither hand is engaged (airborne).
 
-  Climbing is defined as an **overlap gait**: at least one hand must be
-  anchored at every moment. The policy transitions by (1) keeping the
-  stance hand engaged, (2) releasing the swing hand, reaching to a higher
-  wall location, (3) re-engaging the swing hand at the new height — both
-  are engaged at the overlap — (4) releasing the original stance hand,
-  repeating.
-
-  There is no legitimate "both-off" window in this gait, so termination
-  is strict (0-frame tolerance). Climbing itself is guided by the
-  ``track_vz`` velocity-tracking reward.
+  Reads the microspine controller's per-(env, hand) latch state. Triggers
+  when both hands are simultaneously off — the robot has no anchor and is
+  falling. Combined with the -200 ``termination_penalty`` reward, this
+  directly punishes the "both hands off" state the strict single-stance
+  reward does not cover.
   """
   term_cfg = env.event_manager.get_term_cfg(event_term_name)
   engaged = term_cfg.func.engaged  # (E, H) bool
-  return (~engaged).all(dim=-1)  # (E,)
+  return engaged.sum(dim=-1) == 0
 
 
 def bad_state(
@@ -45,12 +40,10 @@ def bad_state(
 ) -> torch.Tensor:
   """Terminate when simulation diverges (NaN/Inf or magnitude explodes).
 
-  Covers every state tensor that feeds the actor observations so any
-  divergence is caught before NaN propagates to the policy:
-    - root pos (env-local), lin vel, ang vel, quat
-    - joint pos, joint vel
-
-  Uses env-local position to avoid false positives from env spacing.
+  Pure numerical safety — covers every state tensor that feeds actor
+  observations so divergence is caught before NaN propagates to the
+  policy. Uses env-local position to avoid false positives from env
+  spacing.
   """
   asset: Entity = env.scene[asset_cfg.name]
   pos = asset.data.root_link_pos_w - env.scene.env_origins

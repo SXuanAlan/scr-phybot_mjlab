@@ -1,7 +1,7 @@
-"""Interactive pose-tuning tool for the climb-wall scene (viser-based).
+"""Interactive pose-tuning tool (viser-based).
 
-Opens a viser server in the browser with the climb-wall robot + wall and
-exposes GUI sliders for:
+Opens a viser server in the browser with a chosen robot (optionally placed
+in the climb-wall scene) and exposes GUI sliders for:
   - Robot base position (x, y, z)
   - Every articulated joint
 
@@ -10,13 +10,15 @@ the sliders and re-rendered. Works headlessly over SSH (unlike the native
 MuJoCo viewer, which needs a local GL context).
 
 Run:
-  python scripts/tune_pose.py
+  python scripts/tune_pose.py                    # default: phybot_c2
+  python scripts/tune_pose.py --robot phybot_big_v2
 
 Then open the printed ViserServer URL in a browser.
 """
 
 from __future__ import annotations
 
+import argparse
 import time
 
 import mujoco
@@ -26,16 +28,30 @@ import viser
 from mjlab.entity import Entity
 from mjlab.viewer.viser.scene import ViserMujocoScene
 
+from spider_rl_mjlab.assets import get_phybot_c2_robot_cfg
 from spider_rl_mjlab.tasks.climb_wall.config.phybot_big_v2.env_cfgs import (
   phybot_big_v2_climb_wall_env_cfg,
 )
 
+ROBOT_CHOICES = ("phybot_c2", "phybot_big_v2")
 
-def _build_scene_spec() -> mujoco.MjSpec:
-  """Compose the climb_wall robot + wall into a single interactive spec."""
-  cfg = phybot_big_v2_climb_wall_env_cfg(play=True)
-  robot = Entity(cfg.scene.entities["robot"])
-  wall = Entity(cfg.scene.entities["wall"])
+
+def _entities_for_robot(robot_name: str) -> list[tuple[str, Entity]]:
+  """Build the list of (attach_name, Entity) to include in the scene."""
+  if robot_name == "phybot_c2":
+    return [("robot", Entity(get_phybot_c2_robot_cfg()))]
+  if robot_name == "phybot_big_v2":
+    cfg = phybot_big_v2_climb_wall_env_cfg(play=True)
+    return [
+      ("robot", Entity(cfg.scene.entities["robot"])),
+      ("wall", Entity(cfg.scene.entities["wall"])),
+    ]
+  raise ValueError(f"unknown robot {robot_name!r}; choices: {ROBOT_CHOICES}")
+
+
+def _build_scene_spec(robot_name: str) -> mujoco.MjSpec:
+  """Compose the selected robot (+ wall if applicable) into a single spec."""
+  entities = _entities_for_robot(robot_name)
 
   scene = mujoco.MjSpec()
   scene.worldbody.add_geom(
@@ -49,7 +65,7 @@ def _build_scene_spec() -> mujoco.MjSpec:
 
   key_qpos: list[np.ndarray] = []
   key_ctrl: list[np.ndarray] = []
-  for name, ent in (("robot", robot), ("wall", wall)):
+  for name, ent in entities:
     if ent.spec.keys:
       init_key = None
       for k in ent.spec.keys:
@@ -87,7 +103,16 @@ def _joint_limits(model: mujoco.MjModel, jnt_id: int) -> tuple[float, float]:
 
 
 def main() -> None:
-  spec = _build_scene_spec()
+  parser = argparse.ArgumentParser(description="Interactive pose tuner.")
+  parser.add_argument(
+    "--robot",
+    choices=ROBOT_CHOICES,
+    default="phybot_c2",
+    help="Robot to display (default: phybot_c2).",
+  )
+  args = parser.parse_args()
+
+  spec = _build_scene_spec(args.robot)
   model = spec.compile()
   data = mujoco.MjData(model)
 
@@ -223,7 +248,7 @@ def main() -> None:
   _refresh()
 
   print("=" * 60)
-  print("Pose Tuner (viser) — climb_wall scene")
+  print(f"Pose Tuner (viser) — robot={args.robot}")
   print("=" * 60)
   print("Open the URL printed above in a browser.")
   print("Adjust sliders; click 'Print qpos / joint dict' to copy back to env_cfg.")

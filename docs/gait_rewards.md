@@ -1,5 +1,10 @@
 # Climb-Wall Reward 与 Curriculum 设计
 
+> ⚠️ **历史设计稿,与当前实现不一致**。此文档保留了早期的权重/命名(L2 负权重、
+> `both_hands_bonus`、`base_height_penalty`、`com_near_wall` 等),大部分已被替换
+> 或删除。**当前真实 reward/curriculum 以 [`rewards.md`](./rewards.md) 和
+> [`curriculum.md`](./curriculum.md) 为准。** 本文档仅作为方案演进的参考。
+
 `Mjlab-Climb-Wall-Phybot-Big-V2` 任务的奖励和课程设计说明。**双手交替式垂直爬墙**。
 
 ---
