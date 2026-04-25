@@ -61,6 +61,8 @@
     <mesh name="right_shoulder_roll" file="right_shoulder_roll.STL"/>
     <mesh name="right_shoulder_yaw" file="right_shoulder_yaw.STL"/>
     <mesh name="right_elbow_pitch" file="right_elbow_pitch.STL"/>
+    <mesh name="left_hand_spine" file="left_hand_spine.stl"/>
+    <mesh name="right_hand_spine" file="right_hand_spine.STL"/>
     <texture builtin="gradient" height="100" rgb1=".4 .5 .6" rgb2="0 0 0" type="skybox" width="100"/>
     <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="100" height="100"/>
     <material name="MatPlane" reflectance="0.5" texture="texplane" texrepeat="1 1" texuniform="true"/>
@@ -232,6 +234,13 @@
                   <joint name="left_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-9 9"/>
                   <geom name="left_elbow_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="left_elbow_pitch"/>
                   <geom name="left_elbow_pitch_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.035 0.11" pos="0 0 -0.17"/>
+
+                  <body name="left_hand_spine" pos="-0.04 0 0" quat="0 0.7071068 0.7071068 0">
+                    <inertial pos="0 0 0.25" mass="1" diaginertia="0.1 0.1 0.1"/>
+                    <joint name="left_hand_spine" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" actuatorfrcrange="-100 100"/>
+                    <geom name="left_hand_spine_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.94902 0.94118 0.90981 1" mesh="left_hand_spine" pos="0 0 0.2"/>
+                    <geom name="left_hand_spine_collision" type="box" size="0.06 0.006 0.12867975" pos="-0.0009236 -0.006 0.1804657"/>
+                  </body>
                 </body>
               
               </body>
@@ -263,6 +272,13 @@
                   <joint name="right_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-58 58"/>
                   <geom name="right_elbow_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="right_elbow_pitch"/>
                   <geom name="right_elbow_pitch_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.035 0.11" pos="0 0 -0.17"/>
+
+                  <body name="right_hand_spine" pos="-0.04 0 0" quat="0 0.7071068 0.7071068 0">
+                    <inertial pos="0 0 0.25" mass="1" diaginertia="0.1 0.1 0.1"/>
+                    <joint name="right_hand_spine" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" actuatorfrcrange="-100 100"/>
+                    <geom name="right_hand_spine_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.94902 0.94118 0.90981 1" mesh="right_hand_spine" pos="0 0 0.2"/>
+                    <geom name="right_hand_spine_collision" type="box" size="0.06 0.006 0.12867975" pos="-0.0009236 -0.006 0.1804657"/>
+                  </body>
                 </body>
               
               </body>
@@ -287,11 +303,11 @@
   <keyframe>
       <key name="home"
       qpos="0 0 0.70
-       1 0 0 0 
+       1 0 0 0
       -0.24 0.026 0.012 0.51 -0.28 0
       -0.24 0.026 0.012 0.51 -0.28 0
-       0.0 
-       0 0 0 1.0 -0.1 0 0 -1.0 0 0" />
+       0.0
+       0 0 -2.0 -0.17 0 -1.14 0 -2.0 0.17 0 -1.14 0" />
   </keyframe>
 
 </mujoco>

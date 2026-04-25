@@ -1,6 +1,6 @@
 """PHYBot C2 robot constants and configuration.
 
-23-DOF humanoid (2 legs x 6, waist yaw, 2 arms x 4, neck yaw/pitch).
+25-DOF humanoid (2 legs x 6, waist yaw, 2 arms x 4 + hand_spine, neck yaw/pitch).
 """
 
 from pathlib import Path
@@ -113,6 +113,13 @@ PHYBOT_C2_ACTUATOR_ELBOW_PITCH = BuiltinPositionActuatorCfg(
   effort_limit=58.0,
 )
 
+PHYBOT_C2_ACTUATOR_HAND_SPINE = BuiltinPositionActuatorCfg(
+  target_names_expr=(".*_hand_spine",),
+  stiffness=50.0,
+  damping=5.0,
+  effort_limit=100.0,
+)
+
 PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
   target_names_expr=("neck_yaw", "neck_pitch"),
   stiffness=20.0,
@@ -142,14 +149,16 @@ DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
     "waist_yaw": 0.0,
     "neck_yaw": 0.0,
     "neck_pitch": 0.0,
-    "left_shoulder_pitch": 0.0,
-    "left_shoulder_roll": 1.0,
-    "left_shoulder_yaw": -0.1,
-    "left_elbow_pitch": 0.0,
-    "right_shoulder_pitch": 0.0,
-    "right_shoulder_roll": -1.0,
+    "left_shoulder_pitch": -2.0,
+    "left_shoulder_roll": -0.17,
+    "left_shoulder_yaw": 0.0,
+    "left_elbow_pitch": -1.14,
+    "left_hand_spine": 0.0,
+    "right_shoulder_pitch": -2.0,
+    "right_shoulder_roll": 0.17,
     "right_shoulder_yaw": 0.0,
-    "right_elbow_pitch": 0.0,
+    "right_elbow_pitch": -1.14,
+    "right_hand_spine": 0.0,
   },
   joint_vel={".*": 0.0},
 )
@@ -190,6 +199,7 @@ PHYBOT_C2_ARTICULATION = EntityArticulationInfoCfg(
     PHYBOT_C2_ACTUATOR_SHOULDER_ROLL,
     PHYBOT_C2_ACTUATOR_SHOULDER_YAW,
     PHYBOT_C2_ACTUATOR_ELBOW_PITCH,
+    PHYBOT_C2_ACTUATOR_HAND_SPINE,
     PHYBOT_C2_ACTUATOR_NECK,
   ),
   soft_joint_pos_limit_factor=1.0,
