@@ -28,7 +28,7 @@ import viser
 from mjlab.entity import Entity
 from mjlab.viewer.viser.scene import ViserMujocoScene
 
-from spider_rl_mjlab.assets import get_phybot_c2_robot_cfg
+from spider_rl_mjlab.assets import get_phybot_c2_robot_cfg, get_wall_cfg
 from spider_rl_mjlab.tasks.climb_wall.config.phybot_big_v2.env_cfgs import (
   phybot_big_v2_climb_wall_env_cfg,
 )
@@ -39,7 +39,10 @@ ROBOT_CHOICES = ("phybot_c2", "phybot_big_v2")
 def _entities_for_robot(robot_name: str) -> list[tuple[str, Entity]]:
   """Build the list of (attach_name, Entity) to include in the scene."""
   if robot_name == "phybot_c2":
-    return [("robot", Entity(get_phybot_c2_robot_cfg()))]
+    return [
+      ("robot", Entity(get_phybot_c2_robot_cfg())),
+      ("wall", Entity(get_wall_cfg())),
+    ]
   if robot_name == "phybot_big_v2":
     cfg = phybot_big_v2_climb_wall_env_cfg(play=True)
     return [
