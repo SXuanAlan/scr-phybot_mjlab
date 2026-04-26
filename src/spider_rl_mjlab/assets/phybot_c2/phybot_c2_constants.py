@@ -53,22 +53,22 @@ PHYBOT_C2_ACTUATOR_HIP_ROLL = BuiltinPositionActuatorCfg(
 
 PHYBOT_C2_ACTUATOR_HIP_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_yaw",),
-  stiffness=100.0,
-  damping=10.0,
+  stiffness=60.0,
+  damping=6.0,
   effort_limit=58.0,
 )
 
 PHYBOT_C2_ACTUATOR_KNEE = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_knee",),
-  stiffness=100.0,
-  damping=10.0,
+  stiffness=60.0,
+  damping=6.0,
   effort_limit=80.0,
 )
 
 PHYBOT_C2_ACTUATOR_ANKLE_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_ankle_pitch",),
-  stiffness=50.0,
-  damping=5.0,
+  stiffness=30.0,
+  damping=3.0,
   effort_limit=58.0,
 )
 
@@ -81,8 +81,8 @@ PHYBOT_C2_ACTUATOR_ANKLE_ROLL = BuiltinPositionActuatorCfg(
 
 PHYBOT_C2_ACTUATOR_WAIST_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=("waist_yaw",),
-  stiffness=100.0,
-  damping=10.0,
+  stiffness=20.0,
+  damping=5.0,
   effort_limit=58.0,
 )
 
@@ -102,7 +102,7 @@ PHYBOT_C2_ACTUATOR_SHOULDER_ROLL = BuiltinPositionActuatorCfg(
 
 PHYBOT_C2_ACTUATOR_SHOULDER_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_yaw",),
-  stiffness=5.0,
+  stiffness=50.0,
   damping=5.0,
   effort_limit=58.0,
 )
@@ -128,17 +128,17 @@ PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
 DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
   pos=(0.0, 0.0, 0.70),
   joint_pos={
-    "left_hip_pitch": -0.87,
+    "left_hip_pitch": -0.24,
     "left_hip_roll": 0.026,
-    "left_hip_yaw": 0.0,
-    "left_knee": 0.885,
-    "left_ankle_pitch": 1.34,
+    "left_hip_yaw": 0.012,
+    "left_knee": 0.51,
+    "left_ankle_pitch": -0.28,
     "left_ankle_roll": 0.0,
-    "right_hip_pitch": -0.87,
+    "right_hip_pitch": -0.24,
     "right_hip_roll": 0.026,
-    "right_hip_yaw": 0.0,
-    "right_knee": 0.885,
-    "right_ankle_pitch": 1.34,
+    "right_hip_yaw": 0.012,
+    "right_knee": 0.51,
+    "right_ankle_pitch": -0.28,
     "right_ankle_roll": 0.0,
     "waist_yaw": 0.0,
     "neck_yaw": 0.0,
@@ -160,20 +160,17 @@ DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
 ##
 
 PHYBOT_C2_COLLISION = CollisionCfg(
-  geom_names_expr=(".*_collision.*", r"(left|right)_(hand|foot)_spine_c_\d+_\d+"),
+  geom_names_expr=(".*_collision.*",),
   condim={
     r"^(left|right)_ankle_roll_collision$": 6,
-    r"^(left|right)_(hand|foot)_spine_c_\d+_\d+$": 6,
     ".*": 3,
   },
   friction={
     r"^(left|right)_ankle_roll_collision$": (30.0, 0.01, 0.01),
-    r"^(left|right)_(hand|foot)_spine_c_\d+_\d+$": (30.0, 0.01, 0.01),
     ".*": (1.0, 0.1, 0.1),
   },
   priority={
     r"^(left|right)_ankle_roll_collision$": 1,
-    r"^(left|right)_(hand|foot)_spine_c_\d+_\d+$": 1,
   },
 )
 

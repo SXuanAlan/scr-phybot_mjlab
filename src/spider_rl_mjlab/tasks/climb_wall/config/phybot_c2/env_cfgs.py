@@ -203,11 +203,16 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       weight=-1.0e-5,
       params={"asset_cfg": robot_cfg_e},
     ),
+    "dof_acc_l2": RewardTermCfg(
+      func=mdp.joint_acc_l2,
+      weight=-1.0e-5,
+      params={"asset_cfg": robot_cfg_e},
+    ),
     "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.01),
     # -- engage replaces contact for the gait-shaping pair.
     "ee_air_time": RewardTermCfg(
       func=mdp.ee_air_time(),
-      weight=0.125,
+      weight=1.0,
       params={
         "threshold": 0.3,
         "vz_cmd": _VZ_CMD,
@@ -256,6 +261,15 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # schedules from the big_v2 base (they reference reward names that no
   # longer exist, and Anymal-style training uses constant weights).
   cfg.curriculum = {"gravity_angle": cfg.curriculum["gravity_angle"]}
+  # Override the schedule for c2: start at 30° (0.5g along wall) so the
+  # policy is forced to actively climb from iter 0 — fully horizontal made
+  # "stay curled and still" a free local optimum.
+  cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+    {"iter":    0, "angle_deg": 30.0},
+    {"iter":  500, "angle_deg": 30.0},   # hold gentle slope — learn baseline
+    {"iter": 1500, "angle_deg": 60.0},   # steep, 0.87g
+    {"iter": 2500, "angle_deg": 90.0},   # full vertical
+  ]
 
   joint_pos_action = cfg.actions["joint_pos"]
   assert isinstance(joint_pos_action, JointPositionActionCfg)
