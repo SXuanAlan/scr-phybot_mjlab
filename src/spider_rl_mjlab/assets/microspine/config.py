@@ -75,14 +75,59 @@ class MicrospineCfg:
   immediately on first violation). Larger values suppress bang-bang
   oscillation caused by CCD jitter in the solver."""
 
+  disengage_pull_threshold: float = 0.0
+  """Disengage when the kinematic chain pulls the EE outward (away from wall)
+  with force exceeding this value [N]. Approximated as
+  ``adhesion_force − sum(wall_normal_force_per_sphere)``: a fully-pressed EE
+  has ``contact ≈ adhesion`` so ``pull_force ≈ 0``; a fully-lifted EE has
+  ``contact ≈ 0`` so ``pull_force ≈ adhesion``. Threshold should be set
+  somewhere between, e.g. 0.7–0.9 × ``adhesion_force``. Set to 0 to disable.
+  This is the natural "policy lifts limb to release" criterion for climbing
+  gait, complementing or replacing the slip-overload-style
+  ``disengage_friction_threshold``."""
+
+  disengage_pull_consecutive_steps: int = 1
+  """Pull-disengage hysteresis. Same semantics as
+  ``disengage_consecutive_steps`` but for the pull-based criterion."""
+
+  disengage_lift_velocity_threshold: float = 0.0
+  """Disengage when the EE body's world-frame velocity along ``+z`` exceeds
+  this value [m/s]. The natural "policy lifts limb" signal — independent of
+  body-local axes (no per-EE flip needed) and not conflated with gravity-
+  supporting friction. For wall climbing, set above the commanded climb
+  rate (so that body-along-wall motion doesn't trigger) but below the
+  velocity reached during a deliberate stepping motion. 0 disables."""
+
+  disengage_lift_velocity_consecutive_steps: int = 1
+  """Lift-velocity disengage hysteresis. Same semantics as
+  ``disengage_consecutive_steps``."""
+
   reengage_cooldown_steps: int = 0
   """After an engaged hand disengages, block re-engagement for this many
   steps. 0 disables the cooldown. Combined with the disengage hysteresis,
   this breaks single-step engage/disengage oscillation."""
 
-  hand_up_local: tuple[float, float, float] = (0.0, 0.0, 1.0)
-  """Local direction in the hand body frame that defines 'up' for the
-  disengage friction check. Default (0,0,1) = local +z axis."""
+  hand_up_local: tuple[float, float, float] | tuple[tuple[float, float, float], ...] = (0.0, 0.0, 1.0)
+  """Local direction in each EE body frame that defines 'up' for the disengage
+  friction check. Either a single 3-tuple (broadcast to every EE) or a tuple
+  of 3-tuples with one entry per EE in ``ee_body_names``. Default (0,0,1)
+  = local +z axis. Used only when ``friction_axis_world`` is ``None``."""
+
+  friction_axis_world: tuple[float, float, float] | None = None
+  """If set, the friction-based disengage check projects onto this WORLD-frame
+  axis instead of each EE's body-rotated ``hand_up_local``. Useful when 'up'
+  is the same world direction across every EE (e.g. ``(0, 0, 1)`` for
+  vertical-wall climbing) so per-EE body-local flips become unnecessary.
+  None falls back to the legacy body-local behavior."""
+
+  spheres_per_ee_rows: int = 2
+  """Rows in the per-EE contact-sphere grid. Sphere body/geom names follow
+  ``{ee_body_name}_c_{i}_{j}`` for i in [rows], j in [cols]. Default 2 keeps
+  phybot_big_v2's 2x4 = 8-sphere layout."""
+
+  spheres_per_ee_cols: int = 4
+  """Cols in the per-EE contact-sphere grid. Default 4 keeps phybot_big_v2's
+  2x4 = 8-sphere layout."""
 
   wall_geom_name: str = "wall/wall_geom"
   """Scoped name of the wall geom used for contact force detection."""

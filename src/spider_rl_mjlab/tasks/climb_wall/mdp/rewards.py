@@ -138,10 +138,14 @@ def hand_orientation_toward_wall(
   return total
 
 
-def _hand_body_ids(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg) -> list[int]:
+def _hand_body_ids(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  body_names: tuple[str, ...] = ("left_hand", "right_hand"),
+) -> list[int]:
   asset: Entity = env.scene[asset_cfg.name]
   ids = []
-  for name in ("left_hand", "right_hand"):
+  for name in body_names:
     idx, _ = asset.find_bodies([name])
     ids.append(idx[0])
   return ids
@@ -236,6 +240,7 @@ def hand_slide_penalty(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
   event_term_name: str = "microspine_adhesion",
+  hand_body_names: tuple[str, ...] = ("left_hand", "right_hand"),
 ) -> torch.Tensor:
   """Penalise tangential wall-plane velocity of ENGAGED hands.
 
@@ -248,7 +253,7 @@ def hand_slide_penalty(
   compression, engage / release impact) is not penalised.
   """
   asset: Entity = env.scene[asset_cfg.name]
-  body_ids = _hand_body_ids(env, asset_cfg)
+  body_ids = _hand_body_ids(env, asset_cfg, hand_body_names)
   _, normal_w = _SphereGeomCache.wall_plane(env)  # (E, 3)
 
   term_cfg = env.event_manager.get_term_cfg(event_term_name)
@@ -329,3 +334,188 @@ def torso_orientation_gauss(
   py = -2.0 * (w * x + y * z)  # grows with roll  (rotation around body-x)
   err_sq = pitch_scale * px.pow(2) + roll_scale * py.pow(2)
   return torch.exp(-err_sq / (sigma * sigma))
+
+
+# ---------------------------------------------------------------------------
+# Anymal-style quadruped rewards adapted for wall climbing (engage signal
+# replaces contact signal; wall normal replaces world z).
+# ---------------------------------------------------------------------------
+
+
+def lin_vel_into_wall_l2(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+  """Penalize base linear velocity along the wall normal.
+
+  Wall-climbing analog of Anymal's ``lin_vel_z_l2`` — for a vertical wall the
+  motion-into/out-of-wall direction is the wall surface normal, NOT world z
+  (z is the climb direction we want to track). Squaring makes sign irrelevant.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  _, wall_normal = _SphereGeomCache.wall_plane(env)  # (E, 3)
+  v_w = asset.data.root_link_lin_vel_w  # (E, 3)
+  v_along_n = (v_w * wall_normal).sum(dim=-1)  # (E,)
+  return v_along_n.pow(2)
+
+
+def ang_vel_xy_l2(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+  """Penalize base angular velocity around body x and y axes.
+
+  Direct port of Anymal's ``ang_vel_xy_l2``. Discourages the policy from
+  flailing roll/pitch — yaw rate (z) is intentionally not penalised here.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  return torch.sum(torch.square(asset.data.root_link_ang_vel_b[:, :2]), dim=-1)
+
+
+def ee_air_time():
+  """Factory for engage-signal version of Anymal's ``feet_air_time``.
+
+  Per-EE bookkeeping:
+    * ``current_disengage_t`` — seconds the EE has been continuously disengaged.
+    * On the step an EE transitions disengaged→engaged (``first_engage``):
+      reward += ``(current_disengage_t - threshold)``.
+
+  Closure-style (matches ``hand_grip_time_min_climb``) so each env cfg gets
+  fresh state and tyro doesn't introspect a class. Knobs are passed via
+  ``RewardTermCfg.params``; the returned callable exposes ``.reset(env_ids)``
+  for the reward manager to drive on episode boundaries.
+
+  Reward is gated to zero when the climbing command is below ``cmd_eps``.
+  Since this task uses a fixed-target ``vz_cmd``, the gate is a constant
+  evaluated per call.
+  """
+  state: dict[str, torch.Tensor | None] = {
+    "prev_engaged": None,
+    "current_disengage_t": None,
+  }
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    threshold: float = 0.3,
+    vz_cmd: float = 0.08,
+    cmd_eps: float = 0.0,
+    event_term_name: str = "microspine_adhesion",
+  ) -> torch.Tensor:
+    term_cfg = env.event_manager.get_term_cfg(event_term_name)
+    engaged: torch.Tensor = term_cfg.func.engaged  # (E, H) bool
+
+    if state["prev_engaged"] is None or state["prev_engaged"].shape != engaged.shape:
+      # Init to the current engaged state (not zeros) so step 1 doesn't
+      # spuriously fire first-engage events for every EE that started
+      # the episode latched (microspine reset seeds engaged=True).
+      state["prev_engaged"] = engaged.clone()
+      state["current_disengage_t"] = torch.zeros(
+        engaged.shape, dtype=torch.float32, device=engaged.device
+      )
+
+    prev = state["prev_engaged"]
+    first_engage = (~prev) & engaged  # (E, H) — newly engaged this step
+
+    # Snapshot the disengage spell that just ended.
+    last_disengage_t = torch.where(
+      first_engage,
+      state["current_disengage_t"],
+      torch.zeros_like(state["current_disengage_t"]),
+    )
+
+    # Anymal: reward = sum_h (last_air_time - threshold) * first_contact[h]
+    reward = torch.sum(
+      (last_disengage_t - threshold) * first_engage.float(),
+      dim=1,
+    )
+
+    # Gate by command activity (fixed-target task — constant per call).
+    if abs(vz_cmd) <= cmd_eps:
+      reward = torch.zeros_like(reward)
+
+    # Tick disengage timer for the NEXT step: zero on engage, +dt on disengage.
+    dt = env.step_dt
+    state["current_disengage_t"] = torch.where(
+      engaged,
+      torch.zeros_like(state["current_disengage_t"]),
+      state["current_disengage_t"] + dt,
+    )
+    state["prev_engaged"] = engaged.clone()
+
+    return reward
+
+  def reset(env_ids=None) -> dict:
+    if state["prev_engaged"] is None:
+      return {}
+    # Reset prev_engaged to True (matches microspine reset which seeds
+    # engaged=True). This way the first post-reset step doesn't fire a
+    # spurious first-engage event.
+    if env_ids is None:
+      state["prev_engaged"].fill_(True)
+      state["current_disengage_t"].zero_()
+    else:
+      state["prev_engaged"][env_ids] = True
+      state["current_disengage_t"][env_ids] = 0.0
+    return {}
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
+
+
+# Alias so the climb-wall env_cfg can use a name that matches the
+# Anymal-style "ee_*" convention. ``hand_slide_penalty`` already accepts a
+# ``hand_body_names`` list, so passing the 4 spine names produces the
+# generalised "engaged-EE tangential velocity" penalty.
+ee_slide_penalty = hand_slide_penalty
+
+
+def ee_face_parallel_to_wall(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  ee_body_names: tuple[str, ...] = (
+    "left_hand_spine",
+    "right_hand_spine",
+    "left_foot_spine",
+    "right_foot_spine",
+  ),
+  face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0),
+) -> torch.Tensor:
+  """Reward the WORST-aligned EE's contact face staying parallel to the wall.
+
+  For each EE body, ``face_local_axis`` is rotated by the body's world quat
+  and dotted with the wall inward normal. Per-EE score = ``(dot + 1) / 2``
+  in [0, 1] (1 = face perfectly aligned, 0 = opposite). Returns the MIN
+  across EEs — strictest "weakest link" measure: if any single spine
+  rotates off-axis the reward drops, forcing ALL spines flush.
+
+  For c2 spines, the contact face (sphere-bearing -y face of the collision
+  box) maps to world wall-inward in default pose, so the default
+  ``face_local_axis = (0, -1, 0)`` gives +1 per EE when the spine is flush
+  against the wall.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  _, wall_normal = _SphereGeomCache.wall_plane(env)  # (E, 3) outer normal
+  target = -wall_normal  # wall inward direction (robot → wall)
+
+  face_local = torch.tensor(face_local_axis, dtype=torch.float32, device=env.device)
+  vx, vy, vz = face_local[0], face_local[1], face_local[2]
+
+  per_ee: list[torch.Tensor] = []
+  for bname in ee_body_names:
+    ids, _ = asset.find_bodies([bname])
+    body_id = ids[0]
+    quat = asset.data.body_link_quat_w[:, body_id, :]  # (E, 4) wxyz
+    w, x, y, z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
+    # Rotate face_local by quat (q · v · q^-1).
+    tx = 2.0 * (y * vz - z * vy)
+    ty = 2.0 * (z * vx - x * vz)
+    tz = 2.0 * (x * vy - y * vx)
+    fx = vx + w * tx + (y * tz - z * ty)
+    fy = vy + w * ty + (z * tx - x * tz)
+    fz = vz + w * tz + (x * ty - y * tx)
+    face = torch.stack([fx, fy, fz], dim=-1)  # (E, 3)
+    dot = (face * target).sum(dim=-1).clamp(-1.0, 1.0)
+    per_ee.append((dot + 1.0) * 0.5)
+  scores = torch.stack(per_ee, dim=-1)  # (E, num_ee)
+  return scores.min(dim=-1).values  # (E,)

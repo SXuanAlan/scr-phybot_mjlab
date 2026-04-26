@@ -1,13 +1,15 @@
 # Spider RL MJLab
 
-基于 [mjlab](https://mujocolab.github.io/mjlab/)（MuJoCo Warp GPU 仿真）的 PHYBot Big V2 人形机器人**双手交替爬墙**强化学习环境。
+基于 [mjlab](https://mujocolab.github.io/mjlab/)（MuJoCo Warp GPU 仿真）的 PHYBot C2 人形机器人**四肢 spine 爬墙**强化学习环境。
 
 ## 任务
 
-- **Task ID**: `Mjlab-Climb-Wall-Phybot-Big-V2`
-- **机器人**: PHYBot Big V2（24 DOF 人形，腿 12 + 腰 2 + 双臂 10）
-- **目标**: 两手交替贴墙向上爬（trot-like gait）
-- **Adhesion**: 微刺式吸附（MuJoCo adhesion actuator + 自定义 engage/disengage 逻辑）
+- **Task ID**: `Mjlab-Climb-Wall-Phybot-C2`
+- **机器人**: PHYBot C2（23 DOF 人形 + 4 个 fixed spine：左右 hand_spine + 左右 foot_spine）
+- **目标**: 4 个 spine 贴墙向上爬
+- **Adhesion**: 微刺式吸附（MuJoCo adhesion actuator + 自定义 engage/disengage 逻辑），每个 spine 4 个接触点（共 16）
+
+> Big V2 双手交替爬墙任务仍保留，task id `Mjlab-Climb-Wall-Phybot-Big-V2`。
 
 详细 reward / curriculum 设计见 [`docs/rewards.md`](docs/rewards.md) 和
 [`docs/curriculum.md`](docs/curriculum.md)（`docs/gait_rewards.md` 是早期
@@ -31,10 +33,10 @@ python scripts/list_envs.py
 ### 训练
 ```bash
 # 多 GPU
-python scripts/train.py Mjlab-Climb-Wall-Phybot-Big-V2 --gpu-ids "[0, 1]"
+python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
 
 # headless
-nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-Big-V2 \
+nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 \
   --env.scene.num-envs 4096 \
   --agent.max-iterations 8000 \
   > train.log 2>&1 &
@@ -47,14 +49,14 @@ kill <PID>
 
 ```bash
 # Zero 动作（机器人放松，看物理）—— 用来调 curriculum / 检查初始姿态
-python scripts/play.py Mjlab-Climb-Wall-Phybot-Big-V2 --agent zero --num-envs 1
+python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent zero --num-envs 1
 
 # 加载训练好的 checkpoint
-python scripts/play.py Mjlab-Climb-Wall-Phybot-Big-V2 \
+python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
   --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt --num-envs 1
 
 # 录像
-python scripts/play.py Mjlab-Climb-Wall-Phybot-Big-V2 \
+python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
   --checkpoint-file <path> --video
 ```
 
@@ -74,7 +76,8 @@ tensorboard --logdir logs/rsl_rl --bind_all
 
 调初始姿态时用：
 ```bash
-python scripts/tune_pose.py
+python scripts/tune_pose.py                    # 默认 c2（含墙）
+python scripts/tune_pose.py --robot phybot_big_v2
 ```
 浏览器打开 `http://localhost:8080`（远程: `ssh -L 8080:localhost:8080 user@host`）。
 - 每个关节一个滑块
@@ -85,6 +88,7 @@ python scripts/tune_pose.py
 
 ```bash
 # 单独查看机器人模型（不含墙，无 RL）
+python -m spider_rl_mjlab.assets.phybot_c2.phybot_c2_constants
 python -m spider_rl_mjlab.assets.phybot_big_v2.phybot_big_v2_constants
 ```
 

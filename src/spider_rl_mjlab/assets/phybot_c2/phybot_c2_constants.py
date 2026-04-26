@@ -1,6 +1,7 @@
 """PHYBot C2 robot constants and configuration.
 
-25-DOF humanoid (2 legs x 6, waist yaw, 2 arms x 4 + hand_spine, neck yaw/pitch).
+23-DOF humanoid (2 legs x 6, waist yaw, 2 arms x 4, neck yaw/pitch).
+The 4 hand/foot spines are rigid attachments (URDF fixed joints / no MuJoCo joint).
 """
 
 from pathlib import Path
@@ -113,13 +114,6 @@ PHYBOT_C2_ACTUATOR_ELBOW_PITCH = BuiltinPositionActuatorCfg(
   effort_limit=58.0,
 )
 
-PHYBOT_C2_ACTUATOR_HAND_SPINE = BuiltinPositionActuatorCfg(
-  target_names_expr=(".*_hand_spine",),
-  stiffness=50.0,
-  damping=5.0,
-  effort_limit=100.0,
-)
-
 PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
   target_names_expr=("neck_yaw", "neck_pitch"),
   stiffness=20.0,
@@ -134,17 +128,17 @@ PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
 DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
   pos=(0.0, 0.0, 0.70),
   joint_pos={
-    "left_hip_pitch": -0.24,
+    "left_hip_pitch": -0.87,
     "left_hip_roll": 0.026,
-    "left_hip_yaw": 0.012,
-    "left_knee": 0.51,
-    "left_ankle_pitch": -0.28,
+    "left_hip_yaw": 0.0,
+    "left_knee": 0.885,
+    "left_ankle_pitch": 1.34,
     "left_ankle_roll": 0.0,
-    "right_hip_pitch": -0.24,
+    "right_hip_pitch": -0.87,
     "right_hip_roll": 0.026,
-    "right_hip_yaw": 0.012,
-    "right_knee": 0.51,
-    "right_ankle_pitch": -0.28,
+    "right_hip_yaw": 0.0,
+    "right_knee": 0.885,
+    "right_ankle_pitch": 1.34,
     "right_ankle_roll": 0.0,
     "waist_yaw": 0.0,
     "neck_yaw": 0.0,
@@ -153,12 +147,10 @@ DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
     "left_shoulder_roll": -0.17,
     "left_shoulder_yaw": 0.0,
     "left_elbow_pitch": -1.14,
-    "left_hand_spine": 0.0,
     "right_shoulder_pitch": -2.0,
     "right_shoulder_roll": 0.17,
     "right_shoulder_yaw": 0.0,
     "right_elbow_pitch": -1.14,
-    "right_hand_spine": 0.0,
   },
   joint_vel={".*": 0.0},
 )
@@ -168,17 +160,20 @@ DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
 ##
 
 PHYBOT_C2_COLLISION = CollisionCfg(
-  geom_names_expr=(".*_collision.*",),
+  geom_names_expr=(".*_collision.*", r"(left|right)_(hand|foot)_spine_c_\d+_\d+"),
   condim={
     r"^(left|right)_ankle_roll_collision$": 6,
+    r"^(left|right)_(hand|foot)_spine_c_\d+_\d+$": 6,
     ".*": 3,
   },
   friction={
     r"^(left|right)_ankle_roll_collision$": (30.0, 0.01, 0.01),
+    r"^(left|right)_(hand|foot)_spine_c_\d+_\d+$": (30.0, 0.01, 0.01),
     ".*": (1.0, 0.1, 0.1),
   },
   priority={
     r"^(left|right)_ankle_roll_collision$": 1,
+    r"^(left|right)_(hand|foot)_spine_c_\d+_\d+$": 1,
   },
 )
 
@@ -199,7 +194,6 @@ PHYBOT_C2_ARTICULATION = EntityArticulationInfoCfg(
     PHYBOT_C2_ACTUATOR_SHOULDER_ROLL,
     PHYBOT_C2_ACTUATOR_SHOULDER_YAW,
     PHYBOT_C2_ACTUATOR_ELBOW_PITCH,
-    PHYBOT_C2_ACTUATOR_HAND_SPINE,
     PHYBOT_C2_ACTUATOR_NECK,
   ),
   soft_joint_pos_limit_factor=1.0,

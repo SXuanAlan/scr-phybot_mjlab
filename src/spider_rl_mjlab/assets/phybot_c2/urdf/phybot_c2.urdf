@@ -594,7 +594,7 @@
       <geometry>
         <mesh filename="meshes/left_hand_spine.stl" />
       </geometry>
-      <material name="link_1777145062504_mat">
+      <material name="left_hand_spine_mat">
         <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
       </material>
     </visual>
@@ -617,7 +617,7 @@
       <geometry>
         <mesh filename="meshes/right_hand_spine.STL" />
       </geometry>
-      <material name="link_1777145696535_mat">
+      <material name="right_hand_spine_mat">
         <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
       </material>
     </visual>
@@ -625,6 +625,52 @@
       <origin xyz="-0.0009236 -0.006 0.1804657" rpy="0 0 0" />
       <geometry>
         <box size="0.12 0.012 0.2573595" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0.25" rpy="0 0 0" />
+      <mass value="1" />
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1" />
+    </inertial>
+  </link>
+
+  <link name="left_foot_spine">
+    <visual>
+      <origin xyz="0 0 -0.15" rpy="0 3.1415927 0" />
+      <geometry>
+        <mesh filename="meshes/left_foot_spine.stl" />
+      </geometry>
+      <material name="link_1777151390465_mat">
+        <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.11" rpy="0 3.1415927 0" />
+      <geometry>
+        <box size="0.12 0.012 0.1974" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0.25" rpy="0 0 0" />
+      <mass value="1" />
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1" />
+    </inertial>
+  </link>
+
+  <link name="right_foot_spine">
+    <visual>
+      <origin xyz="0 0 -0.15" rpy="0 3.1415927 0" />
+      <geometry>
+        <mesh filename="meshes/right_foot_spine.stl" />
+      </geometry>
+      <material name="link_1777151847643_mat">
+        <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.11" rpy="0 3.1415927 0" />
+      <geometry>
+        <box size="0.12 0.012 0.1974" />
       </geometry>
     </collision>
     <inertial>
@@ -832,20 +878,28 @@
     <origin xyz="0 0 -0.27" rpy="0 0 0" />
   </joint>
 
-  <joint name="left_hand_spine" type="revolute">
+  <joint name="left_hand_spine" type="fixed">
     <parent link="left_elbow_pitch" />
     <child link="left_hand_spine" />
     <origin xyz="-0.04 0 0" rpy="0 3.1415927 -1.5707963" />
-    <axis xyz="0 0 1" />
-    <limit lower="-1.57" upper="1.57" effort="100" velocity="10" />
   </joint>
 
-  <joint name="right_hand_spine" type="revolute">
+  <joint name="right_hand_spine" type="fixed">
     <parent link="right_elbow_pitch" />
     <child link="right_hand_spine" />
     <origin xyz="-0.04 0 0" rpy="0 3.1415927 -1.5707963" />
-    <axis xyz="0 0 1" />
-    <limit lower="-1.57" upper="1.57" effort="100" velocity="10" />
+  </joint>
+
+  <joint name="left_foot_spine" type="fixed">
+    <parent link="left_knee" />
+    <child link="left_foot_spine" />
+    <origin xyz="0.05 0 0" rpy="0 0 1.5707963" />
+  </joint>
+
+  <joint name="right_foot_spine" type="fixed">
+    <parent link="right_knee" />
+    <child link="right_foot_spine" />
+    <origin xyz="0.05 0 0" rpy="0 0 1.5707963" />
   </joint>
 
 </robot>

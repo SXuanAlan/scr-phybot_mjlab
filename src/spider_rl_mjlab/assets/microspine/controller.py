@@ -32,24 +32,18 @@ if TYPE_CHECKING:
 
 from spider_rl_mjlab.assets.microspine.config import MicrospineCfg
 
-_GEOM_ROWS = 2
-_GEOM_COLS = 4
-_GEOMS_PER_HAND = _GEOM_ROWS * _GEOM_COLS
 
+def _sphere_names(ee_body_name: str, rows: int, cols: int) -> list[str]:
+  """Return sphere body/geom names for a single EE.
 
-def _sphere_body_names(side: str) -> list[str]:
+  The sphere prefix is the EE body name itself, so an EE called
+  ``left_hand`` produces ``left_hand_c_{i}_{j}``, and ``left_hand_spine``
+  produces ``left_hand_spine_c_{i}_{j}``.
+  """
   return [
-    f"{side}_hand_c_{i}_{j}"
-    for i in range(_GEOM_ROWS)
-    for j in range(_GEOM_COLS)
-  ]
-
-
-def _sphere_geom_names(side: str) -> list[str]:
-  return [
-    f"{side}_hand_c_{i}_{j}"
-    for i in range(_GEOM_ROWS)
-    for j in range(_GEOM_COLS)
+    f"{ee_body_name}_c_{i}_{j}"
+    for i in range(rows)
+    for j in range(cols)
   ]
 
 
@@ -58,21 +52,26 @@ def add_adhesion_actuators(
   ee_body_names: tuple[str, ...],
   adhesion_force: float,
   robot_prefix: str = "robot",
+  rows: int = 2,
+  cols: int = 4,
 ) -> None:
   """Add MuJoCo adhesion actuators for each contact sphere sub-body.
 
   Args:
     spec: MuJoCo spec to modify.
-    ee_body_names: End-effector body names (e.g. ("left_hand", "right_hand")).
+    ee_body_names: End-effector body names (e.g. ("left_hand", "right_hand")
+      or ("left_hand_spine", "right_hand_spine", ...)).
     adhesion_force: Total adhesion force [N] distributed across all spheres.
     robot_prefix: Robot entity name prefix in the spec.
+    rows: Rows in the per-EE contact-sphere grid (default 2).
+    cols: Cols in the per-EE contact-sphere grid (default 4).
   """
-  num_spheres = len(ee_body_names) * _GEOMS_PER_HAND
+  spheres_per_ee = rows * cols
+  num_spheres = len(ee_body_names) * spheres_per_ee
   force_per_sphere = adhesion_force / num_spheres
 
   for bname in ee_body_names:
-    side = bname.split("_")[0]
-    for sname in _sphere_body_names(side):
+    for sname in _sphere_names(bname, rows, cols):
       act = spec.add_actuator()
       act.name = f"{robot_prefix}/adh_{sname}"
       act.target = f"{robot_prefix}/{sname}"
@@ -165,10 +164,22 @@ class MicrospineController:
         self._mcfg.adhesion_force_start / self._mcfg.adhesion_force
       )
 
-    # Hand up direction in local frame.
-    self._hand_up_local = torch.tensor(
-      self._mcfg.hand_up_local, dtype=torch.float32, device=device
+    # Hand up direction in each EE local frame. Stored as (H, 3) so each EE
+    # can have a different "up" axis. Single 3-tuple in cfg broadcasts to all.
+    hul = torch.tensor(self._mcfg.hand_up_local, dtype=torch.float32, device=device)
+    if hul.ndim == 1:
+      hul = hul.unsqueeze(0).expand(self._num_hands, 3).contiguous()
+    assert hul.shape == (self._num_hands, 3), (
+      f"hand_up_local must be (3,) or ({self._num_hands}, 3); got {tuple(hul.shape)}"
     )
+    self._hand_up_local = hul
+    # Optional fixed world-frame axis (overrides per-EE body rotation).
+    if self._mcfg.friction_axis_world is not None:
+      self._friction_axis_world = torch.tensor(
+        self._mcfg.friction_axis_world, dtype=torch.float32, device=device
+      )
+    else:
+      self._friction_axis_world = None
 
     # Resolve hand body IDs for orientation queries.
     self._asset_name = robot_prefix
@@ -187,12 +198,13 @@ class MicrospineController:
     # as ``_actuator_ids`` so the sphere-index → hand-index mapping is shared.
     self._sphere_body_ids: list[int] = []
 
+    rows = self._mcfg.spheres_per_ee_rows
+    cols = self._mcfg.spheres_per_ee_cols
     offset = 0
     for bname in self._mcfg.ee_body_names:
-      side = bname.split("_")[0]
       hand_act_ids: list[int] = []
       hand_geom_ids: list[int] = []
-      for sname in _sphere_geom_names(side):
+      for sname in _sphere_names(bname, rows, cols):
         act_name = f"{robot_prefix}/adh_{sname}"
         hand_act_ids.append(mj_model.actuator(act_name).id)
         hand_geom_ids.append(mj_model.geom(f"{robot_prefix}/{sname}").id)
@@ -300,6 +312,15 @@ class MicrospineController:
       # re-engagement is blocked. Prevents single-step engage/disengage
       # oscillation when CCD jitter spikes friction.
       self._reengage_cooldown = torch.zeros(
+        self._num_envs, self._num_hands, dtype=torch.long, device=device
+      )
+      # Per-(env, hand) pull-based disengage hysteresis. Independent counter
+      # from the friction-based one so the two criteria don't interfere.
+      self._pull_disengage_streak = torch.zeros(
+        self._num_envs, self._num_hands, dtype=torch.long, device=device
+      )
+      # Per-(env, hand) lift-velocity disengage hysteresis.
+      self._lift_disengage_streak = torch.zeros(
         self._num_envs, self._num_hands, dtype=torch.long, device=device
       )
       # Reusable zero-torque buffer for the per-sphere body wrench write.
@@ -435,8 +456,12 @@ class MicrospineController:
     # hand_up_world[h] = rotate(hand_quat[h], hand_up_local)
     for h in range(num_hands):
       body_id = self._hand_body_ids[h]
-      hand_quat = self._asset.data.body_link_quat_w[:, body_id, :]  # (E, 4) wxyz
-      hand_up_world = _quat_rotate(hand_quat, self._hand_up_local)  # (E, 3)
+      if self._friction_axis_world is not None:
+        # Use a fixed world-frame axis directly — no body rotation.
+        hand_up_world = self._friction_axis_world.unsqueeze(0).expand(num_envs, 3)
+      else:
+        hand_quat = self._asset.data.body_link_quat_w[:, body_id, :]  # (E, 4) wxyz
+        hand_up_world = _quat_rotate(hand_quat, self._hand_up_local[h])  # (E, 3)
 
       # Mask contacts belonging to this hand.
       h_mask = ((hand_idx == h) & valid_mask).float()  # (nconmax,)
@@ -641,7 +666,89 @@ class MicrospineController:
             self._reengage_cooldown[:, h],
           )
 
+    # --- Pull-based disengage: chain pulls EE outward exceeding threshold ---
+    # ``pull_force_per_ee = adhesion_force − sum(compression_normal_per_sphere)``.
+    # Fully-pressed EE: contact ≈ adhesion → pull ≈ 0. Fully-lifted EE:
+    # contact ≈ 0 → pull ≈ adhesion. When the chain pulls the EE outward
+    # past the threshold, release the spine — natural climbing semantics.
+    pull_threshold = self._mcfg.disengage_pull_threshold
+    if pull_threshold > 0:
+      wall_reaction_per_ee = torch.zeros(
+        self._num_envs, self._num_hands, device=self._device
+      )
+      for h in range(self._num_hands):
+        s_start, s_end = self._hand_actuator_slices[h]
+        wall_reaction_per_ee[:, h] = compression_forces[:, s_start:s_end].sum(dim=1)
+      pull_force = self._mcfg.adhesion_force - wall_reaction_per_ee  # (E, H)
+      grace = (self._steps_since_reset < 10).unsqueeze(1)  # (E, 1)
+      pull_need_streak = max(1, self._mcfg.disengage_pull_consecutive_steps)
+      cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
+      for h in range(self._num_hands):
+        exceeded = (
+          (pull_force[:, h] > pull_threshold)
+          & ~newly_engaged[:, h]
+          & ~grace[:, 0]
+          & self.engaged[:, h]
+        )
+        self._pull_disengage_streak[:, h] = torch.where(
+          exceeded,
+          self._pull_disengage_streak[:, h] + 1,
+          torch.zeros_like(self._pull_disengage_streak[:, h]),
+        )
+        release = self._pull_disengage_streak[:, h] >= pull_need_streak
+        self.engaged[:, h] &= ~release
+        self._pull_disengage_streak[:, h] = torch.where(
+          release,
+          torch.zeros_like(self._pull_disengage_streak[:, h]),
+          self._pull_disengage_streak[:, h],
+        )
+        if cooldown_set > 0:
+          self._reengage_cooldown[:, h] = torch.where(
+            release,
+            torch.full_like(self._reengage_cooldown[:, h], cooldown_set),
+            self._reengage_cooldown[:, h],
+          )
+
+    # --- Lift-velocity disengage: EE body world +z lin vel exceeds threshold ---
+    # The most direct "policy lifts limb" signal. Uses world-frame velocity
+    # so all EEs share a single axis (no per-EE flips, no projection through
+    # body-local frames). Set the threshold above the commanded climb rate
+    # so that body-along-wall motion does not trigger.
+    lift_threshold = self._mcfg.disengage_lift_velocity_threshold
+    if lift_threshold > 0:
+      grace = (self._steps_since_reset < 10).unsqueeze(1)  # (E, 1)
+      lift_need_streak = max(1, self._mcfg.disengage_lift_velocity_consecutive_steps)
+      cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
+      for h in range(self._num_hands):
+        body_id = self._hand_body_ids[h]
+        v_z = self._asset.data.body_link_lin_vel_w[:, body_id, 2]  # (E,)
+        exceeded = (
+          (v_z > lift_threshold)
+          & ~newly_engaged[:, h]
+          & ~grace[:, 0]
+          & self.engaged[:, h]
+        )
+        self._lift_disengage_streak[:, h] = torch.where(
+          exceeded,
+          self._lift_disengage_streak[:, h] + 1,
+          torch.zeros_like(self._lift_disengage_streak[:, h]),
+        )
+        release = self._lift_disengage_streak[:, h] >= lift_need_streak
+        self.engaged[:, h] &= ~release
+        self._lift_disengage_streak[:, h] = torch.where(
+          release,
+          torch.zeros_like(self._lift_disengage_streak[:, h]),
+          self._lift_disengage_streak[:, h],
+        )
+        if cooldown_set > 0:
+          self._reengage_cooldown[:, h] = torch.where(
+            release,
+            torch.full_like(self._reengage_cooldown[:, h], cooldown_set),
+            self._reengage_cooldown[:, h],
+          )
+
     # Track disengage transitions (latched-ON → OFF) for reward signal.
+    # Computed after ALL disengage criteria have applied.
     self.disengaged_this_step = was_engaged & ~self.engaged  # (E, H)
 
     # Update per-sphere continuous-contact streak — each sphere tracks its
@@ -776,6 +883,8 @@ class MicrospineController:
       self._steps_since_reset[env_ids] = 0
       self._disengage_streak[env_ids] = 0
       self._reengage_cooldown[env_ids] = 0
+      self._pull_disengage_streak[env_ids] = 0
+      self._lift_disengage_streak[env_ids] = 0
 
   def debug_vis(self, visualizer) -> None:
     """Draw a gravity-direction arrow over the tracked environment.
