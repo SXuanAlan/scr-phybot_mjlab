@@ -192,10 +192,15 @@ def phybot_c2_climb_test_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     base_height_term.params["minimum_height"] = _SPAWN_Z - _FALL_TOLERANCE
 
   robot_cfg_e = SceneEntityCfg("robot")
+  # Weights mirror IsaacLab's quadruped walking config
+  # (isaaclab_tasks/.../velocity/velocity_env_cfg.py:RewardsCfg).
+  # σ on track_vz stays at 0.05 (not 0.5 like IsaacLab) because target=0.08,
+  # not ~1.0 — scaling σ with target keeps the "zero-velocity reward ≈ 0.02"
+  # shape; σ=0.5 here would make doing nothing yield ~0.97.
   cfg.rewards = {
     "track_vz": RewardTermCfg(
       func=mdp.climb_vz_gauss,
-      weight=40.0,
+      weight=1.0,
       params={"asset_cfg": robot_cfg_e, "target": _VZ_CMD, "sigma": 0.05},
     ),
     "lin_vel_into_wall_l2": RewardTermCfg(
@@ -215,23 +220,23 @@ def phybot_c2_climb_test_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
     "dof_acc_l2": RewardTermCfg(
       func=mdp.joint_acc_l2,
-      weight=-1.0e-5,
+      weight=-2.5e-7,
       params={"asset_cfg": robot_cfg_e},
     ),
     "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.01),
     "ee_air_time": RewardTermCfg(
       func=ee_contact_air_time,
-      weight=1.0,
+      weight=0.125,
       params={
         "sensor_name": _EE_CONTACT_SENSOR_NAME,
-        "threshold": 0.3,
+        "threshold": 0.5,
         "vz_cmd": _VZ_CMD,
         "cmd_eps": 0.0,
       },
     ),
     "ee_face_parallel_to_wall": RewardTermCfg(
       func=mdp.ee_face_parallel_to_wall,
-      weight=2.0,
+      weight=0.0,
       params={
         "asset_cfg": robot_cfg_e,
         "ee_body_names": _EE_BODY_NAMES,

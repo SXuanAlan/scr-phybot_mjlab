@@ -32,6 +32,9 @@ python scripts/list_envs.py
 
 ### 训练
 ```bash
+
+ssh -L 8080:localhost:8080 spider@bdml-server.stanford.edu
+
 # 多 GPU
 python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
 
