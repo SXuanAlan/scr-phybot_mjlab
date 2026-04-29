@@ -21,6 +21,8 @@ from spider_rl_mjlab.tasks.walk.walk_env_cfg import make_velocity_env_cfg
 
 from spider_rl_mjlab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  configure_phybot_c2_floor_geom,
+  configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
   get_spec as get_phybot_c2_spec,
 )
@@ -30,12 +32,9 @@ _RAYCAST_BODY = "torso"
 _FEET_ROOT_BODIES = r"^(left_ankle_roll|right_ankle_roll)$"
 _FOOT_SITE_NAMES = ("left_foot", "right_foot")
 _FOOT_FRICTION_GEOMS = (r"^(left|right)_ankle_roll_collision$",)
-_BROKEN_SPINE_BODIES = (
-  "left_foot_spine",
-  "right_foot_spine",
-  "left_hand_spine",
-  "right_hand_spine",
-)
+_BASE_QUAT_SENSOR = "robot/baselink-quat"
+_BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
+_BASE_ANG_VEL_SENSOR = "robot/baselink-gyro"
 _BROKEN_SPINE_GEOM_PREFIXES = (
   "left_foot_spine",
   "right_foot_spine",
@@ -80,26 +79,8 @@ _WALK_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
 def _get_walk_spec():
   spec = get_phybot_c2_spec()
 
-  # The raw asset includes its own floor; MJLab tasks provide terrain separately.
-  # Keeping both can make contact sensors miss ground contacts against "terrain".
-  for geom in list(spec.geoms):
-    if geom.name == "floor":
-      spec.delete(geom)
-
-  # MJLab uses the first keyframe as init_state. Remove the XML keyframe so the
-  # task-level standing keyframe is the only reset/default pose.
-  for key in list(spec.keys):
-    spec.delete(key)
-
-  # The converted asset has hand/foot spine bodies parented as knee/elbow
-  # siblings with placeholder 1 kg inertials. They are useful for climbing
-  # tasks, but for flat walking they create misleading contacts and inertia.
-  for body in spec.bodies:
-    if body.name in _BROKEN_SPINE_BODIES:
-      body.mass = 0.05
-      body.ipos = [0.0, 0.0, 0.0]
-      body.inertia = [1.0e-4, 1.0e-4, 1.0e-4]
-
+  # The spine bodies keep their light default inertials, but for flat walking
+  # their geoms should not participate in contacts.
   for geom in spec.geoms:
     if any(geom.name.startswith(prefix) for prefix in _BROKEN_SPINE_GEOM_PREFIXES):
       geom.contype = 0
@@ -115,24 +96,6 @@ def _get_walk_spec():
     body = next(body for body in spec.bodies if body.name == body_name)
     body.add_site(name=site_name, pos=[0.04, 0.0, -0.04], size=[0.02])
 
-  spec.add_sensor(
-    name="imu_ang_vel",
-    type=mujoco.mjtSensor.mjSENS_GYRO,
-    objtype=mujoco.mjtObj.mjOBJ_SITE,
-    objname="site_imu",
-  )
-  spec.add_sensor(
-    name="imu_lin_vel",
-    type=mujoco.mjtSensor.mjSENS_VELOCIMETER,
-    objtype=mujoco.mjtObj.mjOBJ_SITE,
-    objname="site_imu",
-  )
-  spec.add_sensor(
-    name="imu_lin_acc",
-    type=mujoco.mjtSensor.mjSENS_ACCELEROMETER,
-    objtype=mujoco.mjtObj.mjOBJ_SITE,
-    objname="site_imu",
-  )
   spec.add_sensor(
     name="root_angmom",
     type=mujoco.mjtSensor.mjSENS_SUBTREEANGMOM,
@@ -150,6 +113,20 @@ def _get_phybot_c2_velocity_robot_cfg():
   return robot_cfg
 
 
+def _use_xml_base_sensors(cfg: ManagerBasedRlEnvCfg) -> None:
+  for obs_group in cfg.observations.values():
+    terms = obs_group.terms
+    if "base_lin_vel" in terms:
+      terms["base_lin_vel"].func = mdp.builtin_sensor
+      terms["base_lin_vel"].params = {"sensor_name": _BASE_LIN_VEL_SENSOR}
+    if "base_ang_vel" in terms:
+      terms["base_ang_vel"].func = mdp.builtin_sensor
+      terms["base_ang_vel"].params = {"sensor_name": _BASE_ANG_VEL_SENSOR}
+    if "projected_gravity" in terms:
+      terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
+      terms["projected_gravity"].params = {"sensor_name": _BASE_QUAT_SENSOR}
+
+
 def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create PHYBot C2 rough-terrain velocity config using MJLab's G1 pipeline."""
   cfg = make_velocity_env_cfg()
@@ -159,6 +136,7 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   cfg.sim.nconmax = 45
 
   cfg.scene.entities = {"robot": _get_phybot_c2_velocity_robot_cfg()}
+  _use_xml_base_sensors(cfg)
 
   for sensor in cfg.scene.sensors or ():
     if sensor.name == "terrain_scan":
@@ -293,6 +271,10 @@ def phybot_c2_walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   assert cfg.scene.terrain is not None
   cfg.scene.terrain.terrain_type = "plane"
   cfg.scene.terrain.terrain_generator = None
+  configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
+  cfg.scene.spec_fn = lambda spec: configure_phybot_c2_floor_geom(
+    spec, enable_contact=True
+  )
 
   cfg.scene.sensors = tuple(
     s for s in (cfg.scene.sensors or ()) if s.name != "terrain_scan"

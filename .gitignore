@@ -5,3 +5,6 @@ __pycache__/
 logs/
 recording/
 wandb/
+train.log
+results/
+

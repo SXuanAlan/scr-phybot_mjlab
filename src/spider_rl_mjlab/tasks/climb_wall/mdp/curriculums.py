@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 
 import torch
+
+from .commands import ClimbVelocityCommandCfg
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -45,6 +47,16 @@ class WallAngleStage(TypedDict):
   # by tilting GRAVITY while keeping the wall geometry vertical.
 
 
+class ClimbVelocityRangeStage(TypedDict, total=False):
+  iter: int
+  lin_vel_x: tuple[float, float]
+  lin_vel_y: tuple[float, float]
+  lin_vel_z: tuple[float, float]
+  vx_range: tuple[float, float]
+  vy_range: tuple[float, float]
+  vz_range: tuple[float, float]
+
+
 def _interp_angle(current_iter: int, stages: list[WallAngleStage]) -> float:
   """Piecewise interpolation of wall angle over iterations, in sin(angle)
   space.
@@ -70,6 +82,55 @@ def _interp_angle(current_iter: int, stages: list[WallAngleStage]) -> float:
   return stages[-1]["angle_deg"]
 
 
+def resolve_gravity_angle(current_iter: int, angle_stages: list[WallAngleStage]) -> float:
+  """Resolve the effective gravity curriculum angle for a training iteration."""
+  return _interp_angle(current_iter, angle_stages)
+
+
+def resolve_climb_velocity_ranges(
+  current_iter: int,
+  range_stages: list[ClimbVelocityRangeStage],
+) -> ClimbVelocityRangeStage:
+  """Resolve command ranges for a training iteration.
+
+  Stages are cumulative: later stages can specify only the axes they change.
+  ``vx_range``/``vy_range``/``vz_range`` aliases are accepted for readability
+  in climb-wall configs.
+  """
+  if not range_stages:
+    raise ValueError("range_stages must contain at least one stage.")
+
+  resolved: dict = {}
+  for stage in sorted(range_stages, key=lambda item: item["iter"]):
+    if current_iter >= stage["iter"]:
+      resolved.update(stage)
+  if not resolved:
+    resolved.update(range_stages[0])
+  return cast(ClimbVelocityRangeStage, resolved)
+
+
+def _stage_range(
+  stage: ClimbVelocityRangeStage, *keys: str
+) -> tuple[float, float] | None:
+  for key in keys:
+    if key in stage:
+      value = stage[key]  # type: ignore[literal-required]
+      return (float(value[0]), float(value[1]))
+  return None
+
+
+def _apply_climb_velocity_range_stage(
+  cfg: ClimbVelocityCommandCfg,
+  stage: ClimbVelocityRangeStage,
+) -> None:
+  if (value := _stage_range(stage, "lin_vel_x", "vx_range")) is not None:
+    cfg.ranges.lin_vel_x = value
+  if (value := _stage_range(stage, "lin_vel_y", "vy_range")) is not None:
+    cfg.ranges.lin_vel_y = value
+  if (value := _stage_range(stage, "lin_vel_z", "vz_range")) is not None:
+    cfg.ranges.lin_vel_z = value
+
+
 def gravity_angle(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,
@@ -90,15 +151,16 @@ def gravity_angle(
   Writes gravity in-place on ``env.sim.wp_model.opt.gravity`` via a torch
   view — never reallocates the warp array (CUDA graphs would otherwise still
   read from the old array). ``gravity_vec_w`` on each entity is deliberately
-  NOT updated: the orientation rewards (``torso_orientation``,
-  ``flat_orientation_l2``) continue to measure alignment with world-vertical,
-  which is the correct "up-the-wall" reference for climbing.
+  NOT updated: orientation terms that read ``EntityData.projected_gravity_b``
+  continue to measure alignment with world-vertical, which is the correct
+  "up-the-wall" reference for climbing. Observation terms that need the
+  physical gravity direction should read ``env.sim.wp_model.opt.gravity``.
   """
   del env_ids  # Unused.
   import warp as wp
 
   current_iter = env.common_step_counter // steps_per_iter
-  angle_deg = _interp_angle(current_iter, angle_stages)
+  angle_deg = resolve_gravity_angle(current_iter, angle_stages)
   rad = math.radians(angle_deg)
   gx = gravity_magnitude * math.cos(rad)
   gz = -gravity_magnitude * math.sin(rad)
@@ -109,3 +171,34 @@ def gravity_angle(
   grav_view[:, 2] = gz
 
   return torch.tensor([angle_deg], device=env.device)
+
+
+def climb_velocity_command_ranges(
+  env: ManagerBasedRlEnv,
+  env_ids: torch.Tensor,
+  command_name: str,
+  range_stages: list[ClimbVelocityRangeStage],
+  steps_per_iter: int = 24,
+) -> dict[str, torch.Tensor]:
+  """Curriculum that updates climb velocity command ranges by iteration."""
+  del env_ids  # Unused.
+  current_iter = env.common_step_counter // steps_per_iter
+  stage = resolve_climb_velocity_ranges(current_iter, range_stages)
+
+  command_term = env.command_manager.get_term(command_name)
+  cfg = command_term.cfg
+  if not isinstance(cfg, ClimbVelocityCommandCfg):
+    raise TypeError(
+      f"Command term '{command_name}' must use ClimbVelocityCommandCfg, "
+      f"got {type(cfg).__name__}."
+    )
+  _apply_climb_velocity_range_stage(cfg, stage)
+
+  return {
+    "lin_vel_x_min": torch.tensor(cfg.ranges.lin_vel_x[0], device=env.device),
+    "lin_vel_x_max": torch.tensor(cfg.ranges.lin_vel_x[1], device=env.device),
+    "lin_vel_y_min": torch.tensor(cfg.ranges.lin_vel_y[0], device=env.device),
+    "lin_vel_y_max": torch.tensor(cfg.ranges.lin_vel_y[1], device=env.device),
+    "lin_vel_z_min": torch.tensor(cfg.ranges.lin_vel_z[0], device=env.device),
+    "lin_vel_z_max": torch.tensor(cfg.ranges.lin_vel_z[1], device=env.device),
+  }

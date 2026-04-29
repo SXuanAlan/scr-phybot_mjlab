@@ -8,16 +8,18 @@
 
 - $\mathbf{R}_b \in SO(3)$：base 在世界系下的旋转矩阵（root link）。
 - $\mathbf{v}_w, \boldsymbol{\omega}_w$：base 在世界系下的线/角速度。
-- $\mathbf{g}_w = (0, 0, -9.81)$：世界系重力向量（curriculum 倾斜时已经写到
-  `wp_model.opt.gravity`，但 `projected_gravity_b` 用每个 entity 的本地
-  `gravity_vec_w`，**不**跟 curriculum 倾，仍指向世界 −z）。
+- $\mathbf{g}_w$：世界系重力向量。curriculum 倾斜时写到
+  `wp_model.opt.gravity`；`projected_gravity` 读取该真实重力方向并归一化。
 - $\mathbf{q} \in \mathbb{R}^{24}$：24 DOF 的关节角；$\mathbf{q}^{\text{default}}$
   默认姿态。
 - $T_{\text{gait}} = 4.0\,\text{s}$，$dt$：单步仿真步长（policy step）。
 
 ## 观测项
 
-下面 12 项按顺序在 last 维拼接成 `(E, 139)` 的张量送进 actor。`E = num_envs`。
+base/Big-V2 配置下面 12 项按顺序在 last 维拼接成 `(E, 139)` 的张量送进 actor。
+C2 climb-wall 去掉 `gait_clock`，但 4 个 spine EE 的 `hand_engaged_state`
+从 2 维变成 4 维。
+`E = num_envs`。
 
 ### `base_lin_vel` — `(E, 3)`
 $$
@@ -35,11 +37,13 @@ $$
 
 ### `projected_gravity` — `(E, 3)`
 $$
-o[e] = \mathbf{R}_{b,e}^\top \hat{\mathbf{g}}_w,\quad \hat{\mathbf{g}}_w = (0, 0, -1)
+o[e] = \mathbf{R}_{b,e}^\top \hat{\mathbf{g}}_w,\quad
+\hat{\mathbf{g}}_w = \frac{\mathbf{g}_w}{\|\mathbf{g}_w\|}
 $$
-来源 `asset.data.projected_gravity_b`，shape `(E, 3)`。机器人完全竖直时
-$o \approx (0, 0, -1)$；前倾时 $o_x > 0$，侧倾时 $o_y \neq 0$。**不随
-curriculum 重力倾角变化**——由设计如此，姿态类 reward 仍以世界竖直为参考。
+来源 `env.sim.wp_model.opt.gravity` 和 base quaternion sensor，shape `(E, 3)`。
+机器人完全竖直且重力为标准竖直向下时 $o \approx (0, 0, -1)$；curriculum
+倾斜时该观测会随真实重力方向变化。姿态类 reward 若需要世界竖直参考，则单独读
+entity 的 nominal `gravity_vec_w`。
 
 ### `joint_pos_rel` — `(E, 24)`
 $$
@@ -83,10 +87,9 @@ o[e] = \big[\sin(2\pi p_{L,e}),\ \cos(2\pi p_{L,e}),\ \sin(2\pi p_{R,e}),\ \cos(
 $$
 $(\sin, \cos)$ 编码避免 $p = 1 \to 0$ 处的跳变。
 
-> ⚠️ 当前 gait reward (`hand_grip_time`) 已经不使用 gait clock——步态节奏由
-> 事件驱动（`engaged` 状态转变）而非时钟。`gait_clock` 仍保留在 obs 中作为
-> 辅助节奏参考：policy 可以选用这 4 维帮助学出周期性动作，也可以完全忽略。
-> 未来如果确认 policy 不需要，可以一并删掉。
+> 当前 C2 climb-wall 配置已移除 `gait_clock`，和 MJLab/IsaacLab velocity
+> tracking 保持一致：步态不由 phase observation 指定，而是由 velocity tracking
+> + `ee_grip_time` adhesion shaping 自发形成。base/Big-V2 配置仍保留该项。
 
 ### `height_above_spawn` — `(E, 1)`
 $$
@@ -102,10 +105,11 @@ $$
 o[e] = (v_{x,\text{cmd}},\ v_{y,\text{cmd}},\ v_{z,\text{cmd}})
 $$
 
-世界系命令速度，目前固定为 $(0, 0, 0.08)$。policy 看到这个命令就知道期望
-的运动方向和速率，配合 `track_vz` 奖励做标准的 commanded-velocity policy。
-`hand_grip_time` 也读 $v_z^{\text{cmd}}$ 作为 move-gate 的判据。未来可以接
-command manager 做 per-env 命令随机化。
+世界系命令速度由 `ClimbVelocityCommand` 提供，当前范围固定为
+$(0, 0, 0.08)$。policy 看到这个命令就知道期望的运动方向和速率，
+`track_lin_vel_xy` / `track_lin_vel_z` reward 也读同一个 command，因此 observation
+和 reward 的目标一致。
+当前没有启用 per-env `vz` 随机化。
 
 ### `hand_engaged_state` — `(E, 2)`
 $$
@@ -115,16 +119,21 @@ $$
 microspine 左/右手当前 latch 状态，直接从 `event_manager.get_term_cfg("microspine_adhesion").func.engaged`
 读（bool → float）。让 policy 能和抓墙状态协调动作（已抓住的手别再"试抓"）。
 
+> C2 climb-wall 使用 4 个 spine EE，所以该项是 `(E, 4)`。
+
 ## 维度小结
 
 ```
 concat([(E,3), (E,3), (E,3), (E,24), (E,24), (E,24), (E,24), (E,24), (E,4), (E,2), (E,1), (E,3)], dim=-1)
-= (E, 139)
+= (E, 139)  # base/Big-V2
 ```
 
-十二项依次：base_lin_vel、base_ang_vel、projected_gravity、joint_pos_rel、
+base/Big-V2 十二项依次：base_lin_vel、base_ang_vel、projected_gravity、joint_pos_rel、
 joint_vel_rel、last_action、prev_action、prev_prev_action、gait_clock、
 hand_engaged_state、height_above_spawn、velocity_command。
+
+C2 climb-wall 去掉 `gait_clock`，但 `hand_engaged_state` 是 4 个 spine EE，
+所以 actor obs 维度为 `(E, 137)`。
 
 ## EMA 低通滤波（备用，当前未启用）
 
@@ -148,5 +157,5 @@ $$
 - `height_above_spawn` 是**绝对位置信息**——真机部署需要外部测量（视觉定位
   / 起点 anchor）。若不可观测，替代方案是去掉 `climb_height` reward、只保留
   velocity tracking。
-- `velocity_command` 目前是全 env 共享常量；后续可以换成 CommandManager
-  做随机化，让 policy 学出 "任意 vz 目标 → 对应爬升速度" 的条件策略。
+- `velocity_command` 现在来自 CommandManager，但当前 command range 是固定的；
+  之后若重新启用速度 curriculum，需要同时确认 gait reward 的 move-gate 是否也要读 command。

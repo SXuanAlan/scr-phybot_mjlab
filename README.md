@@ -39,10 +39,7 @@ ssh -L 8080:localhost:8080 spider@bdml-server.stanford.edu
 python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
 
 # headless
-nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 \
-  --env.scene.num-envs 4096 \
-  --agent.max-iterations 8000 \
-  > train.log 2>&1 &
+nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]" --env.scene.num-envs 4096 --agent.max-iterations 8000 > train.log 2>&1 &
 
 ps -fu $USER | grep -E 'train|python' | grep -v grep
 kill <PID>
@@ -58,6 +55,11 @@ python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent zero --num-envs 1
 python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
   --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt --num-envs 1
 
+# 指定可视化重力角度（覆盖 checkpoint 推断）
+python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
+  --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt \
+  --gravity-angle-deg 90 --num-envs 1
+
 # 录像
 python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
   --checkpoint-file <path> --video
@@ -66,6 +68,20 @@ python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
 **Play 模式**会自动开启 `microspine` 的 debug：
 - 终端打印 env 0 的每次 engage/disengage 转换
 - Viser viewer 里画一根橙色箭头指向当前重力方向
+
+Play/eval 的 gravity angle 规则：
+- 默认从 checkpoint 名字解析训练 iteration，例如 `model_2000.pt`，再用当前
+  `gravity_angle.angle_stages` 和 `resolve_gravity_angle(...)` 还原该 checkpoint
+  对应的 curriculum 重力角度。
+- 如果 checkpoint 来自 W&B，优先解析下载后的 checkpoint 路径；解析不到时 fallback
+  到 `--wandb-checkpoint-name`。
+- `--gravity-angle-deg <deg>` 会覆盖 checkpoint 推断；别名
+  `--gravity-angle <deg>` 也可用。
+- 如果之后改了 `env_cfgs.py` 里的 `angle_stages` 或
+  `mdp/curriculums.py` 里的插值逻辑，`scripts/play.py` 会跟着当前代码生效。
+  只有重命名 `gravity_angle` curriculum term、改变 `angle_stages` 字段结构，或
+  checkpoint 文件名不含 iteration 时，需要同步更新 play 解析逻辑或显式传
+  `--gravity-angle-deg`。
 
 ### TensorBoard
 
@@ -120,8 +136,8 @@ spider_rl_mjlab/
     └── tasks/climb_wall/
         ├── climb_wall_env_cfg.py                # 核心: obs/action/reward/curriculum
         ├── mdp/
-        │   ├── observations.py                  # gait_clock / height_above_spawn / velocity_command ...
-        │   ├── rewards.py                       # hand_grip_time / hand_slide / climb_vz_gauss ...
+        │   ├── observations.py                  # height_above_spawn / velocity_command / hand_engaged_state ...
+        │   ├── rewards.py                       # ee_grip_time / ee_slide_penalty / velocity tracking ...
         │   ├── terminations.py                  # static_hang / both_hands_off / excessive_tilt ...
         │   └── curriculums.py                   # gravity_angle / reward_weight
         └── config/phybot_big_v2/
@@ -131,26 +147,29 @@ spider_rl_mjlab/
 
 ## Curriculum 概要
 
-一条统一时间轴。机器人出生就贴墙，所有 reward 从 iter 0 全量激活，
-curriculum 只调 gravity 倾角：
+PHYBot C2 机器人出生就贴墙，所有 reward 从 iter 0 全量激活，curriculum
+只调 gravity 倾角；速度命令先保持固定：
 
 | Phase | iter | 重力 |
 |---|---|---|
-| 1 | `0 → 15k` | 10° → 30°（低载荷 motor pattern 发现） |
-| 2 | `15k → 45k` | 30° → 90°（线性升到垂直） |
-| 3 | `45k → ∞` | 90°（标准垂直爬墙） |
+| 1 | `0 → 1500` | 30°（延长固定低载荷阶段，先学稳定抓墙步态） |
+| 2 | `1500 → 2500` | 30° → 60° |
+| 3 | `2500 → 3500` | 60° → 90° |
+| 4 | `3500 → ∞` | 90°（标准垂直爬墙） |
 
 核心 reward 集合（全程激活）：
-- `hand_grip_time` — strict single-stance 版迁自 G1 `feet_air_time_positive_biped`
-- `track_vz` — 非对称高斯竖直爬升驱动（target 0.08 m/s）
-- `hand_orientation` — 手面朝墙（两相位都激活）
-- `flat_orientation` / `torso_orientation` — pelvis + 腰绕 body-x 侧翻罚
+- `ee_grip_time` — 还原 `2026-04-28_14-51-31` 训练里的 dense min-mode
+  grip/swing timer，要求正好 2 个 EE engaged；权重 10，`tau=0.5`
+- `climb_height_progress` — 只奖励 episode 内 base z 新高，权重 10，抑制
+  原地顶胯式瞬时 `v_z` shortcut
+- `track_lin_vel_xy` / `track_lin_vel_z` — 世界系速度 tracking；
+  xy 权重 4，z 权重 8，command 固定为 `(0, 0, 0.08)` m/s
+- `ee_face_parallel_to_wall` — spine 接触面保持贴墙
+- `ee_slide_penalty` — engaged EE 沿墙滑动惩罚
 
 Regulation（对齐 G1 walking 模板，权重全部 G1 原样）：
-- `hand_slide` (−0.1) 迁自 G1 `feet_slide`
 - `termination_penalty` (−200)
-- `joint_deviation_hip` (−0.1，hip_yaw + hip_roll)
-- `joint_deviation_torso` (−0.1，waist_yaw + waist_roll)
+- `ang_vel_xy_l2` / `dof_torques_l2` / `dof_acc_l2` / `action_rate_l2`
 - `dof_pos_limits` (−1.0，ankles)
 - `action_rate_l2` (−0.005)
 - `dof_acc_l2` (−1.25e-7，hip + knee)

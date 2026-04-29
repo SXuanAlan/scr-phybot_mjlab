@@ -81,7 +81,9 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   # EE body names for adhesion actuators.
   _EE_BODY_NAMES = ("left_hand", "right_hand")
-  _ADHESION_FORCE = 2000.0
+  _ADHESION_FORCE = 1200.0
+  _REENGAGE_COOLDOWN_STEPS = 15  # 0.3 s at climb_wall control dt = 0.002 * 10
+  _ENGAGE_CONSECUTIVE_STEPS = 15  # 0.3 s at climb_wall control dt = 0.002 * 10
 
   # Contact pairs + adhesion actuators via spec_fn.
   # Hands: microspine-scale friction (30) to anchor against the wall.
@@ -129,20 +131,22 @@ def phybot_big_v2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
         # as the hand is roughly parallel to the (tilted) wall surface.
         engage_min_spheres=1,
         engage_parallel_cos_threshold=0.9397,  # cos(20°)
+        # Re-engage only when friction is opposite to the release trigger:
+        # fric_up < -30 N, filtered to suppress contact noise.
+        engage_friction_threshold=30.0,
+        engage_friction_filter_alpha=0.8,
+        engage_consecutive_steps=_ENGAGE_CONSECUTIVE_STEPS,
         # Latched adhesion releases when friction along hand-up exceeds
-        # this (N). Low threshold (50 N) keeps release physically
-        # achievable at all curriculum stages — at 10° gravity the entire
-        # robot z-load is only ~85 N, so anything above ~80 N would be
-        # unreachable. 50 N sits just above resting per-hand load (~42 N
-        # double-stance at 10°), leaves clear headroom for policy to
-        # trigger release by transferring weight to one hand.
-        disengage_friction_threshold=50.0,
+        # 30 N.
+        disengage_friction_threshold=30.0,
+        disengage_friction_filter_alpha=0.8,
         # Suppress single-step CCD jitter oscillations: require sustained
         # overload for 5 frames before actually releasing, and block
-        # re-engagement for 20 frames after release so a brief jitter spike
-        # can't cause engage→release→engage on consecutive steps.
+        # re-engagement for 0.3 s (15 controller steps) after release so
+        # a brief jitter spike can't cause engage→release→engage on
+        # consecutive steps.
         disengage_consecutive_steps=5,
-        reengage_cooldown_steps=20,
+        reengage_cooldown_steps=_REENGAGE_COOLDOWN_STEPS,
         wall_geom_name="wall/wall_geom",
         wall_entity_name="wall",
       ),

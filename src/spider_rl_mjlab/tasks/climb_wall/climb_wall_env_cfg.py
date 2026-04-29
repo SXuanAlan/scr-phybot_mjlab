@@ -7,6 +7,7 @@ Robot-specific configurations call the factory and customize as needed.
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.command_manager import CommandTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
@@ -27,6 +28,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
 
   num_envs = 4096
   env_spacing = 8.0
+  velocity_command_name = "climb_velocity"
 
   ##
   # Observations
@@ -49,11 +51,11 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         "hand_engaged_state": ObservationTermCfg(func=mdp.hand_engaged_state),
         # Robot z above spawn — critic needs this to value climbing.
         "height_above_spawn": ObservationTermCfg(func=mdp.height_above_spawn),
-        # Commanded world-frame velocity (vx, vy, vz). Currently fixed;
-        # ``track_lin_vel`` rewards try to match the commanded values.
+        # Commanded world-frame velocity (vx, vy, vz). The command manager
+        # owns the target so obs and reward stay synchronized.
         "velocity_command": ObservationTermCfg(
           func=mdp.velocity_command,
-          params={"vx_cmd": 0.0, "vy_cmd": 0.0, "vz_cmd": 0.08},
+          params={"command_name": velocity_command_name},
         ),
       },
       concatenate_terms=True,  # Concatenate all terms into a single vector.
@@ -72,6 +74,22 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       scale=0.25,  # Override per-robot.
       use_default_offset=True,
     ),
+  }
+
+  ##
+  # Commands
+  ##
+
+  commands: dict[str, CommandTermCfg] = {
+    velocity_command_name: mdp.ClimbVelocityCommandCfg(
+      entity_name="robot",
+      resampling_time_range=(4.0, 8.0),
+      ranges=mdp.ClimbVelocityCommandCfg.Ranges(
+        lin_vel_x=(0.0, 0.0),
+        lin_vel_y=(0.0, 0.0),
+        lin_vel_z=(0.08, 0.08),
+      ),
+    )
   }
 
   ##
@@ -102,15 +120,28 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     # Strict single-stance (∑e == 1). See mdp/rewards.py for details.
     "hand_grip_time": RewardTermCfg(
       func=mdp.hand_grip_time_min_climb(),
-      weight=30.0,
+      weight=10.0,
       params={"tau": 0.5, "vz_cmd": 0.08, "cmd_eps": 0.0},
     ),
-    # Velocity command tracking (climbing analog of ``track_lin_vel_xy_exp``).
-    # Only vz — xy tracking not meaningful for wall climbing.
-    "track_vz": RewardTermCfg(
-      func=mdp.climb_vz_gauss,
-      weight=40.0,
-      params={"asset_cfg": robot_cfg, "target": 0.08, "sigma": 0.05},
+    # Velocity command tracking split by axis group: x/y drift is a softer
+    # objective, while z remains the primary climb-rate target.
+    "track_lin_vel_xy": RewardTermCfg(
+      func=mdp.climb_linear_velocity_xy_gauss,
+      weight=4.0,
+      params={
+        "asset_cfg": robot_cfg,
+        "command_name": velocity_command_name,
+        "sigma": 0.05,
+      },
+    ),
+    "track_lin_vel_z": RewardTermCfg(
+      func=mdp.climb_linear_velocity_z_gauss,
+      weight=15.0,
+      params={
+        "asset_cfg": robot_cfg,
+        "command_name": velocity_command_name,
+        "sigma": 0.05,
+      },
     ),
     # Pelvis upright — roll-only Gaussian (σ=0.3). Pitch is loose (climbing
     # needs some pelvis pitch toward the wall).
@@ -233,16 +264,25 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "reward_name": "hand_grip_time",
         "weight_stages": [
-          {"iter": 0, "weight": 30.0},
+          {"iter": 0, "weight": 10.0},
         ],
       },
     ),
-    "track_vz_weight": CurriculumTermCfg(
+    "track_lin_vel_xy_weight": CurriculumTermCfg(
       func=reward_weight,
       params={
-        "reward_name": "track_vz",
+        "reward_name": "track_lin_vel_xy",
         "weight_stages": [
-          {"iter": 0, "weight": 40.0},
+          {"iter": 0, "weight": 4.0},
+        ],
+      },
+    ),
+    "track_lin_vel_z_weight": CurriculumTermCfg(
+      func=reward_weight,
+      params={
+        "reward_name": "track_lin_vel_z",
+        "weight_stages": [
+          {"iter": 0, "weight": 15.0},
         ],
       },
     ),
@@ -367,14 +407,6 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.bad_state,
       params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
     ),
-    # Both hands off the wall: the robot has lost all grip. Triggers
-    # ``termination_penalty`` (-200) via ``is_terminated`` and kills the
-    # "single-hand cheat" strategy — if the held hand ever releases
-    # without the other engaging, the episode ends with big penalty.
-    "both_hands_unlatched": TerminationTermCfg(
-      func=mdp.both_hands_unlatched,
-      params={"event_term_name": "microspine_adhesion"},
-    ),
   }
 
   ##
@@ -403,6 +435,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     observations=observations,
     actions=actions,
+    commands=commands,
     rewards=rewards,
     curriculum=curriculum,
     events=events,

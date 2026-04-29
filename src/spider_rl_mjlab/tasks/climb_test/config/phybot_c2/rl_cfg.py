@@ -1,49 +1,15 @@
-"""RL configuration for PHYBot C2 climb-test (friction-only baseline)."""
+"""RL configuration for PHYBot C2 climb-test."""
 
-from mjlab.rl import (
-  RslRlModelCfg,
-  RslRlOnPolicyRunnerCfg,
-  RslRlPpoAlgorithmCfg,
+from mjlab.rl import RslRlOnPolicyRunnerCfg
+
+from spider_rl_mjlab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
+  phybot_c2_ppo_runner_cfg as phybot_c2_climb_wall_ppo_runner_cfg,
 )
 
 
 def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
-  return RslRlOnPolicyRunnerCfg(
-    actor=RslRlModelCfg(
-      hidden_dims=(256, 128, 64),
-      activation="elu",
-      obs_normalization=True,
-      distribution_cfg={
-        "class_name": "GaussianDistribution",
-        "init_std": 1.0,
-        "std_type": "scalar",
-      },
-    ),
-    critic=RslRlModelCfg(
-      hidden_dims=(256, 128, 64),
-      activation="elu",
-      obs_normalization=True,
-    ),
-    obs_groups={"actor": ("actor",), "critic": ("actor",)},
-    algorithm=RslRlPpoAlgorithmCfg(
-      value_loss_coef=1.0,
-      use_clipped_value_loss=True,
-      clip_param=0.2,
-      entropy_coef=0.003,
-      num_learning_epochs=5,
-      num_mini_batches=4,
-      learning_rate=3.0e-4,
-      schedule="adaptive",
-      gamma=0.99,
-      lam=0.95,
-      desired_kl=0.01,
-      max_grad_norm=1.0,
-    ),
-    experiment_name="phybot_c2_climb_test",
-    logger="wandb",
-    wandb_project="spider-climb-test",
-    wandb_tags=("phybot_c2", "no_adhesion"),
-    save_interval=25,
-    num_steps_per_env=24,
-    max_iterations=8000,
-  )
+  cfg = phybot_c2_climb_wall_ppo_runner_cfg()
+  cfg.experiment_name = "phybot_c2_climb_test"
+  cfg.wandb_project = "spider-climb-test"
+  cfg.wandb_tags = ("phybot_c2", "climb_wall_clone", "gravity_0deg")
+  return cfg

@@ -152,11 +152,10 @@ def _hand_body_ids(
 
 
 # ---------------------------------------------------------------------------
-# Gait reward: min-grip-time, strict single-stance version. Direct port of
-# IsaacLab's ``feet_air_time_positive_biped`` — the safe indicator is
-# ``∑e == 1`` (exactly one hand engaged). Both-hand overlap and fully
-# airborne states both give zero reward. Same (t_mode, min, tau) skeleton
-# as the walking original.
+# Gait reward: min-grip-time, dense stance-count version. Direct port of
+# IsaacLab's ``feet_air_time_positive_biped`` with the stance-count gate made
+# configurable. The biped default is ``∑e == 1``; C2's four spine EEs use
+# ``∑e == 2``.
 # ---------------------------------------------------------------------------
 
 
@@ -171,13 +170,11 @@ def hand_grip_time_min_climb():
   where ``t_grip`` resets on release and ``t_swing`` resets on grip. The
   reward is::
 
-      r = 1[vz_cmd > eps] * min(tau, 1[∑e == 1] * min_h(t_mode[h]))
+      r = 1[vz_cmd > eps] * min(tau, 1[∑e == target] * min_h(t_mode[h]))
 
-  ``1[∑e == 1]`` matches walking's strict single-stance gate: both-hand
-  overlap AND both-hand airborne both give zero. Policy is only credited
-  while exactly one hand is anchored — so it has no incentive to dwell
-  in double-stance, and the previous reward-degenerate "hang motionless"
-  solution is dead by construction (∑e == 2 gives 0).
+  ``target_engaged_count=1`` matches walking's strict single-stance gate.
+  For four-EE climbing, set ``target_engaged_count=2`` to reward a stable
+  two-anchor / two-swing gait instead.
 
   Closure-style (matches ``EMAObsFilter`` pattern) so each env cfg gets a
   fresh state instance and tyro doesn't try to introspect constructor args.
@@ -193,6 +190,7 @@ def hand_grip_time_min_climb():
     tau: float = 0.5,
     vz_cmd: float = 0.08,
     cmd_eps: float = 0.0,
+    target_engaged_count: int = 1,
   ) -> torch.Tensor:
     term_cfg = env.event_manager.get_term_cfg(event_term_name)
     engaged = term_cfg.func.engaged  # (E, H) bool
@@ -212,10 +210,7 @@ def hand_grip_time_min_climb():
 
     t_mode = e_f * state["grip_t"] + (1.0 - e_f) * state["swing_t"]  # (E, H)
 
-    # Strict single-stance: exactly one hand engaged. Matches walking's
-    # ``feet_air_time_positive_biped``. Zero reward when both hands on
-    # (overlap) or both off (airborne).
-    safe = (engaged.sum(dim=-1) == 1).float()  # (E,)
+    safe = (engaged.sum(dim=-1) == target_engaged_count).float()  # (E,)
     move = 1.0 if vz_cmd > cmd_eps else 0.0
 
     min_t = t_mode.min(dim=-1).values  # (E,)
@@ -234,6 +229,46 @@ def hand_grip_time_min_climb():
 
   call.reset = reset  # type: ignore[attr-defined]
   return call
+
+
+def ee_capped_disengage_time(
+  env: ManagerBasedRlEnv,
+  *,
+  event_term_name: str = "microspine_adhesion",
+  command_name: str | None = None,
+  vz_cmd: float = 0.08,
+  command_threshold: float = 0.01,
+  cap_time: float = 0.3,
+  max_disengage_time: float = 0.5,
+  target_engaged_count: int = 2,
+) -> torch.Tensor:
+  """Dense swing shaping for climbing: reward bounded disengage time.
+
+  For each EE, ``current_disengage_time`` grows only while the EE is not
+  latched and resets to 0 on engagement. The reward is enabled only when the
+  commanded climb velocity is active, exactly ``target_engaged_count`` EEs are
+  engaged, and no EE has been disengaged longer than ``max_disengage_time``.
+  """
+  term_cfg = env.event_manager.get_term_cfg(event_term_name)
+  controller = term_cfg.func
+  engaged: torch.Tensor = controller.engaged
+  if not hasattr(controller, "current_disengage_time"):
+    return torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
+
+  disengage_t: torch.Tensor = controller.current_disengage_time
+  disengaged_t = disengage_t * (~engaged).float()
+
+  count_gate = (engaged.sum(dim=-1) == target_engaged_count).float()
+  max_gate = (disengage_t.max(dim=-1).values < max_disengage_time).float()
+
+  if command_name is not None:
+    cmd_z = env.command_manager.get_command(command_name)[:, 2]
+    cmd_gate = (cmd_z.abs() > command_threshold).float()
+  else:
+    cmd_gate = 1.0 if abs(vz_cmd) > command_threshold else 0.0
+
+  raw = disengaged_t.clamp(max=cap_time).sum(dim=-1)
+  return cmd_gate * count_gate * max_gate * raw
 
 
 def hand_slide_penalty(
@@ -277,7 +312,7 @@ def climb_vz_gauss(
 
   $$ R = \\exp\\!\\left(-\\frac{(\\max(v_{\\text{target}} - v_z,\\ 0))^2}{\\sigma^2}\\right) $$
 
-  Same exp-shape as ``track_lin_vel`` but asymmetric — no branching.
+  Same exp-shape as the climb velocity tracking terms but asymmetric.
   $v_z \\ge v_{\\text{target}}$ gives $R = 1$ (overshoot is physically capped
   by arm reach). Only $v_z < v_{\\text{target}}$ decays via Gaussian.
   """
@@ -285,6 +320,128 @@ def climb_vz_gauss(
   v = asset.data.root_link_lin_vel_w[:, 2]
   err = (target - v).clamp(min=0.0)
   return torch.exp(-err.pow(2) / (sigma * sigma))
+
+
+def climb_linear_velocity_gauss(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  target: tuple[float, float, float] = (0.0, 0.0, 0.08),
+  command_name: str | None = None,
+  sigma: float = 0.05,
+) -> torch.Tensor:
+  """Gaussian reward for tracking the commanded world-frame climb velocity.
+
+  Unlike ``climb_vz_gauss``, this tracks the full vector. If ``command_name``
+  is provided, the target comes from the command manager so command changes
+  are reflected in both observation and reward.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  if command_name is not None:
+    target_w = env.command_manager.get_command(command_name)
+  else:
+    target_w = torch.tensor(
+      target, dtype=torch.float32, device=env.device
+    ).unsqueeze(0)
+  err = asset.data.root_link_lin_vel_w - target_w
+  return torch.exp(-torch.sum(err.pow(2), dim=-1) / (sigma * sigma))
+
+
+def climb_linear_velocity_xy_gauss(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  target: tuple[float, float] = (0.0, 0.0),
+  command_name: str | None = None,
+  sigma: float = 0.05,
+) -> torch.Tensor:
+  """Gaussian reward for tracking commanded world-frame x/y velocity."""
+  asset: Entity = env.scene[asset_cfg.name]
+  if command_name is not None:
+    target_xy = env.command_manager.get_command(command_name)[:, :2]
+  else:
+    target_xy = torch.tensor(
+      target, dtype=torch.float32, device=env.device
+    ).unsqueeze(0)
+  err = asset.data.root_link_lin_vel_w[:, :2] - target_xy
+  return torch.exp(-torch.sum(err.pow(2), dim=-1) / (sigma * sigma))
+
+
+def climb_linear_velocity_z_gauss(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  target: float = 0.08,
+  command_name: str | None = None,
+  sigma: float = 0.05,
+) -> torch.Tensor:
+  """Gaussian reward for tracking commanded world-frame z velocity."""
+  asset: Entity = env.scene[asset_cfg.name]
+  if command_name is not None:
+    target_z = env.command_manager.get_command(command_name)[:, 2]
+  else:
+    target_z = torch.tensor(target, dtype=torch.float32, device=env.device)
+  err = asset.data.root_link_lin_vel_w[:, 2] - target_z
+  return torch.exp(-err.pow(2) / (sigma * sigma))
+
+
+def climb_height_progress():
+  """Factory: reward net upward progress, not oscillatory vertical velocity.
+
+  The term tracks the best base height reached in each episode and rewards
+  only increases of that high-water mark. A policy that thrusts the hips up
+  and falls back down can receive this reward once for the first peak, but not
+  repeatedly for the same oscillation.
+  """
+  state: dict[str, torch.Tensor | None] = {"best_z": None, "fresh": None}
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    asset_cfg: SceneEntityCfg,
+    command_name: str | None = None,
+    target_vz: float = 0.08,
+    command_threshold: float = 0.01,
+    max_normalized_progress: float = 1.5,
+  ) -> torch.Tensor:
+    asset: Entity = env.scene[asset_cfg.name]
+    z = asset.data.root_link_pos_w[:, 2]
+
+    if state["best_z"] is None or state["best_z"].shape != z.shape:
+      state["best_z"] = z.clone()
+      state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
+      return torch.zeros_like(z)
+
+    fresh = state["fresh"]
+    assert fresh is not None
+    if fresh.any():
+      state["best_z"][fresh] = z[fresh]
+      fresh.zero_()
+
+    prev_best = state["best_z"]
+    assert prev_best is not None
+    new_best = torch.maximum(prev_best, z)
+    progress_m = new_best - prev_best
+    state["best_z"] = new_best
+
+    if command_name is not None:
+      cmd_z = env.command_manager.get_command(command_name)[:, 2].abs()
+    else:
+      cmd_z = torch.full_like(z, abs(target_vz))
+
+    active = cmd_z > command_threshold
+    target_step = (cmd_z * env.step_dt).clamp_min(1.0e-6)
+    progress = (progress_m / target_step).clamp(max=max_normalized_progress)
+    return torch.where(active, progress, torch.zeros_like(progress))
+
+  def reset(env_ids=None) -> dict:
+    if state["fresh"] is None:
+      return {}
+    if env_ids is None:
+      state["fresh"].fill_(True)
+    else:
+      state["fresh"][env_ids] = True
+    return {}
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
 
 
 def flat_orientation_gauss(
@@ -348,9 +505,8 @@ def lin_vel_into_wall_l2(
 ) -> torch.Tensor:
   """Penalize base linear velocity along the wall normal.
 
-  Wall-climbing analog of Anymal's ``lin_vel_z_l2`` — for a vertical wall the
-  motion-into/out-of-wall direction is the wall surface normal, NOT world z
-  (z is the climb direction we want to track). Squaring makes sign irrelevant.
+  Kept for climb_test and legacy configs. Main climb-wall C2 now uses full
+  vector velocity tracking instead of this extra wall-normal velocity term.
   """
   asset: Entity = env.scene[asset_cfg.name]
   _, wall_normal = _SphereGeomCache.wall_plane(env)  # (E, 3)

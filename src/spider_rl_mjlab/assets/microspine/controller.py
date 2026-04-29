@@ -131,7 +131,16 @@ class MicrospineController:
     self._num_envs = env.num_envs
     self._env = env  # cached for debug_vis access to sim.wp_model.opt.gravity
     self._threshold = self._mcfg.engage_force_threshold
+    self._engage_friction_threshold = self._mcfg.engage_friction_threshold
+    self._engage_friction_filter_alpha = self._mcfg.engage_friction_filter_alpha
+    assert 0.0 <= self._engage_friction_filter_alpha < 1.0, (
+      "engage_friction_filter_alpha must be in [0, 1)"
+    )
     self._disengage_threshold = self._mcfg.disengage_friction_threshold
+    self._disengage_friction_filter_alpha = self._mcfg.disengage_friction_filter_alpha
+    assert 0.0 <= self._disengage_friction_filter_alpha < 1.0, (
+      "disengage_friction_filter_alpha must be in [0, 1)"
+    )
     self._num_hands = len(self._mcfg.ee_body_names)
     self._debug = self._mcfg.debug
 
@@ -242,6 +251,10 @@ class MicrospineController:
       self._engage_steps = torch.zeros(
         self._num_envs, self._num_hands, dtype=torch.long, device=device
       )
+      # Consecutive steps all engage conditions have held while unlatched.
+      self._engage_condition_streak = torch.zeros(
+        self._num_envs, self._num_hands, dtype=torch.long, device=device
+      )
       # Public: latest per-(env, hand) friction along hand-up direction.
       # Used by reward functions to softly penalize approaching the disengage
       # cliff (instead of waiting for the discrete disengage event).
@@ -254,6 +267,16 @@ class MicrospineController:
         self._num_envs, self._num_hands, device=device
       )
       self._fric_up_ema_alpha: float = 0.95  # ~20-step half life
+      # EMA state used by the friction-engage gate.
+      self._engage_friction_filtered = torch.zeros(
+        self._num_envs, self._num_hands, device=device
+      )
+      # EMA state used by the actual friction-disengage threshold. Kept
+      # separate from the public smoothed signal so reward/debug smoothing
+      # can remain stable while the release condition is tuned per task.
+      self._disengage_friction_filtered = torch.zeros(
+        self._num_envs, self._num_hands, device=device
+      )
       # Public: per-sphere streak length at the moment contact was lost on
       # the current step. 0 on non-loss steps; equals previous streak on the
       # step the streak resets to 0. Used by contact_lost_penalty reward.
@@ -296,6 +319,11 @@ class MicrospineController:
       # Per-(env, hand) flag: True on the single step an engaged hand disengages.
       self.disengaged_this_step = torch.zeros(
         self._num_envs, self._num_hands, dtype=torch.bool, device=device
+      )
+      # Public: seconds each hand has been continuously disengaged. Rewards
+      # and observations read this shared timer so their phase signal matches.
+      self.current_disengage_time = torch.zeros(
+        self._num_envs, self._num_hands, dtype=torch.float32, device=device
       )
       # Per-env counter for steps since reset. Used to skip disengage check
       # for the first few steps (contact data may be stale after reset).
@@ -560,8 +588,28 @@ class MicrospineController:
     # score the direction of the reaction force.
     self.last_hand_contact_force_world = self._compute_hand_contact_force_world(env)
 
+    friction_up = None
+    friction_for_engage = None
+    if self._engage_friction_threshold > 0:
+      friction_up = self._compute_hand_friction_along_up(env)  # (E, H)
+      self.last_friction_up = friction_up
+      a = self._fric_up_ema_alpha
+      self.last_friction_up_smoothed = (
+        a * self.last_friction_up_smoothed + (1.0 - a) * friction_up
+      )
+      filter_alpha = self._engage_friction_filter_alpha
+      if filter_alpha > 0.0:
+        self._engage_friction_filtered = (
+          filter_alpha * self._engage_friction_filtered
+          + (1.0 - filter_alpha) * friction_up
+        )
+        friction_for_engage = self._engage_friction_filtered
+      else:
+        friction_for_engage = friction_up
+
     # --- Engage: minimum number/fraction of spheres above force threshold,
-    # optionally gated by a hand-parallel-to-wall check ---
+    # optionally gated by a hand-parallel-to-wall check and an opposite
+    # friction trigger ---
     # Use compression-only forces (clamp negatives to 0): adhesion pulls the
     # hand into the wall and registers as a large negative constraint force,
     # which is NOT evidence the hand is actively pushing the wall. Only
@@ -585,6 +633,7 @@ class MicrospineController:
 
     # Cooldown mask: engagement blocked while any cooldown steps remain.
     cooldown_active = self._reengage_cooldown > 0  # (E, H)
+    engage_need_streak = max(1, self._mcfg.engage_consecutive_steps)
 
     for h in range(self._num_hands):
       s_start, s_end = self._hand_actuator_slices[h]
@@ -607,9 +656,26 @@ class MicrospineController:
         parallel = (face * wall_inward).sum(dim=-1) >= cos_thresh
         engaged_now = engaged_now & parallel
 
+      if friction_for_engage is not None:
+        engage_friction_ok = (
+          friction_for_engage[:, h] < -self._engage_friction_threshold
+        )
+        engaged_now = engaged_now & engage_friction_ok
+
       # Block latching during post-disengage cooldown.
-      engaged_now = engaged_now & ~cooldown_active[:, h]
+      engage_candidate = engaged_now & ~cooldown_active[:, h] & ~self.engaged[:, h]
+      self._engage_condition_streak[:, h] = torch.where(
+        engage_candidate,
+        self._engage_condition_streak[:, h] + 1,
+        torch.zeros_like(self._engage_condition_streak[:, h]),
+      )
+      engaged_now = self._engage_condition_streak[:, h] >= engage_need_streak
       self.engaged[:, h] |= engaged_now
+      self._engage_condition_streak[:, h] = torch.where(
+        engaged_now,
+        torch.zeros_like(self._engage_condition_streak[:, h]),
+        self._engage_condition_streak[:, h],
+      )
 
     # Tick cooldown down (saturating at 0).
     self._reengage_cooldown = (self._reengage_cooldown - 1).clamp(min=0)
@@ -630,19 +696,29 @@ class MicrospineController:
     else:
       effective_disengage = self._disengage_threshold
 
-    friction_up = None
+    friction_for_disengage = None
     if effective_disengage > 0:
-      friction_up = self._compute_hand_friction_along_up(env)  # (E, H)
-      self.last_friction_up = friction_up
-      a = self._fric_up_ema_alpha
-      self.last_friction_up_smoothed = (
-        a * self.last_friction_up_smoothed + (1.0 - a) * friction_up
-      )
+      if friction_up is None:
+        friction_up = self._compute_hand_friction_along_up(env)  # (E, H)
+        self.last_friction_up = friction_up
+        a = self._fric_up_ema_alpha
+        self.last_friction_up_smoothed = (
+          a * self.last_friction_up_smoothed + (1.0 - a) * friction_up
+        )
+      filter_alpha = self._disengage_friction_filter_alpha
+      if filter_alpha > 0.0:
+        self._disengage_friction_filtered = (
+          filter_alpha * self._disengage_friction_filtered
+          + (1.0 - filter_alpha) * friction_up
+        )
+        friction_for_disengage = self._disengage_friction_filtered
+      else:
+        friction_for_disengage = friction_up
       grace = (self._steps_since_reset < 10).unsqueeze(1)  # (E, 1)
       need_streak = max(1, self._mcfg.disengage_consecutive_steps)
       cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
       for h in range(self._num_hands):
-        exceeded = friction_up[:, h] > effective_disengage  # (E,)
+        exceeded = friction_for_disengage[:, h] > effective_disengage  # (E,)
         exceeded = exceeded & ~newly_engaged[:, h] & ~grace[:, 0] & self.engaged[:, h]
         # Hysteresis: increment streak while exceeding, reset otherwise.
         self._disengage_streak[:, h] = torch.where(
@@ -750,6 +826,11 @@ class MicrospineController:
     # Track disengage transitions (latched-ON → OFF) for reward signal.
     # Computed after ALL disengage criteria have applied.
     self.disengaged_this_step = was_engaged & ~self.engaged  # (E, H)
+    self.current_disengage_time = torch.where(
+      self.engaged,
+      torch.zeros_like(self.current_disengage_time),
+      self.current_disengage_time + env.step_dt,
+    )
 
     # Update per-sphere continuous-contact streak — each sphere tracks its
     # own streak independently. Grows whenever that sphere has physical
@@ -795,9 +876,12 @@ class MicrospineController:
             hf = normal_forces[0, self._hand_actuator_slices[h][0]:self._hand_actuator_slices[h][1]].cpu().tolist()
             min_f = min(hf)
             fu = friction_up[0, h].item() if friction_up is not None else 0.0
+            ff = friction_for_disengage[0, h].item() if friction_for_disengage is not None else 0.0
+            fe = friction_for_engage[0, h].item() if friction_for_engage is not None else 0.0
             bname = self._mcfg.ee_body_names[h]
             print(f"[Microspine] TRANSITION step={step} {bname} {old}->{new} "
-                  f"min_n={min_f:.1f}N fric_up={fu:.1f}N")
+                  f"min_n={min_f:.1f}N fric_up={fu:.1f}N "
+                  f"fric_eng={fe:.1f}N fric_dis={ff:.1f}N")
 
     # --- Per-hand engage counter and force ramp ---
     # Reset counter on hands that just engaged; zero it for disengaged hands;
@@ -871,13 +955,17 @@ class MicrospineController:
       # longer needs a grace period because this initial state is valid.
       self.engaged[env_ids] = True
       self.disengaged_this_step[env_ids] = False
+      self.current_disengage_time[env_ids] = 0.0
       self.last_normal_forces[env_ids] = 0.0
       self.peak_soft_count[env_ids] = 0.0
       self.last_hand_contact_force_world[env_ids] = 0.0
       self.last_friction_up[env_ids] = 0.0
       self.last_friction_up_smoothed[env_ids] = 0.0
+      self._engage_friction_filtered[env_ids] = 0.0
+      self._disengage_friction_filtered[env_ids] = 0.0
       self.last_streak_at_loss[env_ids] = 0
       self._engage_steps[env_ids] = 0
+      self._engage_condition_streak[env_ids] = 0
       self.contact_current_streak[env_ids] = 0
       self._contact_miss_count[env_ids] = 0
       self._steps_since_reset[env_ids] = 0

@@ -8,7 +8,9 @@ Examples:
 """
 
 import sys
+import re
 from dataclasses import asdict, dataclass
+from math import ceil
 from pathlib import Path
 from typing import Literal
 
@@ -28,6 +30,7 @@ from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 
 import spider_rl_mjlab.tasks  # noqa: F401
+from spider_rl_mjlab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
 
 
 @dataclass(frozen=True)
@@ -41,6 +44,161 @@ class Cfg:
   device: str | None = None
   sat_threshold: float = 0.95
   """Ratio |tau|/limit at or above which a sample counts as saturated."""
+  gravity_angle_deg: float | None = None
+  """Override climb-wall gravity angle. If omitted, infer from model_<iter>.pt."""
+  save_plots: bool = True
+  """Save torque-vs-time plots under results/checkpoint by default."""
+  output_dir: str | None = None
+  """Directory for plots. Defaults to results/checkpoint/<experiment>/<run>/<checkpoint>."""
+  plot_env_idx: int = 0
+  """Environment index used for signed torque-vs-time traces."""
+
+
+def _checkpoint_iteration(path_or_name: str | Path | None) -> int | None:
+  if path_or_name is None:
+    return None
+  name = Path(path_or_name).name
+  match = re.search(r"(?:model|checkpoint|ckpt)[_-](\d+)", name)
+  if match is None:
+    match = re.search(r"(\d+)(?=\.[^.]+$)", name)
+  return int(match.group(1)) if match is not None else None
+
+
+def _apply_climb_wall_gravity(
+  env_cfg,
+  *,
+  gravity_angle_deg: float | None,
+  checkpoint_path: Path | None,
+  checkpoint_hint: str | None = None,
+) -> None:
+  curriculum = getattr(env_cfg, "curriculum", None)
+  if not curriculum or "gravity_angle" not in curriculum:
+    return
+
+  term_cfg = curriculum["gravity_angle"]
+  stages = term_cfg.params.get("angle_stages")
+  if not stages:
+    return
+
+  if gravity_angle_deg is not None:
+    angle_deg = float(gravity_angle_deg)
+    source = "CLI override"
+  else:
+    checkpoint_iter = _checkpoint_iteration(checkpoint_path)
+    if checkpoint_iter is None:
+      checkpoint_iter = _checkpoint_iteration(checkpoint_hint)
+    if checkpoint_iter is None:
+      print(
+        "[WARN]: Could not infer gravity angle because checkpoint name does not "
+        "look like model_<iter>.pt; keeping curriculum at its initial angle."
+      )
+      return
+    angle_deg = float(resolve_gravity_angle(checkpoint_iter, stages))
+    source = f"checkpoint iter {checkpoint_iter}"
+
+  term_cfg.params["angle_stages"] = [{"iter": 0, "angle_deg": angle_deg}]
+  print(f"[INFO]: Saturation check gravity angle set to {angle_deg:.2f} deg ({source})")
+
+
+def _safe_path_part(value: str) -> str:
+  return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "unnamed"
+
+
+def _default_output_dir(task_id: str, cfg: Cfg, checkpoint_path: Path | None) -> Path:
+  if cfg.output_dir is not None:
+    return Path(cfg.output_dir)
+
+  root = Path("results") / "checkpoint"
+  if checkpoint_path is not None:
+    checkpoint_path = checkpoint_path.resolve()
+    checkpoint = _safe_path_part(checkpoint_path.stem)
+    run = _safe_path_part(checkpoint_path.parent.name)
+    experiment = _safe_path_part(checkpoint_path.parent.parent.name)
+    return root / experiment / run / checkpoint
+
+  return root / _safe_path_part(task_id) / _safe_path_part(cfg.agent)
+
+
+def _save_torque_plots(
+  *,
+  out_dir: Path,
+  names: list[str],
+  torque_env: torch.Tensor,
+  max_abs_ratio: torch.Tensor,
+  limits: torch.Tensor,
+  step_dt: float,
+  sat_threshold: float,
+  plot_env_idx: int,
+) -> None:
+  import matplotlib
+
+  matplotlib.use("Agg", force=True)
+  import matplotlib.pyplot as plt
+
+  out_dir.mkdir(parents=True, exist_ok=True)
+
+  time_s = torch.arange(torque_env.shape[0], dtype=torch.float32) * step_dt
+  time_np = time_s.numpy()
+  limits_np = limits.cpu().numpy()
+  n_act = len(names)
+  ncols = 4
+  nrows = ceil(n_act / ncols)
+
+  fig, axes = plt.subplots(
+    nrows,
+    ncols,
+    figsize=(5.0 * ncols, max(2.1 * nrows, 3.5)),
+    sharex=True,
+    squeeze=False,
+  )
+  for i, ax in enumerate(axes.ravel()):
+    if i >= n_act:
+      ax.axis("off")
+      continue
+    lim = float(limits_np[i])
+    ax.plot(time_np, torque_env[:, i].numpy(), linewidth=0.8, color="#1f77b4")
+    ax.axhline(lim, color="#b22222", linestyle="--", linewidth=0.7)
+    ax.axhline(-lim, color="#b22222", linestyle="--", linewidth=0.7)
+    ax.set_title(names[i], fontsize=8)
+    ax.grid(True, alpha=0.25)
+    if i % ncols == 0:
+      ax.set_ylabel("torque")
+  fig.supxlabel("time (s)")
+  fig.suptitle(f"Torque vs time (env {plot_env_idx})", fontsize=12)
+  fig.tight_layout()
+  torque_path = out_dir / "torque_vs_time.png"
+  fig.savefig(torque_path, dpi=140, bbox_inches="tight")
+  plt.close(fig)
+
+  fig, axes = plt.subplots(
+    nrows,
+    ncols,
+    figsize=(5.0 * ncols, max(2.1 * nrows, 3.5)),
+    sharex=True,
+    squeeze=False,
+  )
+  ratio_np = max_abs_ratio.numpy()
+  y_max = max(1.05, float(max_abs_ratio.max().item()) * 1.05)
+  for i, ax in enumerate(axes.ravel()):
+    if i >= n_act:
+      ax.axis("off")
+      continue
+    ax.plot(time_np, ratio_np[:, i], linewidth=0.8, color="#2ca02c")
+    ax.axhline(sat_threshold, color="#b22222", linestyle="--", linewidth=0.7)
+    ax.axhline(1.0, color="#111111", linestyle=":", linewidth=0.7)
+    ax.set_ylim(0.0, y_max)
+    ax.set_title(names[i], fontsize=8)
+    ax.grid(True, alpha=0.25)
+    if i % ncols == 0:
+      ax.set_ylabel("max |tau| / limit")
+  fig.supxlabel("time (s)")
+  fig.suptitle("Torque saturation ratio vs time (max over envs)", fontsize=12)
+  fig.tight_layout()
+  ratio_path = out_dir / "torque_ratio_vs_time.png"
+  fig.savefig(ratio_path, dpi=140, bbox_inches="tight")
+  plt.close(fig)
+
+  print(f"[INFO]: Wrote torque plots to {out_dir}")
 
 
 def run(task_id: str, cfg: Cfg):
@@ -66,6 +224,14 @@ def run(task_id: str, cfg: Cfg):
       raise ValueError(
         "trained agent requires --checkpoint-file or --wandb-run-path"
       )
+
+  if cfg.agent == "trained" or cfg.gravity_angle_deg is not None:
+    _apply_climb_wall_gravity(
+      env_cfg,
+      gravity_angle_deg=cfg.gravity_angle_deg,
+      checkpoint_path=resume_path,
+      checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
+    )
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
   env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -114,17 +280,29 @@ def run(task_id: str, cfg: Cfg):
   count_sat = torch.zeros(n_act, device=device)
   sum_abs = torch.zeros(n_act, device=device)
   total = 0
+  plot_env_idx = min(max(cfg.plot_env_idx, 0), cfg.num_envs - 1)
+  if plot_env_idx != cfg.plot_env_idx:
+    print(
+      f"[WARN]: plot_env_idx {cfg.plot_env_idx} is out of range for "
+      f"{cfg.num_envs} envs; using {plot_env_idx}."
+    )
+  torque_env_history: list[torch.Tensor] = []
+  ratio_max_history: list[torch.Tensor] = []
 
   with torch.inference_mode():
     for _ in range(cfg.steps):
       action = policy(obs)
       obs, _, _, _ = env.step(action)
-      tau = asset.data.actuator_force.abs()  # (num_envs, n_act)
+      tau_signed = asset.data.actuator_force  # (num_envs, n_act)
+      tau = tau_signed.abs()
       ratio = tau / limit.clamp(min=1e-6)
       abs_max = torch.maximum(abs_max, ratio.amax(dim=0))
       count_sat += (ratio >= cfg.sat_threshold).sum(dim=0).float()
       sum_abs += tau.sum(dim=0)
       total += tau.shape[0]
+      if cfg.save_plots:
+        torque_env_history.append(tau_signed[plot_env_idx].detach().cpu())
+        ratio_max_history.append(ratio.amax(dim=0).detach().cpu())
 
   mean_ratio = (sum_abs / total) / limit_per_actuator.clamp(min=1e-6)
 
@@ -158,6 +336,20 @@ def run(task_id: str, cfg: Cfg):
     f"\nany-actuator any-step max ratio: {abs_max.max().item():.3f}  "
     f"(>=1.0 means hit forcerange)"
   )
+
+  if cfg.save_plots:
+    out_dir = _default_output_dir(task_id, cfg, resume_path)
+    step_dt = float(getattr(env.unwrapped, "step_dt", 1.0))
+    _save_torque_plots(
+      out_dir=out_dir,
+      names=names,
+      torque_env=torch.stack(torque_env_history),
+      max_abs_ratio=torch.stack(ratio_max_history),
+      limits=limit_per_actuator.detach().cpu(),
+      step_dt=step_dt,
+      sat_threshold=cfg.sat_threshold,
+      plot_env_idx=plot_env_idx,
+    )
 
   env.close()
 

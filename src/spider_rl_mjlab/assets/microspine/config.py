@@ -58,6 +58,21 @@ class MicrospineCfg:
   wall's inward normal must be >= this threshold. 0 disables the check.
   cos(30°) ≈ 0.866 is a reasonable "roughly flat against the wall" value."""
 
+  engage_friction_threshold: float = 0.0
+  """If > 0, additionally require friction along ``hand_up_local`` to point in
+  the opposite direction of the disengage trigger before latching:
+  ``fric_up < -engage_friction_threshold``. This keeps a hand from re-engaging
+  while the contact force is still in the release direction."""
+
+  engage_friction_filter_alpha: float = 0.0
+  """EMA filter alpha for the friction-based engagement gate. Same semantics
+  as ``disengage_friction_filter_alpha``. 0 disables filtering."""
+
+  engage_consecutive_steps: int = 1
+  """Engage hysteresis: require all engagement conditions to hold for this
+  many consecutive controller steps before latching. 1 = latch immediately
+  once conditions are satisfied."""
+
   wall_entity_name: str = "wall"
   """Scene entity name of the wall, used to query its current world pose for
   the parallel-hand engagement check. Only consulted when
@@ -68,6 +83,12 @@ class MicrospineCfg:
   When > 0 and a hand is engaged, if the total friction force on that hand
   projected onto hand_up_local exceeds this value, the hand disengages.
   Set to 0 to disable (only reset disengages)."""
+
+  disengage_friction_filter_alpha: float = 0.0
+  """EMA filter alpha for the friction-based disengage condition.
+  0 disables filtering and compares the raw friction force to
+  ``disengage_friction_threshold``. Values in [0, 1) enable
+  ``filtered = alpha * filtered + (1 - alpha) * raw`` before thresholding."""
 
   disengage_consecutive_steps: int = 1
   """Disengage hysteresis: require ``fric_up > threshold`` for this many

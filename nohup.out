@@ -1,0 +1,133 @@
+Traceback (most recent call last):
+  File "/home/spider/projects/spider_rl_mjlab/scripts/train.py", line 3, in <module>
+    import spider_rl_mjlab.tasks  # noqa: F401 — registers Mjlab-Climb-Wall-Phybot-Big-V2
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/projects/spider_rl_mjlab/src/spider_rl_mjlab/tasks/__init__.py", line 3, in <module>
+    import spider_rl_mjlab.tasks.climb_test  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/projects/spider_rl_mjlab/src/spider_rl_mjlab/tasks/climb_test/__init__.py", line 3, in <module>
+    import spider_rl_mjlab.tasks.climb_test.config.phybot_c2  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/projects/spider_rl_mjlab/src/spider_rl_mjlab/tasks/climb_test/config/phybot_c2/__init__.py", line 3, in <module>
+    from mjlab.tasks.registry import register_mjlab_task
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/__init__.py", line 5, in <module>
+    import_packages(__name__, _BLACKLIST_PKGS)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 40, in import_packages
+    for _ in _walk_packages(
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 89, in _walk_packages
+    yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 89, in _walk_packages
+    yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 77, in _walk_packages
+    __import__(info.name)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/manipulation/config/yam/__init__.py", line 1, in <module>
+    from mjlab.tasks.manipulation.rl import ManipulationOnPolicyRunner
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/manipulation/rl/__init__.py", line 1, in <module>
+    from mjlab.tasks.manipulation.rl.runner import (
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/manipulation/rl/runner.py", line 5, in <module>
+    from mjlab.rl import RslRlVecEnvWrapper
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/rl/__init__.py", line 5, in <module>
+    from mjlab.rl.runner import MjlabOnPolicyRunner as MjlabOnPolicyRunner
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/rl/runner.py", line 7, in <module>
+    from mjlab.rl.vecenv_wrapper import RslRlVecEnvWrapper
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/rl/vecenv_wrapper.py", line 5, in <module>
+    from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/envs/__init__.py", line 1, in <module>
+    from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv as ManagerBasedRlEnv
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/envs/manager_based_rl_env.py", line 12, in <module>
+    from mjlab.envs.mdp.events import reset_scene_to_default
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/envs/mdp/__init__.py", line 1, in <module>
+    from . import dr as dr
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/envs/mdp/dr/__init__.py", line 16, in <module>
+    from .geom import geom_friction as geom_friction
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/envs/mdp/dr/geom.py", line 10, in <module>
+    from mjlab.managers.event_manager import requires_model_fields
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/managers/__init__.py", line 3, in <module>
+    from mjlab.managers.action_manager import ActionManager as ActionManager
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/managers/action_manager.py", line 12, in <module>
+    from mjlab.managers.manager_base import ManagerBase, ManagerTermBase
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/managers/manager_base.py", line 11, in <module>
+    from mjlab.managers.scene_entity_config import SceneEntityCfg
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/managers/scene_entity_config.py", line 6, in <module>
+    from mjlab.entity import Entity
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/entity/__init__.py", line 1, in <module>
+    from mjlab.entity.data import EntityData as EntityData
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/entity/data.py", line 6, in <module>
+    import mujoco_warp as mjwarp
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mujoco_warp/__init__.py", line 26, in <module>
+    from mujoco_warp._src.forward import step as step
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mujoco_warp/_src/forward.py", line 20, in <module>
+    from mujoco_warp._src import collision_driver
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mujoco_warp/_src/collision_driver.py", line 20, in <module>
+    from mujoco_warp._src.collision_convex import convex_narrowphase
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mujoco_warp/_src/collision_convex.py", line 25, in <module>
+    from mujoco_warp._src.collision_gjk import ccd
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mujoco_warp/_src/collision_gjk.py", line 936, in <module>
+    @wp.func
+     ^^^^^^^
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/warp/_src/context.py", line 976, in func
+    return wrapper(f)
+           ^^^^^^^^^^
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/warp/_src/context.py", line 957, in wrapper
+    Function(
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/warp/_src/context.py", line 255, in __init__
+    self.adj = warp._src.codegen.Adjoint(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/warp/_src/codegen.py", line 1059, in __init__
+    adj.source, adj.fun_lineno = adj.extract_function_source(func)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/warp/_src/codegen.py", line 1173, in extract_function_source
+    _, fun_lineno = inspect.getsourcelines(func)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/inspect.py", line 1250, in getsourcelines
+    return getblock(lines[lnum:]), lnum + 1
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/inspect.py", line 1225, in getblock
+    for _token in tokens:
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/tokenize.py", line 529, in _tokenize
+    pseudomatch = _compile(PseudoToken).match(line, pos)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/spider/projects/spider_rl_mjlab/scripts/train.py", line 3, in <module>
+    import spider_rl_mjlab.tasks  # noqa: F401 — registers Mjlab-Climb-Wall-Phybot-Big-V2
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/projects/spider_rl_mjlab/src/spider_rl_mjlab/tasks/__init__.py", line 3, in <module>
+    import spider_rl_mjlab.tasks.climb_test  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/projects/spider_rl_mjlab/src/spider_rl_mjlab/tasks/climb_test/__init__.py", line 3, in <module>
+    import spider_rl_mjlab.tasks.climb_test.config.phybot_c2  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/spider/projects/spider_rl_mjlab/src/spider_rl_mjlab/tasks/climb_test/config/phybot_c2/__init__.py", line 3, in <module>
+    from mjlab.tasks.registry import register_mjlab_task
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/__init__.py", line 5, in <module>
+    import_packages(__name__, _BLACKLIST_PKGS)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 40, in import_packages
+    for _ in _walk_packages(
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 89, in _walk_packages
+    yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 89, in _walk_packages
+    yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/utils/lab_api/tasks/importer.py", line 77, in _walk_packages
+    __import__(info.name)
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/manipulation/config/yam/__init__.py", line 1, in <module>
+    from mjlab.tasks.manipulation.rl import ManipulationOnPolicyRunner
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/manipulation/rl/__init__.py", line 1, in <module>
+    from mjlab.tasks.manipulation.rl.runner import (
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/tasks/manipulation/rl/runner.py", line 5, in <module>
+    from mjlab.rl import RslRlVecEnvWrapper
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/rl/__init__.py", line 5, in <module>
+    from mjlab.rl.runner import MjlabOnPolicyRunner as MjlabOnPolicyRunner
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/mjlab/rl/runner.py", line 3, in <module>
+    import torch
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/torch/__init__.py", line 2252, in <module>
+    from torch import (
+  File "/home/spider/miniconda3/envs/env_mjlab/lib/python3.11/site-packages/torch/optim/__init__.py", line 9, in <module>
+    from torch.optim import lr_scheduler as lr_scheduler, swa_utils as swa_utils
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1069, in get_code
+  File "<frozen importlib._bootstrap_external>", line 729, in _compile_bytecode
+KeyboardInterrupt

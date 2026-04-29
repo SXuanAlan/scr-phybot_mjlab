@@ -7,8 +7,14 @@ from typing import Callable, TYPE_CHECKING
 
 import torch
 
+from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.sensor import BuiltinSensor
+from mjlab.utils.lab_api.math import quat_apply_inverse
+
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
+
+_DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
 
 def EMAObsFilter(base_func: Callable, alpha: float = 0.35):
@@ -54,6 +60,36 @@ def EMAObsFilter(base_func: Callable, alpha: float = 0.35):
 
   call.reset = reset  # type: ignore[attr-defined]
   return call
+
+
+def projected_gravity_from_framequat_sensor(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Project the current simulator gravity direction into the base frame.
+
+  ``EntityData.gravity_vec_w`` is a nominal world-down unit vector and does
+  not track the gravity-tilt curriculum. Read the live MuJoCo/Warp gravity
+  instead, then normalize it so the observation remains a unit direction.
+  """
+  del asset_cfg  # Kept for API compatibility with older env configs.
+  import warp as wp
+
+  sensor = env.scene[sensor_name]
+  assert isinstance(sensor, BuiltinSensor)
+  quat_w = sensor.data
+  quat_w = quat_w / torch.linalg.norm(quat_w, dim=-1, keepdim=True).clamp_min(1.0e-6)
+
+  gravity_w = wp.to_torch(env.sim.wp_model.opt.gravity)  # (1, 3) or (E, 3)
+  if gravity_w.shape[0] == 1:
+    gravity_w = gravity_w.expand(env.num_envs, 3)
+  else:
+    gravity_w = gravity_w[:env.num_envs]
+  gravity_dir_w = gravity_w / torch.linalg.norm(
+    gravity_w, dim=-1, keepdim=True
+  ).clamp_min(1.0e-6)
+  return quat_apply_inverse(quat_w, gravity_dir_w)
 
 
 def prev_action(env: "ManagerBasedRlEnv") -> torch.Tensor:
@@ -123,20 +159,20 @@ def height_above_spawn(
 
 def velocity_command(
   env: ManagerBasedRlEnv,
+  command_name: str | None = None,
   vx_cmd: float = 0.0,
   vy_cmd: float = 0.0,
   vz_cmd: float = 0.08,
 ) -> torch.Tensor:
   """Commanded linear velocity (world frame), shape (E, 3).
 
-  Currently a fixed per-env command — x/y are 0 (robot should stay aligned
-  with the wall normal, not drift side-to-side), z is the target climb
-  rate. Exposed as observation so the policy knows what velocity it is
-  being asked to produce (pairs with the ``track_lin_vel`` rewards).
-
-  Later this can be swapped for a per-env command manager that varies
-  targets for domain randomisation / conditional policies.
+  When ``command_name`` is provided this reads the live command manager term,
+  so observation and velocity-tracking rewards use the same per-env target. The
+  fixed ``vx_cmd``/``vy_cmd``/``vz_cmd`` path is kept for legacy configs.
   """
+  if command_name is not None:
+    return env.command_manager.get_command(command_name)
+
   cmd = torch.tensor(
     [vx_cmd, vy_cmd, vz_cmd],
     device=env.device,
@@ -160,3 +196,23 @@ def hand_engaged_state(
   term_cfg = env.event_manager.get_term_cfg(event_term_name)
   engaged = term_cfg.func.engaged  # (E, H) bool
   return engaged.float()
+
+
+def ee_disengage_time_obs(
+  env: ManagerBasedRlEnv,
+  event_term_name: str = "microspine_adhesion",
+  clip: float = 0.5,
+) -> torch.Tensor:
+  """Normalized per-EE continuous disengage time, shape ``(E, H)``.
+
+  The timer is maintained by ``MicrospineController`` and reset to 0 while an
+  EE is engaged. Clipping keeps the observation bounded and matches the
+  max-time gate used by the capped disengage-time gait reward.
+  """
+  term_cfg = env.event_manager.get_term_cfg(event_term_name)
+  controller = term_cfg.func
+  if not hasattr(controller, "current_disengage_time"):
+    return torch.zeros_like(controller.engaged, dtype=torch.float32)
+
+  denom = max(float(clip), 1.0e-6)
+  return controller.current_disengage_time.clamp(max=denom) / denom

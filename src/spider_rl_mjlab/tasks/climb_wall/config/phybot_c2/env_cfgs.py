@@ -3,8 +3,8 @@
 Reward set is a port of IsaacLab's quadruped velocity-tracking template
 (``locomotion/velocity/velocity_env_cfg.py``) with two task-specific swaps:
 
-  * Velocity tracking via sampled commands → fixed-target ``track_vz``
-    (this task only ever climbs at ``vz_cmd = 0.08`` m/s).
+  * Velocity tracking uses a climb-specific world-frame command fixed at
+    ``vz_cmd = 0.08`` m/s.
   * Contact-sensor signals → microspine ``engaged`` flag for all 4 spines.
 
 C2-specific notes:
@@ -27,6 +27,8 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from spider_rl_mjlab.assets import (
   PHYBOT_C2_ACTION_SCALE,
+  configure_phybot_c2_floor_geom,
+  configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
   get_wall_cfg,
 )
@@ -47,8 +49,13 @@ _EE_BODY_NAMES: tuple[str, ...] = (
 )
 _SPHERES_PER_EE_ROWS = 2
 _SPHERES_PER_EE_COLS = 2
-_ADHESION_FORCE = 2000.0  # per-EE max adhesion force [N]
-_VZ_CMD = 0.08            # fixed climb-velocity target [m/s]
+_ADHESION_FORCE = 1200.0  # per-EE max adhesion force [N]
+_REENGAGE_COOLDOWN_STEPS = 15  # 0.3 s at climb_wall control dt = 0.002 * 10
+_ENGAGE_CONSECUTIVE_STEPS = 15  # 0.3 s at climb_wall control dt = 0.002 * 10
+_VZ_CMD = 0.08            # initial climb-velocity target [m/s]
+_BASE_QUAT_SENSOR = "robot/baselink-quat"
+_BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
+_BASE_ANG_VEL_SENSOR = "robot/baselink-gyro"
 
 # All 4 spines × 4 spheres = 16 sphere geom names. These are the contact
 # patches that pair with the wall.
@@ -60,9 +67,24 @@ _EE_GEOMS = [
 ]
 
 
+def _use_xml_base_sensors(cfg: ManagerBasedRlEnvCfg) -> None:
+  terms = cfg.observations["actor"].terms
+  terms["base_lin_vel"].func = mdp.builtin_sensor
+  terms["base_lin_vel"].params = {"sensor_name": _BASE_LIN_VEL_SENSOR}
+  terms["base_ang_vel"].func = mdp.builtin_sensor
+  terms["base_ang_vel"].params = {"sensor_name": _BASE_ANG_VEL_SENSOR}
+  terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
+  terms["projected_gravity"].params = {"sensor_name": _BASE_QUAT_SENSOR}
+
+
 def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create PHYBot C2 wall-climbing configuration."""
   cfg = make_climb_wall_env_cfg()
+  configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
+  _use_xml_base_sensors(cfg)
+  # Match MJLab/IsaacLab velocity tracking style: no explicit gait phase
+  # observation. Gait should emerge from velocity tracking + adhesion shaping.
+  cfg.observations["actor"].terms.pop("gait_clock", None)
 
   robot_cfg = get_phybot_c2_robot_cfg()
   wall_cfg = get_wall_cfg()
@@ -97,6 +119,7 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       "right_shoulder_yaw": 0.0,
       "right_elbow_pitch": -1.14,
     },
+    joint_vel={".*": 0.0},
   )
 
   # Wall: keep the default WALL_OFFSET = (2.0, 0.0, 7.5) — same as tune_pose,
@@ -127,14 +150,9 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       rows=_SPHERES_PER_EE_ROWS,
       cols=_SPHERES_PER_EE_COLS,
     )
-    # Disable the terrain ground plane — gravity-tilt curriculum replaces
-    # the floor; removing it forces the robot to actually grip the wall.
-    try:
-      terrain_geom = spec.geom("terrain/terrain")
-      terrain_geom.contype = 0
-      terrain_geom.conaffinity = 0
-    except Exception:
-      pass
+    # Disable the aligned terrain ground plane — gravity-tilt curriculum
+    # replaces the floor; this forces the robot to actually grip the wall.
+    configure_phybot_c2_floor_geom(spec, enable_contact=False)
 
   cfg.scene.spec_fn = _spec_fn
 
@@ -152,20 +170,26 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         engage_force_threshold=5.0,
         engage_min_spheres=1,
         engage_parallel_cos_threshold=0.0,
+        # Re-engage only when friction is opposite to the release trigger:
+        # fric_up < -30 N, filtered to suppress contact noise.
+        engage_friction_threshold=30.0,
+        engage_friction_filter_alpha=0.8,
+        engage_consecutive_steps=_ENGAGE_CONSECUTIVE_STEPS,
         # Disengage criterion: friction force on the EE projected onto each
         # spine's local -z axis. Static stance has friction supporting the
         # body (fric on the spine in world +z, ≈ spine local +z) → projects
         # NEGATIVELY onto local -z, no trigger. Lifting the spine flips the
         # wall friction (opposes lift, points along world -z ≈ spine local
-        # -z) → projects POSITIVELY, triggers when ≥ 50 N. Body-local axis
+        # -z) → projects POSITIVELY, triggers when ≥ 30 N. Body-local axis
         # so the criterion follows the spine body if it rotates.
         friction_axis_world=None,
         hand_up_local=(0.0, 0.0, -1.0),
-        disengage_friction_threshold=50.0,
+        disengage_friction_threshold=30.0,
+        disengage_friction_filter_alpha=0.8,
         disengage_consecutive_steps=5,
         disengage_pull_threshold=0.0,
         disengage_lift_velocity_threshold=0.0,
-        reengage_cooldown_steps=20,
+        reengage_cooldown_steps=_REENGAGE_COOLDOWN_STEPS,
         wall_geom_name="wall/wall_geom",
         wall_entity_name="wall",
       ),
@@ -173,26 +197,44 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   )
 
   # ------------------------------------------------------------------------
-  # Rewards — Anymal D quadruped template (locomotion/velocity), with the
-  # two task-specific swaps (fixed track_vz instead of sampled velocity
-  # tracking; engage signal instead of contact). Weights mirror Anymal
-  # defaults verbatim except for ``track_vz`` (kept at this task's existing
-  # 40.0 to preserve the climbing-rate signal magnitude).
+  # Rewards — Anymal D quadruped template (locomotion/velocity), with climb
+  # velocity command tracking and engage signal instead of contact. Track and
+  # gait weights are down-scaled so dense velocity tracking does not swamp the
+  # gait signal.
   # ------------------------------------------------------------------------
   robot_cfg_e = SceneEntityCfg("robot")
   cfg.rewards = {
-    # -- task: climb-rate target (fixed, replaces sampled velocity tracking).
-    "track_vz": RewardTermCfg(
-      func=mdp.climb_vz_gauss,
-      weight=40.0,
-      params={"asset_cfg": robot_cfg_e, "target": _VZ_CMD, "sigma": 0.05},
+    # -- task: commanded world-frame climb velocity target. Split x/y from z
+    # so lateral drift correction is softer than upward climb-rate tracking.
+    "track_lin_vel_xy": RewardTermCfg(
+      func=mdp.climb_linear_velocity_xy_gauss,
+      weight=4.0,
+      params={
+        "asset_cfg": robot_cfg_e,
+        "command_name": "climb_velocity",
+        "sigma": 0.05,
+      },
+    ),
+    "track_lin_vel_z": RewardTermCfg(
+      func=mdp.climb_linear_velocity_z_gauss,
+      weight=8.0,
+      params={
+        "asset_cfg": robot_cfg_e,
+        "command_name": "climb_velocity",
+        "sigma": 0.05,
+      },
+    ),
+    "climb_height_progress": RewardTermCfg(
+      func=mdp.climb_height_progress(),
+      weight=10.0,
+      params={
+        "asset_cfg": robot_cfg_e,
+        "command_name": "climb_velocity",
+        "command_threshold": 0.01,
+        "max_normalized_progress": 1.5,
+      },
     ),
     # -- penalties (Anymal weights verbatim except as noted).
-    "lin_vel_into_wall_l2": RewardTermCfg(
-      func=mdp.lin_vel_into_wall_l2,
-      weight=-2.0,
-      params={"asset_cfg": robot_cfg_e},
-    ),
     "ang_vel_xy_l2": RewardTermCfg(
       func=mdp.ang_vel_xy_l2,
       weight=-0.05,
@@ -209,15 +251,17 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       params={"asset_cfg": robot_cfg_e},
     ),
     "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.01),
-    # -- engage replaces contact for the gait-shaping pair.
-    "ee_air_time": RewardTermCfg(
-      func=mdp.ee_air_time(),
-      weight=1.0,
+    # -- gait shaping from the 2026-04-28_14-51-31 run: dense min-mode
+    # timer gated on exactly two engaged EEs (two-anchor / two-swing).
+    "ee_grip_time": RewardTermCfg(
+      func=mdp.hand_grip_time_min_climb(),
+      weight=10.0,
       params={
-        "threshold": 0.3,
+        "tau": 0.5,
         "vz_cmd": _VZ_CMD,
         "cmd_eps": 0.0,
         "event_term_name": "microspine_adhesion",
+        "target_engaged_count": 2,
       },
     ),
     "ee_slide_penalty": RewardTermCfg(
@@ -231,7 +275,6 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
     # Spine contact face (local -y) staying flush against the wall — MIN
     # across 4 EEs (strictest: any 1 spine rotated off-axis drops reward).
-    # weight 2 → max +2/step → ~+3k per episode (vs ~+30k max for track_vz).
     "ee_face_parallel_to_wall": RewardTermCfg(
       func=mdp.ee_face_parallel_to_wall,
       weight=2.0,
@@ -257,18 +300,19 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-200.0),
   }
 
-  # Curriculum: keep ONLY gravity-tilt schedule. Drop all per-reward weight
+  # Curriculum: keep ONLY gravity-tilt schedule. Drop per-reward weight
   # schedules from the big_v2 base (they reference reward names that no
-  # longer exist, and Anymal-style training uses constant weights).
+  # longer exist, and Anymal-style training uses constant weights). Keep the
+  # climb velocity command fixed for now.
   cfg.curriculum = {"gravity_angle": cfg.curriculum["gravity_angle"]}
-  # Override the schedule for c2: start at 30° (0.5g along wall) so the
-  # policy is forced to actively climb from iter 0 — fully horizontal made
-  # "stay curled and still" a free local optimum.
+  # Override the schedule for C2: hold 30° longer, then ramp to vertical.
+  # 30° is 0.5g along-wall load; it is still an active climb, but gives the
+  # controller more time to stabilize grip/gait before the wall gets steep.
   cfg.curriculum["gravity_angle"].params["angle_stages"] = [
     {"iter":    0, "angle_deg": 30.0},
-    {"iter":  500, "angle_deg": 30.0},   # hold gentle slope — learn baseline
-    {"iter": 1500, "angle_deg": 60.0},   # steep, 0.87g
-    {"iter": 2500, "angle_deg": 90.0},   # full vertical
+    {"iter": 1500, "angle_deg": 30.0},   # extended hold — learn stable gait
+    {"iter": 2500, "angle_deg": 60.0},   # steep, 0.87g
+    {"iter": 3500, "angle_deg": 90.0},   # full vertical
   ]
 
   joint_pos_action = cfg.actions["joint_pos"]

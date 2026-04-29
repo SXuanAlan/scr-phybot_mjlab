@@ -5,13 +5,16 @@
 
 ## 整体设计
 
-**任务奖励（task-specific）** 管爬墙动作；**regulation** 部分从 IsaacLab
-G1 双足行走模板（`g1_minimal_env_cfg.py`）整体迁移过来，权重、joint-set
-scope 按照爬墙场景做了最小必要的改动：
+**任务奖励（task-specific）** 管爬墙动作；C2 climb-wall 现在更接近
+MJLab/IsaacLab 四足 velocity tracking 的写法，但爬墙会额外要求净高度进展：
+`climb_height_progress` 是主爬升进展信号，瞬时 velocity tracking 只是辅助跟踪。
+gait reward 还原为 `2026-04-28_14-51-31` 训练里的 dense min-mode
+`ee_grip_time`。**regulation** 部分从 IsaacLab
+locomotion 模板迁移，权重、joint-set scope 按照爬墙场景做了最小必要的改动：
 
-- **G1 的 `feet_air_time_positive_biped` → `hand_grip_time`**（两手版，strict ∑e == 1）
-- **G1 的 `feet_slide` → `hand_slide`**（engaged-gated）
-- **G1 的 `track_lin_vel_xy_exp` → `track_vz`**（非对称高斯）
+- **`ee_grip_time`**（dense min-mode grip/swing timer，要求正好 2 个 EE engaged）
+- **G1 的 `feet_slide` → `ee_slide_penalty`**（engaged-gated）
+- **G1 的 `track_lin_vel_xy_exp` → `track_lin_vel_xy` / `track_lin_vel_z`**（世界系速度 tracking，xy/z 分开加权）
 - **G1 的 `joint_deviation_hip` / `joint_deviation_torso`** 原样搬过来
 - **`joint_deviation_arms` 故意不迁**（手臂是爬墙主动执行器，必须大幅偏离 keyframe）
 - **`joint_deviation_fingers` 不适用**（PHYBot Big V2 没有 fingers）
@@ -22,30 +25,27 @@ scope 按照爬墙场景做了最小必要的改动：
 
 | 分组 | 项 | 权重 | 来源 |
 |---|---|---:|---|
-| **任务** | `hand_orientation` | +15.0 | 原创（手朝墙） |
-| **任务·gait** | `hand_grip_time` | +30.0 | 迁自 G1 `feet_air_time_positive_biped`（strict ∑e == 1） |
-| **任务·跟踪** | `track_vz` | +40.0 | 迁自 G1 `track_lin_vel_xy_exp`（非对称高斯，仅 z 轴） |
-| **任务·姿态** | `flat_orientation` / `torso_orientation` | +10 / +10 | 自定义 Gaussian，roll-only σ=0.3 |
+| **任务·gait** | `ee_grip_time` | +10.0 | 14:51:31 版 dense grip/swing timer，要求正好 2 个 EE engaged |
+| **任务·进展** | `climb_height_progress` | +10.0 | 只奖励 episode 内 base z 新高，抑制原地顶胯 |
+| **任务·跟踪** | `track_lin_vel_xy` | +4.0 | 世界系 x/y 速度 tracking |
+| **任务·跟踪** | `track_lin_vel_z` | +8.0 | 世界系 z 速度 tracking，辅助爬升速度目标 |
 | **Regulation** | `termination_penalty` | **−200.0** | G1 `termination_penalty` 原样 |
-| **Regulation** | `hand_slide` | **−0.1** | 迁自 G1 `feet_slide`（engaged-gated） |
-| **Regulation** | `dof_pos_limits`（踝） | **−1.0** | G1 `dof_pos_limits`（踝）原样 |
-| **Regulation** | `joint_deviation_hip`（髋 yaw + roll） | **−0.1** | G1 原样 |
-| **Regulation** | `joint_deviation_torso`（腰 yaw + roll） | **−0.1** | G1 原样 |
-| **Regulation** | `action_rate_l2` | **−0.005** | G1 原样 |
-| **Regulation** | `dof_acc_l2`（髋 + 膝） | **−1.25e-7** | G1 原样 |
-| **Regulation** | `dof_torques_l2`（髋 + 膝 + 踝） | **−1.5e-7** | G1 原样 |
+| **Regulation** | `ee_slide_penalty` | **−0.1** | engaged-gated slide penalty |
+| **Regulation** | `ang_vel_xy_l2` | **−0.05** | Anymal-style base angular velocity penalty |
+| **Regulation** | `action_rate_l2` | **−0.01** | G1 原样 |
+| **Regulation** | `dof_torques_l2` / `dof_acc_l2` | **−1e-5 / −1e-5** | C2 climb-wall 常量权重 |
 
 **已移除**：
 - `alive`（G1 没有 alive bonus）
 - `leg_posture`（被 `joint_deviation_hip/torso` + `dof_acc_l2` / `dof_torques_l2` 三件套取代，语义更接近 G1）
 - `excessive_tilt` / `torso_roll_excessive` / `static_hang` / `both_hands_off` terminations（G1 只用 `base_contact` 一条硬 termination，其余交给 reward 软塑形）
-- `swing_hand_height`、`stance_phase_velocity`、`climb_height`、`track_lin_vel` 等更早期的 clock-based / legacy 项
+- `swing_hand_height`、`stance_phase_velocity`、`climb_height` 等更早期的 clock-based / legacy 项
 
 ## 符号约定
 
-- $E$ 环境数；$h \in \{L, R\}$ 左/右手。
+- $E$ 环境数；$h$ 表示一个 grip end-effector（C2 为 4 个 spine EE）。
 - $e_h \in \{0, 1\}$ 第 $h$ 手的 `microspine.engaged`。
-- $t_{\text{grip}, h}$ / $t_{\text{swing}, h}$ 每手的抓/摆持续时间。
+- $t_{\text{grip},h}$ / $t_{\text{swing},h}$ 第 $h$ 个 EE 连续 engaged/disengaged 的时间。
 - $\tau$ 时间封顶；$v_z^b$ base 世界 z 速度；$v_z^{\text{cmd}} = 0.08$。
 - $\mathbf{n}_w$ 墙外法向；$\mathbf{v}_{h,\tan}$ 第 $h$ 手墙平面切向速度。
 - $q_j, q_j^*, \dot{q}_j, \ddot{q}_j, \tau_j$ 第 $j$ 个关节的位置、默认位置（keyframe）、速度、加速度、力矩。
@@ -54,41 +54,74 @@ scope 按照爬墙场景做了最小必要的改动：
 
 ## 任务奖励
 
-### `hand_grip_time`（weight +30.0）
+### `ee_grip_time`（weight +10.0）
 
-G1 `feet_air_time_positive_biped` 的两手爬墙版本。
-
-$$
-t_{\text{mode},h} = e_h \cdot t_{\text{grip},h} + (1 - e_h) \cdot t_{\text{swing},h}
-$$
+C2 climb-wall 还原 `2026-04-28_14-51-31` 训练里的 dense min-mode
+grip/swing timer。每个 EE 维护 grip/swing 两个计时器，当前 engaged 时使用
+grip timer，当前 disengaged 时使用 swing timer；只有正好 2 个 EE engaged 时给分。
 
 $$
-\mathbb{1}_{\text{safe}} = \mathbb{1}\!\left[\sum_h e_h = 1\right],\qquad
-\mathbb{1}_{\text{move}} = \mathbb{1}\!\left[v_z^{\text{cmd}} > \varepsilon\right]
+t_{\text{mode},h}
+= e_h t_{\text{grip},h} + (1 - e_h)t_{\text{swing},h}
 $$
 
 $$
-R_{\text{grip}} = \mathbb{1}_{\text{move}} \cdot \min\!\left(\tau,\ \mathbb{1}_{\text{safe}} \cdot \min_h t_{\text{mode},h}\right)
+R_{\text{grip}} =
+\mathbb{1}_{\text{move}}\,
+\min\left(
+  \tau,\,
+  \mathbb{1}\!\left[\sum_h e_h = 2\right]\min_h t_{\text{mode},h}
+\right)
 $$
 
-当前参数：$\tau = 0.5$ s，$v_z^{\text{cmd}} = 0.08$ m/s，$\varepsilon = 0$。
+当前权重为 +10.0。参数：$\tau = 0.5$ s，$v_z^{\text{cmd}} = 0.08$ m/s，
+$\varepsilon = 0$，`target_engaged_count = 2`。`climb_height_progress` 仍然是
+真正向上爬的主目标，用来抑制原地顶胯式速度 shortcut。
 
-| 状态 | $e_L$ | $e_R$ | $\sum e$ | $R_{\text{grip}}$ |
-|---|:---:|:---:|:---:|---|
-| 双手都松 | 0 | 0 | 0 | 0 |
-| 左抓右摆 / 左摆右抓 | 1/0 | 0/1 | 1 | $\min(\tau, \min_h t_{\text{mode},h})$ |
-| 双手都抓 | 1 | 1 | 2 | 0 |
+### `climb_height_progress`（weight +10.0）
 
-### `track_vz`（weight +40.0）
-
-G1 `track_lin_vel_xy_exp` 的 vz-only 非对称版本：
+只奖励 base z 的 episode high-water mark 增量：
 
 $$
-R_{vz} = \exp\!\left(-\frac{(\max(v_z^{\text{cmd}} - v_z^b,\ 0))^2}{\sigma^2}\right),\ \sigma = 0.05,\ v_z^{\text{cmd}} = 0.08
+z^*_t = \max(z^*_{t-1}, z_t),\qquad
+\Delta z^+_t = z^*_t - z^*_{t-1}
 $$
 
-- $v_z^b \ge 0.08$：$R = 1$（爬得更快不扣分）
-- $v_z^b < 0.08$：Gaussian 衰减
+按命令速度的单步目标位移归一化：
+
+$$
+R_{\text{progress}} =
+\min\left(
+  \frac{\Delta z^+_t}{|v^{cmd}_{z}| dt},
+  1.5
+\right)
+$$
+
+如果 policy 只是原地顶胯，第一次顶到新高度可能有分；之后反复上下振荡但没有创
+新高，就不再有 progress reward。
+
+### `track_lin_vel_xy` / `track_lin_vel_z`（weight +4.0 / +8.0）
+
+G1 `track_lin_vel_xy_exp` 的爬墙版，目标来自 `ClimbVelocityCommand`，当前
+command 固定为 $(0, 0, 0.08)$。现在 x/y 与 z 分开成两个 reward term：
+
+$$
+R_{xy} = \exp\!\left(
+  -\frac{\left\|\mathbf{v}_{xy,w} - \mathbf{v}^{\text{cmd}}_{xy,w}\right\|^2}{\sigma^2}
+\right),\quad w_{xy}=4
+$$
+
+$$
+R_z = \exp\!\left(
+  -\frac{\left(v_{z,w} - v^{\text{cmd}}_{z,w}\right)^2}{\sigma^2}
+\right),\quad w_z=8,\ \sigma = 0.05
+$$
+
+这样 lateral drift correction 不会和主爬升速度目标混在同一个指数项里。
+`track_lin_vel_z` 保留为速度辅助项，但不再比净高度进展项更主导。
+
+> 下面两个姿态项目前只在 base/Big-V2 climb-wall 配置里启用；C2 active reward
+> 以上方总览表为准。
 
 ### `hand_orientation`（weight +15.0）
 
@@ -133,7 +166,7 @@ G1 原样。`mdp.is_terminated` 不含 `time_out`，只在真正失败的那一�
 配合 `scale_by_dt`，每次失败瞬时贡献 $-200 \times 0.02 = -4$，外加损失
 未来所有 task reward 的机会成本。
 
-### `hand_slide`（weight −0.1）
+### `ee_slide_penalty`（weight −0.1）
 
 G1 `feet_slide` 的爬墙版：
 
@@ -216,4 +249,4 @@ wall"（climb 里 base_contact 的语义对偶），`bad_state` 是纯数值安�
 
 `_SphereGeomCache`（`rewards.py`）懒加载缓存 16 球 geom ID、半径、墙半厚；
 每步从 wall mocap 拿墙位姿和 outward normal（curriculum 改墙倾角自动跟随）。
-被 `hand_orientation` 和 `hand_slide` 复用。
+被 `hand_orientation` 和 `ee_slide_penalty` 复用。
