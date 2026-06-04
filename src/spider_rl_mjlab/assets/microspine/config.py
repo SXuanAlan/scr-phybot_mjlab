@@ -35,6 +35,16 @@ class MicrospineCfg:
   """Adhesion actuator control signal [0, 1]. Actual force = gain * ctrl.
   Lower values reduce contact oscillation at the cost of weaker adhesion."""
 
+  adhesion_action_term_name: str | None = None
+  """Optional action-manager term name that provides per-EE adhesion intent.
+  When set, the controller only engages an EE while that action term requests
+  ON, and releases an engaged EE when the request stays OFF for
+  ``policy_release_consecutive_steps``. When None, all EEs request ON."""
+
+  policy_release_consecutive_steps: int = 1
+  """Policy-controlled release hysteresis. Require the adhesion action to request
+  OFF for this many consecutive controller steps before releasing a latched EE."""
+
   engage_force_threshold: float = 0.0
   """Minimum normal contact force [N] required per sphere to latch adhesion.
   When > 0, a hand latches when the fraction of spheres exceeding this
@@ -54,9 +64,14 @@ class MicrospineCfg:
   engage_parallel_cos_threshold: float = 0.0
   """If > 0, additionally require the hand's contact face to be sufficiently
   parallel to the wall surface before engagement. Specifically, the dot
-  product between the hand's contact-face normal (local -x, in world) and the
-  wall's inward normal must be >= this threshold. 0 disables the check.
+  product between ``engage_face_local_axis`` rotated into world and the wall's
+  inward normal must be >= this threshold. 0 disables the check.
   cos(30°) ≈ 0.866 is a reasonable "roughly flat against the wall" value."""
+
+  engage_face_local_axis: tuple[float, float, float] = (-1.0, 0.0, 0.0)
+  """Local EE axis that should point into the wall when latching. Defaults to
+  the legacy hand contact-face normal (local -x). C2 spine contact boxes use
+  local -y."""
 
   engage_friction_threshold: float = 0.0
   """If > 0, additionally require friction along ``hand_up_local`` to point in

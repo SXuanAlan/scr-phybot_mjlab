@@ -61,14 +61,14 @@ def add_adhesion_actuators(
     spec: MuJoCo spec to modify.
     ee_body_names: End-effector body names (e.g. ("left_hand", "right_hand")
       or ("left_hand_spine", "right_hand_spine", ...)).
-    adhesion_force: Total adhesion force [N] distributed across all spheres.
+    adhesion_force: Per-EE adhesion force [N], distributed across that EE's
+      contact spheres.
     robot_prefix: Robot entity name prefix in the spec.
     rows: Rows in the per-EE contact-sphere grid (default 2).
     cols: Cols in the per-EE contact-sphere grid (default 4).
   """
   spheres_per_ee = rows * cols
-  num_spheres = len(ee_body_names) * spheres_per_ee
-  force_per_sphere = adhesion_force / num_spheres
+  force_per_sphere = adhesion_force / spheres_per_ee
 
   for bname in ee_body_names:
     for sname in _sphere_names(bname, rows, cols):
@@ -141,6 +141,7 @@ class MicrospineController:
     assert 0.0 <= self._disengage_friction_filter_alpha < 1.0, (
       "disengage_friction_filter_alpha must be in [0, 1)"
     )
+    self._adhesion_action_term_name = self._mcfg.adhesion_action_term_name
     self._num_hands = len(self._mcfg.ee_body_names)
     self._debug = self._mcfg.debug
 
@@ -182,6 +183,11 @@ class MicrospineController:
       f"hand_up_local must be (3,) or ({self._num_hands}, 3); got {tuple(hul.shape)}"
     )
     self._hand_up_local = hul
+    face_axis = torch.tensor(
+      self._mcfg.engage_face_local_axis, dtype=torch.float32, device=device
+    )
+    face_norm = torch.linalg.norm(face_axis).clamp_min(1.0e-6)
+    self._engage_face_local_axis = face_axis / face_norm
     # Optional fixed world-frame axis (overrides per-EE body rotation).
     if self._mcfg.friction_axis_world is not None:
       self._friction_axis_world = torch.tensor(
@@ -325,6 +331,14 @@ class MicrospineController:
       self.current_disengage_time = torch.zeros(
         self._num_envs, self._num_hands, dtype=torch.float32, device=device
       )
+      # Public: latest policy adhesion request. Legacy configs without an
+      # adhesion action term behave as if every EE always requests ON.
+      self.last_policy_request_on = torch.ones(
+        self._num_envs, self._num_hands, dtype=torch.bool, device=device
+      )
+      self.last_policy_request_probability = torch.ones(
+        self._num_envs, self._num_hands, dtype=torch.float32, device=device
+      )
       # Per-env counter for steps since reset. Used to skip disengage check
       # for the first few steps (contact data may be stale after reset).
       self._steps_since_reset = torch.zeros(
@@ -351,11 +365,10 @@ class MicrospineController:
       self._lift_disengage_streak = torch.zeros(
         self._num_envs, self._num_hands, dtype=torch.long, device=device
       )
-      # Reusable zero-torque buffer for the per-sphere body wrench write.
-      self._zero_sphere_torque = torch.zeros(
-        self._num_envs, self._num_spheres, 3, device=device
+      # Per-(env, hand) policy-release hysteresis.
+      self._policy_release_streak = torch.zeros(
+        self._num_envs, self._num_hands, dtype=torch.long, device=device
       )
-
   def _cache_warp_tensors(self, env: ManagerBasedRlEnv) -> None:
     """Cache warp→torch tensor views for contact data (once)."""
     import warp as wp
@@ -564,6 +577,31 @@ class MicrospineController:
 
     return result
 
+  def _get_policy_adhesion_request(self, env: ManagerBasedRlEnv) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return latest per-EE policy adhesion request and probability."""
+    if self._adhesion_action_term_name is None:
+      request_on = torch.ones_like(self.engaged)
+      probability = torch.ones_like(self.engaged, dtype=torch.float32)
+      return request_on, probability
+
+    term = env.action_manager.get_term(self._adhesion_action_term_name)
+    if hasattr(term, "request_on"):
+      request_on = term.request_on
+    else:
+      request_on = torch.sigmoid(term.raw_action) >= 0.5
+    if hasattr(term, "probability"):
+      probability = term.probability
+    else:
+      probability = torch.sigmoid(term.raw_action)
+
+    if tuple(request_on.shape) != tuple(self.engaged.shape):
+      raise ValueError(
+        f"Adhesion action term '{self._adhesion_action_term_name}' shape "
+        f"{tuple(request_on.shape)} does not match engaged shape "
+        f"{tuple(self.engaged.shape)}."
+      )
+    return request_on.to(self._device), probability.to(self._device)
+
   def __call__(
     self,
     env: ManagerBasedRlEnv,
@@ -578,6 +616,9 @@ class MicrospineController:
 
     normal_forces = self._compute_sphere_normal_forces(env)  # (E, S)
     self.last_normal_forces = normal_forces
+    policy_request_on, policy_request_probability = self._get_policy_adhesion_request(env)
+    self.last_policy_request_on = policy_request_on
+    self.last_policy_request_probability = policy_request_probability
 
     # Update running max of soft contact count.
     soft_count = (normal_forces / self._peak_contact_floor).clamp(0.0, 1.0).mean(dim=1)
@@ -620,9 +661,8 @@ class MicrospineController:
     min_count = self._mcfg.engage_min_spheres
     cos_thresh = self._mcfg.engage_parallel_cos_threshold
 
-    # Wall inward normal in world (per env). Used both by the parallel-engage
-    # check and by the body-level adhesion force application below, so always
-    # compute it.
+    # Wall inward normal in world (per env). Used by the parallel-engage check
+    # and by debug logging.
     wall = env.scene[self._mcfg.wall_entity_name]
     wquat = wall.data.root_link_quat_w  # (E, 4) wxyz
     ww, wx, wy, wz = wquat[:, 0], wquat[:, 1], wquat[:, 2], wquat[:, 3]
@@ -647,12 +687,7 @@ class MicrospineController:
       if cos_thresh > 0:
         body_id = self._hand_body_ids[h]
         hquat = self._asset.data.body_link_quat_w[:, body_id, :]
-        hw, hx, hy, hz = hquat[:, 0], hquat[:, 1], hquat[:, 2], hquat[:, 3]
-        # Hand contact face normal = R_hand · (-1,0,0) in world.
-        fx = -(1.0 - 2.0 * (hy * hy + hz * hz))
-        fy = -2.0 * (hx * hy + hw * hz)
-        fz = -2.0 * (hx * hz - hw * hy)
-        face = torch.stack([fx, fy, fz], dim=-1)
+        face = _quat_rotate(hquat, self._engage_face_local_axis)
         parallel = (face * wall_inward).sum(dim=-1) >= cos_thresh
         engaged_now = engaged_now & parallel
 
@@ -662,7 +697,9 @@ class MicrospineController:
         )
         engaged_now = engaged_now & engage_friction_ok
 
-      # Block latching during post-disengage cooldown.
+      # Block latching during post-disengage cooldown and unless the policy
+      # currently requests adhesion for this EE.
+      engaged_now = engaged_now & policy_request_on[:, h]
       engage_candidate = engaged_now & ~cooldown_active[:, h] & ~self.engaged[:, h]
       self._engage_condition_streak[:, h] = torch.where(
         engage_candidate,
@@ -680,6 +717,40 @@ class MicrospineController:
     # Tick cooldown down (saturating at 0).
     self._reengage_cooldown = (self._reengage_cooldown - 1).clamp(min=0)
     newly_engaged = self.engaged & ~was_engaged  # (E, H)
+
+    # --- Policy-controlled disengage: release after sustained OFF request ---
+    # This is the primary release path for policy-controlled microspines. It
+    # avoids tying release to noisy contact friction while still using hysteresis
+    # so a single action-sample wobble does not drop a support point.
+    if self._adhesion_action_term_name is not None:
+      grace = (self._steps_since_reset < 10).unsqueeze(1)  # (E, 1)
+      policy_need_streak = max(1, self._mcfg.policy_release_consecutive_steps)
+      cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
+      for h in range(self._num_hands):
+        off_requested = (
+          (~policy_request_on[:, h])
+          & ~newly_engaged[:, h]
+          & ~grace[:, 0]
+          & self.engaged[:, h]
+        )
+        self._policy_release_streak[:, h] = torch.where(
+          off_requested,
+          self._policy_release_streak[:, h] + 1,
+          torch.zeros_like(self._policy_release_streak[:, h]),
+        )
+        release = self._policy_release_streak[:, h] >= policy_need_streak
+        self.engaged[:, h] &= ~release
+        self._policy_release_streak[:, h] = torch.where(
+          release,
+          torch.zeros_like(self._policy_release_streak[:, h]),
+          self._policy_release_streak[:, h],
+        )
+        if cooldown_set > 0:
+          self._reengage_cooldown[:, h] = torch.where(
+            release,
+            torch.full_like(self._reengage_cooldown[:, h], cooldown_set),
+            self._reengage_cooldown[:, h],
+          )
 
     # --- Disengage: friction force along hand-up exceeds threshold ---
     # Skip:
@@ -878,9 +949,11 @@ class MicrospineController:
             fu = friction_up[0, h].item() if friction_up is not None else 0.0
             ff = friction_for_disengage[0, h].item() if friction_for_disengage is not None else 0.0
             fe = friction_for_engage[0, h].item() if friction_for_engage is not None else 0.0
+            req = int(policy_request_on[0, h].item())
+            prob = policy_request_probability[0, h].item()
             bname = self._mcfg.ee_body_names[h]
             print(f"[Microspine] TRANSITION step={step} {bname} {old}->{new} "
-                  f"min_n={min_f:.1f}N fric_up={fu:.1f}N "
+                  f"req={req} prob={prob:.2f} min_n={min_f:.1f}N fric_up={fu:.1f}N "
                   f"fric_eng={fe:.1f}N fric_dis={ff:.1f}N")
 
     # --- Per-hand engage counter and force ramp ---
@@ -900,32 +973,17 @@ class MicrospineController:
     else:
       ctrl_scale = torch.ones_like(self._engage_steps, dtype=torch.float32)
 
-    # --- Adhesion via per-sphere body-level external wrench ---
-    # Apply the force on each contact-sphere sub-body rather than on the hand
-    # CoM. Distributing the pull across the 8 spheres on a hand produces the
-    # restoring moment that keeps the hand flat against the wall: a hand-CoM
-    # force lets the top edge peel off while the bottom row pivots in contact,
-    # whereas per-sphere force pulls every sphere (including the non-contacting
-    # upper row) into the wall.
-    # ``adhesion_force`` is the per-hand maximum: every latched hand can pull
-    # up to this many newtons independently. Within a hand it is split evenly
-    # across the 8 contact spheres.
+    # --- Adhesion via MuJoCo adhesion actuators ---
+    # ``adhesion_force`` is the per-EE maximum. ``add_adhesion_actuators`` split
+    # the actuator gain evenly over that EE's spheres, so ctrl=1 applies the
+    # configured per-EE ceiling when all spheres are latched.
     spheres_per_hand = self._num_spheres // self._num_hands
     force_per_sphere = self._mcfg.adhesion_force / spheres_per_hand
     # Broadcast per-hand engage + ramp onto each sphere.
     engaged_per_sphere = self.engaged.float()[:, self._sphere_to_hand]  # (E, S)
     scale_per_sphere = ctrl_scale[:, self._sphere_to_hand]              # (E, S)
-    sphere_mag = engaged_per_sphere * scale_per_sphere * force_per_sphere  # (E, S)
-    sphere_force = sphere_mag.unsqueeze(-1) * wall_inward.unsqueeze(1)     # (E, S, 3)
-    self._asset.write_external_wrench_to_sim(
-      forces=sphere_force,
-      torques=self._zero_sphere_torque,
-      body_ids=self._sphere_body_ids,
-    )
-
-    # Per-sphere adhesion actuators are now redundant: zero their ctrl so
-    # they don't double-apply on whichever spheres happen to be in contact.
-    env.sim.data.ctrl[:, self._actuator_ids] = 0.0
+    actuator_ctrl = engaged_per_sphere * scale_per_sphere * self._mcfg.ctrl_value
+    env.sim.data.ctrl[:, self._actuator_ids] = actuator_ctrl
 
     if self._debug:
       step = env.episode_length_buf[0].item()
@@ -937,7 +995,7 @@ class MicrospineController:
             fy = wall_inward[0, 1].item()
             fz = wall_inward[0, 2].item()
             s_start, s_end = self._hand_actuator_slices[h]
-            mag_sum = sphere_mag[0, s_start:s_end].sum().item()
+            mag_sum = actuator_ctrl[0, s_start:s_end].sum().item() * force_per_sphere
             n_contact = int((normal_forces[0, s_start:s_end] >= 0.5).sum().item())
             print(f"[Microspine] APPLIED step={step} {bname} eng=1 "
                   f"|F|={mag_sum:.1f}N dir=({fx:.2f},{fy:.2f},{fz:.2f}) "
@@ -954,11 +1012,14 @@ class MicrospineController:
       # bootstrap window. The ``both_hands_unlatched`` termination no
       # longer needs a grace period because this initial state is valid.
       self.engaged[env_ids] = True
+      self._env.sim.data.ctrl[env_ids[:, None], self._actuator_ids[None, :]] = self._mcfg.ctrl_value
       self.disengaged_this_step[env_ids] = False
       self.current_disengage_time[env_ids] = 0.0
       self.last_normal_forces[env_ids] = 0.0
       self.peak_soft_count[env_ids] = 0.0
       self.last_hand_contact_force_world[env_ids] = 0.0
+      self.last_policy_request_on[env_ids] = True
+      self.last_policy_request_probability[env_ids] = 1.0
       self.last_friction_up[env_ids] = 0.0
       self.last_friction_up_smoothed[env_ids] = 0.0
       self._engage_friction_filtered[env_ids] = 0.0
@@ -973,6 +1034,7 @@ class MicrospineController:
       self._reengage_cooldown[env_ids] = 0
       self._pull_disengage_streak[env_ids] = 0
       self._lift_disengage_streak[env_ids] = 0
+      self._policy_release_streak[env_ids] = 0
 
   def debug_vis(self, visualizer) -> None:
     """Draw a gravity-direction arrow over the tracked environment.

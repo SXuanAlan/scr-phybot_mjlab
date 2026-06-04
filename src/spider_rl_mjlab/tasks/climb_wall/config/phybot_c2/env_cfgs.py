@@ -34,6 +34,7 @@ from spider_rl_mjlab.assets import (
 )
 from spider_rl_mjlab.assets.microspine import (
   MicrospineCfg,
+  MicrospineAdhesionActionCfg,
   MicrospineController,
   add_adhesion_actuators,
 )
@@ -49,9 +50,10 @@ _EE_BODY_NAMES: tuple[str, ...] = (
 )
 _SPHERES_PER_EE_ROWS = 2
 _SPHERES_PER_EE_COLS = 2
-_ADHESION_FORCE = 1200.0  # per-EE max adhesion force [N]
+_ADHESION_FORCE = 600.0  # per-EE max adhesion force [N]
 _REENGAGE_COOLDOWN_STEPS = 15  # 0.3 s at climb_wall control dt = 0.002 * 10
-_ENGAGE_CONSECUTIVE_STEPS = 15  # 0.3 s at climb_wall control dt = 0.002 * 10
+_ENGAGE_CONSECUTIVE_STEPS = 5   # 0.1 s at climb_wall control dt = 0.002 * 10
+_POLICY_RELEASE_CONSECUTIVE_STEPS = 3
 _VZ_CMD = 0.08            # initial climb-velocity target [m/s]
 _BASE_QUAT_SENSOR = "robot/baselink-quat"
 _BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
@@ -85,6 +87,11 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # Match MJLab/IsaacLab velocity tracking style: no explicit gait phase
   # observation. Gait should emerge from velocity tracking + adhesion shaping.
   cfg.observations["actor"].terms.pop("gait_clock", None)
+
+  cfg.actions["microspine_adhesion"] = MicrospineAdhesionActionCfg(
+    entity_name="robot",
+    ee_body_names=_EE_BODY_NAMES,
+  )
 
   robot_cfg = get_phybot_c2_robot_cfg()
   wall_cfg = get_wall_cfg()
@@ -156,7 +163,7 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   cfg.scene.spec_fn = _spec_fn
 
-  # Per-spine microspine adhesion via MuJoCo body-level wrench.
+  # Per-spine microspine adhesion via policy intent + MuJoCo adhesion actuators.
   cfg.events["microspine_adhesion"] = EventTermCfg(
     func=MicrospineController,
     mode="step",
@@ -165,28 +172,23 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       "microspine_cfg": MicrospineCfg(
         ee_body_names=_EE_BODY_NAMES,
         adhesion_force=_ADHESION_FORCE,
+        adhesion_action_term_name="microspine_adhesion",
         spheres_per_ee_rows=_SPHERES_PER_EE_ROWS,
         spheres_per_ee_cols=_SPHERES_PER_EE_COLS,
-        engage_force_threshold=5.0,
+        engage_force_threshold=3.0,
         engage_min_spheres=1,
-        engage_parallel_cos_threshold=0.0,
-        # Re-engage only when friction is opposite to the release trigger:
-        # fric_up < -30 N, filtered to suppress contact noise.
-        engage_friction_threshold=30.0,
-        engage_friction_filter_alpha=0.8,
+        engage_parallel_cos_threshold=0.25,
+        engage_face_local_axis=(0.0, -1.0, 0.0),
+        engage_friction_threshold=0.0,
+        engage_friction_filter_alpha=0.0,
         engage_consecutive_steps=_ENGAGE_CONSECUTIVE_STEPS,
-        # Disengage criterion: friction force on the EE projected onto each
-        # spine's local -z axis. Static stance has friction supporting the
-        # body (fric on the spine in world +z, ≈ spine local +z) → projects
-        # NEGATIVELY onto local -z, no trigger. Lifting the spine flips the
-        # wall friction (opposes lift, points along world -z ≈ spine local
-        # -z) → projects POSITIVELY, triggers when ≥ 30 N. Body-local axis
-        # so the criterion follows the spine body if it rotates.
+        # Release is driven by policy OFF intent, not noisy friction forces.
         friction_axis_world=None,
         hand_up_local=(0.0, 0.0, -1.0),
-        disengage_friction_threshold=30.0,
-        disengage_friction_filter_alpha=0.8,
+        disengage_friction_threshold=0.0,
+        disengage_friction_filter_alpha=0.0,
         disengage_consecutive_steps=5,
+        policy_release_consecutive_steps=_POLICY_RELEASE_CONSECUTIVE_STEPS,
         disengage_pull_threshold=0.0,
         disengage_lift_velocity_threshold=0.0,
         reengage_cooldown_steps=_REENGAGE_COOLDOWN_STEPS,
