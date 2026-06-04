@@ -7,4 +7,5 @@ recording/
 wandb/
 train.log
 results/
-
+nohup.out
+nohup.out
