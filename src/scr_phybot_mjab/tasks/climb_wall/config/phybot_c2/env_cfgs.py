@@ -63,7 +63,7 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
     adhesion_force=600.0,
     spheres_per_ee_rows=2,
-    spheres_per_ee_cols=2,
+    spheres_per_ee_cols=2
   )
 
   cfg = make_climb_wall_env_cfg()

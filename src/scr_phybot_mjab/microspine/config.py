@@ -90,10 +90,10 @@ class MicrospineCfg:
   disengage_force_z_threshold: float = 3.0
   """Release when summed wall-on-EE world-z force is below -threshold. 0 disables."""
 
-  disengage_consecutive_steps: int = 5
+  disengage_consecutive_steps: int = 3
   """Number of consecutive disengage-candidate steps required before release."""
 
-  reengage_cooldown_steps: int = 15
+  reengage_cooldown_steps: int = 30
   """Steps after release during which re-engagement is blocked."""
 
   face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0)
