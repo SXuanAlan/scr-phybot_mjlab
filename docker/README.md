@@ -5,7 +5,7 @@ Isolated container for running Claude Code with `--dangerously-skip-permissions`
 ## Quick Start
 
 ```bash
-cd ~/projects/spider_rl_mjlab/docker
+cd ~/projects/scr_phybot_mjab/docker
 
 # Build image (first time, takes a while)
 docker compose build
@@ -73,7 +73,7 @@ docker compose logs -f
 # Reset everything (container + image)
 docker compose down --rmi all
 
-cd ~/projects/spider_rl_mjlab/docker
+cd ~/projects/scr_phybot_mjab/docker
 docker compose build
 docker compose up -d
 docker exec -it spider_mjlab_dev bash

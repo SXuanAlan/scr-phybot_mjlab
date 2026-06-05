@@ -1,4 +1,4 @@
-"""Play/evaluate RL agent after registering spider_rl_mjlab tasks.
+"""Play/evaluate RL agent after registering scr_phybot_mjab tasks.
 
 Adds climb-wall gravity playback controls on top of mjlab's play script:
 
@@ -14,6 +14,10 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+_REPO_SRC = Path(__file__).resolve().parents[1] / "src"
+if _REPO_SRC.is_dir() and str(_REPO_SRC) not in sys.path:
+  sys.path.insert(0, str(_REPO_SRC))
+
 import mjlab
 import torch
 import tyro
@@ -27,7 +31,7 @@ from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wrappers import VideoRecorder
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
-from spider_rl_mjlab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
+from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
 
 
 @dataclass(frozen=True)
@@ -280,7 +284,7 @@ def run_play(task_id: str, cfg: PlayConfig):
 
 
 def main():
-  import spider_rl_mjlab.tasks  # noqa: F401
+  import scr_phybot_mjab.tasks  # noqa: F401
 
   sys.argv[:] = _normalize_cli_aliases(sys.argv)
 

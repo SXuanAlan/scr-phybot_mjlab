@@ -1,7 +1,7 @@
 """Plot the climb-wall curriculum: gravity angle + reward-weight heatmap.
 
 Mirrors the schedule defined in
-``spider_rl_mjlab/tasks/climb_wall/climb_wall_env_cfg.py``. Edit the constants
+``scr_phybot_mjab/tasks/climb_wall/climb_wall_env_cfg.py``. Edit the constants
 below if the curriculum changes there.
 
 Layout:

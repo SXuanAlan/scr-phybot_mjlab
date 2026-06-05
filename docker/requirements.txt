@@ -114,7 +114,7 @@ sentry-sdk==2.54.0
 shapely==2.1.2
 six==1.17.0
 smmap==5.0.3
--e git+https://github.com/SXuanAlan/spider_rl_mjlab.git@ba85c39f3751d6437e4ef7762ac955df35714aa8#egg=spider_rl_mjlab
+-e git+https://github.com/SXuanAlan/scr_phybot_mjab.git@ba85c39f3751d6437e4ef7762ac955df35714aa8#egg=scr_phybot_mjab
 stack-data==0.6.3
 svg.path==7.0
 sympy==1.14.0

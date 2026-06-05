@@ -1,0 +1,7 @@
+[console_scripts]
+scr_phybot_mjab-list-envs = mjlab.scripts.list_envs:main
+scr_phybot_mjab-play = mjlab.scripts.play:main
+scr_phybot_mjab-train = mjlab.scripts.train:main
+
+[mjlab.tasks]
+scr_phybot_mjab = scr_phybot_mjab.tasks

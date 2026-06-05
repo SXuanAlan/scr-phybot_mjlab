@@ -13,7 +13,7 @@ import torch
 import warp as wp
 
 import mjlab.tasks  # noqa: F401  register builtin tasks
-import spider_rl_mjlab.tasks  # noqa: F401  register spider tasks
+import scr_phybot_mjab.tasks  # noqa: F401  register spider tasks
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.tasks.registry import load_env_cfg
 

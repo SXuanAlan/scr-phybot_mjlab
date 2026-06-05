@@ -29,8 +29,8 @@ from mjlab.tasks.registry import (
 from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 
-import spider_rl_mjlab.tasks  # noqa: F401
-from spider_rl_mjlab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
+import scr_phybot_mjab.tasks  # noqa: F401
+from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
 
 
 @dataclass(frozen=True)

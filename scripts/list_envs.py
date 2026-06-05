@@ -1,6 +1,6 @@
 """List registered environments."""
 
-import spider_rl_mjlab.tasks  # noqa: F401
+import scr_phybot_mjab.tasks  # noqa: F401
 
 from mjlab.scripts.list_envs import main
 

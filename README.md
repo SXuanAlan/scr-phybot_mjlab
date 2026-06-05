@@ -19,7 +19,7 @@
 
 ```bash
 conda activate env_mjlab
-cd /home/sxuan/projects/spider_rl_mjlab
+cd /home/sxuan/projects/scr_phybot_mjab
 pip install -e .
 ```
 
@@ -107,14 +107,14 @@ python scripts/tune_pose.py --robot phybot_big_v2
 
 ```bash
 # 单独查看机器人模型（不含墙，无 RL）
-python -m spider_rl_mjlab.assets.phybot_c2.phybot_c2_constants
-python -m spider_rl_mjlab.assets.phybot_big_v2.phybot_big_v2_constants
+python -m scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants
+python -m scr_phybot_mjab.assets.phybot_big_v2.phybot_big_v2_constants
 ```
 
 ## 项目结构
 
 ```
-spider_rl_mjlab/
+scr_phybot_mjab/
 ├── README.md                                    # 本文件
 ├── docs/
 │   ├── rewards.md                               # 当前 reward 设计（权威）
@@ -126,7 +126,7 @@ spider_rl_mjlab/
 │   ├── play.py                                  # 评估 / 可视化
 │   ├── tune_pose.py                             # 交互式姿态调参（viser）
 │   └── list_envs.py                             # 列出注册任务
-└── src/spider_rl_mjlab/
+└── src/scr_phybot_mjab/
     ├── assets/
     │   ├── phybot_big_v2/                       # 机器人：MJCF + actuator/keyframe
     │   ├── wall/                                # 墙 entity（10m × 3m × 1m）

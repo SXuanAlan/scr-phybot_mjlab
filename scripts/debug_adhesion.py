@@ -1,7 +1,7 @@
 """Quick diagnostic: check adhesion state during first few steps."""
 import torch
-import spider_rl_mjlab.tasks  # noqa: F401
-from spider_rl_mjlab.tasks.microspine_test.config.forearm_hand.env_cfgs import (
+import scr_phybot_mjab.tasks  # noqa: F401
+from scr_phybot_mjab.tasks.microspine_test.config.forearm_hand.env_cfgs import (
     forearm_hand_microspine_test_env_cfg,
 )
 from mjlab.envs import ManagerBasedRlEnv

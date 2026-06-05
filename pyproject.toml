@@ -1,16 +1,16 @@
 [project]
-name = "spider_rl_mjlab"
+name = "scr_phybot_mjab"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = ["mjlab"]
 
 [project.entry-points."mjlab.tasks"]
-spider_rl_mjlab = "spider_rl_mjlab.tasks"
+scr_phybot_mjab = "scr_phybot_mjab.tasks"
 
 [project.scripts]
-spider-train = "mjlab.scripts.train:main"
-spider-play = "mjlab.scripts.play:main"
-spider-list-envs = "mjlab.scripts.list_envs:main"
+scr_phybot_mjab-train = "mjlab.scripts.train:main"
+scr_phybot_mjab-play = "mjlab.scripts.play:main"
+scr_phybot_mjab-list-envs = "mjlab.scripts.list_envs:main"
 
 [build-system]
 requires = ["setuptools>=64"]
@@ -29,7 +29,7 @@ typeCheckingMode = "basic"
 extraPaths = ["src"]
 
 [[tool.ty.overrides]]
-include = ["src/spider_rl_mjlab/tasks/climb_wall/climb_wall_env_cfg.py"]
+include = ["src/scr_phybot_mjab/tasks/climb_wall/climb_wall_env_cfg.py"]
 [tool.ty.overrides.rules]
 invalid-argument-type = "ignore"
 

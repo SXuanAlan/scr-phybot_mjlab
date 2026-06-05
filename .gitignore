@@ -1,7 +1,9 @@
 MUJOCO_LOG.TXT
 .DS_Store
 __pycache__/
-*.pyc
+**/__pycache__/
+*.py[cod]
+*$py.class
 logs/
 recording/
 wandb/

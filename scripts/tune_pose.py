@@ -28,10 +28,10 @@ import viser
 from mjlab.entity import Entity
 from mjlab.viewer.viser.scene import ViserMujocoScene
 
-from spider_rl_mjlab.tasks.climb_wall.config.phybot_big_v2.env_cfgs import (
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_big_v2.env_cfgs import (
   phybot_big_v2_climb_wall_env_cfg,
 )
-from spider_rl_mjlab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
 )
 

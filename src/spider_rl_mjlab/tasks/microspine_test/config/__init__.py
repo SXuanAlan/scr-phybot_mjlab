@@ -1,1 +1,0 @@
-"""Microspine test task configurations."""
