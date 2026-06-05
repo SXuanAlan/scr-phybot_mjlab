@@ -57,34 +57,18 @@ class ClimbVelocityRangeStage(TypedDict, total=False):
   vz_range: tuple[float, float]
 
 
-def _interp_angle(current_iter: int, stages: list[WallAngleStage]) -> float:
-  """Piecewise interpolation of wall angle over iterations, in sin(angle)
-  space.
-
-  Since along-wall gravity load equals g·sin(angle), interpolating the
-  sin linearly gives a *uniform* physics-load ramp between waypoints.
-  Linear-in-angle interpolation (the naive approach) makes load change
-  fast early and slow late — exactly backwards for stable learning.
-  """
-  if current_iter <= stages[0]["iter"]:
-    return stages[0]["angle_deg"]
-  for i in range(len(stages) - 1):
-    a, b = stages[i], stages[i + 1]
-    if a["iter"] <= current_iter <= b["iter"]:
-      span = max(b["iter"] - a["iter"], 1)
-      alpha = (current_iter - a["iter"]) / span
-      sin_a = math.sin(math.radians(a["angle_deg"]))
-      sin_b = math.sin(math.radians(b["angle_deg"]))
-      sin_mid = sin_a + alpha * (sin_b - sin_a)
-      # clamp for numerical safety at the endpoint
-      sin_mid = max(-1.0, min(1.0, sin_mid))
-      return math.degrees(math.asin(sin_mid))
-  return stages[-1]["angle_deg"]
-
-
 def resolve_gravity_angle(current_iter: int, angle_stages: list[WallAngleStage]) -> float:
-  """Resolve the effective gravity curriculum angle for a training iteration."""
-  return _interp_angle(current_iter, angle_stages)
+  """Resolve the effective gravity curriculum angle by stepwise stage lookup."""
+  if not angle_stages:
+    raise ValueError("angle_stages must contain at least one stage.")
+
+  current_angle = angle_stages[0]["angle_deg"]
+  for stage in sorted(angle_stages, key=lambda item: item["iter"]):
+    if current_iter >= stage["iter"]:
+      current_angle = stage["angle_deg"]
+    else:
+      break
+  return current_angle
 
 
 def resolve_climb_velocity_ranges(

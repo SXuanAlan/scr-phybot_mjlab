@@ -1,5 +1,5 @@
 <mujoco model="forearm_hand">
-  <compiler angle="radian" meshdir="../../phybot_big_v2/meshes/" autolimits="true"/>
+  <compiler angle="radian" meshdir="../meshes/" autolimits="true"/>
   <option timestep="0.002" iterations='10' solver='PGS' ccd_iterations='1000' gravity='0 0 -9.81'>
   </option>
   <size njmax="500" nconmax="100" />

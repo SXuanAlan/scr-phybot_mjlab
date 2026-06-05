@@ -67,7 +67,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   actions = {
     "joint_pos": JointPositionActionCfg(
       entity_name="robot",
-      actuator_names=(r"^(?!adh_).*",),
+      actuator_names=(".*",),
       scale=0.25,  # Override per-robot.
       use_default_offset=True,
     ),

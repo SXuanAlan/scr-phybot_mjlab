@@ -20,7 +20,7 @@ from mjlab.tasks.registry import load_env_cfg
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument("--task", default="Mjlab-Climb-Wall-Phybot-Big-V2")
+  parser.add_argument("--task", default="Mjlab-Climb-Wall-Phybot-C2")
   parser.add_argument("--num-envs", type=int, default=512)
   parser.add_argument("--steps", type=int, default=300)
   parser.add_argument("--warmup", type=int, default=20)

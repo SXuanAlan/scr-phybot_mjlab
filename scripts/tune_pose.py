@@ -11,7 +11,6 @@ MuJoCo viewer, which needs a local GL context).
 
 Run:
   python scripts/tune_pose.py                    # default: phybot_c2
-  python scripts/tune_pose.py --robot phybot_big_v2
 
 Then open the printed ViserServer URL in a browser.
 """
@@ -28,26 +27,17 @@ import viser
 from mjlab.entity import Entity
 from mjlab.viewer.viser.scene import ViserMujocoScene
 
-from scr_phybot_mjab.tasks.climb_wall.config.phybot_big_v2.env_cfgs import (
-  phybot_big_v2_climb_wall_env_cfg,
-)
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
 )
 
-ROBOT_CHOICES = ("phybot_c2", "phybot_big_v2")
+ROBOT_CHOICES = ("phybot_c2",)
 
 
 def _entities_for_robot(robot_name: str) -> list[tuple[str, Entity]]:
   """Build the list of (attach_name, Entity) to include in the scene."""
   if robot_name == "phybot_c2":
     cfg = phybot_c2_climb_wall_env_cfg(play=True)
-    return [
-      ("robot", Entity(cfg.scene.entities["robot"])),
-      ("wall", Entity(cfg.scene.entities["wall"])),
-    ]
-  if robot_name == "phybot_big_v2":
-    cfg = phybot_big_v2_climb_wall_env_cfg(play=True)
     return [
       ("robot", Entity(cfg.scene.entities["robot"])),
       ("wall", Entity(cfg.scene.entities["wall"])),

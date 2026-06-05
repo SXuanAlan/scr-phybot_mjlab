@@ -7,9 +7,7 @@
 - **Task ID**: `Mjlab-Climb-Wall-Phybot-C2`
 - **机器人**: PHYBot C2（23 DOF 人形 + 4 个 fixed spine：左右 hand_spine + 左右 foot_spine）
 - **目标**: 4 个 spine 贴墙向上爬
-- **Adhesion**: 微刺式吸附（MuJoCo adhesion actuator + 自定义 engage/disengage 逻辑），每个 spine 4 个接触点（共 16）
-
-> Big V2 双手交替爬墙任务仍保留，task id `Mjlab-Climb-Wall-Phybot-Big-V2`。
+- **Adhesion**: 微刺式吸附（sphere 上沿墙内法向施加外力 + 自定义 engage/disengage 逻辑），每个 spine 4 个接触点（共 16）
 
 详细 reward / curriculum 设计见 [`docs/rewards.md`](docs/rewards.md) 和
 [`docs/curriculum.md`](docs/curriculum.md)（`docs/gait_rewards.md` 是早期
@@ -39,7 +37,7 @@ ssh -L 8080:localhost:8080 spider@bdml-server.stanford.edu
 python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
 
 # headless
-nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]" --env.scene.num-envs 4096 --agent.max-iterations 8000 > train.log 2>&1 &
+nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]" --env.scene.num-envs 4096 --agent.max-iterations 12000 > train.log 2>&1 &
 
 ps -fu $USER | grep -E 'train|python' | grep -v grep
 kill <PID>
@@ -96,7 +94,6 @@ tensorboard --logdir logs/rsl_rl --bind_all
 调初始姿态时用：
 ```bash
 python scripts/tune_pose.py                    # 默认 c2（含墙）
-python scripts/tune_pose.py --robot phybot_big_v2
 ```
 浏览器打开 `http://localhost:8080`（远程: `ssh -L 8080:localhost:8080 user@host`）。
 - 每个关节一个滑块
@@ -108,7 +105,6 @@ python scripts/tune_pose.py --robot phybot_big_v2
 ```bash
 # 单独查看机器人模型（不含墙，无 RL）
 python -m scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants
-python -m scr_phybot_mjab.assets.phybot_big_v2.phybot_big_v2_constants
 ```
 
 ## 项目结构
@@ -128,7 +124,8 @@ scr_phybot_mjab/
 │   └── list_envs.py                             # 列出注册任务
 └── src/scr_phybot_mjab/
     ├── assets/
-    │   ├── phybot_big_v2/                       # 机器人：MJCF + actuator/keyframe
+    │   ├── phybot_c2/                           # 机器人：MJCF + actuator/keyframe
+    │   ├── forearm_hand/                        # 微刺手臂测试模型
     │   ├── wall/                                # 墙 entity（10m × 3m × 1m）
     │   └── microspine/                          # 微刺吸附控制器
     │       ├── config.py                        # MicrospineCfg
@@ -140,7 +137,7 @@ scr_phybot_mjab/
         │   ├── rewards.py                       # ee_grip_time / ee_slide_penalty / velocity tracking ...
         │   ├── terminations.py                  # static_hang / both_hands_off / excessive_tilt ...
         │   └── curriculums.py                   # gravity_angle / reward_weight
-        └── config/phybot_big_v2/
+        └── config/phybot_c2/
             ├── env_cfgs.py                      # 任务级 override（姿态、墙位置、adhesion）
             └── rl_cfg.py                        # PPO 超参
 ```

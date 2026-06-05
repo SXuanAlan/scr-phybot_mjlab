@@ -12,8 +12,6 @@ src/scr_phybot_mjab/assets/block/__init__.py
 src/scr_phybot_mjab/assets/block/block_constants.py
 src/scr_phybot_mjab/assets/forearm_hand/__init__.py
 src/scr_phybot_mjab/assets/forearm_hand/forearm_hand_constants.py
-src/scr_phybot_mjab/assets/phybot_big_v2/__init__.py
-src/scr_phybot_mjab/assets/phybot_big_v2/phybot_big_v2_constants.py
 src/scr_phybot_mjab/assets/phybot_c2/__init__.py
 src/scr_phybot_mjab/assets/phybot_c2/phybot_c2_constants.py
 src/scr_phybot_mjab/assets/phybot_c2/simple_stl_face.py
@@ -29,9 +27,6 @@ src/scr_phybot_mjab/tasks/__init__.py
 src/scr_phybot_mjab/tasks/climb_wall/__init__.py
 src/scr_phybot_mjab/tasks/climb_wall/climb_wall_env_cfg.py
 src/scr_phybot_mjab/tasks/climb_wall/config/__init__.py
-src/scr_phybot_mjab/tasks/climb_wall/config/phybot_big_v2/__init__.py
-src/scr_phybot_mjab/tasks/climb_wall/config/phybot_big_v2/env_cfgs.py
-src/scr_phybot_mjab/tasks/climb_wall/config/phybot_big_v2/rl_cfg.py
 src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/__init__.py
 src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/env_cfgs.py
 src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/rl_cfg.py

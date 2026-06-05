@@ -26,14 +26,22 @@ from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 
-from scr_phybot_mjab.assets import (
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
   configure_phybot_c2_floor_geom,
   configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
-  get_wall_cfg,
 )
-from scr_phybot_mjab.microspine.config import MicrospineCfg, MicrospineAffordanceCfg
+from scr_phybot_mjab.assets.wall import get_wall_cfg
+from scr_phybot_mjab.microspine.config import (
+  MicrospineAffordanceCfg,
+  MicrospineCfg,
+)
+from scr_phybot_mjab.microspine.physics import (
+  add_contact_pairs_and_actuators,
+  get_sphere_geom_names,
+  make_physics_event_cfg,
+)
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import make_climb_wall_env_cfg
 from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import gravity_angle
@@ -44,8 +52,8 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   velocity_command_name = "climb_velocity"
   microspine_affordance_name = "microspine_affordance"
   microspine_contact_sensor_name = "microspine_wall_contact"
-  spine_face_local_axis = (0.0, -1.0, 0.0)
   vz_cmd = 0.08
+
   microspine_cfg = MicrospineCfg(
     ee_body_names=(
       "left_hand_spine",
@@ -53,9 +61,9 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       "left_foot_spine",
       "right_foot_spine",
     ),
+    adhesion_force=600.0,
     spheres_per_ee_rows=2,
     spheres_per_ee_cols=2,
-    adhesion_force=600.0,
   )
 
   cfg = make_climb_wall_env_cfg()
@@ -72,20 +80,8 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.observations["actor"].terms.pop("gait_clock", None)
 
   cfg.commands[microspine_affordance_name] = MicrospineAffordanceCfg(
-    ee_body_names=microspine_cfg.ee_body_names,
+    microspine_cfg=microspine_cfg,
     contact_sensor_name=microspine_contact_sensor_name,
-    spheres_per_ee=microspine_cfg.spheres_per_ee,
-    engage_force_z_threshold=0.0,
-    engage_normal_force_threshold=3.0,
-    engage_min_spheres=1,
-    engage_parallel_cos_threshold=0.25,
-    engage_consecutive_steps=5,
-    disengage_force_z_threshold=0.0,
-    disengage_consecutive_steps=3,
-    reengage_cooldown_steps=15,
-    face_local_axis=spine_face_local_axis,
-    wall_entity_name="wall",
-    initial_on=True,
   )
 
   robot_cfg = get_phybot_c2_robot_cfg()
@@ -137,29 +133,30 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       name=microspine_contact_sensor_name,
       primary=ContactMatch(
         mode="geom",
-        pattern=microspine_cfg.sphere_geom_names,
+        pattern=get_sphere_geom_names(microspine_cfg),
         entity="robot",
       ),
       secondary=ContactMatch(mode="geom", pattern="wall_geom", entity="wall"),
       fields=("found", "force", "normal", "tangent", "dist"),
       reduce="maxforce",
       num_slots=1,
-      global_frame=True,
+      global_frame=False,
       history_length=10,
     ),
   )
 
-  # Per-sphere wall-contact pairs (high friction) + adhesion actuators.
+  # Per-sphere wall-contact pairs; adhesion itself is external wall-normal force.
   def _spec_fn(spec: mujoco.MjSpec) -> None:
-    microspine_cfg.add_contact_pairs_and_actuators(spec)
+    add_contact_pairs_and_actuators(spec, microspine_cfg)
     # Disable the aligned terrain ground plane — gravity-tilt curriculum
     # replaces the floor; this forces the robot to actually grip the wall.
     configure_phybot_c2_floor_geom(spec, enable_contact=False)
 
   cfg.scene.spec_fn = _spec_fn
 
-  # Per-spine microspine adhesion via environment affordance + MuJoCo actuators.
-  cfg.events["microspine_adhesion"] = microspine_cfg.make_physics_event_cfg(
+  # Per-spine microspine adhesion via environment affordance + external forces.
+  cfg.events["microspine_adhesion"] = make_physics_event_cfg(
+    microspine_cfg,
     affordance_name=microspine_affordance_name,
   )
 
@@ -248,7 +245,7 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       params={
         "asset_cfg": robot_cfg_e,
         "ee_body_names": microspine_cfg.ee_body_names,
-        "face_local_axis": spine_face_local_axis,
+        "face_local_axis": microspine_cfg.face_local_axis,
       },
     ),
     # -- optional Anymal terms, default disabled (weight 0) — left in the
@@ -273,9 +270,9 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       params={
         "angle_stages": [
           {"iter": 0, "angle_deg": 30.0},
-          {"iter": 1500, "angle_deg": 30.0},
-          {"iter": 2500, "angle_deg": 60.0},
-          {"iter": 3500, "angle_deg": 90.0},
+          {"iter": 3000, "angle_deg": 60.0},
+          {"iter": 5000, "angle_deg": 90.0},
+          {"iter": 10000, "angle_deg": 90.0},
         ],
       },
     )
@@ -288,6 +285,7 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   if play:
     cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
+    microspine_cfg.debug = True
     cfg.events["microspine_adhesion"].params["microspine_cfg"].debug = True
 
   return cfg

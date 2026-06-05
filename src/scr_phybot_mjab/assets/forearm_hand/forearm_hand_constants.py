@@ -1,7 +1,7 @@
 """Forearm + hand robot constants and configuration.
 
 Minimal model: right arm (4 active DoFs) + hand for microspine adhesion testing.
-Reuses meshes from phybot_big_v2. Arm is fixed-base at the shoulder_pitch body.
+Arm is fixed-base at the shoulder_pitch body.
 """
 
 from pathlib import Path
@@ -18,15 +18,16 @@ from mjlab.utils.spec_config import CollisionCfg
 # MJCF and assets.
 ##
 
-FOREARM_HAND_XML: Path = Path(__file__).resolve().parent / "xml" / "forearm_hand.xml"
+FOREARM_HAND_DIR: Path = Path(__file__).resolve().parent
+FOREARM_HAND_XML: Path = FOREARM_HAND_DIR / "xml" / "forearm_hand.xml"
 assert FOREARM_HAND_XML.exists(), f"MJCF not found: {FOREARM_HAND_XML}"
 
-PHYBOT_MESHES: Path = Path(__file__).resolve().parent.parent / "phybot_big_v2" / "meshes"
+FOREARM_HAND_MESHES: Path = FOREARM_HAND_DIR / "meshes"
 
 
 def get_assets(meshdir: str) -> dict[str, bytes]:
   assets: dict[str, bytes] = {}
-  update_assets(assets, PHYBOT_MESHES, meshdir)
+  update_assets(assets, FOREARM_HAND_MESHES, meshdir)
   return assets
 
 
@@ -37,7 +38,7 @@ def get_spec() -> mujoco.MjSpec:
 
 
 ##
-# Actuator config (matches phybot_big_v2 PD gains for arm joints).
+# Actuator config.
 ##
 
 FOREARM_HAND_ACTUATOR_SHOULDER_PITCH = BuiltinPositionActuatorCfg(
