@@ -10,3 +10,4 @@ wandb/
 train.log
 results/
 nohup.out
+.agents
