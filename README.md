@@ -1,6 +1,6 @@
-# SCR PHYBot MJLab
+# Stanford Climbing Robot & PHYBOT MJLab
 
-MJLab-based reinforcement learning environments for PHYBot C2, using MuJoCo
+MJLab-based reinforcement learning environments for PHYBOT C2, using MuJoCo
 Warp GPU simulation.
 
 The main task is `Mjlab-Climb-Wall-Phybot-C2`: a 23-DOF humanoid climbs a
