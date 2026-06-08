@@ -28,6 +28,10 @@ SPINE_BODY_NAMES = (
   "left_hand_spine",
   "right_hand_spine",
 )
+PHYBOT_C2_FOOT_SITES = (
+  ("left_ankle_roll", "left_foot"),
+  ("right_ankle_roll", "right_foot"),
+)
 
 
 def _parse_xml_range(value: str) -> tuple[float, float]:
@@ -81,6 +85,56 @@ PHYBOT_C2_CTRL_LIMITS = {
 }
 
 PHYBOT_C2_JOINT_FORCE_LIMITS = PHYBOT_C2_MOTOR_CTRL_RANGES
+
+PHYBOT_C2_POLICY_JOINT_NAMES = (
+  "left_hip_pitch",
+  "left_hip_roll",
+  "left_hip_yaw",
+  "left_knee",
+  "left_ankle_pitch",
+  "left_ankle_roll",
+  "right_hip_pitch",
+  "right_hip_roll",
+  "right_hip_yaw",
+  "right_knee",
+  "right_ankle_pitch",
+  "right_ankle_roll",
+  "waist_yaw",
+  "left_shoulder_pitch",
+  "left_shoulder_roll",
+  "left_shoulder_yaw",
+  "left_elbow_pitch",
+  "right_shoulder_pitch",
+  "right_shoulder_roll",
+  "right_shoulder_yaw",
+  "right_elbow_pitch",
+)
+PHYBOT_C2_ACTION_SCALE = 0.25
+PHYBOT_C2_STANDING_JOINT_POS = {
+  "left_hip_pitch": -0.242,
+  "left_hip_roll": 0.029,
+  "left_hip_yaw": 0.007,
+  "left_knee": 0.490,
+  "left_ankle_pitch": -0.295,
+  "left_ankle_roll": 0.0,
+  "right_hip_pitch": -0.242,
+  "right_hip_roll": -0.029,
+  "right_hip_yaw": -0.007,
+  "right_knee": 0.490,
+  "right_ankle_pitch": -0.295,
+  "right_ankle_roll": 0.0,
+  "waist_yaw": 0.0,
+  "neck_yaw": 0.0,
+  "neck_pitch": 0.0,
+  "left_shoulder_pitch": 0.0,
+  "left_shoulder_roll": 0.0,
+  "left_shoulder_yaw": 0.0,
+  "left_elbow_pitch": -0.170,
+  "right_shoulder_pitch": 0.0,
+  "right_shoulder_roll": 0.0,
+  "right_shoulder_yaw": 0.0,
+  "right_elbow_pitch": -0.170,
+}
 
 PHYBOT_C2_FLOOR_TEXTURE = spec_cfg.TextureCfg(
   name="texplane",
@@ -152,12 +206,29 @@ def get_assets(meshdir: str) -> dict[str, bytes]:
   return assets
 
 
-def _lighten_spine_bodies(spec: mujoco.MjSpec) -> None:
+def _is_spine_attachment(name: str | None) -> bool:
+  if not name:
+    return False
+  return any(name == spine or name.startswith(f"{spine}_") for spine in SPINE_BODY_NAMES)
+
+
+def _disable_spine_inertials(spec: mujoco.MjSpec) -> None:
   for body in spec.bodies:
-    if body.name in SPINE_BODY_NAMES:
-      body.mass = 0.05
+    if _is_spine_attachment(body.name):
+      body.mass = 0.0
       body.ipos = [0.0, 0.0, 0.0]
-      body.inertia = [1.0e-4, 1.0e-4, 1.0e-4]
+      body.inertia = [0.0, 0.0, 0.0]
+
+  for geom in spec.geoms:
+    if _is_spine_attachment(geom.name):
+      geom.mass = 0.0
+      geom.density = 0.0
+
+
+def _add_foot_sites(spec: mujoco.MjSpec) -> None:
+  for body_name, site_name in PHYBOT_C2_FOOT_SITES:
+    body = next(body for body in spec.bodies if body.name == body_name)
+    body.add_site(name=site_name, pos=[0.04, 0.0, -0.04], size=[0.02])
 
 
 def _delete_embedded_floor(spec: mujoco.MjSpec) -> None:
@@ -192,7 +263,8 @@ def get_spec() -> mujoco.MjSpec:
   _delete_embedded_keyframes(spec)
   _delete_embedded_actuators(spec)
   _sync_joint_force_limits_to_ctrlrange(spec)
-  _lighten_spine_bodies(spec)
+  _disable_spine_inertials(spec)
+  _add_foot_sites(spec)
   return spec
 
 
@@ -203,35 +275,35 @@ def get_spec() -> mujoco.MjSpec:
 PHYBOT_C2_ACTUATOR_HIP_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_pitch",),
   stiffness=100.0,
-  damping=10.0,
+  damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["hip_pitch"],
 )
 
 PHYBOT_C2_ACTUATOR_HIP_ROLL = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_roll",),
   stiffness=100.0,
-  damping=10.0,
+  damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["hip_roll"],
 )
 
 PHYBOT_C2_ACTUATOR_HIP_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_yaw",),
-  stiffness=60.0,
-  damping=6.0,
+  stiffness=100.0,
+  damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["hip_yaw"],
 )
 
 PHYBOT_C2_ACTUATOR_KNEE = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_knee",),
-  stiffness=60.0,
-  damping=6.0,
+  stiffness=100.0,
+  damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["knee"],
 )
 
 PHYBOT_C2_ACTUATOR_ANKLE_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_ankle_pitch",),
-  stiffness=30.0,
-  damping=3.0,
+  stiffness=50.0,
+  damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["ankle_pitch"],
 )
 
@@ -244,35 +316,35 @@ PHYBOT_C2_ACTUATOR_ANKLE_ROLL = BuiltinPositionActuatorCfg(
 
 PHYBOT_C2_ACTUATOR_WAIST_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=("waist_yaw",),
-  stiffness=20.0,
+  stiffness=100.0,
   damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["waist_yaw"],
 )
 
 PHYBOT_C2_ACTUATOR_SHOULDER_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_pitch",),
-  stiffness=50.0,
+  stiffness=100.0,
   damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["shoulder_pitch"],
 )
 
 PHYBOT_C2_ACTUATOR_SHOULDER_ROLL = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_roll",),
-  stiffness=50.0,
+  stiffness=100.0,
   damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["shoulder_roll"],
 )
 
 PHYBOT_C2_ACTUATOR_SHOULDER_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_yaw",),
-  stiffness=50.0,
+  stiffness=5.0,
   damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["shoulder_yaw"],
 )
 
 PHYBOT_C2_ACTUATOR_ELBOW_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_elbow_pitch",),
-  stiffness=50.0,
+  stiffness=100.0,
   damping=5.0,
   effort_limit=PHYBOT_C2_CTRL_LIMITS["elbow_pitch"],
 )
@@ -290,31 +362,7 @@ PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
 
 DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
   pos=(0.0, 0.0, 0.70),
-  joint_pos={
-    "left_hip_pitch": -0.24,
-    "left_hip_roll": 0.026,
-    "left_hip_yaw": 0.012,
-    "left_knee": 0.51,
-    "left_ankle_pitch": -0.28,
-    "left_ankle_roll": 0.0,
-    "right_hip_pitch": -0.24,
-    "right_hip_roll": 0.026,
-    "right_hip_yaw": 0.012,
-    "right_knee": 0.51,
-    "right_ankle_pitch": -0.28,
-    "right_ankle_roll": 0.0,
-    "waist_yaw": 0.0,
-    "neck_yaw": 0.0,
-    "neck_pitch": 0.0,
-    "left_shoulder_pitch": -2.0,
-    "left_shoulder_roll": -0.17,
-    "left_shoulder_yaw": 0.0,
-    "left_elbow_pitch": -1.14,
-    "right_shoulder_pitch": -2.0,
-    "right_shoulder_roll": 0.17,
-    "right_shoulder_yaw": 0.0,
-    "right_elbow_pitch": -1.14,
-  },
+  joint_pos=PHYBOT_C2_STANDING_JOINT_POS,
   joint_vel={".*": 0.0},
 )
 
@@ -368,10 +416,6 @@ def get_phybot_c2_robot_cfg() -> EntityCfg:
     spec_fn=get_spec,
     articulation=PHYBOT_C2_ARTICULATION,
   )
-
-
-PHYBOT_C2_ACTION_SCALE = 0.25
-
 
 if __name__ == "__main__":
   import mujoco.viewer as viewer

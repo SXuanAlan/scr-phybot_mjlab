@@ -1,0 +1,190 @@
+"""Flexiv Rizon4 microspine pad test environment."""
+
+from __future__ import annotations
+
+import mujoco
+
+from mjlab.envs import ManagerBasedRlEnvCfg
+from mjlab.envs import mdp as envs_mdp
+from mjlab.envs.mdp.actions import DifferentialIKActionCfg
+from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
+from mjlab.scene import SceneCfg
+from mjlab.sensor import ContactMatch, ContactSensorCfg
+from mjlab.sim import MujocoCfg, SimulationCfg
+from mjlab.terrains import TerrainEntityCfg
+from mjlab.viewer import ViewerConfig
+
+from scr_phybot_mjab.assets.rizon4.rizon4_constants import (
+  RIZON4_HOME_JOINT_POS,
+  RIZON4_JOINT_NAMES,
+  RIZON4_MICROSPINE_EE_BODY,
+  RIZON4_MICROSPINE_TCP_SITE,
+  get_rizon4_robot_cfg,
+)
+from scr_phybot_mjab.assets.wall import WALL_OFFSET, get_wall_cfg
+from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
+from scr_phybot_mjab.microspine.physics import (
+  add_contact_pairs_and_actuators,
+  get_sphere_geom_names,
+  make_physics_event_cfg,
+)
+from scr_phybot_mjab.tasks.climb_wall import mdp as climb_mdp
+
+
+def rizon4_microspine_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Create the Rizon4 microspine Cartesian-control test task."""
+  microspine_affordance_name = "microspine_affordance"
+  microspine_contact_sensor_name = "microspine_wall_contact"
+
+  microspine_cfg = MicrospineCfg(
+    ee_body_names=(RIZON4_MICROSPINE_EE_BODY,),
+    adhesion_force=600.0,
+    spheres_per_ee_rows=2,
+    spheres_per_ee_cols=2,
+    engage_force_z_threshold=10.0,
+    engage_normal_force_threshold=3.0,
+    engage_min_spheres=2,
+    engage_parallel_cos_threshold=0.25,
+    engage_consecutive_steps=5,
+    disengage_force_z_threshold=3.0,
+    disengage_consecutive_steps=3,
+    reengage_cooldown_steps=30,
+    face_local_axis=(0.0, -1.0, 0.0),
+    initial_on=True,
+    debug=play,
+  )
+
+  robot_cfg = get_rizon4_robot_cfg()
+  wall_cfg = get_wall_cfg()
+  wall_cfg.init_state = type(wall_cfg.init_state)(
+    pos=(1.30, WALL_OFFSET[1], WALL_OFFSET[2]),
+    rot=wall_cfg.init_state.rot,
+  )
+
+  robot_entity = SceneEntityCfg("robot")
+  observations = {
+    "actor": ObservationGroupCfg(
+      terms={
+        "joint_pos_rel": ObservationTermCfg(func=envs_mdp.joint_pos_rel),
+        "joint_vel_rel": ObservationTermCfg(func=envs_mdp.joint_vel_rel),
+        "last_action": ObservationTermCfg(func=envs_mdp.last_action),
+        "microspine_state": ObservationTermCfg(
+          func=climb_mdp.hand_engaged_state,
+          params={"event_term_name": "microspine_adhesion"},
+        ),
+      },
+      concatenate_terms=True,
+      enable_corruption=False,
+    ),
+  }
+
+  actions = {
+    "cartesian_pose": DifferentialIKActionCfg(
+      entity_name="robot",
+      actuator_names=RIZON4_JOINT_NAMES,
+      frame_type="site",
+      frame_name=RIZON4_MICROSPINE_TCP_SITE,
+      use_relative_mode=False,
+      damping=0.04,
+      max_dq=0.20,
+      position_weight=1.0,
+      orientation_weight=0.4,
+      joint_limit_weight=0.05,
+      posture_weight=0.01,
+      posture_target=RIZON4_HOME_JOINT_POS,
+    ),
+  }
+
+  commands = {
+    microspine_affordance_name: MicrospineAffordanceCfg(
+      microspine_cfg=microspine_cfg,
+      contact_sensor_name=microspine_contact_sensor_name,
+    )
+  }
+
+  events = {
+    "reset_scene_to_default": EventTermCfg(
+      func=envs_mdp.reset_scene_to_default,
+      mode="reset",
+    ),
+    "reset_robot_joints": EventTermCfg(
+      func=envs_mdp.reset_joints_by_offset,
+      mode="reset",
+      params={
+        "position_range": (0.0, 0.0),
+        "velocity_range": (0.0, 0.0),
+        "asset_cfg": robot_entity,
+      },
+    ),
+  }
+
+  def _spec_fn(spec: mujoco.MjSpec) -> None:
+    add_contact_pairs_and_actuators(spec, microspine_cfg)
+
+  events["microspine_adhesion"] = make_physics_event_cfg(
+    microspine_cfg,
+    affordance_name=microspine_affordance_name,
+  )
+
+  return ManagerBasedRlEnvCfg(
+    decimation=10,
+    episode_length_s=120.0 if play else 30.0,
+    scene=SceneCfg(
+      num_envs=1,
+      env_spacing=3.0,
+      terrain=TerrainEntityCfg(terrain_type="plane"),
+      entities={
+        "robot": robot_cfg,
+        "wall": wall_cfg,
+      },
+      sensors=(
+        ContactSensorCfg(
+          name=microspine_contact_sensor_name,
+          primary=ContactMatch(
+            mode="geom",
+            pattern=get_sphere_geom_names(microspine_cfg),
+            entity="robot",
+          ),
+          secondary=ContactMatch(mode="geom", pattern="wall_geom", entity="wall"),
+          fields=("found", "force", "normal", "tangent", "dist"),
+          reduce="maxforce",
+          num_slots=1,
+          global_frame=False,
+          history_length=10,
+        ),
+      ),
+      spec_fn=_spec_fn,
+    ),
+    sim=SimulationCfg(
+      mujoco=MujocoCfg(
+        timestep=0.002,
+        cone="elliptic",
+        integrator="implicitfast",
+        impratio=10.0,
+        ccd_iterations=100,
+      ),
+      njmax=180,
+      nconmax=80,
+      contact_sensor_maxmatch=256,
+    ),
+    viewer=ViewerConfig(
+      origin_type=ViewerConfig.OriginType.WORLD,
+      lookat=(0.55, 0.0, 0.9),
+      distance=2.6,
+      elevation=-20.0,
+      azimuth=140.0,
+      width=1280,
+      height=720,
+    ),
+    observations=observations,
+    actions=actions,
+    commands=commands,
+    events=events,
+    rewards={},
+    terminations={
+      "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+    },
+  )

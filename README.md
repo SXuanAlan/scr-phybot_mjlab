@@ -19,6 +19,7 @@ python scripts/list_envs.py
 Expected project tasks:
 
 - `Mjlab-Climb-Wall-Phybot-C2`
+- `Mjlab-Microspine-Rizon4`
 - `Mjlab-Walk-Phybot-C2`
 
 ## Setup
@@ -28,12 +29,24 @@ conda activate env_mjlab
 pip install -e .
 ```
 
+For 3Dconnexion SpaceMouse teleop:
+
+```bash
+pip install -e ".[teleop]"
+```
+
 ## Common Commands
 
 Train:
 
 ```bash
 python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
+```
+
+Train the PHYBot C2 walk task:
+
+```bash
+python scripts/train.py Mjlab-Walk-Phybot-C2 --gpu-ids "[0, 1]"
 ```
 
 Run a longer headless training job:
@@ -52,11 +65,94 @@ Play with zero actions:
 python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent zero --num-envs 1
 ```
 
+Play the walk task with zero actions:
+
+```bash
+python scripts/play.py Mjlab-Walk-Phybot-C2 --agent zero --num-envs 1
+```
+
+Run the Rizon4 microspine Cartesian teleop task:
+
+```bash
+python scripts/teleop_rizon4_microspine.py --input spacemouse
+```
+
+Run the same task over SSH with Viser browser controls. When the remote process
+has no `DISPLAY`/`WAYLAND_DISPLAY`, `--viewer auto` also selects Viser:
+
+```bash
+ssh -L 8080:localhost:8080 <remote-host>
+python scripts/teleop_rizon4_microspine.py --viewer viser --input viser
+```
+
+Then open `http://localhost:8080`.
+
+If the 3Dconnexion SpaceMouse is plugged into the remote host, combine it with
+Viser display and browser controls:
+
+```bash
+python scripts/teleop_rizon4_microspine.py --viewer viser --input spacemouse --spacemouse-source hid
+```
+
+If the SpaceMouse is plugged into your local computer while MuJoCo runs on the
+remote host, forward it through SSH:
+
+```bash
+ssh -L 8080:localhost:8080 -L 8765:localhost:8765 <remote-host>
+```
+
+On the remote host:
+
+```bash
+python scripts/teleop_rizon4_microspine.py \
+  --viewer viser \
+  --input spacemouse \
+  --spacemouse-source bridge
+```
+
+On the local computer:
+
+```bash
+python scripts/spacemouse_bridge.py --host 127.0.0.1 --port 8765
+```
+
+If Linux sees the SpaceMouse in `lsusb` but `hidapi` cannot open it, add USB
+and hidraw udev rules and reconnect the device. The USB rule is needed when
+Python `hidapi` uses the libusb backend; the hidraw rule is needed when it uses
+the hidraw backend.
+
+```bash
+sudo groupadd -f plugdev
+sudo usermod -aG plugdev $USER
+cat <<'EOF' | sudo tee /etc/udev/rules.d/99-3dconnexion.rules
+SUBSYSTEM=="usb", ATTR{idVendor}=="256f", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+EOF
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+Then unplug/replug the SpaceMouse and start a new login shell.
+
+Keyboard fallback:
+
+```bash
+python scripts/teleop_rizon4_microspine.py --input keyboard
+```
+
 Play from a checkpoint:
 
 ```bash
 python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
   --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt \
+  --num-envs 1
+```
+
+Play walk from a checkpoint:
+
+```bash
+python scripts/play.py Mjlab-Walk-Phybot-C2 \
+  --checkpoint-file logs/rsl_rl/phybot_c2_walk/<run>/model_<iter>.pt \
   --num-envs 1
 ```
 
@@ -140,6 +236,28 @@ Terminations:
 - `base_height`: base fell below `0.3` m
 - `bad_state`: NaN or excessive velocity guard
 
+## Walk Task
+
+Command:
+
+- Task id: `Mjlab-Walk-Phybot-C2`
+- Command term: `twist`
+- Resampling interval: `3.0` to `8.0` s
+- Training ranges:
+  - `lin_vel_x`: `(-1.0, 1.0)` m/s
+  - `lin_vel_y`: `(-1.0, 1.0)` m/s
+  - `ang_vel_z`: `(-0.5, 0.5)` rad/s
+  - `heading`: `(-pi, pi)` rad
+- Heading command is enabled with heading-control stiffness `0.5`.
+- Standing-env ratio is `0.1`; heading-env ratio is `0.3`.
+- Flat-terrain play mode widens `lin_vel_x` to `(-1.5, 2.0)` m/s and
+  `ang_vel_z` to `(-0.7, 0.7)` rad/s.
+
+The actor observes the generated `twist` command, base sensors from the C2 XML,
+policy joint position/velocity, and last action. Contact sensors are used for
+critic terms, rewards, and self-collision termination; they are not actor
+observations.
+
 ## Project Layout
 
 ```text
@@ -154,6 +272,7 @@ src/scr_phybot_mjab/
   assets/
     phybot_c2/          # PHYBot C2 MJCF, meshes, actuator config.
     forearm_hand/       # Small microspine arm/hand test asset.
+    rizon4/             # Flexiv Rizon4 URDF/meshes and microspine pad config.
     wall/               # Wall entity.
   microspine/
     config.py           # Microspine config and affordance command cfg.
@@ -161,5 +280,6 @@ src/scr_phybot_mjab/
     physics.py          # External sphere-body adhesion forces.
   tasks/
     climb_wall/         # C2 wall-climbing task.
+    microspine_rizon4/  # Rizon4 Cartesian-control microspine test task.
     walk/               # C2 walking task.
 ```

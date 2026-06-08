@@ -28,6 +28,7 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  PHYBOT_C2_POLICY_JOINT_NAMES,
   configure_phybot_c2_floor_geom,
   configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
@@ -45,6 +46,14 @@ from scr_phybot_mjab.microspine.physics import (
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import make_climb_wall_env_cfg
 from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import gravity_angle
+
+
+def _policy_joint_cfg() -> SceneEntityCfg:
+  return SceneEntityCfg(
+    "robot",
+    joint_names=PHYBOT_C2_POLICY_JOINT_NAMES,
+    preserve_order=True,
+  )
 
 
 def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
@@ -280,7 +289,13 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   joint_pos_action = cfg.actions["joint_pos"]
   assert isinstance(joint_pos_action, JointPositionActionCfg)
+  joint_pos_action.actuator_names = PHYBOT_C2_POLICY_JOINT_NAMES
+  joint_pos_action.preserve_order = True
   joint_pos_action.scale = PHYBOT_C2_ACTION_SCALE
+
+  actor_terms = cfg.observations["actor"].terms
+  actor_terms["joint_pos_rel"].params = {"asset_cfg": _policy_joint_cfg()}
+  actor_terms["joint_vel_rel"].params = {"asset_cfg": _policy_joint_cfg()}
 
   if play:
     cfg.episode_length_s = int(1e9)

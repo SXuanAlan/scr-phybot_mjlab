@@ -2,7 +2,10 @@
 name = "scr_phybot_mjab"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = ["mjlab"]
+dependencies = ["mjlab", "trimesh>=4.0"]
+
+[project.optional-dependencies]
+teleop = ["hidapi>=0.14"]
 
 [project.entry-points."mjlab.tasks"]
 scr_phybot_mjab = "scr_phybot_mjab.tasks"
@@ -32,4 +35,3 @@ extraPaths = ["src"]
 include = ["src/scr_phybot_mjab/tasks/climb_wall/climb_wall_env_cfg.py"]
 [tool.ty.overrides.rules]
 invalid-argument-type = "ignore"
-
