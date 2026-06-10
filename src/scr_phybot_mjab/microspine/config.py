@@ -55,10 +55,18 @@ class MicrospineLimitSurfaceCfg:
   f_l0_range: tuple[float, float] = (10.0, 20.0)
   """Lateral capacity at zero engaged shear [N]."""
 
-  hold_grace_steps: int = 3
+  hold_grace_steps: int = 14
   """Policy steps after an engage transition before hold checks apply. The
   constraint only produces force on the next decimation loop, so the load is
-  zero on the engage step itself."""
+  zero on the engage step itself. The window doubles as the re-grip seating
+  phase (``MicrospineCfg.reanchor_after_grace``): each grace step re-seats the
+  anchor at the settled pad, walking pose preload out to the structural
+  equilibrium. Empirically (90° spawn-pose hang) convergence needs >10
+  rounds: grace 6 → 31% engaged / mass releases, 10 → 93%, 14 → 100% with
+  hold margins 0.2-0.8. 14 steps = 0.28 s of seating, the upper end of
+  physical spine engagement times; a fresh engagement is unkillable for that
+  window, but it cannot carry load either (the reseated anchor sheds force
+  every step), so cyclic re-engagement only creeps down the wall."""
 
   violation_consecutive_steps: int = 2
   """Debounce for conditions 1-3. Condition 4 (ultimate shear) is instant."""
@@ -188,6 +196,20 @@ class MicrospineCfg:
   pose, or pressing in before engaging) locks the penetration in: the wall
   contact pushes the pad out against the anchor and the constraint reads a
   phantom pull-off tension, tripping the limit surface."""
+
+  reanchor_after_grace: bool = True
+  """Re-seat the anchor at the settled pad during the grace window ("re-grip").
+
+  Anchoring a PD-held pose locks in whatever pad tilt / penetration the pose
+  has; the contacts then push against the anchor and the standoff reads as
+  large phantom pull-off tension (spawn pose: >100 N on the feet) that a real
+  spine envelope correctly refuses to hold. Physically, a spine array seats
+  into the asperities under its initial load. Re-writing the anchor to the
+  *unprojected* settled pad position on every grace step (executor engage-age
+  1 .. hold_grace_steps - 1) lets the pad walk out of the standoff so the
+  first limit-surface check sees the true structural load of the pose. A
+  policy could in principle ratchet by cyclic re-engagement, but the gain is
+  ~mm per engage cycle."""
 
   physical_pair_friction: tuple[float, float, float, float, float] = (
     0.8,

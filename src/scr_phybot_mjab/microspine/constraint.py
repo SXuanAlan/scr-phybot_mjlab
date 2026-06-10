@@ -219,6 +219,17 @@ class MicrospineConstraint:
       self._num_envs, self._num_ee, 3, dtype=torch.float32, device=self._device
     )
     self.anchor_load_w = torch.zeros_like(self.anchor_pos_w)
+    # Policy steps since the engage transition, maintained here (not in the
+    # affordance) because the two engage paths reach the affordance counter
+    # with different offsets: a mid-episode transition starts its counter at
+    # 0, the reset/initial_on path at 1. The executor sees both as a rising
+    # edge, so its own age is path-independent. Re-seating stops at
+    # grace - 1 so the first limit-surface check reads post-re-grip physics
+    # on both paths.
+    self._engage_age = torch.zeros(
+      self._num_envs, self._num_ee, dtype=torch.long, device=self._device
+    )
+    self._reseat_max_age = max(1, self._mcfg.limit_surface.hold_grace_steps - 1)
     # Envs whose constraints must be (re)asserted on the next call: after any
     # reset the sim re-tiles eq_active to eq_active0 (all False) and the
     # kinematics seen here are stale, so anchor placement is deferred.
@@ -288,6 +299,7 @@ class MicrospineConstraint:
     njmax = int(data.njmax)
     if self._row_arange is None:
       self._row_arange = torch.arange(njmax, device=self._device)
+      self._comp_arange = torch.arange(3, device=self._device)
 
     ne = data.ne[:].to(torch.long).clamp(max=njmax)
     valid = self._row_arange.unsqueeze(0) < ne.unsqueeze(1)
@@ -295,13 +307,21 @@ class MicrospineConstraint:
     efc_id = data.efc.id[:, :njmax]
     efc_force = data.efc.force[:, :njmax]
 
+    # (E, njmax, H) row-vs-equality match; each engaged connect owns exactly 3
+    # consecutive rows, so the first matching row + [0, 1, 2] addresses them.
+    match = is_eq.unsqueeze(-1) & (
+      efc_id.unsqueeze(-1) == self._eq_ids.view(1, 1, -1)
+    )
+    found = match.any(dim=1)  # (E, H)
+    first = match.long().argmax(dim=1)  # (E, H); 0 where not found.
+    rows = (first.unsqueeze(-1) + self._comp_arange).clamp(max=njmax - 1)
+    gathered = efc_force.gather(
+      1, rows.reshape(self._num_envs, -1)
+    ).reshape(self._num_envs, self._num_ee, 3)
     loads = self.anchor_load_w
-    loads.zero_()
-    for k in range(self._num_ee):
-      mask = is_eq & (efc_id == self._eq_ids[k])
-      comp = (torch.cumsum(mask.to(torch.long), dim=1) - 1).clamp(min=0, max=2)
-      force = torch.where(mask, efc_force, torch.zeros((), device=self._device))
-      loads[:, k].scatter_add_(1, comp, force)
+    torch.where(
+      found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads
+    )
     loads.neg_()  # F_load = -efc_force (EE-on-anchor reaction).
     return loads
 
@@ -336,20 +356,39 @@ class MicrospineConstraint:
   def _apply_state(self, engage_command: torch.Tensor) -> None:
     """Branchless per-step constraint update (no host syncs).
 
-    Rising edges refresh the cached anchor at the current pad center; the
+    Rising edges place the anchor at the current (wall-projected) pad center.
+    With ``reanchor_after_grace``, every following step inside the grace
+    window re-seats the anchor at the *unprojected* settled pad position
+    (re-grip: the spine array seats into the asperities under its initial
+    load). Re-seating at the raw settled point matters: the anchor follows
+    the pad as contact compression from any pad tilt / pose preload pushes it
+    to its structural equilibrium, instead of fighting the contacts in an
+    anchor-vs-contact standoff that reads as phantom pull-off tension. The
     cached anchors of all EEs are then written every step (idempotent — the
     kernels ignore eq_data of inactive equalities) and eq_active mirrors the
     command. Both writes land before the next physics step, satisfying the
     "anchor before activate" ordering the compiled eq_data overwrite demands.
     """
     self._check_expansion()
-    pad_w = self.pad_center_world()
-    if self._mcfg.anchor_project_to_wall:
-      pad_w = self._project_to_wall(pad_w)
-    rising = engage_command & ~self.engaged
-    self.anchor_pos_w = torch.where(
-      rising.unsqueeze(-1), pad_w, self.anchor_pos_w
+    pad_raw = self.pad_center_world()
+    pad_engage = (
+      self._project_to_wall(pad_raw)
+      if self._mcfg.anchor_project_to_wall
+      else pad_raw
     )
+    rising = engage_command & ~self.engaged
+    continuing = engage_command & self.engaged
+    self._engage_age = torch.where(
+      continuing, self._engage_age + 1, torch.zeros_like(self._engage_age)
+    )
+    self.anchor_pos_w = torch.where(
+      rising.unsqueeze(-1), pad_engage, self.anchor_pos_w
+    )
+    if self._mcfg.reanchor_after_grace:
+      reseat = continuing & (self._engage_age <= self._reseat_max_age)
+      self.anchor_pos_w = torch.where(
+        reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w
+      )
     self._env.sim.model.eq_data[:, self._eq_ids, 3:6] = self.anchor_pos_w
     self._env.sim.data.eq_active[:, self._eq_ids] = engage_command
 
@@ -423,6 +462,7 @@ class MicrospineConstraint:
     self.last_engage_command[ids] = False
     self.anchor_pos_w[ids] = 0.0
     self.anchor_load_w[ids] = 0.0
+    self._engage_age[ids] = 0
     # eq_active for these envs was already re-tiled to False by sim.reset
     # (which runs before event-term resets); kinematics here are stale, so
     # anchor placement is deferred to the next __call__ in the same step.

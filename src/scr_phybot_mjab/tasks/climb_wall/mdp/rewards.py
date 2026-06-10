@@ -675,3 +675,17 @@ def ee_face_parallel_to_wall(
     per_ee.append((dot + 1.0) * 0.5)
   scores = torch.stack(per_ee, dim=-1)  # (E, num_ee)
   return scores.min(dim=-1).values  # (E,)
+
+
+def microspine_forced_release_penalty(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+) -> torch.Tensor:
+  """Count of EEs released by the limit surface this step, shape (E,).
+
+  Penalizing forced releases teaches the policy to keep anchor loads inside
+  the hold envelope (lean into shear, avoid pull-off/lateral peeling) instead
+  of treating grip as unconditional. Always 0 in legacy adhesion mode.
+  """
+  affordance = env.command_manager.get_term(command_name)
+  return affordance.forced_release_this_step.float().sum(dim=1)

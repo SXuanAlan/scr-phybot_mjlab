@@ -54,6 +54,7 @@ def build_env(
   num_envs: int,
   attachment_mode: str = "constraint",
   limit_surface_enable: bool = True,
+  reanchor_after_grace: bool = True,
 ) -> ManagerBasedRlEnv:
   cfg = phybot_c2_climb_wall_env_cfg(play=False, attachment_mode=attachment_mode)
   cfg.scene.num_envs = num_envs
@@ -61,10 +62,13 @@ def build_env(
   cfg.curriculum = {}  # Gravity is set explicitly per test.
   cfg.events["reset_robot_joints"].params["velocity_range"] = (0.0, 0.0)
   # The nested limit_surface cfg is shared between the affordance command and
-  # the physics event term (dataclasses.replace is shallow).
-  cfg.commands[
-    "microspine_affordance"
-  ].microspine_cfg.limit_surface.enable = limit_surface_enable
+  # the physics event term (dataclasses.replace is shallow copy: nested
+  # objects shared, scalar fields independent) — so scalars must be written
+  # on both copies.
+  mcfg = cfg.commands["microspine_affordance"].microspine_cfg
+  mcfg.limit_surface.enable = limit_surface_enable
+  for owner in (mcfg, cfg.events["microspine_adhesion"].params["microspine_cfg"]):
+    owner.reanchor_after_grace = reanchor_after_grace
   return ManagerBasedRlEnv(cfg=cfg, device=DEVICE)
 
 
@@ -120,12 +124,17 @@ def _run_hang_rollout(env: ManagerBasedRlEnv, steps: int):
 
 def cmd_hang(args) -> bool:
   print(f"== hang: {args.num_envs} envs, 90° wall, {args.seconds}s ==")
-  # Limit surface off: this test validates the anchor mechanics (stiffness,
-  # weight transfer, stability, efc headroom). The default spawn pose was
-  # tuned for the legacy 600 N adhesion and internally preloads the feet
-  # anchors with >100 N of pull-off tension — a real spine envelope correctly
-  # refuses to hold that, which is reported informationally below.
-  env = build_env(args.num_envs, "constraint", limit_surface_enable=False)
+  # Limit surface ON by default: the re-grip (reanchor_after_grace) re-seats
+  # each anchor at the settled pad pose one step after engaging, which must
+  # relieve the spawn-pose preload (the pose was tuned for the legacy 600 N
+  # adhesion and used to pull >100 N of phantom pull-off tension on the feet).
+  # "all engaged" passing with hold checks active is therefore the re-grip
+  # acceptance test. --no-limit-surface restores the mechanics-only variant.
+  env = build_env(
+    args.num_envs,
+    "constraint",
+    limit_surface_enable=not args.no_limit_surface,
+  )
   env.reset()
   set_gravity(env, 90.0)
   executor, affordance = get_terms(env)
@@ -145,8 +154,8 @@ def cmd_hang(args) -> bool:
     terminations += int((terminated | truncated).sum().item())
     root_z_hist.append(robot.data.root_link_pos_w[:, 2].clone())
     # F_load is EE-on-anchor; the wall's supporting force on the robot is -z
-    # of that, so total support = -sum(F_load_z). The limit surface is off,
-    # so gather the loads explicitly.
+    # of that, so total support = -sum(F_load_z). Gather explicitly so the
+    # readout also works with --no-limit-surface.
     support_hist.append(
       -executor.compute_anchor_loads()[..., 2].sum(dim=1).clone()
     )
@@ -448,7 +457,9 @@ def cmd_sweep(args) -> bool:
 
 def cmd_readout(args) -> bool:
   print(f"== readout: {args.num_envs} envs, efc gather vs kinematic error ==")
-  env = build_env(args.num_envs, "constraint")
+  # Re-grip off: this test regresses load against anchor error, and grace-
+  # window reseating decouples the two by design (the anchor follows the pad).
+  env = build_env(args.num_envs, "constraint", reanchor_after_grace=False)
   env.reset()
   set_gravity(env, 90.0)
   executor, _ = get_terms(env)
@@ -535,6 +546,12 @@ def main() -> None:
   p_hang.add_argument("--num-envs", type=int, default=16)
   p_hang.add_argument("--seconds", type=float, default=10.0)
   p_hang.add_argument("--compare-legacy", action="store_true")
+  p_hang.add_argument(
+    "--no-limit-surface",
+    action="store_true",
+    help="Validate the raw anchor mechanics with hold checks disabled "
+    "(pre-re-grip behavior; engaged spines stay latched forever).",
+  )
 
   p_sweep = sub.add_parser("sweep")
   p_sweep.add_argument("--num-envs", type=int, default=1024)
