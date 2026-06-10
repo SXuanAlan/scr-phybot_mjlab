@@ -27,6 +27,17 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
 
 _TORSO_BODY = "torso"
 _FEET_ROOT_BODIES = r"^(left_ankle_roll|right_ankle_roll)$"
+# Bodies that must never touch the ground (official PhyBot Lab terminates on
+# knee/shoulder/elbow/base/waist contact). Only bodies with active collision
+# geoms are listed; waist_yaw/shoulder_pitch collisions are commented out in
+# the MJCF and cannot generate contacts.
+_ILLEGAL_GROUND_BODIES = (
+  r"^(left_knee|right_knee"
+  r"|left_shoulder_roll|right_shoulder_roll"
+  r"|left_shoulder_yaw|right_shoulder_yaw"
+  r"|left_elbow_pitch|right_elbow_pitch"
+  r"|torso|torso_upper)$"
+)
 _FOOT_SITE_NAMES = ("left_foot", "right_foot")
 _COLLISION_GEOMS = (r".*_collision$",)
 _BASE_QUAT_SENSOR = "robot/baselink-quat"
@@ -121,17 +132,38 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       num_slots=1,
       history_length=4,
     ),
+    ContactSensorCfg(
+      name="illegal_ground_contact",
+      primary=ContactMatch(
+        mode="body",
+        pattern=_ILLEGAL_GROUND_BODIES,
+        entity="robot",
+      ),
+      secondary=ContactMatch(mode="body", pattern="terrain"),
+      fields=("found", "force"),
+      reduce="netforce",
+      num_slots=1,
+      history_length=4,
+    ),
   )
   cfg.terminations["self_collision"] = TerminationTermCfg(
     func=mdp.illegal_contact,
     params={"sensor_name": "self_collision", "force_threshold": 10.0},
   )
+  cfg.terminations["illegal_ground_contact"] = TerminationTermCfg(
+    func=mdp.illegal_contact,
+    params={"sensor_name": "illegal_ground_contact", "force_threshold": 1.0},
+  )
 
   ##
-  # Terrain and domain randomization
+  # Terrain and Domain Randomization
   ##
 
   mdp.set_rough_terrain_curriculum(cfg, enabled=True)
+
+  # base_height uses absolute world z, which is invalid on generated rough
+  # terrain. The flat config re-enables it after switching to a plane.
+  cfg.rewards["base_height"].weight = 0.0
 
   reset_base = cfg.events["reset_base"]
   reset_base.params["pose_range"] = {
@@ -152,11 +184,17 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   reset_joints.params["position_range"] = (0.8, 1.2)
   reset_joints.params["velocity_range"] = (0.0, 0.0)
 
+  # More frequent pushes with vertical and angular components (MJLab G1 style)
+  # force the policy to learn firm footing instead of a compliant crouch.
   push_robot = cfg.events["push_robot"]
-  push_robot.interval_range_s = (5.0, 10.0)
+  push_robot.interval_range_s = (1.0, 3.0)
   push_robot.params["velocity_range"] = {
     "x": (-0.8, 0.8),
     "y": (-0.8, 0.8),
+    "z": (-0.4, 0.4),
+    "roll": (-0.52, 0.52),
+    "pitch": (-0.52, 0.52),
+    "yaw": (-0.78, 0.78),
   }
 
   body_friction = cfg.events["body_friction"]
@@ -192,6 +230,8 @@ def phybot_c2_walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     terrain_cfg_fn=configure_phybot_c2_terrain_cfg,
     spec_fn=lambda spec: configure_phybot_c2_floor_geom(spec, enable_contact=True),
   )
+
+  cfg.rewards["base_height"].weight = 0.5
 
   if play:
     twist_cmd = cfg.commands["twist"]

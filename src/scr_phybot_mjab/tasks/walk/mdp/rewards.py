@@ -241,6 +241,53 @@ class feet_swing_height:
     return cost
 
 
+def base_height(
+  env: ManagerBasedRlEnv,
+  target_height: float,
+  std: float,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward keeping the base at a target height (anti-crouch).
+
+  Uses absolute world z, so only valid on flat terrain.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  height = asset.data.root_link_pos_w[:, 2]
+  error = torch.square(height - target_height)
+  return torch.exp(-error / std**2)
+
+
+class energy:
+  """Penalize mechanical power: L2 norm of |torque * joint_vel| over joints.
+
+  Matches the official PhyBot Lab ``mdp.energy`` reward. Actuator forces are
+  reported in actuator order while joint velocities are in joint order, so the
+  two are aligned by name at init (builtin actuators are named after their
+  target joint).
+  """
+
+  def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
+    asset: Entity = env.scene[cfg.params["asset_cfg"].name]
+    actuator_names = cfg.params["asset_cfg"].actuator_names or (".*",)
+    actuator_ids, matched_names = asset.find_actuators(actuator_names)
+    joint_ids, joint_names = asset.find_joints(matched_names, preserve_order=True)
+    assert list(joint_names) == list(matched_names), (
+      f"Actuator/joint name mismatch: {matched_names} vs {joint_names}"
+    )
+    self.actuator_ids = torch.tensor(actuator_ids, device=env.device)
+    self.joint_ids = torch.tensor(joint_ids, device=env.device)
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+  ) -> torch.Tensor:
+    asset: Entity = env.scene[asset_cfg.name]
+    torque = asset.data.actuator_force[:, self.actuator_ids]
+    joint_vel = asset.data.joint_vel[:, self.joint_ids]
+    return torch.norm(torque * joint_vel, dim=-1)
+
+
 def feet_slip(
   env: ManagerBasedRlEnv,
   sensor_name: str,

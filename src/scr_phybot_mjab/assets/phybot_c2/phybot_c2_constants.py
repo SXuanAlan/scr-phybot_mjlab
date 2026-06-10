@@ -231,6 +231,23 @@ def _add_foot_sites(spec: mujoco.MjSpec) -> None:
     body.add_site(name=site_name, pos=[0.04, 0.0, -0.04], size=[0.02])
 
 
+def _add_hand_spine_hip_excludes(spec: mujoco.MjSpec) -> None:
+  """Exclude hand-spine vs same-side hip contacts.
+
+  In the default standing pose the hand spine plate rests against the hip
+  sphere (penetration ~0.7 mm), which trips the self-collision termination at
+  every reset. The official Isaac config sidesteps this by disabling self
+  collisions entirely; here we only exclude the offending resting pairs.
+  """
+  hand_spine_bodies = ("hand_spine", *(f"hand_spine_c_{i}_{j}" for i in range(2) for j in range(2)))
+  for side in ("left", "right"):
+    for spine_body in hand_spine_bodies:
+      spec.add_exclude(
+        bodyname1=f"{side}_{spine_body}",
+        bodyname2=f"{side}_hip_roll",
+      )
+
+
 def _delete_embedded_floor(spec: mujoco.MjSpec) -> None:
   for geom in list(spec.geoms):
     if geom.name == "floor":
@@ -264,6 +281,7 @@ def get_spec() -> mujoco.MjSpec:
   _delete_embedded_actuators(spec)
   _sync_joint_force_limits_to_ctrlrange(spec)
   _disable_spine_inertials(spec)
+  _add_hand_spine_hip_excludes(spec)
   _add_foot_sites(spec)
   return spec
 

@@ -59,6 +59,48 @@ nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 \
   > train.log 2>&1 &
 ```
 
+For long training over SSH, prefer `tmux` so the job keeps running if the SSH
+session disconnects:
+
+```bash
+tmux new -s train
+python scripts/train.py Mjlab-Walk-Phybot-C2 --gpu-ids "[0, 1]"
+```
+
+Detach from the session without stopping training:
+
+```text
+Ctrl-b then d
+```
+
+Reconnect to the training session:
+
+```bash
+tmux attach -t train
+```
+
+List active tmux sessions:
+
+```bash
+tmux ls
+```
+
+Kill the training session:
+
+```bash
+tmux kill-session -t train
+```
+
+Resume walk training from a local checkpoint:
+
+```bash
+python scripts/train.py Mjlab-Walk-Phybot-C2 \
+  --gpu-ids "[0, 1]" \
+  --agent.resume \
+  --agent.load-run <run> \
+  --agent.load-checkpoint model_<iter>.pt
+```
+
 Play with zero actions:
 
 ```bash

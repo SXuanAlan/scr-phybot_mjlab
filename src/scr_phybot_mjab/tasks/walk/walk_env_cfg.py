@@ -87,16 +87,19 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
   }
 
+  # Official PhyBot Lab feeds 10 stacked frames to both actor and critic.
   observations = {
     "actor": ObservationGroupCfg(
       terms=actor_terms,
       concatenate_terms=True,
       enable_corruption=True,
+      history_length=10,
     ),
     "critic": ObservationGroupCfg(
       terms=critic_terms,
       concatenate_terms=True,
       enable_corruption=False,
+      history_length=10,
     ),
   }
 
@@ -214,21 +217,23 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
         "asset_cfg": SceneEntityCfg("robot", body_names=(_TORSO_BODY,)),
       },
     ),
+    # Without AMP this is the only gait-style prior: weight 1.0 and tight leg
+    # stds (MJLab G1 values) to keep the legs near the default pose.
     "pose": RewardTermCfg(
       func=mdp.variable_posture,
-      weight=0.6,
+      weight=1.0,
       params={
         "asset_cfg": SceneEntityCfg("robot", joint_names=(".*",)),
         "command_name": "twist",
         "std_standing": {".*": 0.05},
         "std_walking": {
-          r".*hip_pitch.*": 0.45,
-          r".*hip_roll.*": 0.22,
-          r".*hip_yaw.*": 0.2,
-          r".*knee.*": 0.55,
-          r".*ankle_pitch.*": 0.35,
-          r".*ankle_roll.*": 0.16,
-          r".*waist_yaw.*": 0.25,
+          r".*hip_pitch.*": 0.3,
+          r".*hip_roll.*": 0.15,
+          r".*hip_yaw.*": 0.15,
+          r".*knee.*": 0.35,
+          r".*ankle_pitch.*": 0.25,
+          r".*ankle_roll.*": 0.1,
+          r".*waist_yaw.*": 0.2,
           r".*neck.*": 0.1,
           r".*shoulder_pitch.*": 0.15,
           r".*shoulder_roll.*": 0.15,
@@ -236,13 +241,13 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
           r".*elbow.*": 0.15,
         },
         "std_running": {
-          r".*hip_pitch.*": 0.7,
-          r".*hip_roll.*": 0.3,
-          r".*hip_yaw.*": 0.3,
-          r".*knee.*": 0.8,
-          r".*ankle_pitch.*": 0.45,
-          r".*ankle_roll.*": 0.22,
-          r".*waist_yaw.*": 0.35,
+          r".*hip_pitch.*": 0.5,
+          r".*hip_roll.*": 0.2,
+          r".*hip_yaw.*": 0.2,
+          r".*knee.*": 0.6,
+          r".*ankle_pitch.*": 0.35,
+          r".*ankle_roll.*": 0.15,
+          r".*waist_yaw.*": 0.3,
           r".*neck.*": 0.2,
           r".*shoulder_pitch.*": 0.5,
           r".*shoulder_roll.*": 0.2,
@@ -253,6 +258,13 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
         "running_threshold": 1.5,
       },
     ),
+    # Anti-crouch: settled root height in the default pose is ~0.717 m.
+    # Absolute world z — only valid on flat terrain.
+    "base_height": RewardTermCfg(
+      func=mdp.base_height,
+      weight=0.5,
+      params={"target_height": 0.72, "std": 0.1},
+    ),
     "body_ang_vel": RewardTermCfg(
       func=mdp.body_angular_velocity_penalty,
       weight=-0.05,
@@ -260,6 +272,25 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "dof_pos_limits": RewardTermCfg(func=mdp.joint_pos_limits, weight=-1.0),
     "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.04),
+    # Weights below follow the official PhyBot Lab LiteRewardCfg.
+    "energy": RewardTermCfg(
+      func=mdp.energy,
+      weight=-5e-4,
+      params={"asset_cfg": SceneEntityCfg("robot")},
+    ),
+    # -5e-4 (official AMP value) made heel-balancing profitable without the
+    # AMP style prior: zero ankle torque is worth ~30% of the tracking reward.
+    "ankle_torque": RewardTermCfg(
+      func=mdp.joint_torques_l2,
+      weight=-5e-5,
+      params={
+        "asset_cfg": SceneEntityCfg(
+          "robot", actuator_names=(".*_ankle_pitch", ".*_ankle_roll")
+        )
+      },
+    ),
+    "dof_acc_l2": RewardTermCfg(func=mdp.joint_acc_l2, weight=-1.5e-8),
+    "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-20.0),
     "air_time": RewardTermCfg(
       func=mdp.feet_air_time,
       weight=0.15,
