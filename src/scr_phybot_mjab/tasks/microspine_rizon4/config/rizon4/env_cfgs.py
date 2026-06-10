@@ -26,6 +26,10 @@ from scr_phybot_mjab.assets.rizon4.rizon4_constants import (
 )
 from scr_phybot_mjab.assets.wall import WALL_OFFSET, get_wall_cfg
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
+from scr_phybot_mjab.microspine.constraint import (
+  add_attachment_equalities,
+  make_constraint_event_cfg,
+)
 from scr_phybot_mjab.microspine.physics import (
   add_contact_pairs_and_actuators,
   get_sphere_geom_names,
@@ -34,8 +38,16 @@ from scr_phybot_mjab.microspine.physics import (
 from scr_phybot_mjab.tasks.climb_wall import mdp as climb_mdp
 
 
-def rizon4_microspine_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
-  """Create the Rizon4 microspine Cartesian-control test task."""
+def rizon4_microspine_env_cfg(
+  play: bool = False,
+  attachment_mode: str = "adhesion",
+) -> ManagerBasedRlEnvCfg:
+  """Create the Rizon4 microspine Cartesian-control test task.
+
+  ``attachment_mode`` mirrors the climb-wall task: "adhesion" (legacy 600 N
+  external force + mu=30 contacts) or "constraint" (connect-equality virtual
+  anchor + limit-surface release — the anisotropic microspine model).
+  """
   microspine_affordance_name = "microspine_affordance"
   microspine_contact_sensor_name = "microspine_wall_contact"
 
@@ -55,7 +67,19 @@ def rizon4_microspine_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     face_local_axis=(0.0, -1.0, 0.0),
     initial_on=True,
     debug=play,
+    attachment_mode=attachment_mode,
   )
+  if attachment_mode == "constraint":
+    # Same rationale as the climb-wall task: the contact force_z gates were
+    # tuned for the legacy mu=30 pairs; with physical friction engage gating
+    # falls back to compression count + face alignment, release is owned by
+    # the limit surface.
+    microspine_cfg.engage_force_z_threshold = 0.0
+    microspine_cfg.disengage_force_z_threshold = 0.0
+    # The arm spawns with the pad off the wall; initial_on would anchor it
+    # mid-air onto the wall plane (huge phantom tension -> instant release).
+    # Bench flow: start disengaged, press the pad on with the teleop device.
+    microspine_cfg.initial_on = False
 
   robot_cfg = get_rizon4_robot_cfg()
   wall_cfg = get_wall_cfg()
@@ -123,11 +147,19 @@ def rizon4_microspine_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   def _spec_fn(spec: mujoco.MjSpec) -> None:
     add_contact_pairs_and_actuators(spec, microspine_cfg)
+    if attachment_mode == "constraint":
+      add_attachment_equalities(spec, microspine_cfg)
 
-  events["microspine_adhesion"] = make_physics_event_cfg(
-    microspine_cfg,
-    affordance_name=microspine_affordance_name,
-  )
+  if attachment_mode == "constraint":
+    events["microspine_adhesion"] = make_constraint_event_cfg(
+      microspine_cfg,
+      affordance_name=microspine_affordance_name,
+    )
+  else:
+    events["microspine_adhesion"] = make_physics_event_cfg(
+      microspine_cfg,
+      affordance_name=microspine_affordance_name,
+    )
 
   return ManagerBasedRlEnvCfg(
     decimation=10,
