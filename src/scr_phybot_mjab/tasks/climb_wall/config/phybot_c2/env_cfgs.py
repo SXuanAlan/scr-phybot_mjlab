@@ -38,6 +38,10 @@ from scr_phybot_mjab.microspine.config import (
   MicrospineAffordanceCfg,
   MicrospineCfg,
 )
+from scr_phybot_mjab.microspine.constraint import (
+  add_attachment_equalities,
+  make_constraint_event_cfg,
+)
 from scr_phybot_mjab.microspine.physics import (
   add_contact_pairs_and_actuators,
   get_sphere_geom_names,
@@ -56,8 +60,18 @@ def _policy_joint_cfg() -> SceneEntityCfg:
   )
 
 
-def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
-  """Create PHYBot C2 wall-climbing configuration."""
+def phybot_c2_climb_wall_env_cfg(
+  play: bool = False,
+  attachment_mode: str = "adhesion",
+) -> ManagerBasedRlEnvCfg:
+  """Create PHYBot C2 wall-climbing configuration.
+
+  ``attachment_mode``:
+    * ``"adhesion"`` (default, legacy): external wall-normal force +
+      high-friction condim-6 contacts.
+    * ``"constraint"``: per-EE connect-equality virtual anchors with the
+      limit-surface release model (anisotropic microspine physics).
+  """
   velocity_command_name = "climb_velocity"
   microspine_affordance_name = "microspine_affordance"
   microspine_contact_sensor_name = "microspine_wall_contact"
@@ -72,8 +86,16 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
     adhesion_force=600.0,
     spheres_per_ee_rows=2,
-    spheres_per_ee_cols=2
+    spheres_per_ee_cols=2,
+    attachment_mode=attachment_mode,
   )
+  if attachment_mode == "constraint":
+    # The contact force_z gates were tuned for the legacy mu=30 pairs: with
+    # physical friction they starve (engage) and are noise-driven (release).
+    # Engage gating falls back to compression count + face alignment; release
+    # is owned by the limit surface.
+    microspine_cfg.engage_force_z_threshold = 0.0
+    microspine_cfg.disengage_force_z_threshold = 0.0
 
   cfg = make_climb_wall_env_cfg()
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
@@ -154,20 +176,28 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
   )
 
-  # Per-sphere wall-contact pairs; adhesion itself is external wall-normal force.
+  # Per-sphere wall-contact pairs; grip is external wall-normal force (legacy)
+  # or per-EE connect-equality virtual anchors (constraint mode).
   def _spec_fn(spec: mujoco.MjSpec) -> None:
     add_contact_pairs_and_actuators(spec, microspine_cfg)
+    if attachment_mode == "constraint":
+      add_attachment_equalities(spec, microspine_cfg)
     # Disable the aligned terrain ground plane — gravity-tilt curriculum
     # replaces the floor; this forces the robot to actually grip the wall.
     configure_phybot_c2_floor_geom(spec, enable_contact=False)
 
   cfg.scene.spec_fn = _spec_fn
 
-  # Per-spine microspine adhesion via environment affordance + external forces.
-  cfg.events["microspine_adhesion"] = make_physics_event_cfg(
-    microspine_cfg,
-    affordance_name=microspine_affordance_name,
-  )
+  if attachment_mode == "constraint":
+    cfg.events["microspine_adhesion"] = make_constraint_event_cfg(
+      microspine_cfg,
+      affordance_name=microspine_affordance_name,
+    )
+  else:
+    cfg.events["microspine_adhesion"] = make_physics_event_cfg(
+      microspine_cfg,
+      affordance_name=microspine_affordance_name,
+    )
 
   # ------------------------------------------------------------------------
   # Rewards — Anymal D quadruped template (locomotion/velocity), with climb
