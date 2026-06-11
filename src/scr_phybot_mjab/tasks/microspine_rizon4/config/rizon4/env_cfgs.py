@@ -80,21 +80,28 @@ def rizon4_microspine_env_cfg(
     # mid-air onto the wall plane (huge phantom tension -> instant release).
     # Bench flow: start disengaged, press the pad on with the teleop device.
     microspine_cfg.initial_on = False
-    # Bench engage gating from-simple: touch -> latch. A human driving the
-    # pad needs immediate, predictable engagement; the strict gates exist for
-    # policy training where spurious latches are costly.
+    # Bench engage gating from-simple: light touch latches (1 sphere @ 1 N,
+    # no alignment gate). The 5-step (0.1 s) settle is load-bearing: latching
+    # a still-moving, barely-grazing pad anchors mid-transient and the
+    # contact ring-in trips reverse-shear right after grace.
     microspine_cfg.engage_min_spheres = 1
     microspine_cfg.engage_normal_force_threshold = 1.0
-    microspine_cfg.engage_consecutive_steps = 2
+    microspine_cfg.engage_consecutive_steps = 5
     microspine_cfg.engage_parallel_cos_threshold = 0.0
     # Climb-wall needs grace 14 to walk out spawn-pose preload (see
     # MicrospineLimitSurfaceCfg.hold_grace_steps); bench engagements are
     # gentle presses, and a long grace means 0.28 s of anchor-follows-pad
     # with no lock feel. 4 steps = 3 reseat rounds = locks within ~0.1 s.
     microspine_cfg.limit_surface.hold_grace_steps = 4
-    # Snappier retry after a release (with engage_consecutive_steps=2 the
-    # release-to-relatch floor is ~0.24 s).
+    # Snappier retry after a release (release-to-relatch floor ~0.3 s).
     microspine_cfg.reengage_cooldown_steps = 10
+    # Human-scale interaction stiffness. The climb-wall anchor (solref 0.01,
+    # ~200 N/mm) turns sub-mm hand jitter into tens of newtons — over the
+    # unloaded envelope caps, so the pad released the moment it latched. A
+    # real bench arm runs impedance control at a few N/mm; 0.03 gives
+    # ~20 N/mm: jitter costs a few N, deliberate mm-scale drags produce
+    # readable tens-of-N loads.
+    microspine_cfg.anchor_solref = (0.03, 1.0)
 
   robot_cfg = get_rizon4_robot_cfg()
   wall_cfg = get_wall_cfg()
@@ -134,6 +141,10 @@ def rizon4_microspine_env_cfg(
       # 0.16x cost and contact torques visibly tilted the pad on press.
       orientation_weight=1.0,
       joint_limit_weight=0.05,
+      # Posture regularization is load-bearing: without it the redundant arm
+      # wanders toward singular configurations and stalls mid-approach. Its
+      # parasitic pull on an anchored pad is a few N through the softened
+      # bench anchor — acceptable.
       posture_weight=0.01,
       posture_target=RIZON4_HOME_JOINT_POS,
     ),

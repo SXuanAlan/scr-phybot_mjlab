@@ -59,6 +59,11 @@ class TeleopConfig:
   """Re-enable the raw per-step [Microspine] SENSOR / TRANSITION prints."""
   hud_period: float = 0.5
   """Seconds between [microspine] status lines (transitions print instantly)."""
+  target_leash: float = 0.002
+  """Max distance [m] the IK target may lead the measured TCP. Caps the force
+  an over-pressed/stuck target can inject through the anchor (offset x
+  ~20 N/mm) and stops large stuck position errors from leaking into
+  tangential grinding via the damped IK solve. 0 disables."""
 
 
 SPACEMOUSE_VENDOR_ID = 0x256F
@@ -874,7 +879,9 @@ class CartesianPosePolicy:
     env,
     input_device: CartesianDeltaInput,
     hud_period: float = 0.5,
+    target_leash: float = 0.002,
   ):
+    self._target_leash = target_leash
     self._env = env.unwrapped
     self._input = input_device
     self._robot = self._env.scene["robot"]
@@ -884,6 +891,7 @@ class CartesianPosePolicy:
     self._target_quat: torch.Tensor | None = None
     self._initial_quat: torch.Tensor | None = None
     self._microspine_physics = self._get_microspine_physics()
+    self._prev_engaged: torch.Tensor | None = None
     self._hud = MicrospineHud(self._env, period=hud_period)
 
   def _get_microspine_physics(self):
@@ -899,6 +907,28 @@ class CartesianPosePolicy:
     if disengaged is None:
       return False
     return bool(disengaged.any().item())
+
+  def _microspine_engaged_this_step(self) -> bool:
+    """Rising-edge detector on the latch state.
+
+    On engage the accumulated command offset (press-through depth plus
+    whatever the hand was doing at that instant) must be cancelled: the IK is
+    effectively a stiff position servo (~10^2 N/mm through the anchor), so
+    even sub-mm residual motion blows through the unloaded envelope caps
+    (~20 N) right after grace and the pad releases the moment it latched.
+    Snapping the target to the measured TCP starts the lock load-free; any
+    later load is deliberate stick deflection.
+    """
+    if self._microspine_physics is None:
+      return False
+    engaged = getattr(self._microspine_physics, "engaged", None)
+    if engaged is None:
+      return False
+    prev = self._prev_engaged
+    self._prev_engaged = engaged.clone()
+    if prev is None:
+      return False
+    return bool((engaged & ~prev).any().item())
 
   def reset_target(self) -> None:
     self._target_pos = self._robot.data.site_pos_w[:, self._site_id, :].clone()
@@ -918,6 +948,7 @@ class CartesianPosePolicy:
     self._target_pos = None
     self._target_quat = None
     self._initial_quat = None
+    self._prev_engaged = None
     self._hud.reset()
 
   def __call__(self, obs) -> torch.Tensor:
@@ -942,7 +973,7 @@ class CartesianPosePolicy:
       )
     if command.reset_orientation:
       self.reset_orientation()
-    if self._microspine_disengaged_this_step():
+    if self._microspine_disengaged_this_step() or self._microspine_engaged_this_step():
       self.reset_target()
 
     delta = command.delta
@@ -952,6 +983,20 @@ class CartesianPosePolicy:
         self._target_quat,
         delta,
       )
+    # Leash only while latched: free-space tracking error must not eat the
+    # leash budget (it stalls the approach), but once the pad is anchored any
+    # target-vs-TCP offset IS injected force, so cap it.
+    latched = self._prev_engaged is not None and bool(
+      self._prev_engaged.any().item()
+    )
+    if self._target_leash > 0.0 and latched:
+      tcp = self._robot.data.site_pos_w[:, self._site_id, :]
+      offset = self._target_pos - tcp
+      norm = offset.norm(dim=-1, keepdim=True)
+      scale = (self._target_leash / norm.clamp_min(self._target_leash)).clamp(
+        max=1.0
+      )
+      self._target_pos = tcp + offset * scale
     self._input.sync_target(self._target_pos, self._target_quat)
     self._hud.update()
     return torch.cat((self._target_pos, self._target_quat), dim=-1)
@@ -1134,7 +1179,12 @@ def run(cfg: TeleopConfig) -> None:
   try:
     action_shape: tuple[int, ...] = env.unwrapped.action_space.shape
     input_device = _make_input_device(cfg, input_kind, viewer, action_shape, env.unwrapped.device)
-    policy = CartesianPosePolicy(env, input_device, hud_period=cfg.hud_period)
+    policy = CartesianPosePolicy(
+      env,
+      input_device,
+      hud_period=cfg.hud_period,
+      target_leash=cfg.target_leash,
+    )
 
     print(f"Viewer: {viewer}")
     input_label = "viser + spacemouse" if viewer == "viser" and input_kind == "spacemouse" else input_kind
