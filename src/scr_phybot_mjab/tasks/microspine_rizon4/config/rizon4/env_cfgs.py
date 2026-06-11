@@ -80,6 +80,21 @@ def rizon4_microspine_env_cfg(
     # mid-air onto the wall plane (huge phantom tension -> instant release).
     # Bench flow: start disengaged, press the pad on with the teleop device.
     microspine_cfg.initial_on = False
+    # Bench engage gating from-simple: touch -> latch. A human driving the
+    # pad needs immediate, predictable engagement; the strict gates exist for
+    # policy training where spurious latches are costly.
+    microspine_cfg.engage_min_spheres = 1
+    microspine_cfg.engage_normal_force_threshold = 1.0
+    microspine_cfg.engage_consecutive_steps = 2
+    microspine_cfg.engage_parallel_cos_threshold = 0.0
+    # Climb-wall needs grace 14 to walk out spawn-pose preload (see
+    # MicrospineLimitSurfaceCfg.hold_grace_steps); bench engagements are
+    # gentle presses, and a long grace means 0.28 s of anchor-follows-pad
+    # with no lock feel. 4 steps = 3 reseat rounds = locks within ~0.1 s.
+    microspine_cfg.limit_surface.hold_grace_steps = 4
+    # Snappier retry after a release (with engage_consecutive_steps=2 the
+    # release-to-relatch floor is ~0.24 s).
+    microspine_cfg.reengage_cooldown_steps = 10
 
   robot_cfg = get_rizon4_robot_cfg()
   wall_cfg = get_wall_cfg()
@@ -115,7 +130,9 @@ def rizon4_microspine_env_cfg(
       damping=0.04,
       max_dq=0.20,
       position_weight=1.0,
-      orientation_weight=0.4,
+      # Weights enter the DLS cost squared; 0.4 gave the orientation error a
+      # 0.16x cost and contact torques visibly tilted the pad on press.
+      orientation_weight=1.0,
       joint_limit_weight=0.05,
       posture_weight=0.01,
       posture_target=RIZON4_HOME_JOINT_POS,

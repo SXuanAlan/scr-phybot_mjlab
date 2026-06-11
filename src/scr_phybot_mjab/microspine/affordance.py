@@ -111,6 +111,14 @@ class MicrospineAffordance(CommandTerm):
     self.forced_release_this_step = torch.zeros(
       shape, dtype=torch.bool, device=self.device
     )
+    # HUD/debug readouts (pure GPU writes; no host syncs in the step path).
+    # release_reason: which envelope face fired on a forced release —
+    # 0 none, 1 reverse-shear, 2 tension-cone, 3 lateral, 4 ultimate-shear.
+    # Like anchor_load_tnl it holds the violating value on the release step
+    # and resets the step after.
+    self.release_reason = torch.zeros(shape, dtype=torch.int8, device=self.device)
+    self.face_cos = torch.zeros(shape, device=self.device)
+    self.contact_count = torch.zeros(shape, device=self.device)
     rake_axis = torch.tensor(
       self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device
     )
@@ -174,6 +182,7 @@ class MicrospineAffordance(CommandTerm):
     self.anchor_load_tnl[env_ids] = 0.0
     self.hold_margin[env_ids] = 1.0
     self.forced_release_this_step[env_ids] = False
+    self.release_reason[env_ids] = 0
     self._sample_limit_params(env_ids)
 
   def _wall_inward_normal(self) -> torch.Tensor:
@@ -277,6 +286,17 @@ class MicrospineAffordance(CommandTerm):
     release = (active & ~c_ultimate) | (
       self._violation_count
       >= max(1, self._ls_cfg.violation_consecutive_steps)
+    )
+
+    # Which face fired (HUD/debug). Priority by overwrite order: lateral <
+    # reverse < tension < ultimate, masked to actual releases.
+    reason = torch.zeros_like(self.release_reason)
+    reason = torch.where(~c_lateral, torch.full_like(reason, 3), reason)
+    reason = torch.where(~c_rev, torch.full_like(reason, 1), reason)
+    reason = torch.where(~c_tension, torch.full_like(reason, 2), reason)
+    reason = torch.where(~c_ultimate, torch.full_like(reason, 4), reason)
+    self.release_reason = torch.where(
+      release, reason, torch.zeros_like(reason)
     )
     return release
 
@@ -511,6 +531,7 @@ class MicrospineAffordance(CommandTerm):
     normal_forces, force_z, instant_force_z, found_count = (
       self._sensor_contact_features()
     )
+    self.contact_count = found_count
 
     # Engage from OFF requires all enabled gates: upward wall-on-spine force,
     # optional compression on the sphere grid, and optional face alignment.
@@ -519,10 +540,10 @@ class MicrospineAffordance(CommandTerm):
       engage_condition &= force_z > self._mcfg.engage_force_z_threshold
     engage_condition &= self._normal_force_condition(normal_forces)
 
-    if self._mcfg.engage_parallel_cos_threshold > 0.0 or self._mcfg.debug:
-      face_cos = self._face_wall_cos()
-    else:
-      face_cos = torch.zeros_like(force_z)
+    # Always computed (cheap, a few quat rotates) so HUD/debug readers see a
+    # live value even when the alignment gate is disabled.
+    face_cos = self._face_wall_cos()
+    self.face_cos = face_cos
 
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
       engage_condition &= (
