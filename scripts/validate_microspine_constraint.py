@@ -55,6 +55,7 @@ def build_env(
   attachment_mode: str = "constraint",
   limit_surface_enable: bool = True,
   reanchor_after_grace: bool = True,
+  anchor_lock_rotation: bool | None = None,
 ) -> ManagerBasedRlEnv:
   cfg = phybot_c2_climb_wall_env_cfg(play=False, attachment_mode=attachment_mode)
   cfg.scene.num_envs = num_envs
@@ -64,11 +65,15 @@ def build_env(
   # The nested limit_surface cfg is shared between the affordance command and
   # the physics event term (dataclasses.replace is shallow copy: nested
   # objects shared, scalar fields independent) — so scalars must be written
-  # on both copies.
+  # on both copies. anchor_lock_rotation also steers the scene spec_fn, which
+  # closes over the commands-side cfg — written before env construction, so
+  # the equality type and the executor stay consistent.
   mcfg = cfg.commands["microspine_affordance"].microspine_cfg
   mcfg.limit_surface.enable = limit_surface_enable
   for owner in (mcfg, cfg.events["microspine_adhesion"].params["microspine_cfg"]):
     owner.reanchor_after_grace = reanchor_after_grace
+    if anchor_lock_rotation is not None:
+      owner.anchor_lock_rotation = anchor_lock_rotation
   return ManagerBasedRlEnv(cfg=cfg, device=DEVICE)
 
 
@@ -269,7 +274,14 @@ def cmd_sweep(args) -> bool:
     f"== sweep: {num_envs} envs, target EE {EE_NAMES[target]}, "
     f"ramp {args.seconds}s ==",
   )
-  env = build_env(num_envs, "constraint")
+  # The per-ray release-force prediction assumes a force-only anchor. A weld
+  # adds a torque path (the pull's moment about the pad rides the rotational
+  # rows and re-shapes contact compression), which legitimately carries ~5%
+  # of rays past the ramp end — their releases still land on the envelope
+  # (measured p50 0.012 in weld mode), but the all-rays-release criterion
+  # breaks. The sweep validates the limit-surface geometry, which is anchor-
+  # type independent, so pin the original pure-force connect anchor.
+  env = build_env(num_envs, "constraint", anchor_lock_rotation=False)
   env.reset()
   set_gravity(env, 90.0, magnitude=0.0)  # Zero gravity: pure scripted pulls.
   executor, affordance = get_terms(env)

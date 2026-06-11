@@ -32,7 +32,11 @@ class MicrospineLimitSurfaceCfg:
 
   rake_mode: str = "gravity"
   """Engage direction source: "gravity" (gravity projected onto the wall) or
-  "ee_local" (EE-local axis projected onto the wall)."""
+  "ee_local" (EE-local axis projected onto the wall). "ee_local" is the
+  physical model — spines rake along a pad-fixed direction, so capacity
+  follows the pad orientation and a yawed pad pays for it (under "gravity"
+  the envelope is blind to pad yaw: measured trained-policy rollouts latched
+  hands 30-60 deg off-rake at full capacity)."""
 
   ee_rake_local_axis: tuple[float, float, float] = (0.0, 0.0, -1.0)
   """EE-local rake axis used when ``rake_mode == "ee_local"``."""
@@ -188,6 +192,23 @@ class MicrospineCfg:
     2.0,
   )
   """Connect-equality solimp."""
+
+  anchor_lock_rotation: bool = False
+  """Lock pad orientation while engaged (weld equality instead of connect).
+
+  A real spine array grips asperities across the whole pad face: once
+  engaged the pad cannot pivot about the anchor point — the wall holds its
+  orientation, not the wrist servo. A connect leaves rotation free (single
+  point = ball joint); measured under push DR that allowed up to ~20 deg of
+  engaged-pad tilt and let policies latch pads at arbitrary yaw for free.
+  With this flag each EE's equality is a weld whose relpose is captured at
+  engage time and re-seated during the grace window exactly like the
+  position anchor; releasing and re-engaging is the only way to reorient an
+  engaged pad."""
+
+  anchor_torquescale: float = 1.0
+  """Weld torquescale (eq_data[10]): scales rotational residuals into the
+  constraint impedance. Used only when ``anchor_lock_rotation``."""
 
   anchor_project_to_wall: bool = True
   """Project the engage-time anchor point onto the wall surface plane.

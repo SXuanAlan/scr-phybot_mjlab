@@ -76,6 +76,19 @@ def rizon4_microspine_env_cfg(
     # the limit surface.
     microspine_cfg.engage_force_z_threshold = 0.0
     microspine_cfg.disengage_force_z_threshold = 0.0
+    # Real-pad rotational grip (matches the climb-wall task): a latched pad
+    # is orientation-locked by the wall (weld), and the rake is pad-fixed.
+    # At the home pose pad-local (0, 0, -1) maps exactly to world -z
+    # (down-the-wall), so the default rake axis is already correct.
+    microspine_cfg.anchor_lock_rotation = True
+    microspine_cfg.limit_surface.rake_mode = "ee_local"
+    # The soft bench anchor (solref 0.03, intentional ~20 N/mm translational
+    # feel) would make the weld rotationally mushy too: a wound-up wrist
+    # twist produces mostly torque (which the force envelope cannot see) and
+    # complied ~8 deg without releasing. torquescale scales only the
+    # rotational rows (stiffness ~ torquescale^2), so 5.0 restores a rigid
+    # twist feel (~0.3 deg) without touching the translational impedance.
+    microspine_cfg.anchor_torquescale = 5.0
     # The arm spawns with the pad off the wall; initial_on would anchor it
     # mid-air onto the wall plane (huge phantom tension -> instant release).
     # Bench flow: start disengaged, press the pad on with the teleop device.

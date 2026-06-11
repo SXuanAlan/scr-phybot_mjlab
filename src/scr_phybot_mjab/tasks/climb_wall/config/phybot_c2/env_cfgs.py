@@ -103,6 +103,16 @@ def phybot_c2_climb_wall_env_cfg(
     # is owned by the limit surface.
     microspine_cfg.engage_force_z_threshold = 0.0
     microspine_cfg.disengage_force_z_threshold = 0.0
+    # Real spine arrays grip across the whole pad face: an engaged pad cannot
+    # pivot about the anchor (weld, orientation captured at engage), and the
+    # rake direction is pad-fixed, so capacity follows pad orientation and
+    # latching at arbitrary yaw stops being free (under gravity rake,
+    # rollouts latched hands 30-60 deg off-rake at full capacity). EE-local
+    # rake axis (0, 0, -1) maps to down-the-wall at the nominal spawn pose
+    # (hands within 0.3 deg; feet toe out 11.5 deg — a truthful slightly
+    # off-rake engagement the envelope tolerates).
+    microspine_cfg.anchor_lock_rotation = True
+    microspine_cfg.limit_surface.rake_mode = "ee_local"
 
   cfg = make_climb_wall_env_cfg()
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
