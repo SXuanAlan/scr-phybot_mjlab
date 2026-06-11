@@ -59,11 +59,16 @@ class TeleopConfig:
   """Re-enable the raw per-step [Microspine] SENSOR / TRANSITION prints."""
   hud_period: float = 0.5
   """Seconds between [microspine] status lines (transitions print instantly)."""
-  target_leash: float = 0.002
-  """Max distance [m] the IK target may lead the measured TCP. Caps the force
-  an over-pressed/stuck target can inject through the anchor (offset x
-  ~20 N/mm) and stops large stuck position errors from leaking into
-  tangential grinding via the damped IK solve. 0 disables."""
+  target_leash: float = 0.006
+  """Max wall-tangential distance [m] the IK target may lead the measured TCP
+  while latched. Sized so deliberate drags can swing the tangential load past
+  the arm's ~50 N gravity-lean bias (offset x ~25 N/mm) and trip the
+  reverse-shear release. 0 disables leashing entirely."""
+  target_leash_normal: float = 0.002
+  """Max wall-normal target lead [m] while latched. Kept tighter than the
+  tangential leash: press-through offsets leak into tangential grinding via
+  the damped IK solve, and ~10 N of leakage already trips the small
+  reverse-shear cap."""
 
 
 SPACEMOUSE_VENDOR_ID = 0x256F
@@ -879,9 +884,11 @@ class CartesianPosePolicy:
     env,
     input_device: CartesianDeltaInput,
     hud_period: float = 0.5,
-    target_leash: float = 0.002,
+    target_leash: float = 0.006,
+    target_leash_normal: float = 0.002,
   ):
     self._target_leash = target_leash
+    self._target_leash_normal = target_leash_normal
     self._env = env.unwrapped
     self._input = input_device
     self._robot = self._env.scene["robot"]
@@ -992,11 +999,17 @@ class CartesianPosePolicy:
     if self._target_leash > 0.0 and latched:
       tcp = self._robot.data.site_pos_w[:, self._site_id, :]
       offset = self._target_pos - tcp
-      norm = offset.norm(dim=-1, keepdim=True)
-      scale = (self._target_leash / norm.clamp_min(self._target_leash)).clamp(
-        max=1.0
+      # Anisotropic clamp: the bench wall is the fixed +x plane, so x is the
+      # wall normal (press/pull) and yz is the wall tangent (drag/push).
+      n_comp = offset[:, 0:1].clamp(
+        -self._target_leash_normal, self._target_leash_normal
       )
-      self._target_pos = tcp + offset * scale
+      t_comp = offset[:, 1:3]
+      t_norm = t_comp.norm(dim=-1, keepdim=True)
+      t_comp = t_comp * (
+        self._target_leash / t_norm.clamp_min(self._target_leash)
+      ).clamp(max=1.0)
+      self._target_pos = tcp + torch.cat([n_comp, t_comp], dim=-1)
     self._input.sync_target(self._target_pos, self._target_quat)
     self._hud.update()
     return torch.cat((self._target_pos, self._target_quat), dim=-1)
@@ -1184,6 +1197,7 @@ def run(cfg: TeleopConfig) -> None:
       input_device,
       hud_period=cfg.hud_period,
       target_leash=cfg.target_leash,
+      target_leash_normal=cfg.target_leash_normal,
     )
 
     print(f"Viewer: {viewer}")

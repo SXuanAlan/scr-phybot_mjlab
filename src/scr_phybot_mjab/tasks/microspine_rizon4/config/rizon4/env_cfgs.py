@@ -102,6 +102,14 @@ def rizon4_microspine_env_cfg(
     # ~20 N/mm: jitter costs a few N, deliberate mm-scale drags produce
     # readable tens-of-N loads.
     microspine_cfg.anchor_solref = (0.03, 1.0)
+    # The arm leans ~50 N of its own gravity-sag onto a latched pad as
+    # permanent down-wall shear (position servos hold gravity with steady
+    # error). That biased load made the tension/lateral cones nuisance-fire
+    # on casual motion. Bench play wants the reverse-shear asymmetry front
+    # and center, so de-fang the pull-off and lateral intercepts; restore the
+    # MicrospineLimitSurfaceCfg defaults when testing envelope fidelity.
+    microspine_cfg.limit_surface.f_n0_range = (200.0, 200.0)
+    microspine_cfg.limit_surface.f_l0_range = (200.0, 200.0)
 
   robot_cfg = get_rizon4_robot_cfg()
   wall_cfg = get_wall_cfg()
@@ -177,6 +185,14 @@ def rizon4_microspine_env_cfg(
     add_contact_pairs_and_actuators(spec, microspine_cfg)
     if attachment_mode == "constraint":
       add_attachment_equalities(spec, microspine_cfg)
+    # Gravity-compensate the arm, like the real Flexiv controller's gravity
+    # feedforward. Without it the position servos sag under gravity and the
+    # arm leans ~50 N of permanent down-wall shear on a latched pad — biasing
+    # every envelope readout and putting the reverse-shear release out of
+    # reach of the teleop leash.
+    for body in spec.bodies:
+      if body.name.startswith("robot/"):
+        body.gravcomp = 1.0
 
   if attachment_mode == "constraint":
     events["microspine_adhesion"] = make_constraint_event_cfg(
