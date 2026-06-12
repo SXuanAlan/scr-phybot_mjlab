@@ -399,6 +399,13 @@ class MicrospineConstraint:
       found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads
     )
     loads.neg_()  # F_load = -efc_force (EE-on-anchor reaction).
+    # Rare solver transients under extreme poses can emit non-finite efc
+    # forces; unguarded they reach the limit-surface margins as NaN (inf
+    # loads make cap - load = inf - inf) and the critic observations kill
+    # the whole training run (observed once at 2048 envs x ~94 iters). NaN
+    # reads as "no reading" (no release that step); inf clamps to a huge
+    # finite load the envelope instantly, correctly, releases.
+    torch.nan_to_num_(loads, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
     return loads
 
   def anchor_error_w(self) -> torch.Tensor:
