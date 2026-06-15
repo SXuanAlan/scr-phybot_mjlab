@@ -11,3 +11,6 @@ train.log
 results/
 nohup.out
 .agents
+others/
+deploy/
+/image.png

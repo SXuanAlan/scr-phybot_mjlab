@@ -15,6 +15,22 @@ if TYPE_CHECKING:
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
 
+def joint_pos(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  asset: Entity = env.scene[asset_cfg.name]
+  return asset.data.joint_pos[:, asset_cfg.joint_ids]
+
+
+def joint_vel(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  asset: Entity = env.scene[asset_cfg.name]
+  return asset.data.joint_vel[:, asset_cfg.joint_ids]
+
+
 def projected_gravity_from_framequat_sensor(
   env: ManagerBasedRlEnv,
   sensor_name: str,

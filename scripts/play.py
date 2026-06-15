@@ -4,6 +4,13 @@ Adds climb-wall gravity playback controls on top of mjlab's play script:
 
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file logs/.../model_2000.pt
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --gravity-angle-deg 90 --agent zero
+
+Walk can also be driven by a physical gamepad (left stick = linear x/y, right
+stick = yaw, shoulder buttons cycle slow/medium/fast; medium is the default):
+
+  python scripts/play.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/.../model_XXXX.pt --gamepad
+
+Then run scripts/gamepad_bridge.py on the machine the gamepad is plugged into.
 """
 
 from __future__ import annotations
@@ -38,6 +45,12 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_gravity_ang
 class PlayConfig(MjlabPlayConfig):
   gravity_angle_deg: float | None = None
   """Override climb-wall play gravity angle in degrees. If omitted, infer it from model_<iter>.pt."""
+  gamepad: bool = False
+  """Drive the walk velocity command from a physical gamepad (left stick = linear x/y, right stick = yaw). Requires scripts/gamepad_bridge.py on the local machine."""
+  gamepad_host: str = "127.0.0.1"
+  """Host the gamepad receiver binds to (use the SSH-forwarded loopback)."""
+  gamepad_port: int = 8766
+  """TCP port the gamepad receiver listens on; must match the bridge."""
 
 
 def _display_available() -> bool:
@@ -66,7 +79,16 @@ def _normalize_cli_aliases(argv: list[str]) -> list[str]:
     "--gravity-angle": "--gravity-angle-deg",
     "--gravity-angle-degrees": "--gravity-angle-deg",
   }
-  return [aliases.get(arg, arg) for arg in argv]
+  bool_flags = {"--gamepad"}
+  normalized: list[str] = []
+  for idx, raw_arg in enumerate(argv):
+    arg = aliases.get(raw_arg, raw_arg)
+    normalized.append(arg)
+    if arg in bool_flags:
+      next_arg = argv[idx + 1] if idx + 1 < len(argv) else None
+      if next_arg is None or next_arg.startswith("-"):
+        normalized.append("True")
+  return normalized
 
 
 def _checkpoint_iteration(path_or_name: str | Path | None) -> int | None:
@@ -113,6 +135,35 @@ def _apply_climb_wall_play_gravity(
 
   term_cfg.params["angle_stages"] = [{"iter": 0, "angle_deg": angle_deg}]
   print(f"[INFO]: Play gravity angle set to {angle_deg:.2f} deg ({source})")
+
+
+def _setup_gamepad(env, cfg: PlayConfig):
+  """Start the gamepad receiver and route it into the velocity command term."""
+  from scr_phybot_mjab.tasks.walk.mdp import UniformVelocityCommand
+  from scr_phybot_mjab.utils.gamepad import GamepadReceiver
+
+  command_manager = env.unwrapped.command_manager
+  if "twist" not in command_manager.active_terms:
+    raise RuntimeError(
+      "--gamepad requires a velocity ('twist') command; this task has none."
+    )
+  term = command_manager.get_term("twist")
+  if not isinstance(term, UniformVelocityCommand):
+    raise RuntimeError(
+      f"--gamepad expects a UniformVelocityCommand 'twist' term, got {type(term).__name__}."
+    )
+
+  ranges = term.cfg.ranges
+  receiver = GamepadReceiver(
+    host=cfg.gamepad_host,
+    port=cfg.gamepad_port,
+    lin_vel_x_range=ranges.lin_vel_x,
+    lin_vel_y_range=ranges.lin_vel_y,
+    ang_vel_z_range=ranges.ang_vel_z,
+  )
+  receiver.start()
+  term.set_gamepad_source(receiver.command)
+  return receiver
 
 
 def run_play(task_id: str, cfg: PlayConfig):
@@ -273,12 +324,18 @@ def run_play(task_id: str, cfg: PlayConfig):
   else:
     resolved_viewer = cfg.viewer
 
-  if resolved_viewer == "native":
-    NativeMujocoViewer(env, policy).run()
-  elif resolved_viewer == "viser":
-    ViserPlayViewer(env, policy).run()
-  else:
-    raise RuntimeError(f"Unsupported viewer backend: {resolved_viewer}")
+  gamepad_rx = _setup_gamepad(env, cfg) if cfg.gamepad else None
+
+  try:
+    if resolved_viewer == "native":
+      NativeMujocoViewer(env, policy).run()
+    elif resolved_viewer == "viser":
+      ViserPlayViewer(env, policy).run()
+    else:
+      raise RuntimeError(f"Unsupported viewer backend: {resolved_viewer}")
+  finally:
+    if gamepad_rx is not None:
+      gamepad_rx.close()
 
   env.close()
 

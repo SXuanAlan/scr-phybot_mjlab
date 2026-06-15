@@ -1,4 +1,4 @@
-"""RL configuration for PHYBot C2 velocity task.
+"""RSL-RL configuration for the PHYBot C2 walk task.
 
 Matches MJLab's official Unitree G1 velocity PPO baseline, with only logging
 metadata renamed for PHYBot C2.

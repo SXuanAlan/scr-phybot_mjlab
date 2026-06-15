@@ -86,6 +86,24 @@ PHYBOT_C2_CTRL_LIMITS = {
 
 PHYBOT_C2_JOINT_FORCE_LIMITS = PHYBOT_C2_MOTOR_CTRL_RANGES
 
+# Real-robot torque limits from deploy RL_deploy_cpg/config/rl_params.yaml
+# (`torque_limits`). The deploy stack clamps commanded torques to these values,
+# so training must respect them rather than the larger XML ctrlranges. Neck is
+# not policy-controlled and keeps its XML limit.
+PHYBOT_C2_DEPLOY_TORQUE_LIMITS = {
+  "hip_pitch": 200.0,
+  "hip_roll": 80.0,
+  "hip_yaw": 58.0,
+  "knee": 80.0,
+  "ankle_pitch": 58.0,
+  "ankle_roll": 58.0,
+  "waist_yaw": 58.0,
+  "shoulder_pitch": 58.0,
+  "shoulder_roll": 58.0,
+  "shoulder_yaw": 58.0,
+  "elbow_pitch": 58.0,
+}
+
 PHYBOT_C2_POLICY_JOINT_NAMES = (
   "left_hip_pitch",
   "left_hip_roll",
@@ -110,6 +128,16 @@ PHYBOT_C2_POLICY_JOINT_NAMES = (
   "right_elbow_pitch",
 )
 PHYBOT_C2_ACTION_SCALE = 0.25
+PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP = {
+  "hip_pitch": 10.0,
+  "hip_roll": 10.0,
+  "hip_yaw": 10.0,
+  "knee": 10.0,
+}
+# ankle_pitch -0.295 matches the real robot's zero pose (ZERO.yaml /
+# RL_deploy default_dof_pos), so ZERO -> policy switching needs no deploy-side
+# change. It leaves the sole tilted ~1.1 deg heel-down (flat would be -0.254);
+# the feet_flat reward keeps contact flat while walking.
 PHYBOT_C2_STANDING_JOINT_POS = {
   "left_hip_pitch": -0.242,
   "left_hip_roll": 0.029,
@@ -231,21 +259,52 @@ def _add_foot_sites(spec: mujoco.MjSpec) -> None:
     body.add_site(name=site_name, pos=[0.04, 0.0, -0.04], size=[0.02])
 
 
-def _add_hand_spine_hip_excludes(spec: mujoco.MjSpec) -> None:
-  """Exclude hand-spine vs same-side hip contacts.
+def _add_resting_self_collision_excludes(spec: mujoco.MjSpec) -> None:
+  """Exclude arm-vs-same-side-hip resting contacts.
 
-  In the default standing pose the hand spine plate rests against the hip
-  sphere (penetration ~0.7 mm), which trips the self-collision termination at
-  every reset. The official Isaac config sidesteps this by disabling self
-  collisions entirely; here we only exclude the offending resting pairs.
+  With the arms hanging at the sides, both the hand spine plate and the
+  forearm/elbow rest against the hip sphere. The hand spine touches in the
+  default keyframe (penetration ~0.7 mm); the elbow rests on the hip whenever
+  the policy stands still at near-zero command. Either trips the torso-subtree
+  self-collision termination, which then resets the robot every step ("teleport
+  to origin and spin"). The official Isaac config sidesteps this by disabling
+  self collisions entirely; here we only exclude the offending resting pairs so
+  genuine self collisions (e.g. knee-knee) still terminate.
   """
-  hand_spine_bodies = ("hand_spine", *(f"hand_spine_c_{i}_{j}" for i in range(2) for j in range(2)))
+  # Hand spine plate rests on the hip sphere in the default keyframe.
+  hand_spine_bodies = (
+    "hand_spine",
+    *(f"hand_spine_c_{i}_{j}" for i in range(2) for j in range(2)),
+  )
   for side in ("left", "right"):
     for spine_body in hand_spine_bodies:
       spec.add_exclude(
         bodyname1=f"{side}_{spine_body}",
         bodyname2=f"{side}_hip_roll",
       )
+
+  # The forearm/elbow hangs against the whole same-side pelvis cluster (hip
+  # roll/yaw/pitch) and the torso base (the base_link_collision geom lives on
+  # the "torso" body) whenever the policy stands still. Exclude the elbow
+  # against each so resting there never trips the self-collision termination.
+  # "torso" is not side-specific.
+  for side in ("left", "right"):
+    for hip_body in ("hip_roll", "hip_yaw", "hip_pitch"):
+      spec.add_exclude(
+        bodyname1=f"{side}_elbow_pitch",
+        bodyname2=f"{side}_{hip_body}",
+      )
+    spec.add_exclude(bodyname1=f"{side}_elbow_pitch", bodyname2="torso")
+
+  # The upper arm (shoulder) rests against the chest. Exclude shoulder vs both
+  # torso bodies on the same side for the same reason.
+  for side in ("left", "right"):
+    for shoulder_body in ("shoulder_roll", "shoulder_yaw"):
+      for torso_body in ("torso", "torso_upper"):
+        spec.add_exclude(
+          bodyname1=f"{side}_{shoulder_body}",
+          bodyname2=torso_body,
+        )
 
 
 def _delete_embedded_floor(spec: mujoco.MjSpec) -> None:
@@ -269,7 +328,12 @@ def _sync_joint_force_limits_to_ctrlrange(spec: mujoco.MjSpec) -> None:
     joint = spec.joint(joint_name)
     if joint is None:
       continue
-    joint.actfrcrange = ctrlrange
+    group = joint_name.removeprefix("left_").removeprefix("right_")
+    deploy_limit = PHYBOT_C2_DEPLOY_TORQUE_LIMITS.get(group)
+    if deploy_limit is not None:
+      joint.actfrcrange = (-deploy_limit, deploy_limit)
+    else:
+      joint.actfrcrange = ctrlrange
     joint.actfrclimited = True
 
 
@@ -281,7 +345,7 @@ def get_spec() -> mujoco.MjSpec:
   _delete_embedded_actuators(spec)
   _sync_joint_force_limits_to_ctrlrange(spec)
   _disable_spine_inertials(spec)
-  _add_hand_spine_hip_excludes(spec)
+  _add_resting_self_collision_excludes(spec)
   _add_foot_sites(spec)
   return spec
 
@@ -290,81 +354,83 @@ def get_spec() -> mujoco.MjSpec:
 # Actuator config.
 ##
 
+# Nominal sim-PD. The real-PD walk task variant overrides hip/knee damping to
+# match MotorList/config/phybot_mini_*.yaml without changing this baseline.
 PHYBOT_C2_ACTUATOR_HIP_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_pitch",),
   stiffness=100.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["hip_pitch"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["hip_pitch"],
 )
 
 PHYBOT_C2_ACTUATOR_HIP_ROLL = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_roll",),
   stiffness=100.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["hip_roll"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["hip_roll"],
 )
 
 PHYBOT_C2_ACTUATOR_HIP_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_hip_yaw",),
   stiffness=100.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["hip_yaw"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["hip_yaw"],
 )
 
 PHYBOT_C2_ACTUATOR_KNEE = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_knee",),
   stiffness=100.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["knee"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["knee"],
 )
 
 PHYBOT_C2_ACTUATOR_ANKLE_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_ankle_pitch",),
   stiffness=50.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["ankle_pitch"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["ankle_pitch"],
 )
 
 PHYBOT_C2_ACTUATOR_ANKLE_ROLL = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_ankle_roll",),
   stiffness=50.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["ankle_roll"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["ankle_roll"],
 )
 
 PHYBOT_C2_ACTUATOR_WAIST_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=("waist_yaw",),
-  stiffness=100.0,
-  damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["waist_yaw"],
+  stiffness=20.0,
+  damping=10.0,
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["waist_yaw"],
 )
 
 PHYBOT_C2_ACTUATOR_SHOULDER_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_pitch",),
-  stiffness=100.0,
+  stiffness=50.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["shoulder_pitch"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["shoulder_pitch"],
 )
 
 PHYBOT_C2_ACTUATOR_SHOULDER_ROLL = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_roll",),
-  stiffness=100.0,
+  stiffness=50.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["shoulder_roll"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["shoulder_roll"],
 )
 
 PHYBOT_C2_ACTUATOR_SHOULDER_YAW = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_shoulder_yaw",),
-  stiffness=5.0,
+  stiffness=50.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["shoulder_yaw"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["shoulder_yaw"],
 )
 
 PHYBOT_C2_ACTUATOR_ELBOW_PITCH = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_elbow_pitch",),
-  stiffness=100.0,
+  stiffness=50.0,
   damping=5.0,
-  effort_limit=PHYBOT_C2_CTRL_LIMITS["elbow_pitch"],
+  effort_limit=PHYBOT_C2_DEPLOY_TORQUE_LIMITS["elbow_pitch"],
 )
 
 PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
@@ -378,8 +444,11 @@ PHYBOT_C2_ACTUATOR_NECK = BuiltinPositionActuatorCfg(
 # Keyframe config.
 ##
 
+# Base z = 0.726 puts the lowest sole point (heel) exactly on the floor in
+# the -0.295 ankle pose (measured: sole zmin = base - 0.7258); the old 0.70
+# embedded the feet ~2.6 cm into the ground at every reset.
 DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 0.70),
+  pos=(0.0, 0.0, 0.726),
   joint_pos=PHYBOT_C2_STANDING_JOINT_POS,
   joint_vel={".*": 0.0},
 )

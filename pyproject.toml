@@ -2,7 +2,7 @@
 name = "scr_phybot_mjab"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = ["mjlab", "trimesh>=4.0"]
+dependencies = ["amp-rsl-rl==2.2.1", "mjlab", "trimesh>=4.0"]
 
 [project.optional-dependencies]
 teleop = ["hidapi>=0.14"]

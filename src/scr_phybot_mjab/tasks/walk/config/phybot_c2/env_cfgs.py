@@ -6,19 +6,28 @@ only swaps in the PHYBot C2 asset plus robot-specific body/site/joint names.
 
 from __future__ import annotations
 
+import copy
+
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
+from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.curriculum_manager import CurriculumTermCfg
+from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
+from mjlab.utils.spec_config import CollisionCfg
 from scr_phybot_mjab.tasks.walk import mdp
-from scr_phybot_mjab.tasks.walk.mdp import UniformVelocityCommandCfg
+from scr_phybot_mjab.tasks.walk.mdp import PresetVelocityCommandCfg, UniformVelocityCommandCfg
 from scr_phybot_mjab.tasks.walk.walk_env_cfg import make_velocity_env_cfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
   PHYBOT_C2_POLICY_JOINT_NAMES,
+  PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP,
   PHYBOT_C2_STANDING_JOINT_POS,
   configure_phybot_c2_floor_geom,
   configure_phybot_c2_terrain_cfg,
@@ -39,17 +48,62 @@ _ILLEGAL_GROUND_BODIES = (
   r"|torso|torso_upper)$"
 )
 _FOOT_SITE_NAMES = ("left_foot", "right_foot")
-_COLLISION_GEOMS = (r".*_collision$",)
 _BASE_QUAT_SENSOR = "robot/baselink-quat"
 _BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
 _BASE_ANG_VEL_SENSOR = "robot/baselink-gyro"
+_FEET_GROUND_CONTACT_SENSOR = "feet_ground_contact"
+
+# Walk-specific collision config. The shared PHYBOT_C2_COLLISION carries
+# microspine climbing values (foot sliding friction 30, condim 6) which let the
+# policy balance on a heel point without ever slipping; on real ground
+# (mu ~ 0.5-1.0) that gait falls over. The climb task keeps the shared config.
+_FOOT_COLLISION_GEOMS = r"^(left|right)_ankle_roll_collision$"
+_SPINE_PLATE_GEOMS = r"^(left|right)_(foot|hand)_spine_collision$"
+PHYBOT_C2_WALK_COLLISION = CollisionCfg(
+  geom_names_expr=(".*_collision.*",),
+  # Spine plates are climbing hardware; the foot plate box bottom sits below
+  # the shoe sole and must not collide with the ground while walking.
+  contype={_SPINE_PLATE_GEOMS: 0, ".*": 1},
+  conaffinity={_SPINE_PLATE_GEOMS: 0, ".*": 1},
+  condim={".*": 3},
+  friction={
+    _FOOT_COLLISION_GEOMS: (0.7, 0.005, 0.0001),
+    ".*": (1.0, 0.1, 0.1),
+  },
+  # Feet keep priority so their friction/solref win against the terrain plane.
+  priority={_FOOT_COLLISION_GEOMS: 1},
+  # The XML default solref timeconst (0.001) violates MuJoCo's stability
+  # guideline (>= 2*timestep = 0.01 at dt=0.005) and caused visible foot
+  # penetration. Critically damped at the guideline minimum.
+  solref={".*": (0.01, 1.0)},
+)
 
 _WALK_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 0.70),
+  pos=(0.0, 0.0, 0.726),
   rot=(1.0, 0.0, 0.0, 0.0),
   joint_pos=PHYBOT_C2_STANDING_JOINT_POS,
   joint_vel={".*": 0.0},
 )
+
+
+def _apply_real_pd_actuator_damping(cfg: ManagerBasedRlEnvCfg) -> None:
+  robot_cfg = copy.deepcopy(cfg.scene.entities["robot"])
+  damping_by_target_expr = {
+    (f".*_{group}",): damping for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()
+  }
+
+  updated = set()
+  for actuator in robot_cfg.articulation.actuators:
+    target_expr = tuple(actuator.target_names_expr)
+    if target_expr in damping_by_target_expr:
+      actuator.damping = damping_by_target_expr[target_expr]
+      updated.add(target_expr)
+
+  missing = set(damping_by_target_expr) - updated
+  if missing:
+    raise ValueError(f"Missing PHYBot C2 real-PD actuator damping targets: {sorted(missing)}")
+
+  cfg.scene.entities["robot"] = robot_cfg
 
 
 def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
@@ -62,6 +116,7 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   robot_cfg = get_phybot_c2_robot_cfg()
   robot_cfg.init_state = _WALK_STANDING_KEYFRAME
+  robot_cfg.collisions = (PHYBOT_C2_WALK_COLLISION,)
   cfg.scene.entities = {"robot": robot_cfg}
 
   ##
@@ -69,7 +124,6 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   ##
 
   actor_terms = cfg.observations["actor"].terms
-  actor_terms["base_lin_vel"].params = {"sensor_name": _BASE_LIN_VEL_SENSOR}
   actor_terms["base_ang_vel"].params = {"sensor_name": _BASE_ANG_VEL_SENSOR}
   actor_terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
   actor_terms["projected_gravity"].params = {"sensor_name": _BASE_QUAT_SENSOR}
@@ -82,9 +136,9 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       )
     }
 
-  cfg.observations["critic"].terms["foot_height"].params[
-    "asset_cfg"
-  ].site_names = _FOOT_SITE_NAMES
+  critic_terms = cfg.observations["critic"].terms
+  critic_terms["base_lin_vel"].params = {"sensor_name": _BASE_LIN_VEL_SENSOR}
+  critic_terms["foot_height"].params["asset_cfg"].site_names = _FOOT_SITE_NAMES
 
   ##
   # Actions
@@ -99,6 +153,12 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   ##
   # Viewer and command visualization
   ##
+
+  cfg.rewards["feet_flat"].params["asset_cfg"].body_names = (_FEET_ROOT_BODIES,)
+  # Penalize only policy joints when standing; the PD-held neck is not ours.
+  cfg.rewards["stand_still"].params["asset_cfg"] = SceneEntityCfg(
+    "robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES
+  )
 
   cfg.viewer.body_name = _TORSO_BODY
   twist_cmd = cfg.commands["twist"]
@@ -146,10 +206,12 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       history_length=4,
     ),
   )
-  cfg.terminations["self_collision"] = TerminationTermCfg(
-    func=mdp.illegal_contact,
-    params={"sensor_name": "self_collision", "force_threshold": 10.0},
-  )
+  # No self-collision termination (matching the official Isaac config): leg
+  # grazes while standing/stepping otherwise reset the env within 1-2 s, which
+  # starves the policy of standing experience (three 12k runs converged to
+  # leg-contact standing because of it). Self collisions are deterred by the
+  # self_collisions reward instead; falls still terminate via fell_over /
+  # illegal_ground_contact.
   cfg.terminations["illegal_ground_contact"] = TerminationTermCfg(
     func=mdp.illegal_contact,
     params={"sensor_name": "illegal_ground_contact", "force_threshold": 1.0},
@@ -198,10 +260,26 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   }
 
   body_friction = cfg.events["body_friction"]
-  body_friction.params["asset_cfg"].geom_names = _COLLISION_GEOMS
+  # Exclude the feet: they get their own (wider) friction DR below.
+  body_friction.params["asset_cfg"].geom_names = (
+    r"^(?!(left|right)_ankle_roll_collision$).*_collision$",
+  )
   # MJLab exposes MuJoCo geom friction here; official C2 also randomizes
   # dynamic friction/restitution buckets, which do not have a direct DR hook.
   body_friction.params["ranges"] = (0.6, 1.0)
+
+  # Foot-ground sliding friction DR. Defined after body_friction so it wins
+  # even if the negative lookahead above ever fails to exclude the feet.
+  cfg.events["foot_friction"] = EventTermCfg(
+    mode="startup",
+    func=dr.geom_friction,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", geom_names=(_FOOT_COLLISION_GEOMS,)),
+      "operation": "abs",
+      "ranges": (0.4, 1.0),
+      "shared_random": True,
+    },
+  )
 
   base_mass = cfg.events["base_mass"]
   base_mass.params["asset_cfg"].body_names = (_TORSO_BODY,)
@@ -239,4 +317,224 @@ def phybot_c2_walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     twist_cmd.ranges.lin_vel_x = (-1.5, 2.0)
     twist_cmd.ranges.ang_vel_z = (-0.7, 0.7)
 
+  return cfg
+
+
+def phybot_c2_walk_amp_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Create PHYBot C2 flat-terrain velocity config with AMP style reward."""
+  cfg = phybot_c2_walk_env_cfg(play=play)
+
+  amp_asset_cfg = SceneEntityCfg(
+    "robot",
+    joint_names=PHYBOT_C2_POLICY_JOINT_NAMES,
+    preserve_order=True,
+  )
+  cfg.observations["amp"] = ObservationGroupCfg(
+    terms={
+      "joint_pos": ObservationTermCfg(
+        func=mdp.joint_pos,
+        params={"asset_cfg": amp_asset_cfg},
+      ),
+      "joint_vel": ObservationTermCfg(
+        func=mdp.joint_vel,
+        params={"asset_cfg": amp_asset_cfg},
+      ),
+      "base_lin_vel": ObservationTermCfg(func=mdp.base_lin_vel),
+      "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel),
+    },
+    concatenate_terms=True,
+    enable_corruption=False,
+    history_length=None,
+  )
+
+  for reward_name in (
+    "pose",
+    "upright",
+    "body_ang_vel",
+    "air_time",
+    "foot_clearance",
+    "foot_swing_height",
+    "feet_flat",
+    "soft_landing",
+    "base_height",
+  ):
+    cfg.rewards.pop(reward_name, None)
+
+  cfg.rewards["track_linear_velocity"].weight = 25.0
+  cfg.rewards["track_angular_velocity"].weight = 10.0
+  cfg.rewards["dof_pos_limits"].weight = -5.0
+  cfg.rewards["action_rate_l2"].weight = -0.3
+  cfg.rewards["stand_still"].weight = -0.05
+  cfg.rewards["stand_feet_contact"].weight = 0.3
+  cfg.rewards["termination_penalty"].weight = -20.0
+  cfg.rewards["feet_distance"].weight = -5.0
+  cfg.rewards["foot_slip"].weight = -0.1
+  cfg.rewards["self_collisions"].weight = -3.0
+
+  twist_cmd = cfg.commands["twist"]
+  assert isinstance(twist_cmd, UniformVelocityCommandCfg)
+  twist_cmd.ranges.lin_vel_x = (-1.0, 1.2)
+  twist_cmd.ranges.lin_vel_y = (-0.5, 0.5)
+  twist_cmd.ranges.ang_vel_z = (-0.7, 0.7)
+
+  if not play and "command_vel" in cfg.curriculum:
+    cfg.curriculum["command_vel"].params["velocity_stages"] = [
+      {"step": 0, "lin_vel_x": (-1.0, 1.0), "lin_vel_y": (-0.5, 0.5), "ang_vel_z": (-0.5, 0.5)},
+      {
+        "step": 5000 * 24,
+        "lin_vel_x": (-1.0, 1.2),
+        "lin_vel_y": (-0.5, 0.5),
+        "ang_vel_z": (-0.7, 0.7),
+      },
+    ]
+
+  return cfg
+
+
+def phybot_c2_walk_preset_amp_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Create a preset-gait AMP task with strict zero-command foot locking."""
+  cfg = phybot_c2_walk_env_cfg(play=play)
+
+  amp_asset_cfg = SceneEntityCfg(
+    "robot",
+    joint_names=PHYBOT_C2_POLICY_JOINT_NAMES,
+    preserve_order=True,
+  )
+  cfg.observations["amp"] = ObservationGroupCfg(
+    terms={
+      "joint_pos": ObservationTermCfg(
+        func=mdp.joint_pos,
+        params={"asset_cfg": amp_asset_cfg},
+      ),
+      "joint_vel": ObservationTermCfg(
+        func=mdp.joint_vel,
+        params={"asset_cfg": amp_asset_cfg},
+      ),
+      "base_lin_vel": ObservationTermCfg(func=mdp.base_lin_vel),
+      "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel),
+    },
+    concatenate_terms=True,
+    enable_corruption=False,
+    history_length=None,
+  )
+
+  cfg.commands["twist"] = PresetVelocityCommandCfg(
+    entity_name="robot",
+    resampling_time_range=(4.0, 8.0),
+    rel_standing_envs=0.0,
+    rel_heading_envs=0.0,
+    heading_command=False,
+    debug_vis=True,
+    ranges=PresetVelocityCommandCfg.Ranges(
+      lin_vel_x=(0.0, 0.6),
+      lin_vel_y=(0.0, 0.0),
+      ang_vel_z=(-0.35, 0.35),
+      heading=None,
+    ),
+    presets=(
+      PresetVelocityCommandCfg.Preset("stand", 0.0, 0.0, 0.0, 45.0),
+      PresetVelocityCommandCfg.Preset("slow_forward", 0.35, 0.0, 0.0, 25.0),
+      PresetVelocityCommandCfg.Preset("walk_forward", 0.60, 0.0, 0.0, 20.0),
+      PresetVelocityCommandCfg.Preset("turn_left", 0.20, 0.0, 0.35, 5.0),
+      PresetVelocityCommandCfg.Preset("turn_right", 0.20, 0.0, -0.35, 5.0),
+    ),
+    slow_speed=0.35,
+    walk_speed=0.60,
+    turn_forward_speed=0.20,
+    turn_speed=0.35,
+  )
+
+  # Preset task: no velocity range curriculum and no random pushes until the
+  # stand-with-fixed-feet behavior is reliable.
+  cfg.curriculum = {}
+  cfg.events.pop("push_robot", None)
+
+  cfg.rewards["alive"] = RewardTermCfg(func=mdp.is_alive, weight=1.0)
+  cfg.rewards["track_linear_velocity"].weight = 0.0
+  cfg.rewards["track_angular_velocity"].weight = 0.0
+  cfg.rewards["upright"].weight = 2.0
+  cfg.rewards["pose"].weight = 2.0
+  cfg.rewards["base_height"].weight = 1.0
+  cfg.rewards["body_ang_vel"].weight = -0.08
+  cfg.rewards["dof_pos_limits"].weight = -5.0
+  cfg.rewards["action_rate_l2"].weight = -0.25
+  cfg.rewards["termination_penalty"].weight = -20.0
+  cfg.rewards["air_time"].weight = 0.05
+  cfg.rewards["air_time"].params["command_threshold"] = 0.1
+  cfg.rewards["foot_clearance"].weight = -0.5
+  cfg.rewards["foot_swing_height"].weight = -0.15
+  cfg.rewards["feet_flat"].weight = 0.8
+  cfg.rewards["feet_distance"].weight = -5.0
+  cfg.rewards["stand_still"].weight = -0.05
+  cfg.rewards["stand_feet_contact"].weight = 2.0
+  cfg.rewards["foot_slip"].weight = -0.2
+  cfg.rewards["self_collisions"].weight = -3.0
+
+  cfg.rewards["preset_forward_velocity"] = RewardTermCfg(
+    func=mdp.preset_forward_velocity_band,
+    weight=4.0,
+    params={"command_name": "twist", "command_threshold": 0.05},
+  )
+  cfg.rewards["preset_yaw_velocity"] = RewardTermCfg(
+    func=mdp.preset_yaw_velocity_band,
+    weight=2.0,
+    params={"command_name": "twist", "command_threshold": 0.05},
+  )
+  cfg.rewards["stand_feet_stationary"] = RewardTermCfg(
+    func=mdp.feet_stationary_when_standing,
+    weight=-0.5,
+    params={
+      "command_name": "twist",
+      "sensor_name": _FEET_GROUND_CONTACT_SENSOR,
+      "command_threshold": 0.05,
+      "missing_contact_cost": 0.5,
+      "asset_cfg": SceneEntityCfg("robot", site_names=_FOOT_SITE_NAMES),
+    },
+  )
+  cfg.rewards["stand_base_motion"] = RewardTermCfg(
+    func=mdp.base_motion_when_standing,
+    weight=-0.05,
+    params={"command_name": "twist", "command_threshold": 0.05},
+  )
+
+  if not play:
+    cfg.curriculum = {
+      "stand_feet_stationary_weight": CurriculumTermCfg(
+        func=mdp.reward_weight,
+        params={
+          "reward_name": "stand_feet_stationary",
+          "weight_stages": [
+            {"step": 0, "weight": -0.5},
+            {"step": 2000 * 24, "weight": -1.5},
+            {"step": 6000 * 24, "weight": -3.0},
+            {"step": 9000 * 24, "weight": -4.0},
+          ],
+        },
+      ),
+      "stand_still_weight": CurriculumTermCfg(
+        func=mdp.reward_weight,
+        params={
+          "reward_name": "stand_still",
+          "weight_stages": [
+            {"step": 0, "weight": -0.05},
+            {"step": 4000 * 24, "weight": -0.15},
+            {"step": 8000 * 24, "weight": -0.25},
+          ],
+        },
+      ),
+    }
+
+  if play:
+    # Keep play unlimited, clean, and deterministic.
+    cfg.events.pop("push_robot", None)
+    cfg.curriculum = {}
+
+  return cfg
+
+
+def phybot_c2_walk_preset_amp_realpd_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Preset AMP task with actor obs unchanged and sim PD matched to mini deploy."""
+  cfg = phybot_c2_walk_preset_amp_env_cfg(play=play)
+  _apply_real_pd_actuator_damping(cfg)
+  cfg.rewards["action_rate_l2"].weight = -0.25
   return cfg

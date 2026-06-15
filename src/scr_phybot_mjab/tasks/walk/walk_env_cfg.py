@@ -38,11 +38,9 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
   # Observations
   ##
 
+  # No base_lin_vel: the real robot has no linear-velocity estimate, so the
+  # actor must work without it (the critic still gets it as privileged info).
   actor_terms = {
-    "base_lin_vel": ObservationTermCfg(
-      func=mdp.builtin_sensor,
-      params={"sensor_name": "robot/imu_lin_vel"},
-    ),
     "base_ang_vel": ObservationTermCfg(
       func=mdp.builtin_sensor,
       params={"sensor_name": "robot/imu_ang_vel"},
@@ -68,6 +66,10 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
   }
 
   critic_terms = {
+    "base_lin_vel": ObservationTermCfg(
+      func=mdp.builtin_sensor,
+      params={"sensor_name": "robot/imu_lin_vel"},
+    ),
     **actor_terms,
     "foot_height": ObservationTermCfg(
       func=mdp.foot_height,
@@ -134,7 +136,7 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
     "twist": UniformVelocityCommandCfg(
       entity_name="robot",
       resampling_time_range=(3.0, 8.0),
-      rel_standing_envs=0.1,
+      rel_standing_envs=0.25,
       rel_heading_envs=0.3,
       heading_command=True,
       heading_control_stiffness=0.5,
@@ -258,12 +260,13 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
         "running_threshold": 1.5,
       },
     ),
-    # Anti-crouch: settled root height in the default pose is ~0.717 m.
+    # Anti-crouch: measured zero-action settled base height in the real-robot
+    # zero pose (ankle_pitch -0.295, keyframe z 0.726, PD sag included).
     # Absolute world z — only valid on flat terrain.
     "base_height": RewardTermCfg(
       func=mdp.base_height,
       weight=0.5,
-      params={"target_height": 0.72, "std": 0.1},
+      params={"target_height": 0.713, "std": 0.1},
     ),
     "body_ang_vel": RewardTermCfg(
       func=mdp.body_angular_velocity_penalty,
@@ -323,6 +326,46 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
         "asset_cfg": SceneEntityCfg("robot", site_names=_FOOT_SITE_NAMES),
       },
     ),
+    # Flat-foot contact: discourages the heel-point balancing that the old
+    # high-friction microspine contact made profitable.
+    "feet_flat": RewardTermCfg(
+      func=mdp.feet_flat_orientation,
+      weight=0.5,
+      params={
+        "std": math.sqrt(0.1),
+        "sensor_name": _FEET_GROUND_CONTACT_SENSOR,
+        "asset_cfg": SceneEntityCfg("robot", body_names=()),  # Set per-robot.
+      },
+    ),
+    # Stance width: keep the feet at least 0.15 m apart laterally (shoe shells
+    # touch at ~0.10 m; default stance is 0.297 m, so normal gait is unaffected).
+    "feet_distance": RewardTermCfg(
+      func=mdp.feet_lateral_distance,
+      weight=-5.0,
+      params={
+        "min_dist": 0.15,
+        "asset_cfg": SceneEntityCfg("robot", site_names=_FOOT_SITE_NAMES),
+      },
+    ),
+    # Gentle calm-stance preference only. Static standing is impossible at the
+    # deploy ankle gains (2x50 N*m/rad << m*g*h ~ 271), so the policy must
+    # balance actively (weight shifts / stepping in place). At -0.3 the motion
+    # cost dwarfed the -20 fall penalty and the policy learned to freeze and
+    # tip over instead.
+    "stand_still": RewardTermCfg(
+      func=mdp.stand_still_joint_vel,
+      weight=-0.05,
+      params={"command_name": "twist", "command_threshold": 0.05},
+    ),
+    "stand_feet_contact": RewardTermCfg(
+      func=mdp.feet_contact_when_standing,
+      weight=0.3,
+      params={
+        "command_name": "twist",
+        "sensor_name": _FEET_GROUND_CONTACT_SENSOR,
+        "command_threshold": 0.05,
+      },
+    ),
     "foot_slip": RewardTermCfg(
       func=mdp.feet_slip,
       weight=-0.1,
@@ -342,9 +385,11 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
         "command_threshold": 0.05,
       },
     ),
+    # Sole self-collision deterrent (there is no self-collision termination:
+    # it starved the policy of standing experience; see phybot env cfg).
     "self_collisions": RewardTermCfg(
       func=mdp.self_collision_cost,
-      weight=-1.0,
+      weight=-3.0,
       params={"sensor_name": _SELF_COLLISION_SENSOR, "force_threshold": 10.0},
     ),
   }

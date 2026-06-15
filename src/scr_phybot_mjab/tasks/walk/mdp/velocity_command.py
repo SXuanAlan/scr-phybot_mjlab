@@ -51,6 +51,10 @@ class UniformVelocityCommand(CommandTerm):
     self._joystick_sliders: list[viser.GuiSliderHandle] = []
     self._joystick_get_env_idx: Callable[[], int] | None = None
 
+    # Set by set_gamepad_source() when playing with a physical gamepad.
+    # Returns the (lin_vel_x, lin_vel_y, ang_vel_z) command in robot units.
+    self._gamepad_source: Callable[[], tuple[float, float, float]] | None = None
+
   @property
   def command(self) -> torch.Tensor:
     return self.vel_command_b
@@ -121,9 +125,9 @@ class UniformVelocityCommand(CommandTerm):
     ranges = self.cfg.ranges
 
     axes = [
-      ("lin_vel_x", ranges.lin_vel_x[1]),
-      ("lin_vel_y", ranges.lin_vel_y[1]),
-      ("ang_vel_z", ranges.ang_vel_z[1]),
+      ("lin_vel_x", max(abs(ranges.lin_vel_x[0]), abs(ranges.lin_vel_x[1]), 0.1)),
+      ("lin_vel_y", max(abs(ranges.lin_vel_y[0]), abs(ranges.lin_vel_y[1]), 0.1)),
+      ("ang_vel_z", max(abs(ranges.ang_vel_z[0]), abs(ranges.ang_vel_z[1]), 0.1)),
     ]
     sliders: list = []
 
@@ -165,6 +169,17 @@ class UniformVelocityCommand(CommandTerm):
     self._joystick_sliders = sliders
     self._joystick_get_env_idx = get_env_idx
 
+  def set_gamepad_source(
+    self, source: Callable[[], tuple[float, float, float]] | None
+  ) -> None:
+    """Drive the command from a physical gamepad during play.
+
+    ``source`` returns the latest ``(lin_vel_x, lin_vel_y, ang_vel_z)`` command
+    in robot units. It is applied to every environment each control step,
+    overriding the randomly sampled command. Pass ``None`` to disable.
+    """
+    self._gamepad_source = source
+
   def compute(self, dt: float) -> None:
     super().compute(dt)
     if self._joystick_enabled is not None and self._joystick_enabled.value:
@@ -172,6 +187,11 @@ class UniformVelocityCommand(CommandTerm):
       idx = self._joystick_get_env_idx()
       for i, s in enumerate(self._joystick_sliders):
         self.vel_command_b[idx, i] = s.value
+    if self._gamepad_source is not None:
+      vx, vy, wz = self._gamepad_source()
+      self.vel_command_b[:, 0] = vx
+      self.vel_command_b[:, 1] = vy
+      self.vel_command_b[:, 2] = wz
 
   # Visualization.
 
@@ -279,3 +299,92 @@ class UniformVelocityCommandCfg(CommandTermCfg):
         "The velocity command has heading commands active (heading_command=True) but "
         "the `ranges.heading` parameter is set to None."
       )
+
+
+class PresetVelocityCommand(UniformVelocityCommand):
+  """Sample from fixed walk/stand command presets.
+
+  The observation contract stays identical to ``UniformVelocityCommand``:
+  policies still receive ``(lin_vel_x, lin_vel_y, ang_vel_z)``. The difference is
+  behavioral: training only sees a small set of command modes, and physical
+  gamepad input is quantized into those modes during play.
+  """
+
+  cfg: PresetVelocityCommandCfg
+
+  def __init__(self, cfg: "PresetVelocityCommandCfg", env: ManagerBasedRlEnv):
+    super().__init__(cfg, env)
+    if not cfg.presets:
+      raise ValueError("PresetVelocityCommandCfg.presets must not be empty.")
+    values = [(p.lin_vel_x, p.lin_vel_y, p.ang_vel_z) for p in cfg.presets]
+    weights = [p.weight for p in cfg.presets]
+    if any(weight <= 0.0 for weight in weights):
+      raise ValueError("Preset command weights must be positive.")
+    self._preset_values = torch.tensor(values, device=self.device, dtype=torch.float32)
+    self._preset_weights = torch.tensor(weights, device=self.device, dtype=torch.float32)
+    self._preset_names = tuple(p.name for p in cfg.presets)
+
+  def _resample_command(self, env_ids: torch.Tensor) -> None:
+    if len(env_ids) == 0:
+      return
+    preset_ids = torch.multinomial(
+      self._preset_weights,
+      num_samples=len(env_ids),
+      replacement=True,
+    )
+    self.vel_command_b[env_ids] = self._preset_values[preset_ids]
+    total_command = (
+      torch.norm(self.vel_command_b[env_ids, :2], dim=1)
+      + torch.abs(self.vel_command_b[env_ids, 2])
+    )
+    self.is_standing_env[env_ids] = total_command < self.cfg.external_deadband
+    self.is_heading_env[env_ids] = False
+
+  def _command_from_external(self) -> tuple[float, float, float]:
+    assert self._gamepad_source is not None
+    vx, vy, wz = self._gamepad_source()
+    del vy  # v1 presets do not expose sidestep.
+    if abs(wz) >= self.cfg.turn_threshold and abs(vx) < self.cfg.walk_threshold:
+      return (self.cfg.turn_forward_speed, 0.0, self.cfg.turn_speed * float(np.sign(wz)))
+    if vx >= self.cfg.walk_threshold:
+      return (self.cfg.walk_speed, 0.0, 0.0)
+    if vx >= self.cfg.slow_threshold:
+      return (self.cfg.slow_speed, 0.0, 0.0)
+    return (0.0, 0.0, 0.0)
+
+  def compute(self, dt: float) -> None:
+    CommandTerm.compute(self, dt)
+    if self._joystick_enabled is not None and self._joystick_enabled.value:
+      assert self._joystick_get_env_idx is not None
+      idx = self._joystick_get_env_idx()
+      for i, slider in enumerate(self._joystick_sliders):
+        self.vel_command_b[idx, i] = slider.value
+    if self._gamepad_source is not None:
+      vx, vy, wz = self._command_from_external()
+      self.vel_command_b[:, 0] = vx
+      self.vel_command_b[:, 1] = vy
+      self.vel_command_b[:, 2] = wz
+
+
+@dataclass(kw_only=True)
+class PresetVelocityCommandCfg(UniformVelocityCommandCfg):
+  @dataclass(frozen=True)
+  class Preset:
+    name: str
+    lin_vel_x: float
+    lin_vel_y: float
+    ang_vel_z: float
+    weight: float
+
+  presets: tuple[Preset, ...]
+  external_deadband: float = 0.08
+  slow_threshold: float = 0.18
+  walk_threshold: float = 0.55
+  turn_threshold: float = 0.18
+  slow_speed: float = 0.35
+  walk_speed: float = 0.60
+  turn_forward_speed: float = 0.20
+  turn_speed: float = 0.35
+
+  def build(self, env: ManagerBasedRlEnv) -> PresetVelocityCommand:
+    return PresetVelocityCommand(self, env)

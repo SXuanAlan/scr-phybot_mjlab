@@ -85,6 +85,94 @@ def flat_orientation(
   return torch.exp(-xy_squared / std**2)
 
 
+def feet_flat_orientation(
+  env: ManagerBasedRlEnv,
+  std: float,
+  sensor_name: str,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward keeping the foot soles flat while in ground contact.
+
+  For each foot body (asset_cfg.body_ids) the gravity vector is projected into
+  the body frame; a flat sole means zero xy components. Feet not in contact
+  contribute nothing, so swing feet are free to pitch.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  assert contact_sensor.data.found is not None
+  in_contact = (contact_sensor.data.found > 0).float()  # [B, N]
+  body_quat_w = asset.data.body_link_quat_w[:, asset_cfg.body_ids, :]  # [B, N, 4]
+  num_envs, num_feet = body_quat_w.shape[:2]
+  gravity_w = asset.data.gravity_vec_w
+  if gravity_w.dim() == 1:
+    gravity_w = gravity_w.unsqueeze(0).expand(num_envs, 3)
+  gravity_w = gravity_w.unsqueeze(1).expand(num_envs, num_feet, 3)
+  projected = quat_apply_inverse(
+    body_quat_w.reshape(num_envs * num_feet, 4),
+    gravity_w.reshape(num_envs * num_feet, 3),
+  ).reshape(num_envs, num_feet, 3)
+  xy_squared = torch.sum(torch.square(projected[..., :2]), dim=-1)  # [B, N]
+  flatness = torch.exp(-xy_squared / std**2)  # [B, N]
+  return torch.sum(flatness * in_contact, dim=1) / num_feet
+
+
+def feet_lateral_distance(
+  env: ManagerBasedRlEnv,
+  min_dist: float,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalize the lateral (base-frame y) foot separation dropping below min_dist.
+
+  The policy otherwise converges to standing with the feet touching: the shoe
+  shells then clip each other on micro-shuffles and trip the self-collision
+  termination. Uses |y_left - y_right| so site ordering does not matter;
+  crossed feet pass through zero separation and get the maximum penalty.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  pos_w = asset.data.site_pos_w[:, asset_cfg.site_ids, :]  # [B, 2, 3]
+  rel = pos_w - asset.data.root_link_pos_w.unsqueeze(1)
+  num_envs, num_sites = rel.shape[:2]
+  quat = asset.data.root_link_quat_w.unsqueeze(1).expand(num_envs, num_sites, 4)
+  pos_b = quat_apply_inverse(
+    quat.reshape(-1, 4), rel.reshape(-1, 3)
+  ).reshape(num_envs, num_sites, 3)
+  separation = (pos_b[:, 0, 1] - pos_b[:, 1, 1]).abs()
+  return (min_dist - separation).clamp(min=0)
+
+
+def stand_still_joint_vel(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalize joint motion when the commanded velocity is (near) zero."""
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  standing = (total_command < command_threshold).float()
+  joint_vel = asset.data.joint_vel[:, asset_cfg.joint_ids]
+  return standing * torch.sum(torch.abs(joint_vel), dim=1)
+
+
+def feet_contact_when_standing(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  sensor_name: str,
+  command_threshold: float = 0.05,
+) -> torch.Tensor:
+  """Reward having all feet on the ground when commanded to stand still."""
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  assert contact_sensor.data.found is not None
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  standing = (total_command < command_threshold).float()
+  all_feet_down = (contact_sensor.data.found > 0).all(dim=1).float()
+  return standing * all_feet_down
+
+
 def self_collision_cost(
   env: ManagerBasedRlEnv,
   sensor_name: str,
@@ -257,6 +345,62 @@ def base_height(
   return torch.exp(-error / std**2)
 
 
+def preset_forward_velocity_band(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  command_threshold: float = 0.05,
+  low_ratio: float = 0.6,
+  high_ratio: float = 1.5,
+  std: float = 0.25,
+  lateral_std: float = 0.35,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward broad forward-speed bands for preset commands, not exact tracking."""
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  cmd_x = command[:, 0]
+  active = (torch.abs(cmd_x) > command_threshold).float()
+  target_speed = torch.abs(cmd_x)
+  signed_actual = asset.data.root_link_lin_vel_b[:, 0] * torch.sign(cmd_x).clamp(min=-1.0, max=1.0)
+  low = target_speed * low_ratio
+  high = target_speed * high_ratio
+  outside_band = (low - signed_actual).clamp(min=0.0) + (signed_actual - high).clamp(min=0.0)
+  lateral_vel = asset.data.root_link_lin_vel_b[:, 1]
+  env.extras["log"]["Metrics/preset_forward_actual"] = torch.mean(signed_actual * active)
+  return torch.exp(
+    -torch.square(outside_band) / std**2 - torch.square(lateral_vel) / lateral_std**2
+  ) * active
+
+
+def preset_yaw_velocity_band(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  command_threshold: float = 0.05,
+  low_ratio: float = 0.5,
+  high_ratio: float = 1.6,
+  std: float = 0.25,
+  roll_pitch_std: float = 0.35,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward broad yaw-rate bands for turn presets, not exact tracking."""
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  cmd_yaw = command[:, 2]
+  active = (torch.abs(cmd_yaw) > command_threshold).float()
+  target_rate = torch.abs(cmd_yaw)
+  signed_actual = asset.data.root_link_ang_vel_b[:, 2] * torch.sign(cmd_yaw).clamp(min=-1.0, max=1.0)
+  low = target_rate * low_ratio
+  high = target_rate * high_ratio
+  outside_band = (low - signed_actual).clamp(min=0.0) + (signed_actual - high).clamp(min=0.0)
+  roll_pitch = torch.norm(asset.data.root_link_ang_vel_b[:, :2], dim=1)
+  env.extras["log"]["Metrics/preset_yaw_actual"] = torch.mean(signed_actual * active)
+  return torch.exp(
+    -torch.square(outside_band) / std**2 - torch.square(roll_pitch) / roll_pitch_std**2
+  ) * active
+
+
 class energy:
   """Penalize mechanical power: L2 norm of |torque * joint_vel| over joints.
 
@@ -316,6 +460,56 @@ def feet_slip(
   )
   env.extras["log"]["Metrics/slip_velocity_mean"] = mean_slip_vel
   return cost
+
+
+def feet_stationary_when_standing(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  command_name: str,
+  command_threshold: float = 0.05,
+  missing_contact_cost: float = 1.0,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalize foot XY motion and contact loss while commanded to stand."""
+  asset: Entity = env.scene[asset_cfg.name]
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  standing = (total_command < command_threshold).float()
+  foot_vel_xy = asset.data.site_lin_vel_w[:, asset_cfg.site_ids, :2]
+  foot_speed = torch.norm(foot_vel_xy, dim=-1)
+  motion_cost = torch.sum(torch.square(foot_speed), dim=1)
+  assert contact_sensor.data.found is not None
+  missing_contact = (contact_sensor.data.found == 0).float()
+  contact_cost = missing_contact_cost * torch.sum(missing_contact, dim=1)
+  env.extras["log"]["Metrics/stand_foot_speed_mean"] = (
+    torch.sum(foot_speed * standing.unsqueeze(1)) / torch.clamp(standing.sum() * foot_speed.shape[1], min=1.0)
+  )
+  env.extras["log"]["Metrics/stand_missing_contact_mean"] = (
+    torch.sum(missing_contact * standing.unsqueeze(1)) / torch.clamp(standing.sum() * missing_contact.shape[1], min=1.0)
+  )
+  return standing * (motion_cost + contact_cost)
+
+
+def base_motion_when_standing(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  command_threshold: float = 0.05,
+  lin_std: float = 0.2,
+  yaw_std: float = 0.3,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalize base drift/turning under the stand preset."""
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  standing = (total_command < command_threshold).float()
+  lin_xy = torch.norm(asset.data.root_link_lin_vel_b[:, :2], dim=1)
+  yaw = torch.abs(asset.data.root_link_ang_vel_b[:, 2])
+  cost = torch.square(lin_xy / lin_std) + torch.square(yaw / yaw_std)
+  return standing * cost
 
 
 def soft_landing(
