@@ -10,7 +10,7 @@
 ## 1. 目标与范围
 
 ### 1.1 目标
-1. 把官方单体部署重构成**可复用库 + 自注册状态插件**,让"加一个动作"从改 ~7 处文件降到 ~1 处。
+1. 把官方单体部署重构成**可复用库 + 自注册状态插件**,让"加一个动作"从改 ~7 处文件降到:中心 `state_id.h` 加 1 行枚举 + 一个自包含 `states/<name>/` 目录(+cmake/bindings 各一行)。
 2. `StateMachine` 做成**项目内可复用的状态机模块**(放入 `core`,字符串注册表 + 自注册),借鉴 Unitree `unitree_guide` 的成熟契约;**不**抽成跨机器人独立库。
 3. **Xbox 手柄支持**:稳健设备层(SDL2/热插拔)+ 配置驱动按键映射 + 轴→连续命令。
 4. **集成自己的 task**:walk_amp + 一个空白模板,便于后续复制。
@@ -58,7 +58,7 @@ config/                      robot.yaml / bindings.yaml
 ```
 bdml_phybot_deploy_c2/
 ├── core/
-│   ├── include/phybot/{state.h, state_machine.h, state_registry.h,
+│   ├── include/phybot/{state_id.h, state.h, state_machine.h, state_registry.h,
 │   │                   PolicyState.h, PolicyRunner.h, HistoryBuffers.h,
 │   │                   ObsBuilder.h, InputProtocol.h, RobotBackend.h}
 │   └── src/...
@@ -96,7 +96,17 @@ bdml_phybot_deploy_c2/
 
 > 与 Unitree/上一稿不同点:**不引入模板 `Ctx`**。换取简单内聚;代价是状态机耦合 `DataPackage`、不便整体搬去其它机器人项目。项目内仍可复用(任意多 state 共用一套 `StateMachine`)。
 
-### 3.2 接口
+### 3.2 标识:`enum class StateId`(黑板字段用 enum,鲁棒)
+黑板上的 `requested_state` / `current_state` 都会被 LCM 回调线程与心跳回报线程**跨线程**访问。用 **`enum`(平凡可拷贝)**与官方 `NextState` 一样安全,避免 `std::string` 跨线程 UB(见 §5.5)。代价:一个**中心枚举清单**,加 state 在此加一行(唯一中心编辑点;名字由 `REGISTER_STATE` 与 state 放一起,不中心化)。
+
+```cpp
+// core/include/phybot/state_id.h  —— 唯一中心清单(加 state 在此加一行)
+namespace phybot {
+enum class StateId { ZERO, WALK_AMP, MIMIC, /* …新增在此加一行… */ COUNT };
+}
+```
+
+### 3.3 接口
 
 ```cpp
 // core/include/phybot/state.h
@@ -104,48 +114,50 @@ namespace phybot {
 class State {
 public:
     virtual ~State() = default;
-    explicit State(std::string name) : name_(std::move(name)) {}
-    const std::string& name() const { return name_; }
+    explicit State(StateId id, std::string name) : id_(id), name_(std::move(name)) {}
+    StateId id() const { return id_; }
+    const std::string& name() const { return name_; }            // 仅日志/配置可读
 
     virtual void enter(DataPackage&) {}                          // 进入(复位/加载)
     virtual void run  (DataPackage&) = 0;                         // 每拍执行
     virtual void exit (DataPackage&) {}                           // 退出(清零)
-    virtual std::string checkChange(DataPackage&) { return ""; }  // 自跳转, ""=不变
+    virtual StateId checkChange(DataPackage&) { return id_; }     // 自跳转, 返回自身=不变
     virtual bool canExit(DataPackage&) { return true; }           // 互锁
 protected:
-    std::string name_;
+    StateId id_;  std::string name_;
 };
 
 // core/include/phybot/state_machine.h
 class StateMachine {
 public:
-    void add(std::unique_ptr<State> s) { auto k = s->name(); states_[k] = std::move(s); }
-    void start(const std::string& key, DataPackage& io) { current_ = states_.at(key).get(); current_->enter(io); }
-    const std::string& current() const { return current_->name(); }
+    void add(std::unique_ptr<State> s) { states_[(int)s->id()] = std::move(s); }
+    void start(StateId id, DataPackage& io) { current_ = states_[(int)id].get(); current_->enter(io); }
+    StateId current() const { return current_->id(); }
 
     void tick(DataPackage& io) {
-        std::string next = current_->checkChange(io);         // ① 状态自决
-        if (next.empty()) next = io.requested_state;          // ② 否则外部请求
-        if (!next.empty() && next != current_->name() && states_.count(next)) {
+        StateId next = current_->checkChange(io);             // ① 状态自决(返回自身=不变)
+        if (next == current_->id()) next = io.requested_state;// ② 否则外部请求
+        if (next != current_->id() && states_[(int)next]) {
             if (current_->canExit(io)) {                      // ③ 互锁
                 current_->exit(io);
-                current_ = states_.at(next).get();
+                current_ = states_[(int)next].get();
                 current_->enter(io);
             }
         }
-        io.current_state = current_->name();
+        io.current_state = current_->id();
         current_->run(io);                                    // ④ 跑当前
     }
 private:
-    std::unordered_map<std::string, std::unique_ptr<State>> states_;
+    std::array<std::unique_ptr<State>, (size_t)StateId::COUNT> states_;   // 按 enum 下标, 无哈希/无堆查找
     State* current_ = nullptr;
 };
 } // namespace phybot
 ```
+黑板字段:`StateId requested_state{StateId::ZERO};` `StateId current_state{StateId::ZERO};`(平凡,跨线程安全)。
 
-### 3.3 转换语义
+### 3.4 转换语义
 - 单线程、单拍内 `exit→swap→enter→run` 顺序执行,无双 run、无交错。
-- 转换源优先级:状态 `checkChange`(自动)> `io.requested_state`(外部手柄/App)。
+- 转换源优先级:状态 `checkChange`(返回非自身=自动跳转)> `io.requested_state`(外部手柄/App)。
 - `canExit() == false` → 维持当前状态(对应官方 Blocked)。
 - 切换瞬间不跑旧状态的 `run`,只 `enter` 新状态并跑其 `run`(单拍内完成,1kHz 下 1ms 内)。
 
@@ -216,10 +228,8 @@ void InputReceiver::poll(DataPackage& io) {
 
 ### 5.5 线程安全与切换去抖(改动官方逻辑后新引入的两条真机风险)
 
-**(N1)`requested_state` 跨线程:`std::string` 非平凡,必须加锁/快照。**
-官方 `NextState` 是 `enum`(平凡),回调线程写、主线程读,撕裂顶多读到旧值不崩。新设计 `requested_state` 是 `std::string`,**并发读写是数据竞争 UB(可能堆破坏 → 真机运行中崩溃)**。规定:
-- LCM 回调线程**只在 mutex 下存原始字节** `latest_`,**不触碰** `DataPackage` 的 string 字段。
-- `poll()` 在**主线程内**取快照、解码、写 `io.requested_state`,与 `tick()` 同线程,无竞争。
+**(N1)跨线程字段用 `enum`(已解决)。**
+`requested_state` / `current_state` 会被 LCM 回调线程与心跳回报线程跨线程访问。**采用 `enum class StateId`(平凡可拷贝)**,与官方 `NextState`(enum)一样安全,无 `std::string` 跨线程 UB。另:LCM 回调线程**只在 mutex 下存原始字节** `latest_`,`poll()` 在主线程取快照解码,避免撕裂读原始包。`current_state` 同为 enum,供心跳线程安全读取。
 
 **(N2)切换去抖:官方 500ms 轮询天然去抖,改每拍即时后须补。**
 每拍即时切换 → 一次按键抖动/瞬时误触会立刻切状态(真机行走中误切到趴下/爬起很危险)。规定:
@@ -246,7 +256,7 @@ class IController { public:
 ```cpp
 phybot::StateMachine machine;
 phybot::StateRegistry::instance().loadInto(machine);   // 自注册状态全部加载(开机加载所有 policy.pt)
-machine.start("zero", package);
+machine.start(StateId::ZERO, package);
 
 while (1) {
     motorlist.GetStatesToPackage(...);     // ② 读电机    —— 官方不动
@@ -315,14 +325,15 @@ cmake -S . -B build -DWHICH_ENV=mujoco_sim_mini  # 链 backend_mujoco
 
 ## 9. Task(state)编写规范
 
-### 9.1 每个 state 固定编辑面(4+1 处)
-1. `states/<name>/<name>.cpp`:类 + `REGISTER_STATE("<name>", <Class>)`
-2. `states/<name>/config/rl_params.yaml`
-3. `states/<name>/model/policy.pt`
-4. `CMakeLists.txt`:`phybot_add_state(<name>)`
-5. `config/bindings.yaml`:按键 + lcm model id
+### 9.1 每个 state 固定编辑面
+1. `core/include/phybot/state_id.h`:枚举加一行 `StateId::<NAME>`(唯一中心编辑点)
+2. `states/<name>/<name>.cpp`:类 + `REGISTER_STATE(StateId::<NAME>, "<name>", <Class>)`
+3. `states/<name>/config/rl_params.yaml`
+4. `states/<name>/model/policy.pt`
+5. `CMakeLists.txt`:`phybot_add_state(<name>)`
+6. `config/bindings.yaml`:按键 + lcm model id
 
-**永不碰**:`core` 状态机(`State`/`StateMachine`)、`InputProtocol`、`server`、主循环、enum、中心注册文件。
+**永不碰**:`core` 状态机(`State`/`StateMachine`)、`InputProtocol`、`server`、主循环、中心注册/分发逻辑。
 
 ### 9.2 `.cpp` 钩子(按 task 差异重写)
 | 钩子 | 何时 | 必填 |
@@ -340,8 +351,8 @@ cmake -S . -B build -DWHICH_ENV=mujoco_sim_mini  # 链 backend_mujoco
 - **C 非 RL 类(zero)**:继承 `phybot::State`,自己写 `run`(PD 到零位),无 policy/obs。
 
 ```cpp
-// 自注册宏
-REGISTER_STATE("walk_amp", WalkAmpState);
+// 自注册宏(名字与 state 放一起, 不中心化; StateId 引用中心枚举)
+REGISTER_STATE(StateId::WALK_AMP, "walk_amp", WalkAmpState);
 ```
 
 ### 9.4 "改"已有 task
@@ -384,7 +395,7 @@ REGISTER_STATE("walk_amp", WalkAmpState);
 3. ☐ PD/力矩限幅/decimation/命令限幅 = 官方
 4. ☐ LCM 解码对真实旧 App/手柄包回归通过
 5. ☐ 启动打印已注册 state 清单 = 期望清单
-6. ☐ `requested_state` 跨线程已加锁/快照(N1)
+6. ☐ `requested_state`/`current_state` 为 `enum`(跨线程安全),LCM 原始包读取已加锁(N1)
 7. ☐ 切换去抖到位(N2)
 8. ☐ 电机心跳保护确认 + 硬件急停接线确认
 9. ☐ 先 mujoco 跑通 → 真机 dry-run(不使能下发)→ 吊架/低速上机
@@ -420,7 +431,7 @@ REGISTER_STATE("walk_amp", WalkAmpState);
 ### 13.2 改动官方逻辑新引入(🔴/🟠)
 | 风险 | 对策/门槛 |
 |---|---|
-| 🔴 **N1**:`requested_state` 由 enum 变 `std::string`,跨线程读写是 UB | LCM 回调只在 mutex 下存原始字节;`poll()` 主线程取快照写 string(§5.5) |
+| ✅ **N1(已消除)**:跨线程字段改回 `enum class StateId`(平凡可拷贝),与官方 `NextState` 一样安全 | 黑板用 enum;LCM 原始包仍在 mutex 下快照(§5.5) |
 | 🟠 **N2**:切换由 500ms 轮询改每拍即时,失去天然去抖,误触即切 | 按键边沿检测 + 去抖窗口;`canExit` 互锁;危险跳转加条件(§5.5) |
 | 🟠 重构误删官方某处 `Enable/Disable/SetCommands`/急停 | 逐行 diff 官方 `run_mini` 上电/电机段,确保 ❶❷ 之外零改动 |
 
