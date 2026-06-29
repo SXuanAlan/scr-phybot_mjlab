@@ -202,15 +202,29 @@ namespace phybot::InputProtocol {
 ### 5.3 main 侧 `input.poll()`(取代 `Server` 的 model 分支)
 ```cpp
 void InputReceiver::poll(DataPackage& io) {
+    Packet pkt;
+    { std::lock_guard<std::mutex> lk(mu_); pkt = latest_; }       // 主线程取快照(见 5.5 线程安全)
     InputProtocol::DriveCmd c;
-    if (!InputProtocol::decode(latest_packet_, c)) return;        // 解包失败丢弃(同现状)
+    if (!InputProtocol::decode(pkt, c)) return;                   // 解包失败丢弃(同现状)
     io.js_vx_desire     = std::clamp((double)c.vx, -0.4, 1.0);   // 保留官方限幅
     io.js_vy_desire     = std::clamp((double)c.vy, -0.1, 0.1);
     io.js_OmegaZ_desire = std::clamp((double)c.wz, -1.0, 1.0);
     if (auto it = model_map_.find(c.model); it != model_map_.end())
-        io.requested_state = it->second;                          // model→state(配置映射)
+        io.requested_state = debounce(it->second);                // model→state(配置映射)+ 去抖(见 5.5)
 }
 ```
+
+### 5.5 线程安全与切换去抖(改动官方逻辑后新引入的两条真机风险)
+
+**(N1)`requested_state` 跨线程:`std::string` 非平凡,必须加锁/快照。**
+官方 `NextState` 是 `enum`(平凡),回调线程写、主线程读,撕裂顶多读到旧值不崩。新设计 `requested_state` 是 `std::string`,**并发读写是数据竞争 UB(可能堆破坏 → 真机运行中崩溃)**。规定:
+- LCM 回调线程**只在 mutex 下存原始字节** `latest_`,**不触碰** `DataPackage` 的 string 字段。
+- `poll()` 在**主线程内**取快照、解码、写 `io.requested_state`,与 `tick()` 同线程,无竞争。
+
+**(N2)切换去抖:官方 500ms 轮询天然去抖,改每拍即时后须补。**
+每拍即时切换 → 一次按键抖动/瞬时误触会立刻切状态(真机行走中误切到趴下/爬起很危险)。规定:
+- 输入侧做**按键边沿检测 + 去抖窗口**(`debounce()`);相同请求需稳定 N 拍才生效。
+- 切换仍受 `canExit` 互锁;对"危险跳转"可在目标/当前 state 的 `canExit` 加条件。
 
 ### 5.4 Xbox 设备层(publisher 内)
 ```cpp
@@ -364,6 +378,18 @@ REGISTER_STATE("walk_amp", WalkAmpState);
 - 状态机:用最小 `DataPackage` + 几个哑 `State` 做纯逻辑单测(切换/checkChange/canExit/注册表),不依赖电机/IMU。
 - InputProtocol:encode→decode 往返一致;对旧 App/手柄真实包做解码回归。
 
+### 11.4 上真机硬门槛 Checklist(全绿才上真机;作为实现计划中的显式 review 检查点)
+1. ☐ 新旧 **obs/action 逐位一致**(对齐脚本 + dry-run)
+2. ☐ `robot.yaml` 关节序/方向/零位 vs 官方逐项核对
+3. ☐ PD/力矩限幅/decimation/命令限幅 = 官方
+4. ☐ LCM 解码对真实旧 App/手柄包回归通过
+5. ☐ 启动打印已注册 state 清单 = 期望清单
+6. ☐ `requested_state` 跨线程已加锁/快照(N1)
+7. ☐ 切换去抖到位(N2)
+8. ☐ 电机心跳保护确认 + 硬件急停接线确认
+9. ☐ 先 mujoco 跑通 → 真机 dry-run(不使能下发)→ 吊架/低速上机
+10. ☐ 官方版回退路径已验证可用
+
 ---
 
 ## 12. 分阶段落地(每阶段可独立验证)
@@ -381,15 +407,39 @@ REGISTER_STATE("walk_amp", WalkAmpState);
 
 ## 13. 风险与对策
 
-| 风险 | 对策 |
+风险按"会不会伤到真机"分级:🔴 直接致动作错误/发散  🟠 行为异常/崩溃  🟡 功能缺失/工程。
+
+### 13.1 数值/对齐(🔴 最高,直接致摔/抽搐/冲出)
+| 风险 | 对策/门槛 |
 |---|---|
-| 改坏 walk_amp 实机对齐 | 数值逐位等价 + dry-run/对齐脚本对比新旧 obs/action 一致才上真机 |
-| 自注册被链接器丢弃 | states 用 OBJECT 库(或 alwayslink/--whole-archive) |
-| 字符串 id 丢失编译期检查(拼错/缺 policy 仅运行时炸) | 启动时全量校验注册表+配置+模型文件,缺失拒绝进入电机使能;强制上电前 dry-run |
-| `PolicyState` 抽象对 mimic 不合身 | `run` 之外的钩子足够灵活;必要时 state 直接继承 `phybot::State` 自写 `run` |
-| 无渐进回退 | 分阶段落地,每阶段独立可验证 |
-| 实时性(热路径分配/虚调用) | 历史缓冲/obs 在 `enter` 预分配;虚调用每拍数次,相对一次前向可忽略 |
-| 跨主机 WiFi 丢包(无软件兜底) | 真机测试 publisher 跑本机/有线;依赖人工监护 + 硬件急停 |
+| 🔴 walk_amp obs/动作拆进 `PolicyState` 时出现细微偏差(720 维顺序/`scale`/`Euler_ZYXToGravityVec` 符号/history 首帧填充) | 同一帧输入,新旧二进制 **obs 与 action 逐位一致**(`check_walk_deploy_alignment.py` + dry-run);不通过禁止上真机 |
+| 🔴 关节顺序/方向/零位映射错位(`q/dq` 序、`direction_vector`、`default_dof_pos`=-0.295) | `robot.yaml` 与官方 `MotorList/config/*` 逐项核对;沿用官方上电"读 50 次打印"对照零位 |
+| 🔴 PD/力矩限幅/decimation/控制周期 漂移 | 数值沿用官方;dry-run 校验输出在 `torque_limits` 内;周期不动 |
+| 🔴 命令限幅/LCM 解包 byte 偏移/校验和错位 | 限幅值逐字保留;`encode→decode` 往返一致 + 用真实旧 App/手柄包回归 |
+
+### 13.2 改动官方逻辑新引入(🔴/🟠)
+| 风险 | 对策/门槛 |
+|---|---|
+| 🔴 **N1**:`requested_state` 由 enum 变 `std::string`,跨线程读写是 UB | LCM 回调只在 mutex 下存原始字节;`poll()` 主线程取快照写 string(§5.5) |
+| 🟠 **N2**:切换由 500ms 轮询改每拍即时,失去天然去抖,误触即切 | 按键边沿检测 + 去抖窗口;`canExit` 互锁;危险跳转加条件(§5.5) |
+| 🟠 重构误删官方某处 `Enable/Disable/SetCommands`/急停 | 逐行 diff 官方 `run_mini` 上电/电机段,确保 ❶❷ 之外零改动 |
+
+### 13.3 状态机/实时/流程(🟠/🟡)
+| 风险 | 对策/门槛 |
+|---|---|
+| 🟠 自注册被链接器丢弃 → 按键"无反应" | states 用 OBJECT 库(或 alwayslink/--whole-archive);**启动打印已注册 state 清单与期望核对** |
+| 🟠 某 `policy.pt` 缺失/损坏 | 加载校验放在 `Enable()` **之前**,失败拒绝上电 |
+| 🟠 `enter` 每次复位 history 与官方语义差异 | 对照官方 walk_amp 进出行为;dry-run 覆盖"切出再切入" |
+| 🟠 `checkChange` 误引入自动跳转 | walk_amp/zero 默认返回 `""`;仅 mimic 显式用并充分测试 |
+| 🟠 热路径堆分配/tensor 每拍分配 → 抖动丢拍 | `enter` 预分配所有 buffer;hot path 无 malloc;测 tick 耗时分布 |
+| 🟡 字符串 id 拼错/缺文件仅运行时炸 | 启动全量校验注册表+配置+模型,缺失拒绝进入电机使能 |
+| 🟡 `PolicyState` 抽象对 mimic 不合身 | `run` 之外钩子足够灵活;必要时直接继承 `phybot::State` 自写 `run` |
+| 🟡 构建/autorun 跑到旧二进制(曾见 build/ 残留 walk_preset_amp) | 构建路径明确;启动打印 git hash/版本 |
+| 🟡 无渐进回退、一次性大改 | 分阶段;真机阶段前仿真+dry-run+对齐全绿;**官方版随时可回退跑真机** |
+| 🟡 跨主机 WiFi 丢包(无软件兜底) | 真机测试 publisher 跑本机/有线;人工监护 + 硬件急停 |
+
+### 13.4 最重要的安全网
+**官方 `deploy/phybot_deploy_c2` 完整保留、随时可编译跑真机。** 新架构在 mujoco + dry-run + 对齐**全绿之前,真机一律用官方版** → 真机部署能力零损失。
 
 ---
 
