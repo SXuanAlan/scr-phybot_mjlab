@@ -1,9 +1,26 @@
 #pragma once
+#include <array>
 #include "phybot/task_id.h"
+#include "phybot/robot_consts.h"
 namespace phybot {
-// 最小黑板。A1+ 阶段在此扩展传感器/命令/动作字段。
+// 黑板。A0 起始最小, A1-num 扩展 cpg 走路所需字段。
 struct DataPackage {
-  TaskId requested_task{TaskId::ZERO};  // 输入侧写: 想切到哪个 task
-  TaskId current_task{TaskId::ZERO};    // TaskManager 写: 当前激活 task
+  TaskId requested_task{TaskId::ZERO};
+  TaskId current_task{TaskId::ZERO};
+
+  // —— 传感器 (task 读) ——
+  std::array<double, 3>         imu_angular_vel{};
+  std::array<double, 3>         imu_zyx{};            // ZYX euler
+  std::array<double, kNumDofs>  motor_pos{};
+  std::array<double, kNumDofs>  motor_vel{};
+  double js_vx_desire{0.0}, js_vy_desire{0.0}, js_OmegaZ_desire{0.0};
+
+  // —— 控制输出 (task 写) ——
+  std::array<double, kNumDofs>  motor_Pos_desire{};
+  std::array<double, kNumDofs>  motor_Vel_desire{};
+  std::array<double, kNumDofs>  motor_Torque_desire{};
+  std::array<double, kNumDofs>  torq_desire{};
+  std::array<double, kNumDofs>  sim_P{};
+  std::array<double, kNumDofs>  sim_D{};
 };
 }  // namespace phybot
