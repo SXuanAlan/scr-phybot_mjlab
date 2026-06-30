@@ -91,3 +91,8 @@ target_compile_definitions(test_walk_sim PRIVATE
 target_link_libraries(test_walk_sim PRIVATE walk_task mujoco_backend)
 set_property(TARGET test_walk_sim PROPERTY CXX_STANDARD 17)
 add_test(NAME walk_sim COMMAND test_walk_sim)
+
+# ── JS mapping (pure logic + device discovery) ───────────────────────────────
+add_executable(test_js_mapping publisher/test/test_js_mapping.cpp)
+target_include_directories(test_js_mapping PRIVATE publisher/include core/test)
+add_test(NAME js_mapping COMMAND test_js_mapping)
