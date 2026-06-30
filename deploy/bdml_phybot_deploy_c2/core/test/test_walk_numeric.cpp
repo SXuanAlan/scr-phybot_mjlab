@@ -6,6 +6,7 @@
 #include "phybot/gravity.h"
 #include <cmath>
 #include "phybot/walk_history.h"
+#include "phybot/walk_obs.h"
 
 static void test_datapackage_cpg_fields_zeroed() {
   phybot::DataPackage io;
@@ -76,12 +77,60 @@ static void test_history_ordering() {
   CHECK(pos105[84] == 6.0f);    // newest frame f=6, dof 0 (start of tail block)
 }
 
+static void test_build_walk_obs() {
+  using namespace phybot;
+  WalkConfig c = walk_config();
+  WalkObsInputs in{};
+  in.gravity = {0.0, 0.0, -1.0};
+  in.ang_vel = {0.4, 0.8, -0.2};               // *0.25 → 0.1,0.2,-0.05
+  in.q = c.default_dof_pos;                     // q-default = 0
+  for (int i = 0; i < kNumDofs; ++i) in.dq[i] = 0.2;   // *0.05 → 0.01
+  for (int i = 0; i < kNumDofs; ++i) in.last_action[i] = 0.3;
+  in.js_vx = 0.5; in.js_vy = -0.1; in.js_wz = 0.4;     // cmd=0.5,-0.1,0.1
+  float zeros105[105] = {0};
+  float obs[kObsDim];
+  BuildWalkObs(in, c, zeros105, zeros105, obs);
+
+  CHECK(fapprox(obs[0], 0.1f) && fapprox(obs[1], 0.2f) && fapprox(obs[2], -0.05f));  // ang_vel*0.25
+  CHECK(obs[3] == 0.0f && obs[4] == 0.0f && obs[5] == -1.0f);    // gravity (exact)
+  CHECK(obs[6] == 0.5f && obs[7] == -0.1f && fapprox(obs[8], 0.1f));  // commands (cmd2=wz*0.25)
+  CHECK(obs[9] == 1.0f);                                         // |0.5|>=0.3 → walk
+  CHECK(obs[10] == 0.0f && obs[30] == 0.0f);                     // (q-default)=0
+  CHECK(fapprox(obs[31], 0.01f) && fapprox(obs[51], 0.01f));     // dq*0.05
+  CHECK(obs[52] == 0.3f && obs[72] == 0.3f);                     // last_action raw (direct copy)
+  CHECK(obs[73] == 0.0f && obs[177] == 0.0f);                    // zero pos history
+  CHECK(obs[178] == 0.0f && obs[282] == 0.0f);                   // zero vel history
+}
+
+static void test_walk_flag_threshold() {
+  using namespace phybot;
+  WalkConfig c = walk_config();
+  WalkObsInputs in{}; in.q = c.default_dof_pos;
+  float z[105] = {0}; float obs[kObsDim];
+  in.js_vx = 0.2; BuildWalkObs(in, c, z, z, obs); CHECK(obs[9] == 0.0f);  // |0.2|<0.3 → stand
+  in.js_vx = 0.3; BuildWalkObs(in, c, z, z, obs); CHECK(obs[9] == 1.0f);  // 0.3 not < 0.3 → walk
+  in.js_vx = -0.5; BuildWalkObs(in, c, z, z, obs); CHECK(obs[9] == 1.0f); // abs
+}
+
+static void test_pos_minus_default() {
+  using namespace phybot;
+  WalkConfig c = walk_config();
+  WalkObsInputs in{}; in.q = c.default_dof_pos; in.q[0] += 0.1; in.q[20] -= 0.05;
+  float z[105] = {0}; float obs[kObsDim];
+  BuildWalkObs(in, c, z, z, obs);
+  CHECK(std::fabs(obs[10] - 0.1f) < 1e-6f);     // (q0-default0)*1.0
+  CHECK(std::fabs(obs[30] - (-0.05f)) < 1e-6f); // (q20-default20)*1.0
+}
+
 int main() {
   test_datapackage_cpg_fields_zeroed();
   test_walk_config_values();
   test_gravity();
   test_history_zero_init_and_push();
   test_history_ordering();
+  test_build_walk_obs();
+  test_walk_flag_threshold();
+  test_pos_minus_default();
   if (g_check_failures == 0) std::printf("ALL WALK NUMERIC TESTS PASSED\n");
   return g_check_failures == 0 ? 0 : 1;
 }
