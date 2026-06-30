@@ -96,3 +96,11 @@ add_test(NAME walk_sim COMMAND test_walk_sim)
 add_executable(test_js_mapping publisher/test/test_js_mapping.cpp)
 target_include_directories(test_js_mapping PRIVATE publisher/include core/test)
 add_test(NAME js_mapping COMMAND test_js_mapping)
+
+# ── JsController library (device I/O + hotplug) ───────────────────────────
+add_library(phybot_publisher STATIC publisher/src/js_controller.cpp)
+target_include_directories(phybot_publisher PUBLIC publisher/include)
+
+# ── Controller probe app ──────────────────────────────────────────────────
+add_executable(controller_probe publisher/apps/controller_probe.cpp)
+target_link_libraries(controller_probe PRIVATE phybot_publisher)
