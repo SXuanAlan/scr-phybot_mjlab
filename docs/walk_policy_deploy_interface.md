@@ -1,6 +1,6 @@
 # Walk Policy Deploy Interface (Mjlab-Walk-Phybot-C2)
 
-字节级契约：未来的 C++ 部署模块（参照 RL_deploy_taichi/RL_deploy_cpg 克隆）按本文构造观测、解释动作。
+字节级契约：C++ 部署模块 `RL_deploy_walk_amp` 按本文构造观测、解释动作。
 导出由 `scripts/export_policy.py` 完成，会在模型旁生成 `policy_meta.json`（本文档的机器可读版，
 以导出时的实际数值为准）。
 
@@ -76,6 +76,7 @@ default_dof_pos 与真机 ZERO.yaml 的 `zero_joint_position`、RL_deploy_cpg ya
 无需额外 goal 输入。真机现有链路（Publisher/Joystick/.../joystick_int.cpp）：
 
 - 左摇杆 Y → vx，量程 ±0.9 m/s；左摇杆 X → vy，量程 ±0.1 m/s；右摇杆 X → ωz，量程 ±0.6 rad/s。
+- Xbox B 键进入 `model=9 / State::RL_walk_amp / RL_deploy_walk_amp`；旧 `model=2 / State::RL_walk` 保留兼容。
 - 死区 5000/32767，加速度限幅 0.4 m/s²（角 0.3 rad/s²），经 LCM 发给 RL 模块。
 - ⚠️ 旧 cpg 模块把 ωz 乘了 `ang_vel_scale=0.25` 再进观测；本 policy 的 command 三个分量
   **都喂原始物理值**，不乘任何 scale。

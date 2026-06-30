@@ -98,7 +98,7 @@ class GamepadReceiver:
     print(
       f"[INFO]: Gamepad receiver listening on {self._host}:{self._port} "
       f"(default speed: {SPEED_PRESETS[DEFAULT_SPEED_INDEX].name}). "
-      "Run scripts/gamepad_bridge.py on the local machine."
+      "Waiting for scripts/gamepad_bridge.py."
     )
 
   def _status_loop(self) -> None:

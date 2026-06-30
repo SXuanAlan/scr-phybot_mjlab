@@ -5,18 +5,18 @@ Adds climb-wall gravity playback controls on top of mjlab's play script:
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file logs/.../model_2000.pt
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --gravity-angle-deg 90 --agent zero
 
-Walk can also be driven by a physical gamepad (left stick = linear x/y, right
-stick = yaw, shoulder buttons cycle slow/medium/fast; medium is the default):
+Walk can also be driven by a local physical gamepad (left stick = linear x/y,
+right stick = yaw, shoulder buttons cycle slow/medium/fast; medium is the
+default):
 
   python scripts/play.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/.../model_XXXX.pt --gamepad
-
-Then run scripts/gamepad_bridge.py on the machine the gamepad is plugged into.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -46,7 +46,9 @@ class PlayConfig(MjlabPlayConfig):
   gravity_angle_deg: float | None = None
   """Override climb-wall play gravity angle in degrees. If omitted, infer it from model_<iter>.pt."""
   gamepad: bool = False
-  """Drive the walk velocity command from a physical gamepad (left stick = linear x/y, right stick = yaw). Requires scripts/gamepad_bridge.py on the local machine."""
+  """Drive the walk velocity command from a physical gamepad (left stick = linear x/y, right stick = yaw)."""
+  gamepad_auto_bridge: bool = True
+  """When --gamepad is enabled, also start scripts/gamepad_bridge.py as a local child process."""
   gamepad_host: str = "127.0.0.1"
   """Host the gamepad receiver binds to (use the SSH-forwarded loopback)."""
   gamepad_port: int = 8766
@@ -79,9 +81,12 @@ def _normalize_cli_aliases(argv: list[str]) -> list[str]:
     "--gravity-angle": "--gravity-angle-deg",
     "--gravity-angle-degrees": "--gravity-angle-deg",
   }
-  bool_flags = {"--gamepad"}
+  bool_flags = {"--gamepad", "--gamepad-auto-bridge"}
   normalized: list[str] = []
   for idx, raw_arg in enumerate(argv):
+    if raw_arg == "--no-gamepad-auto-bridge":
+      normalized.extend(["--gamepad-auto-bridge", "False"])
+      continue
     arg = aliases.get(raw_arg, raw_arg)
     normalized.append(arg)
     if arg in bool_flags:
@@ -164,6 +169,41 @@ def _setup_gamepad(env, cfg: PlayConfig):
   receiver.start()
   term.set_gamepad_source(receiver.command)
   return receiver
+
+
+def _start_gamepad_bridge(cfg: PlayConfig) -> subprocess.Popen | None:
+  """Start the local gamepad bridge process for same-machine play."""
+  script = Path(__file__).resolve().with_name("gamepad_bridge.py")
+  cmd = [
+    sys.executable,
+    str(script),
+    "--host",
+    cfg.gamepad_host,
+    "--port",
+    str(cfg.gamepad_port),
+  ]
+  try:
+    proc = subprocess.Popen(cmd)
+  except OSError as exc:
+    print(f"[WARN]: Could not start local gamepad bridge: {exc}")
+    print(
+      "[WARN]: Gamepad receiver is still listening; start "
+      f"`{sys.executable} {script} --host {cfg.gamepad_host} --port {cfg.gamepad_port}` manually."
+    )
+    return None
+  print(f"[INFO]: Started local gamepad bridge process pid={proc.pid}")
+  return proc
+
+
+def _stop_gamepad_bridge(proc: subprocess.Popen | None) -> None:
+  if proc is None or proc.poll() is not None:
+    return
+  proc.terminate()
+  try:
+    proc.wait(timeout=2.0)
+  except subprocess.TimeoutExpired:
+    proc.kill()
+    proc.wait(timeout=2.0)
 
 
 def run_play(task_id: str, cfg: PlayConfig):
@@ -325,6 +365,9 @@ def run_play(task_id: str, cfg: PlayConfig):
     resolved_viewer = cfg.viewer
 
   gamepad_rx = _setup_gamepad(env, cfg) if cfg.gamepad else None
+  gamepad_bridge = (
+    _start_gamepad_bridge(cfg) if cfg.gamepad and cfg.gamepad_auto_bridge else None
+  )
 
   try:
     if resolved_viewer == "native":
@@ -334,6 +377,7 @@ def run_play(task_id: str, cfg: PlayConfig):
     else:
       raise RuntimeError(f"Unsupported viewer backend: {resolved_viewer}")
   finally:
+    _stop_gamepad_bridge(gamepad_bridge)
     if gamepad_rx is not None:
       gamepad_rx.close()
 

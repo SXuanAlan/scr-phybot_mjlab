@@ -285,12 +285,12 @@ def main() -> None:
   parser.add_argument(
     "--policy-meta",
     type=Path,
-    default=repo_root / "deploy/PhybotSoftware_c2/RL_deploy_walk_preset_amp/model/policy_meta.json",
+    default=repo_root / "deploy/bdml_phybot_deploy_c2/RL_deploy_walk_amp/model/policy_meta.json",
   )
   parser.add_argument(
     "--deploy-params",
     type=Path,
-    default=repo_root / "deploy/PhybotSoftware_c2/RL_deploy_walk_preset_amp/config/rl_params.yaml",
+    default=repo_root / "deploy/bdml_phybot_deploy_c2/RL_deploy_walk_amp/config/rl_params.yaml",
   )
   parser.add_argument(
     "--motor-yaml",
@@ -302,8 +302,8 @@ def main() -> None:
   parser.add_argument("--report-only", action="store_true", help="Print errors but exit 0.")
   args = parser.parse_args()
   motor_yaml_paths = args.motor_yaml or [
-    repo_root / "deploy/PhybotSoftware_c2/MotorList/config/phybot_mini_1.yaml",
-    repo_root / "deploy/PhybotSoftware_c2/MotorList/config/phybot_mini_2.yaml",
+    repo_root / "deploy/bdml_phybot_deploy_c2/MotorList/config/phybot_mini_1.yaml",
+    repo_root / "deploy/bdml_phybot_deploy_c2/MotorList/config/phybot_mini_2.yaml",
   ]
 
   result = CheckResult()

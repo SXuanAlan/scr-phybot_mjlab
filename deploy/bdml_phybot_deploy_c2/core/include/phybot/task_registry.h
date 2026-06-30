@@ -31,6 +31,10 @@ class TaskRegistry {
   const char* name(TaskId id) const { return names_[(std::size_t)id]; }
 
  private:
+  TaskRegistry() = default;
+  TaskRegistry(const TaskRegistry&) = delete;
+  TaskRegistry& operator=(const TaskRegistry&) = delete;
+
   std::array<Factory, (std::size_t)TaskId::COUNT> factories_{};
   std::array<const char*, (std::size_t)TaskId::COUNT> names_{};
 };

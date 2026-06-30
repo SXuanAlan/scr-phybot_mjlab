@@ -2,15 +2,18 @@
 
 Left stick drives linear x/y velocity, right stick drives yaw rate. Shoulder
 buttons cycle the speed preset (slow / medium / fast; medium is the default).
-Mirrors scripts/spacemouse_bridge.py: this runs on the machine the gamepad is
-plugged into and streams to the play process over a forwarded TCP port.
+Mirrors scripts/spacemouse_bridge.py: this streams stick packets to the play
+process over TCP. ``scripts/play.py --gamepad`` starts it automatically for
+same-machine play.
 
-Typical SSH usage:
+Typical usage:
 
-  # On the remote host running play.py:
+  # Same-machine play starts this bridge automatically:
   python scripts/play.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/.../model_XXXX.pt --gamepad
 
-  # Locally (forward the receiver port with -L, then start the bridge):
+  # Remote gamepad usage: disable auto bridge, forward the receiver port,
+  # then start this bridge on the machine the gamepad is plugged into.
+  python scripts/play.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/.../model_XXXX.pt --gamepad --no-gamepad-auto-bridge
   ssh -L 8766:localhost:8766 <remote-host>
   python scripts/gamepad_bridge.py --host 127.0.0.1 --port 8766
 
