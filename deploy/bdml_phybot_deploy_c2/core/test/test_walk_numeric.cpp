@@ -7,6 +7,7 @@
 #include <cmath>
 #include "phybot/walk_history.h"
 #include "phybot/walk_obs.h"
+#include "phybot/walk_action.h"
 
 static void test_datapackage_cpg_fields_zeroed() {
   phybot::DataPackage io;
@@ -122,6 +123,20 @@ static void test_pos_minus_default() {
   CHECK(std::fabs(obs[30] - (-0.05f)) < 1e-6f); // (q20-default20)*1.0
 }
 
+static void test_apply_walk_action() {
+  using namespace phybot;
+  WalkConfig c = walk_config();
+  DataPackage io;
+  std::array<double,kNumDofs> act{};
+  act[0] = 1.0;    // → 1.0*0.2 + default[0]
+  act[4] = 2.0;    // → 2.0*0.2 + (-0.295)
+  ApplyWalkAction(act, c, io);
+  CHECK(std::fabs(io.motor_Pos_desire[0] - (0.2 + c.default_dof_pos[0])) < 1e-12);
+  CHECK(std::fabs(io.motor_Pos_desire[4] - (0.4 + (-0.295))) < 1e-12);
+  CHECK(io.motor_Vel_desire[0] == 0.0 && io.motor_Torque_desire[0] == 0.0 && io.torq_desire[0] == 0.0);
+  CHECK(io.sim_P[12] == 20.0 && io.sim_D[12] == 10.0);   // rl_p/rl_d at waist joint
+}
+
 int main() {
   test_datapackage_cpg_fields_zeroed();
   test_walk_config_values();
@@ -131,6 +146,7 @@ int main() {
   test_build_walk_obs();
   test_walk_flag_threshold();
   test_pos_minus_default();
+  test_apply_walk_action();
   if (g_check_failures == 0) std::printf("ALL WALK NUMERIC TESTS PASSED\n");
   return g_check_failures == 0 ? 0 : 1;
 }
