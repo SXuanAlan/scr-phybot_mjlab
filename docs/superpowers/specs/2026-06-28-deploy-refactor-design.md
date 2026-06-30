@@ -403,16 +403,26 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 
 ---
 
-## 12. 分阶段落地(每阶段可独立验证)
+## 12. 分阶段落地(先做完不需真机的 A 组,再统一分步进行真机 B 组)
 
-1. **阶段 0**:搭 `core` 任务状态机(`Task`/`TaskManager`/`TaskRegistry`)+ 纯逻辑单测(最小 DataPackage + 哑 Task)。
-2. **阶段 1**:`core` 其余(`PolicyTask`/`PolicyRunner`/`InputProtocol`)+ mujoco backend;接入 `zero` + `walk_amp`,仿真跑通,dry-run + 对齐校验通过。
-3. **阶段 2**:realrobot backend + 主循环集成(保留官方上电/急停),真机 dry-run。
-4. **阶段 3**:Publisher SDL2 输入层 + `bindings.yaml`,手柄打通。
-5. **阶段 4**:迁移 `mimic`,验证架构通用性;补 `_template`。
-6. **阶段 5**:清理、文档、回归。
+### 阶段组 A:不需要真机(全部先做完并验证)
+- **A0** `core` 任务状态机(`Task`/`TaskManager`/`TaskRegistry`/`REGISTER_TASK`/`TaskId`)+ 纯逻辑单测(最小 `DataPackage` + 哑 `Task`:切换/checkChange/canExit/注册表)。
+- **A1** `core` 其余(`PolicyTask`/`PolicyRunner`/`HistoryBuffers`/`ObsBuilder`/`InputProtocol`)+ **mujoco backend**;接入 `zero` + `walk_amp`;mujoco 跑通;通用 dry-run + **对齐校验(新旧 obs/action 逐位一致)通过**。
+- **A2** 主循环集成(`TaskManager` + `InputProtocol` 替换 `server`/`manager`,骨架对照官方逐行)——**在 mujoco backend 上验证,不碰真机**。
+- **A3** Publisher SDL2 输入层 + `bindings.yaml`;手柄→命令→切 task 在 mujoco 上打通;**N1(enum 跨线程)/ N2(去抖)** 验证。
+- **A4** 迁移 `mimic` + 补 `_template`;在 mujoco 上验证架构通用性。
+- **A5** 清理、文档、CI/回归(单测 + dry-run + 对齐脚本)。
 
-> 新目录在阶段 1 跑通前没有"半截可用"状态;故按阶段推进、每阶段独立验证,避免最后一次性合龙。
+> **A 组出口标准**:仿真完整可用、对齐逐位一致、手柄打通。此期间真机部署仍由官方 `phybot_deploy_c2` 承担。
+
+### 阶段组 B:真机(统一、分步、每步可回退;前置 = A 组全绿 + §11.4 硬门槛逐条核对)
+- **B1** `realrobot backend`(MotorList + IMU)实装;**不使能电机**,只读传感器→`DataPackage`,与官方读数逐项对照。
+- **B2** 真机 `task_dry_run`(**不下发电机**):逐 task 验证策略加载 / obs / 输出范围。
+- **B3** 主循环接真机 backend,**电机使能但低增益 + 吊架**,`zero` 站立保持;逐行 diff 确认官方上电/急停路径未改。
+- **B4** `walk_amp` 上机:吊架→低速→放开,人工监护 + 硬件急停常备。
+- **B5** `mimic` 上机(同上谨慎流程)。
+
+> 每步独立验证、可随时回退官方版;任一步不过不进入下一步。新目录在 A1 跑通前没有"半截可用"状态,故按阶段推进、避免最后一次性合龙。
 
 ---
 
