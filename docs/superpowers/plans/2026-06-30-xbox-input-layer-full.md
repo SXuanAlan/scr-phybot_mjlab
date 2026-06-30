@@ -260,56 +260,148 @@ git commit -m "feat(publisher): controller->DriveCmd mapping (edge-switch + dead
 
 ---
 
-## Task 3: ZeroState task (PD hold to default pose)
+## Task 3: ZeroState task — FAITHFUL port of official (captured-pose cubic ramp, stiff gains)
+
+> **CRITICAL — safety/alignment.** The official `ZeroState` does NOT snap to a fixed pose. On first entry it CAPTURES `init_pose = current actual motor_pos`, then **cubic-interpolates** (3rd-order polynomial, zero boundary velocities) from `init_pose` to `zero_pose` over `zero_totalTime = 0.5 s`, holding with STIFF gains `zero_p = 1000`, `zero_d = 100`. `zero_pose` equals the cpg `default_dof_pos` exactly, so the subsequent ZERO→WALK handoff is smooth (WalkTask holds default for its first 9 ticks). Reproduce this verbatim; a static snap with soft walk gains would command a violent jump on a real robot powered up in an arbitrary pose.
 
 **Files:**
-- Create: `tasks/zero/zero_task.h`, `tasks/zero/zero_task.cpp`
+- Modify: `core/include/phybot/data_package.h` (add `double control_period{0.002};`)
+- Create: `core/include/phybot/cubic_traj.h` (verbatim port of official `ThirdpolyVector`)
+- Create: `core/include/phybot/zero_config.h` (`ZeroConfig` + `zero_config()`)
+- Create: `core/include/phybot/zero_task.h`, `tasks/zero/zero_task.cpp`
 - Create: `core/test/test_zero_task.cpp`
 - Modify: `CMakeLists.txt`
 
 **Interfaces:**
-- Produces: `class phybot::ZeroState : public phybot::Task` — ctor id `TaskId::ZERO` name `"zero"`; `run(DataPackage& io)` sets `io.motor_Pos_desire = walk_config().default_dof_pos`, `io.motor_Vel_desire=0`, `io.motor_Torque_desire=0`, `io.sim_P = rl_p`, `io.sim_D = rl_d`. Registered `REGISTER_TASK(TaskId::ZERO, "zero", ZeroState)`.
-- Produces: CTest `zero_task`.
+- `DataPackage` gains `double control_period{0.002};` (the dt the ramp integrates; set by backend/main).
+- `void phybot::CubicTraj(const double* p0, const double* p0d, const double* p1, const double* p1d, double T, double t, double* pos, double* vel, int n)` — verbatim port of official `ThirdpolyVector`: `t<0`→`p0`,vel0; `t<=T`→cubic; `t>T`→`p1`,vel0.
+- `struct phybot::ZeroConfig { std::array<double,kNumDofs> zero_pose, zero_p, zero_d; double zero_totalTime; };` and `ZeroConfig zero_config()` — `zero_pose = walk_config().default_dof_pos`; `zero_p = {1000×21}`; `zero_d = {100×21}`; `zero_totalTime = 0.5`. (Official ZERO.yaml values; 2 neck joints are not in our 21-dof model.)
+- `class phybot::ZeroState : public phybot::Task` — `enter(io)` captures `init_pose_ = io.motor_pos`, `t_ = 0`; `run(io)` advances `t_ += io.control_period`, computes the cubic ramp init_pose_→zero_pose, writes `io.motor_Pos_desire`/`io.motor_Vel_desire`, `io.motor_Torque_desire=0`, `io.sim_P=zero_p`, `io.sim_D=zero_d`. Registered `REGISTER_TASK(TaskId::ZERO, "zero", ZeroState)`.
+- CTest `zero_task`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add `control_period` to DataPackage**
+
+In `core/include/phybot/data_package.h`, add to the struct (near the sensor fields):
+```cpp
+  double control_period{0.002};   // dt (s); set by backend/main; used by ZeroState ramp
+```
+
+- [ ] **Step 2: Write the failing test**
 
 Create `core/test/test_zero_task.cpp`:
 ```cpp
 #include "phybot/zero_task.h"
+#include "phybot/zero_config.h"
+#include "phybot/cubic_traj.h"
 #include "phybot/walk_config.h"
 #include "phybot/data_package.h"
 #include "check.h"
 #include <cmath>
 #include <cstdio>
-static void test_zero_holds_default() {
+
+static void test_cubic_boundaries() {
   using namespace phybot;
-  ZeroState z; DataPackage io;
-  z.run(io);
-  auto c = walk_config();
-  for (int i = 0; i < kNumDofs; ++i) {
-    CHECK(std::fabs(io.motor_Pos_desire[i] - c.default_dof_pos[i]) < 1e-12);
-    CHECK(io.motor_Vel_desire[i] == 0.0);
-    CHECK(io.sim_P[i] == c.rl_p[i] && io.sim_D[i] == c.rl_d[i]);
-  }
+  double p0[2]={0.0,1.0}, z[2]={0,0}, p1[2]={1.0,-1.0}, pos[2], vel[2];
+  CubicTraj(p0,z,p1,z, 0.5, 0.0, pos, vel, 2);
+  CHECK(std::fabs(pos[0]-0.0)<1e-12 && std::fabs(pos[1]-1.0)<1e-12);   // t=0 -> p0
+  CHECK(std::fabs(vel[0])<1e-12 && std::fabs(vel[1])<1e-12);           // zero boundary vel
+  CubicTraj(p0,z,p1,z, 0.5, 0.5, pos, vel, 2);
+  CHECK(std::fabs(pos[0]-1.0)<1e-9 && std::fabs(pos[1]-(-1.0))<1e-9);  // t=T -> p1
+  CubicTraj(p0,z,p1,z, 0.5, 0.25, pos, vel, 2);
+  CHECK(std::fabs(pos[0]-0.5)<1e-9);                                   // symmetric midpoint
+  CubicTraj(p0,z,p1,z, 0.5, 1.0, pos, vel, 2);
+  CHECK(std::fabs(pos[0]-1.0)<1e-12);                                  // t>T -> p1 hold
 }
-int main(){ test_zero_holds_default();
+
+static void test_zero_ramps_from_captured_pose() {
+  using namespace phybot;
+  ZeroState zs; DataPackage io;
+  io.control_period = 0.002;
+  for (int i=0;i<kNumDofs;++i) io.motor_pos[i] = 0.7;   // arbitrary power-on pose
+  zs.enter(io);                                          // capture init_pose
+  zs.run(io);                                            // first tick: t=0.002, near captured pose
+  auto zc = zero_config();
+  CHECK(std::fabs(io.motor_Pos_desire[0] - 0.7) < 0.05);          // NOT snapped to zero_pose
+  CHECK(io.sim_P[0] == zc.zero_p[0] && io.sim_D[0] == zc.zero_d[0]);  // stiff gains 1000/100
+  for (int k=0;k<300;++k) zs.run(io);                   // 300*0.002=0.6s > totalTime
+  for (int i=0;i<kNumDofs;++i)
+    CHECK(std::fabs(io.motor_Pos_desire[i] - zc.zero_pose[i]) < 1e-9);  // settled at zero_pose
+  CHECK(std::fabs(zc.zero_pose[4] - (-0.295)) < 1e-12);            // zero_pose == default_dof_pos
+}
+
+int main(){ test_cubic_boundaries(); test_zero_ramps_from_captured_pose();
   if(g_check_failures==0) std::printf("ALL ZERO TASK TESTS PASSED\n");
   return g_check_failures==0?0:1; }
 ```
 
-- [ ] **Step 2: Verify fail** — `zero_task.h` missing.
+- [ ] **Step 3: Verify fail** — headers missing.
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 4: Write minimal implementation**
 
-Create `tasks/zero/zero_task.h`:
+Create `core/include/phybot/cubic_traj.h` (verbatim port of official `ThirdpolyVector`):
 ```cpp
 #pragma once
+namespace phybot {
+// 官方 ZeroState::ThirdpolyVector 逐行移植(三次多项式插值, 边界速度可非零)。
+inline void CubicTraj(const double* p0, const double* p0d,
+                      const double* p1, const double* p1d,
+                      double T, double t, double* pos, double* vel, int n) {
+  if (t < 0.0) { for (int i=0;i<n;++i){ pos[i]=p0[i]; vel[i]=0.0; } return; }
+  if (t <= T) {
+    for (int i=0;i<n;++i) {
+      double a0 = p0[i], a1 = p0d[i];
+      double m = p1[i] - p0[i] - p0d[i]*T;
+      double nn = p1d[i] - p0d[i];
+      double a2 = 3.0*m/(T*T) - nn/T;
+      double a3 = -2.0*m/(T*T*T) + nn/(T*T);
+      pos[i] = a3*t*t*t + a2*t*t + a1*t + a0;
+      vel[i] = 3.0*a3*t*t + 2.0*a2*t + a1;
+    }
+  } else { for (int i=0;i<n;++i){ pos[i]=p1[i]; vel[i]=0.0; } }
+}
+}  // namespace phybot
+```
+
+Create `core/include/phybot/zero_config.h`:
+```cpp
+#pragma once
+#include <array>
+#include "phybot/robot_consts.h"
+#include "phybot/walk_config.h"
+namespace phybot {
+struct ZeroConfig {
+  std::array<double, kNumDofs> zero_pose;  // == walk default_dof_pos
+  std::array<double, kNumDofs> zero_p;     // 1000
+  std::array<double, kNumDofs> zero_d;     // 100
+  double zero_totalTime;                   // 0.5 s
+};
+inline ZeroConfig zero_config() {
+  ZeroConfig z;
+  z.zero_pose = walk_config().default_dof_pos;   // 官方 zero_joint_position[0:21] == cpg default
+  z.zero_p.fill(1000.0);
+  z.zero_d.fill(100.0);
+  z.zero_totalTime = 0.5;
+  return z;
+}
+}  // namespace phybot
+```
+
+Create `core/include/phybot/zero_task.h`:
+```cpp
+#pragma once
+#include <array>
 #include "phybot/task.h"
+#include "phybot/robot_consts.h"
 namespace phybot {
 class ZeroState : public Task {
  public:
   ZeroState() : Task(TaskId::ZERO, "zero") {}
-  void run(DataPackage& io) override;
+  void enter(DataPackage& io) override;   // arm first-run capture, reset t
+  void run(DataPackage& io) override;     // first run captures init_pose; then cubic ramp
+ private:
+  std::array<double, kNumDofs> init_pose_{};
+  double t_{0.0};
+  bool first_{true};   // capture init_pose on first run AFTER pose is read (官方在读位后捕获)
 };
 }  // namespace phybot
 ```
@@ -317,26 +409,38 @@ class ZeroState : public Task {
 Create `tasks/zero/zero_task.cpp`:
 ```cpp
 #include "phybot/zero_task.h"
-#include "phybot/walk_config.h"
-#include "phybot/walk_action.h"
+#include "phybot/zero_config.h"
+#include "phybot/cubic_traj.h"
 #include "phybot/data_package.h"
 #include "phybot/task_registry.h"
 namespace phybot {
+void ZeroState::enter(DataPackage&) {           // 武装首次捕获(不在此读位姿——start() 早于 backend 读取)
+  first_ = true;
+  t_ = 0.0;
+}
 void ZeroState::run(DataPackage& io) {
-  static const WalkConfig c = walk_config();
-  for (int i = 0; i < kNumDofs; ++i) {
-    io.motor_Pos_desire[i]    = c.default_dof_pos[i];
-    io.motor_Vel_desire[i]    = 0.0;
+  static const ZeroConfig z = zero_config();
+  static const std::array<double,kNumDofs> zerov{};  // 边界速度 0
+  if (first_) {                                  // 官方 If_first_Zero: 读到实际位姿后捕获
+    for (int i=0;i<kNumDofs;++i) init_pose_[i] = io.motor_pos[i];
+    first_ = false;
+  }
+  t_ += io.control_period;
+  std::array<double,kNumDofs> pos, vel;
+  CubicTraj(init_pose_.data(), zerov.data(), z.zero_pose.data(), zerov.data(),
+            z.zero_totalTime, t_, pos.data(), vel.data(), kNumDofs);
+  for (int i=0;i<kNumDofs;++i) {
+    io.motor_Pos_desire[i]    = pos[i];
+    io.motor_Vel_desire[i]    = vel[i];
     io.motor_Torque_desire[i] = 0.0;
     io.torq_desire[i]         = 0.0;
-    io.sim_P[i]               = c.rl_p[i];
-    io.sim_D[i]               = c.rl_d[i];
+    io.sim_P[i]               = z.zero_p[i];
+    io.sim_D[i]               = z.zero_d[i];
   }
 }
 REGISTER_TASK(TaskId::ZERO, "zero", ZeroState)
 }  // namespace phybot
 ```
-(Place `zero_task.h` so `#include "phybot/zero_task.h"` resolves — add `tasks/zero` to the include path of the test/targets, or put the header under `core/include/phybot/`. Simplest: create it at `core/include/phybot/zero_task.h` and the .cpp at `tasks/zero/zero_task.cpp`. Adjust the create path accordingly.)
 
 Modify `CMakeLists.txt` — append:
 ```cmake
@@ -345,14 +449,18 @@ target_include_directories(test_zero_task PRIVATE core/include core/test)
 add_test(NAME zero_task COMMAND test_zero_task)
 ```
 
-- [ ] **Step 4: Run + Commit**
+- [ ] **Step 5: Run + Commit**
 
+`cmake --build /tmp/in_build && (cd /tmp/in_build && ctest --output-on-failure)` → pass.
 ```bash
-git add deploy/bdml_phybot_deploy_c2/core/include/phybot/zero_task.h \
+git add deploy/bdml_phybot_deploy_c2/core/include/phybot/data_package.h \
+        deploy/bdml_phybot_deploy_c2/core/include/phybot/cubic_traj.h \
+        deploy/bdml_phybot_deploy_c2/core/include/phybot/zero_config.h \
+        deploy/bdml_phybot_deploy_c2/core/include/phybot/zero_task.h \
         deploy/bdml_phybot_deploy_c2/tasks/zero/zero_task.cpp \
         deploy/bdml_phybot_deploy_c2/core/test/test_zero_task.cpp \
         deploy/bdml_phybot_deploy_c2/CMakeLists.txt
-git commit -m "feat(tasks): ZeroState PD-hold-default-pose task (TaskId::ZERO)"
+git commit -m "feat(tasks): ZeroState faithful official port (captured-pose cubic ramp, stiff gains)"
 ```
 
 ---
@@ -503,8 +611,10 @@ int main(){
   lcm::LCM lcm; if(!lcm.good()){ std::printf("LCM init failed\n"); return 1; }
   Cmd cur; H h{&cur}; lcm.subscribe("Robot_ControlData", &H::on, &h);
   MujocoBackend backend(/* model + cpg policy paths per the backend's ctor */);
-  TaskManager mgr; TaskRegistry::instance().loadInto(mgr);
-  DataPackage io; mgr.start(TaskId::ZERO, io);
+  TaskManager mgr; TaskRegistry::instance().loadInto(mgr);   // ZERO + WALK both registered
+  DataPackage io; io.control_period = 0.002;                 // dt for the ZeroState ramp
+  mgr.start(TaskId::ZERO, io);                               // start in ZERO (power-on); captures pose on 1st run
+  // sequence: ticks 0..249 stay in ZERO (0.5s cubic ramp to default), tick 250 -> WALK
   auto publish=[&](int8_t model,float vx){ DriveCmd d; d.model=model; d.vx=vx;
     custom_lcm::system2Algorithm_packet pkt; ip_encode(d,pkt); lcm.publish("Robot_ControlData",&pkt); };
   double min_h=1e9; bool saw_walk=false;
