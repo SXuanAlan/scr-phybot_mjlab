@@ -162,6 +162,19 @@ static void test_manager_ignores_unregistered_target() {
   CHECK(m.current() == TaskId::ZERO);
 }
 
+static void test_manager_ignores_out_of_range_request() {
+  using namespace phybot;
+  TaskManager m;
+  CfgTask *zero;
+  m.add(make(TaskId::ZERO, "zero", &zero));
+  DataPackage io;
+  m.start(TaskId::ZERO, io);
+  io.requested_task = TaskId::COUNT;   // 越界哨兵值 → 必须安全忽略, 不越界访问
+  m.tick(io);
+  CHECK(m.current() == TaskId::ZERO);
+  CHECK(zero->ran == 1);               // 仍照常跑当前
+}
+
 static void test_registry_self_registration() {
   using namespace phybot;
   auto& reg = TaskRegistry::instance();
@@ -191,6 +204,7 @@ int main() {
   test_manager_canExit_blocks_switch();
   test_manager_checkChange_auto_transition();
   test_manager_ignores_unregistered_target();
+  test_manager_ignores_out_of_range_request();
   test_registry_self_registration();
   test_registry_loadInto();
   if (g_check_failures == 0) std::printf("ALL TESTS PASSED\n");

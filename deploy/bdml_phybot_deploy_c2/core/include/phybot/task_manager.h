@@ -22,7 +22,9 @@ class TaskManager {
   void tick(DataPackage& io) {
     TaskId next = current_->checkChange(io);            // ① 自决(返回自身=不变)
     if (next == current_->id()) next = io.requested_task;  // ② 否则外部请求
-    if (next != current_->id() && tasks_[(std::size_t)next]) {
+    if (next != current_->id()
+        && (std::size_t)next < (std::size_t)TaskId::COUNT
+        && tasks_[(std::size_t)next]) {
       if (current_->canExit(io)) {                      // ③ 互锁
         current_->exit(io);
         current_ = tasks_[(std::size_t)next].get();
