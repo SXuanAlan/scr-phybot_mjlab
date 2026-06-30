@@ -6,9 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 
+# ── Dependency-free ctests (no Torch) ─────────────────────────────────────────
+
 add_executable(test_task_manager core/test/test_task_manager.cpp)
 target_include_directories(test_task_manager PRIVATE core/include core/test)
-
 add_test(NAME core_task_manager COMMAND test_task_manager)
 
 add_executable(test_walk_numeric core/test/test_walk_numeric.cpp)
@@ -20,3 +21,36 @@ target_include_directories(test_obs_alignment PRIVATE core/include core/test)
 target_compile_definitions(test_obs_alignment PRIVATE
     GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden")
 add_test(NAME obs_alignment COMMAND test_obs_alignment)
+
+# ── libtorch (interim: points at official ThirdParty; vendor to own third_party later) ──
+set(CMAKE_PREFIX_PATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/libtorch/share/cmake/Torch"
+    ${CMAKE_PREFIX_PATH})
+find_package(Torch REQUIRED)
+
+# ── PolicyRunner (Torch-dependent) ────────────────────────────────────────────
+add_library(policy_runner STATIC core/src/policy_runner.cpp)
+target_include_directories(policy_runner PUBLIC core/include)
+target_link_libraries(policy_runner PUBLIC "${TORCH_LIBRARIES}")
+set_property(TARGET policy_runner PROPERTY CXX_STANDARD 17)
+
+# ── WalkTask ──────────────────────────────────────────────────────────────────
+add_library(walk_task STATIC tasks/walk/walk_task.cpp)
+target_include_directories(walk_task PUBLIC core/include tasks)
+target_link_libraries(walk_task PUBLIC policy_runner)
+set_property(TARGET walk_task PROPERTY CXX_STANDARD 17)
+
+# ── E2E alignment test ────────────────────────────────────────────────────────
+add_executable(test_walk_e2e core/test/test_walk_e2e.cpp)
+target_include_directories(test_walk_e2e PRIVATE core/include core/test tasks)
+target_compile_definitions(test_walk_e2e PRIVATE
+    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden")
+target_link_libraries(test_walk_e2e PRIVATE walk_task)
+set_property(TARGET test_walk_e2e PROPERTY CXX_STANDARD 17)
+add_test(NAME walk_e2e COMMAND test_walk_e2e)
+
+# ── Dry-run app ───────────────────────────────────────────────────────────────
+add_executable(task_dry_run apps/task_dry_run.cpp)
+target_include_directories(task_dry_run PRIVATE core/include tasks)
+target_link_libraries(task_dry_run PRIVATE walk_task)
+set_property(TARGET task_dry_run PROPERTY CXX_STANDARD 17)
