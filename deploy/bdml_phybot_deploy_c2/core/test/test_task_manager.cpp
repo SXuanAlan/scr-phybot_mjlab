@@ -3,6 +3,7 @@
 #include "phybot/task.h"
 #include "check.h"
 #include "phybot/task_manager.h"
+#include "phybot/task_registry.h"
 #include <memory>
 
 namespace {
@@ -37,6 +38,19 @@ std::unique_ptr<CfgTask> make(phybot::TaskId id, const char* n,
   return t;
 }
 }  // namespace
+
+namespace {
+struct RegZeroTask : phybot::Task {
+  RegZeroTask() : phybot::Task(phybot::TaskId::ZERO, "zero") {}
+  void run(phybot::DataPackage&) override {}
+};
+struct RegWalkTask : phybot::Task {
+  RegWalkTask() : phybot::Task(phybot::TaskId::WALK_AMP, "walk_amp") {}
+  void run(phybot::DataPackage&) override {}
+};
+}  // namespace
+REGISTER_TASK(phybot::TaskId::ZERO, "zero", RegZeroTask)
+REGISTER_TASK(phybot::TaskId::WALK_AMP, "walk_amp", RegWalkTask)
 
 static void test_datapackage_defaults() {
   phybot::DataPackage io;
@@ -148,6 +162,26 @@ static void test_manager_ignores_unregistered_target() {
   CHECK(m.current() == TaskId::ZERO);
 }
 
+static void test_registry_self_registration() {
+  using namespace phybot;
+  auto& reg = TaskRegistry::instance();
+  CHECK(reg.has(TaskId::ZERO));
+  CHECK(reg.has(TaskId::WALK_AMP));
+  CHECK(reg.has(TaskId::MIMIC) == false);
+  CHECK(std::string(reg.name(TaskId::WALK_AMP)) == "walk_amp");
+}
+
+static void test_registry_loadInto() {
+  using namespace phybot;
+  TaskManager m;
+  TaskRegistry::instance().loadInto(m);
+  DataPackage io;
+  m.start(TaskId::ZERO, io);
+  io.requested_task = TaskId::WALK_AMP;
+  m.tick(io);
+  CHECK(m.current() == TaskId::WALK_AMP);   // 注册的 task 可被切换
+}
+
 int main() {
   test_datapackage_defaults();
   test_task_basics();
@@ -157,6 +191,8 @@ int main() {
   test_manager_canExit_blocks_switch();
   test_manager_checkChange_auto_transition();
   test_manager_ignores_unregistered_target();
+  test_registry_self_registration();
+  test_registry_loadInto();
   if (g_check_failures == 0) std::printf("ALL TESTS PASSED\n");
   return g_check_failures == 0 ? 0 : 1;
 }
