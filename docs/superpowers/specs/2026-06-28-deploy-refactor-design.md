@@ -13,8 +13,8 @@
 1. 把官方单体部署重构成**可复用库 + 自注册 Task 插件**,让"加一个动作"从改 ~7 处文件降到:中心 `task_id.h` 加 1 行枚举 + 一个自包含 `tasks/<name>/` 目录(+cmake/bindings 各一行)。
 2. `TaskManager` 做成**项目内可复用的任务状态机模块**(放入 `core`,枚举注册表 + 自注册),借鉴 Unitree `unitree_guide` 的成熟契约;**不**抽成跨机器人独立库。
 3. **Xbox 手柄支持**:稳健设备层(SDL2/热插拔)+ 配置驱动按键映射 + 轴→连续命令。
-4. **集成自己的 task**:walk_amp + 一个空白模板,便于后续复制。
-5. 迁移 **mimic** 一个旧 task 以验证架构通用性。
+4. **集成自己的 task**:walk_amp(**你自己的 task,非官方**;`rl_deploy_walk_amp` 不作权威参考)+ 一个空白模板。obs/动作权威来源待定,**靠后接入**(见 §15)。
+5. 迁移 **mimic**(真官方任务,A1 作架构打样 + 逐位对齐参考)。
 
 ### 1.2 范围
 - **做**:新架构 + `core` 内任务状态机 + InputProtocol 统一 + 自注册 Task + 配置体系 + walk_amp + 空白模板 + mimic + Xbox 输入层。
@@ -22,7 +22,7 @@
 
 ### 1.3 不变量(硬约束)
 - **电机使能/失能 + 官方急停路径**:原样保留,本次重构不修改该路径。
-- **`DataPackage` 黑板的数值管线**:walk_amp 的 obs/动作数值逐位不变 → 实机对齐不受影响。
+- **`DataPackage` 黑板的数值管线**:被迁移的官方任务(A1 用 **mimic**)obs/动作与官方 `RL_deploy_mimic` 逐位一致 → 实机对齐不受影响。walk_amp(你自己的)对齐来源待定、靠后处理。
 - **LCM 线格式**(`0xeb90` / data 偏移 / 校验和):逐字节保留 → 旧 iPad App、旧手柄仍兼容。
 - **主循环骨架**:读电机→读IMU→[大脑]→写电机→等周期,只换"大脑"两块。
 
@@ -382,7 +382,8 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 取代仅针对 walk_amp 的 `walk_amp_dry_run_check`,对**任意 task** 喂一帧数据跑一次 `run`,检查:策略加载成功、obs 维度正确、输出有限、在限幅内。上电前必跑。
 
 ### 11.2 对齐保护(最高优先级)
-- **walk_amp 数值逐位等价**:重构后用通用 dry-run + `scripts/validation/check_walk_deploy_alignment.py` 对比新旧二进制产出的 obs/action 向量,必须一致后才允许上真机。
+- **A1 对齐目标 = 官方 mimic**:新 `MimicTask` 与官方 `RL_deploy_mimic` 在同一帧输入下 obs/action **逐位一致**(通用 dry-run 对比新旧二进制),通过后 A1 才达标。
+- **walk_amp(你自己的)对齐**:来源(训练侧 mjlab env vs 你另给的规格)定下后再做;**不拿 `rl_deploy_walk_amp` 当权威参考**。
 - DataPackage 字段名、限幅值、decimation、scale、PD、obs 布局保持不变。
 
 ### 11.3 单元/集成
@@ -407,10 +408,10 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 
 ### 阶段组 A:不需要真机(全部先做完并验证)
 - **A0** `core` 任务状态机(`Task`/`TaskManager`/`TaskRegistry`/`REGISTER_TASK`/`TaskId`)+ 纯逻辑单测(最小 `DataPackage` + 哑 `Task`:切换/checkChange/canExit/注册表)。
-- **A1** `core` 其余(`PolicyTask`/`PolicyRunner`/`HistoryBuffers`/`ObsBuilder`/`InputProtocol`)+ **mujoco backend**;接入 `zero` + `walk_amp`;mujoco 跑通;通用 dry-run + **对齐校验(新旧 obs/action 逐位一致)通过**。
+- **A1** `core` 其余(`PolicyTask`/`PolicyRunner`/`HistoryBuffers`/`ObsBuilder`/`InputProtocol`)+ **mujoco backend**;接入 `zero` + **官方 `mimic`(架构打样)**;mujoco 跑通;通用 dry-run + **对齐校验:新 `MimicTask` vs 官方 `RL_deploy_mimic` 逐位一致**。
 - **A2** 主循环集成(`TaskManager` + `InputProtocol` 替换 `server`/`manager`,骨架对照官方逐行)——**在 mujoco backend 上验证,不碰真机**。
 - **A3** Publisher SDL2 输入层 + `bindings.yaml`;手柄→命令→切 task 在 mujoco 上打通;**N1(enum 跨线程)/ N2(去抖)** 验证。
-- **A4** 迁移 `mimic` + 补 `_template`;在 mujoco 上验证架构通用性。
+- **A4** 接入 **`walk_amp`(你自己的,obs/动作来源定下后)** + 补 `_template`;在 mujoco 上验证。
 - **A5** 清理、文档、CI/回归(单测 + dry-run + 对齐脚本)。
 
 > **A 组出口标准**:仿真完整可用、对齐逐位一致、手柄打通。此期间真机部署仍由官方 `phybot_deploy_c2` 承担。
@@ -419,8 +420,8 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 - **B1** `realrobot backend`(MotorList + IMU)实装;**不使能电机**,只读传感器→`DataPackage`,与官方读数逐项对照。
 - **B2** 真机 `task_dry_run`(**不下发电机**):逐 task 验证策略加载 / obs / 输出范围。
 - **B3** 主循环接真机 backend,**电机使能但低增益 + 吊架**,`zero` 站立保持;逐行 diff 确认官方上电/急停路径未改。
-- **B4** `walk_amp` 上机:吊架→低速→放开,人工监护 + 硬件急停常备。
-- **B5** `mimic` 上机(同上谨慎流程)。
+- **B4** `mimic` 上机:吊架→低速→放开,人工监护 + 硬件急停常备。
+- **B5** `walk_amp` 上机(同上谨慎流程;前置:其 obs/动作来源已定并通过 A 组对齐)。
 
 > 每步独立验证、可随时回退官方版;任一步不过不进入下一步。新目录在 A1 跑通前没有"半截可用"状态,故按阶段推进、避免最后一次性合龙。
 
@@ -433,7 +434,7 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 ### 13.1 数值/对齐(🔴 最高,直接致摔/抽搐/冲出)
 | 风险 | 对策/门槛 |
 |---|---|
-| 🔴 walk_amp obs/动作拆进 `PolicyTask` 时出现细微偏差(720 维顺序/`scale`/`Euler_ZYXToGravityVec` 符号/history 首帧填充) | 同一帧输入,新旧二进制 **obs 与 action 逐位一致**(`check_walk_deploy_alignment.py` + dry-run);不通过禁止上真机 |
+| 🔴 被迁任务 obs/动作拆进 `PolicyTask` 时出现细微偏差(顺序/`scale`/gravity 符号/history 首帧填充) | A1: 新 `MimicTask` vs 官方 `RL_deploy_mimic` **逐位一致**(dry-run 对比);walk_amp 同法但其对齐来源定下后再做;不通过禁止上真机 |
 | 🔴 关节顺序/方向/零位映射错位(`q/dq` 序、`direction_vector`、`default_dof_pos`=-0.295) | `robot.yaml` 与官方 `MotorList/config/*` 逐项核对;沿用官方上电"读 50 次打印"对照零位 |
 | 🔴 PD/力矩限幅/decimation/控制周期 漂移 | 数值沿用官方;dry-run 校验输出在 `torque_limits` 内;周期不动 |
 | 🔴 命令限幅/LCM 解包 byte 偏移/校验和错位 | 限幅值逐字保留;`encode→decode` 往返一致 + 用真实旧 App/手柄包回归 |
@@ -450,7 +451,7 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 |---|---|
 | 🟠 自注册被链接器丢弃 → 按键"无反应" | tasks 用 OBJECT 库(或 alwayslink/--whole-archive);**启动打印已注册 task 清单与期望核对** |
 | 🟠 某 `policy.pt` 缺失/损坏 | 加载校验放在 `Enable()` **之前**,失败拒绝上电 |
-| 🟠 `enter` 每次复位 history 与官方语义差异 | 对照官方 walk_amp 进出行为;dry-run 覆盖"切出再切入" |
+| 🟠 `enter` 每次复位 history 与官方语义差异 | 对照被迁官方任务(mimic = `RL_deploy_mimic`)进出行为;dry-run 覆盖"切出再切入" |
 | 🟠 `checkChange` 误引入自动跳转 | walk_amp/zero 默认返回自身(不变);仅 mimic 显式用并充分测试 |
 | 🟠 热路径堆分配/tensor 每拍分配 → 抖动丢拍 | `enter` 预分配所有 buffer;hot path 无 malloc;测 tick 耗时分布 |
 | 🟡 `REGISTER_TASK` 名称/bindings 拼错或缺文件仅运行时发现 | 启动全量校验注册表+配置+模型,缺失拒绝进入电机使能(`TaskId` 枚举本身编译期检查) |
@@ -466,7 +467,7 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 
 ## 14. 关键决策记录
 
-1. 范围:架构 + walk_amp + 空白模板 + mimic(其余旧 task 后续按需)。
+1. 范围:架构 + 官方 mimic(A1 打样/对齐参考)+ walk_amp(你自己的,靠后,obs/动作来源 TBD)+ 空白模板(其余旧 task 后续按需)。`rl_deploy_walk_amp` 非官方,不作参考。
 2. 形态:核心编库 + task 自注册插件(`TaskId` 枚举 + `std::array` 注册表)。
 3. Xbox:稳健设备层(SDL2/热插拔)+ 配置驱动按键 + 轴→连续命令 + 接入新架构。
 4. 进程:保留两进程(LCM 解耦)。
@@ -481,3 +482,4 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 - [ ] MotorList 电机心跳保护是否已使能(main 崩溃时的硬件兜底)。
 - [ ] `_template` 是否同时给 PolicyTask 版与非 RL 版两个模板。
 - [ ] mimic 参考动作文件格式与加载器接口细节。
+- [ ] **walk_amp(你自己的)obs/动作权威来源未定**:训练侧 mjlab env vs 你另给规格 —— 定后才能写 `WalkAmpTask` 与其对齐校验。`rl_deploy_walk_amp` 不作权威参考。
