@@ -115,6 +115,7 @@ static void test_manager_canExit_blocks_switch() {
   CHECK(zero->exited == 0);
   CHECK(walk->entered == 0);
   CHECK(m.current() == TaskId::ZERO);  // 维持当前
+  CHECK(zero->ran == 1);   // 被互锁拒绝切换的那拍, 当前 task 仍照常 run
 }
 
 static void test_manager_checkChange_auto_transition() {
@@ -130,6 +131,8 @@ static void test_manager_checkChange_auto_transition() {
   m.tick(io);
   CHECK(m.current() == TaskId::WALK_AMP);
   CHECK(walk->entered == 1);
+  CHECK(walk->ran == 1);   // 自动跳转当拍: 新 task 跑一次
+  CHECK(zero->ran == 0);   // 自动跳转当拍: 旧 task 不跑
 }
 
 static void test_manager_ignores_unregistered_target() {
