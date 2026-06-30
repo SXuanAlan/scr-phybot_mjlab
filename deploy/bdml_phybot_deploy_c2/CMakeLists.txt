@@ -104,3 +104,9 @@ target_include_directories(phybot_publisher PUBLIC publisher/include)
 # ── Controller probe app ──────────────────────────────────────────────────
 add_executable(controller_probe publisher/apps/controller_probe.cpp)
 target_link_libraries(controller_probe PRIVATE phybot_publisher)
+
+# ── InputProtocol (wire codec for 0xeb90) ────────────────────────────────────
+add_executable(test_input_protocol core/test/test_input_protocol.cpp core/src/input_protocol.cpp)
+target_include_directories(test_input_protocol PRIVATE core/include core/test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
+add_test(NAME input_protocol COMMAND test_input_protocol)
