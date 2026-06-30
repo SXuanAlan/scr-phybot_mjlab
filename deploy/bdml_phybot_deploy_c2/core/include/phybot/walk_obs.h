@@ -30,7 +30,7 @@ inline void BuildWalkObs(const WalkObsInputs& in, const WalkConfig& c,
     obs[10 + kNumDofs + i] = (float)(in.dq[i] * c.dof_vel_scale);                  // [31:52]
   for (int i = 0; i < kNumDofs; ++i)
     obs[10 + 2 * kNumDofs + i] = (float)in.last_action[i];                         // [52:73]
-  std::memcpy(obs + kProprio, pos_newest105, sizeof(float) * 105);                 // [73:178]
-  std::memcpy(obs + kProprio + 105, vel_newest105, sizeof(float) * 105);           // [178:283]
+  std::memcpy(obs + kProprio, pos_newest105, sizeof(float) * kHistFramesInObs * kNumDofs);                 // [73:178]
+  std::memcpy(obs + kProprio + kHistFramesInObs * kNumDofs, vel_newest105, sizeof(float) * kHistFramesInObs * kNumDofs);           // [178:283]
 }
 }  // namespace phybot

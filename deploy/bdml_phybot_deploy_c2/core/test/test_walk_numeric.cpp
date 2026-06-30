@@ -130,6 +130,9 @@ static void test_apply_walk_action() {
   std::array<double,kNumDofs> act{};
   act[0] = 1.0;    // → 1.0*0.2 + default[0]
   act[4] = 2.0;    // → 2.0*0.2 + (-0.295)
+  io.motor_Vel_desire[0] = 99.0;       // 哨兵: 验证 ApplyWalkAction 真的清零
+  io.motor_Torque_desire[0] = 99.0;
+  io.torq_desire[0] = 99.0;
   ApplyWalkAction(act, c, io);
   CHECK(std::fabs(io.motor_Pos_desire[0] - (0.2 + c.default_dof_pos[0])) < 1e-12);
   CHECK(std::fabs(io.motor_Pos_desire[4] - (0.4 + (-0.295))) < 1e-12);
