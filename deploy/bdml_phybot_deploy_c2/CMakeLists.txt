@@ -29,6 +29,13 @@ add_executable(test_task_manager core/test/test_task_manager.cpp)
 target_include_directories(test_task_manager PRIVATE core/include core/test)
 add_test(NAME core_task_manager COMMAND test_task_manager)
 
+add_executable(test_controller_config core/test/test_controller_config.cpp core/src/controller_config.cpp)
+target_include_directories(test_controller_config PRIVATE core/include core/test
+    "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(test_controller_config PRIVATE PHYBOT_TASKS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tasks")
+target_link_libraries(test_controller_config PRIVATE "${YAML_CPP_LIB}")
+add_test(NAME controller_config COMMAND test_controller_config)
+
 add_executable(test_walk_numeric tasks/walk/test/test_walk_numeric.cpp
     tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
 target_include_directories(test_walk_numeric PRIVATE core/include core/test tasks

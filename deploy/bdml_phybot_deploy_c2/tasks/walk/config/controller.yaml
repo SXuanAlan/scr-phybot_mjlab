@@ -1,0 +1,5 @@
+select_code: 2
+default: false
+vx: { range: [-0.4, 1.0] }
+vy: { range: [-0.1, 0.1] }
+wz: { range: [-1.0, 1.0] }
