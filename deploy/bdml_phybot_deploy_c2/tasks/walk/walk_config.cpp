@@ -22,6 +22,16 @@
 #ifndef WALK_CONFIG_DIR
 #error "WALK_CONFIG_DIR must be defined via target_compile_definitions (see CMakeLists.txt)"
 #endif
+#ifndef PHYBOT_ROOT
+#error "PHYBOT_ROOT must be defined"
+#endif
+
+// policy_path in walk.yaml is relative to the source-tree root so the same yaml resolves
+// correctly regardless of build dir / cwd; PHYBOT_ROOT (that root) is injected by CMake on
+// every target that compiles this file (see CMakeLists.txt). Absolute paths pass through.
+std::string phybot::ResolveRoot(const std::string& p) {
+  return (!p.empty() && p[0] == '/') ? p : std::string(PHYBOT_ROOT) + "/" + p;
+}
 
 namespace phybot {
 namespace {
@@ -55,6 +65,7 @@ WalkConfig walk_config() {
   c.default_dof_pos     = ToArray<kNumDofs>(robot["default_pose"]);
   c.rl_p                = ToArray<kNumDofs>(walk["sim_kp"]);
   c.rl_d                = ToArray<kNumDofs>(walk["sim_kd"]);
+  c.policy_path         = ResolveRoot(walk["policy_path"].as<std::string>());
   return c;
 }
 

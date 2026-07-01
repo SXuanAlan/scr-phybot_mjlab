@@ -43,7 +43,8 @@ target_include_directories(test_walk_numeric PRIVATE core/include core/test task
 target_compile_definitions(test_walk_numeric PRIVATE
     CONFIG_DIR="${CONFIG_DIR_PATH}"
     WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
-    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}"
+    PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(test_walk_numeric PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME walk_numeric COMMAND test_walk_numeric)
 
@@ -55,9 +56,23 @@ target_compile_definitions(test_obs_alignment PRIVATE
     GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tasks/walk/test/golden"
     CONFIG_DIR="${CONFIG_DIR_PATH}"
     WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
-    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}"
+    PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(test_obs_alignment PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME obs_alignment COMMAND test_obs_alignment)
+
+# policy_path (WalkConfig, resolved via PHYBOT_ROOT) — see walk_config.{h,cpp}.
+add_executable(test_walk_config_policy tasks/walk/test/test_walk_config_policy.cpp
+    tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
+target_include_directories(test_walk_config_policy PRIVATE core/include core/test tasks
+    "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(test_walk_config_policy PRIVATE
+    CONFIG_DIR="${CONFIG_DIR_PATH}"
+    WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}"
+    PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(test_walk_config_policy PRIVATE "${YAML_CPP_LIB}")
+add_test(NAME walk_config_policy COMMAND test_walk_config_policy)
 
 add_executable(test_zero_task tasks/zero/test/test_zero_task.cpp
     tasks/zero/zero_task.cpp tasks/zero/zero_config.cpp)
@@ -93,7 +108,8 @@ target_include_directories(walk_task
 target_compile_definitions(walk_task PRIVATE
     CONFIG_DIR="${CONFIG_DIR_PATH}"
     WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
-    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}"
+    PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(walk_task PUBLIC policy_runner "${YAML_CPP_LIB}")
 set_property(TARGET walk_task PROPERTY CXX_STANDARD 17)
 

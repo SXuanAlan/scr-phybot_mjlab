@@ -22,9 +22,15 @@ void WalkTask::enter(DataPackage& io) {
   last_action_.fill(0.0);
   history_.Reset();
   if (!runner_) {
-    if (model_path_.empty())
+    // No explicit model_path (ctor default ""): fall back to policy_path resolved from this
+    // task's own config (tasks/walk/config/walk.yaml -> policy_path), so a no-arg WalkTask()
+    // -- e.g. one built by TaskRegistry's name-only factory -- self-registers a working
+    // policy instead of requiring the caller to inject a path. cfg_ is already fully
+    // constructed here (member-initialized before this ctor's body/enter() can ever run).
+    std::string path = model_path_.empty() ? cfg_.policy_path : model_path_;
+    if (path.empty())
       throw std::runtime_error("WalkTask: model_path is empty");
-    runner_ = std::make_unique<PolicyRunner>(model_path_);
+    runner_ = std::make_unique<PolicyRunner>(path);
   }
 }
 
