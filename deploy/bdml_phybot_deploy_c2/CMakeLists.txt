@@ -223,6 +223,12 @@ target_link_libraries(mujoco_gui PUBLIC
     "${MUJOCO_LIB}" "${PHYBOT_GLFW_DIR}/lib/libglfw3.so" ${CMAKE_DL_LIBS} pthread)
 set_property(TARGET mujoco_gui PROPERTY CXX_STANDARD 17)
 
+# ── RunGui harness (physics thread + MujocoViewer; apps-only link) ───────────
+add_library(sim_harness_gui STATIC backends/mujoco/sim_harness_gui.cpp)
+target_include_directories(sim_harness_gui PUBLIC backends/mujoco PRIVATE "${MUJOCO_INCLUDE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
+target_link_libraries(sim_harness_gui PUBLIC sim_harness mujoco_gui)
+set_property(TARGET sim_harness_gui PROPERTY CXX_STANDARD 17)
+
 # ── Headless sim walk app ─────────────────────────────────────────────────────
 set(PHYBOT_XML_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/robot/phybot_c2/xml/phybot_c2.xml")
