@@ -247,6 +247,11 @@ target_include_directories(test_input_protocol PRIVATE core/include core/test
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
 add_test(NAME input_protocol COMMAND test_input_protocol)
 
+# ── TaskRouter (code→TaskCode routing with default fallback + axis shaping) ──
+add_executable(test_task_router core/test/test_task_router.cpp core/src/task_router.cpp)
+target_include_directories(test_task_router PRIVATE core/include core/test "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
+add_test(NAME task_router COMMAND test_task_router)
+
 # ── Input mapping (ControllerState → DriveCmd) ─────────────────────────────────
 add_executable(test_input_mapping publisher/test/test_input_mapping.cpp)
 target_include_directories(test_input_mapping PRIVATE publisher/include core/include core/test
