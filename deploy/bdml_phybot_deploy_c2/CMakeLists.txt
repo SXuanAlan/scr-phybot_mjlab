@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 
-# ── yaml-cpp (interim: points at official ThirdParty; vendor to own third_party later) ────
+# ── yaml-cpp (vendored in third_party/ (populate via vendor.sh; git-ignored)) ────
 # Used to load THIS tree's own SIM/policy config (below), not the official tree's yaml.
-set(YAML_CPP_ROOT       "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/yaml")
+set(YAML_CPP_ROOT       "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yaml")
 set(YAML_CPP_INCLUDE_DIR "${YAML_CPP_ROOT}/include")
 set(YAML_CPP_LIB_DIR     "${YAML_CPP_ROOT}/lib")
 find_library(YAML_CPP_LIB yaml-cpp PATHS "${YAML_CPP_LIB_DIR}" NO_DEFAULT_PATH REQUIRED)
@@ -62,9 +62,9 @@ target_compile_definitions(test_zero_task PRIVATE
 target_link_libraries(test_zero_task PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME zero_task COMMAND test_zero_task)
 
-# ── libtorch (interim: points at official ThirdParty; vendor to own third_party later) ──
+# ── libtorch (vendored in third_party/ (populate via vendor.sh; git-ignored)) ──
 set(CMAKE_PREFIX_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/libtorch/share/cmake/Torch"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libtorch/share/cmake/Torch"
     ${CMAKE_PREFIX_PATH})
 find_package(Torch REQUIRED)
 
@@ -105,14 +105,14 @@ target_include_directories(task_dry_run PRIVATE core/include tasks)
 target_link_libraries(task_dry_run PRIVATE walk_task)
 set_property(TARGET task_dry_run PROPERTY CXX_STANDARD 17)
 
-# ── MuJoCo (interim: points at official ThirdParty; vendor to own third_party later) ──
-set(MUJOCO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/mujoco")
+# ── MuJoCo (vendored in third_party/ (populate via vendor.sh; git-ignored)) ──
+set(MUJOCO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mujoco")
 set(MUJOCO_INCLUDE_DIR "${MUJOCO_ROOT}")        # provides <mujoco/mujoco.h>
 set(MUJOCO_LIB_DIR     "${MUJOCO_ROOT}/lib")
 find_library(MUJOCO_LIB mujoco PATHS "${MUJOCO_LIB_DIR}" NO_DEFAULT_PATH REQUIRED)
 
-# --- interim LCM (point at official ThirdParty; vendor later) ---
-set(PHYBOT_LCM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/lcm_server/lcm/release")
+# --- LCM vendored in third_party/lcm (populate via vendor.sh; git-ignored) ---
+set(PHYBOT_LCM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm")
 add_library(phybot_lcm INTERFACE)
 target_include_directories(phybot_lcm INTERFACE "${PHYBOT_LCM_DIR}/include")
 target_link_libraries(phybot_lcm INTERFACE
@@ -128,7 +128,7 @@ set_property(TARGET mujoco_backend PROPERTY CXX_STANDARD 17)
 
 # ── Headless sim walk app ─────────────────────────────────────────────────────
 set(PHYBOT_XML_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/RobotModel/phybot_c2/xml/phybot_c2.xml")
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/robot/phybot_c2/xml/phybot_c2.xml")
 set(POLICY_PT_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden/cpg_policy.pt")
 
@@ -165,13 +165,13 @@ target_link_libraries(controller_probe PRIVATE phybot_publisher)
 # ── InputProtocol (wire codec for 0xeb90) ────────────────────────────────────
 add_executable(test_input_protocol core/test/test_input_protocol.cpp core/src/input_protocol.cpp)
 target_include_directories(test_input_protocol PRIVATE core/include core/test
-    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
 add_test(NAME input_protocol COMMAND test_input_protocol)
 
 # ── Input mapping (ControllerState → DriveCmd) ─────────────────────────────────
 add_executable(test_input_mapping publisher/test/test_input_mapping.cpp)
 target_include_directories(test_input_mapping PRIVATE publisher/include core/include core/test
-    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
 add_test(NAME input_mapping COMMAND test_input_mapping)
 
 # ── LCM loopback (REAL-HOST transport check; NOT an automated ctest) ───────────
@@ -201,7 +201,7 @@ target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm)
 add_executable(test_teleop_smoke core/test/test_teleop_smoke.cpp tasks/zero/zero_task.cpp)
 target_include_directories(test_teleop_smoke PRIVATE core/include core/test tasks backends/mujoco
     "${MUJOCO_INCLUDE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
 target_compile_definitions(test_teleop_smoke PRIVATE
     POLICY_PATH="${POLICY_PT_PATH}"
     XML_PATH="${PHYBOT_XML_PATH}")
