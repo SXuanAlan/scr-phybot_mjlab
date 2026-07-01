@@ -52,6 +52,16 @@ target_compile_definitions(test_obs_alignment PRIVATE
 target_link_libraries(test_obs_alignment PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME obs_alignment COMMAND test_obs_alignment)
 
+add_executable(test_zero_task core/test/test_zero_task.cpp
+    tasks/zero/zero_task.cpp core/src/zero_config.cpp)
+target_include_directories(test_zero_task PRIVATE core/include core/test
+    "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(test_zero_task PRIVATE
+    CONFIG_DIR="${CONFIG_DIR_PATH}"
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+target_link_libraries(test_zero_task PRIVATE "${YAML_CPP_LIB}")
+add_test(NAME zero_task COMMAND test_zero_task)
+
 # ── libtorch (interim: points at official ThirdParty; vendor to own third_party later) ──
 set(CMAKE_PREFIX_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/libtorch/share/cmake/Torch"

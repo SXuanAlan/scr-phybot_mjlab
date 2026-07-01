@@ -14,6 +14,7 @@ struct DataPackage {
   std::array<double, kNumDofs>  motor_pos{};
   std::array<double, kNumDofs>  motor_vel{};
   double js_vx_desire{0.0}, js_vy_desire{0.0}, js_OmegaZ_desire{0.0};
+  double control_period{0.002};   // dt (s); set by backend/main; used by ZeroState ramp
 
   // —— 控制输出 (task 写) ——
   std::array<double, kNumDofs>  motor_Pos_desire{};
