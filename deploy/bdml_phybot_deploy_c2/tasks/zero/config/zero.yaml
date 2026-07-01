@@ -1,0 +1,5 @@
+# [SIM] ZeroState hold. sim_kp/sim_kd are SIM stiff-hold gains (mujoco); real uses motor-driver PD ~100/5.
+# target pose = robot.default_pose (do not redeclare here)
+ramp_total_time: 0.5
+sim_kp: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
+sim_kd: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]

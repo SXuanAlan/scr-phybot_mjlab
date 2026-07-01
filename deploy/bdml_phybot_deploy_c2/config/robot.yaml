@@ -1,0 +1,8 @@
+# [ROBOT] shared robot constants. default_pose is the single source of truth.
+num_dofs: 21
+control_period: 0.002
+default_pose: [-0.242, 0.029, 0.007, 0.49, -0.295, 0.0,
+               -0.242, -0.029, -0.007, 0.49, -0.295, 0.0,
+               0.0,
+               0.0, 0.0, 0.0, -0.17,
+               0.0, -0.0, 0.0, -0.17]

@@ -2,6 +2,11 @@
 #include <array>
 #include "phybot/robot_consts.h"
 namespace phybot {
+// [SIM/policy config] This struct is populated from clean YAML, NOT hardcoded here:
+//   config/robot.yaml               -> default_dof_pos (default_pose; single source of truth)
+//   tasks/walk/config/walk.yaml     -> scales, action_scale, rl_p (sim_kp), rl_d (sim_kd)
+// rl_p/rl_d are the SIM actuator PD gains fed to mujoco (DataPackage.sim_P/sim_D). The REAL
+// robot uses the motor-driver PD (official MotorList config) and is NOT configured here.
 struct WalkConfig {
   double ang_vel_scale, dof_pos_scale, dof_vel_scale, lin_vel_scale, walk_flag_threshold;
   std::array<double, kNumDofs> action_scale;
@@ -9,21 +14,10 @@ struct WalkConfig {
   std::array<double, kNumDofs> rl_p;
   std::array<double, kNumDofs> rl_d;
 };
-// 官方 RL_deploy_cpg/config/rl_params.yaml 的值 (硬编码; A1-policy 改为从 yaml 载入)。
-inline WalkConfig walk_config() {
-  WalkConfig c;
-  c.ang_vel_scale = 0.25; c.dof_pos_scale = 1.0; c.dof_vel_scale = 0.05;
-  c.lin_vel_scale = 1.0;  c.walk_flag_threshold = 0.3;
-  c.action_scale = {0.2,0.2,0.2,0.2,0.2,0.2, 0.2,0.2,0.2,0.2,0.2,0.2, 0.2,
-                    0.2,0.2,0.2,0.2, 0.2,0.2,0.2,0.2};
-  c.default_dof_pos = {-0.242,0.029,0.007,0.49,-0.295,0.0,
-                       -0.242,-0.029,-0.007,0.49,-0.295,0.0,
-                       0.0,
-                       0.0,0.0,0.0,-0.17,
-                       0.0,-0.0,0.0,-0.17};
-  c.rl_p = {100,100,100,100,50,50, 100,100,100,100,50,50, 20,
-            50,50,50,50, 50,50,50,50};
-  c.rl_d = {5,5,5,5,5,5, 5,5,5,5,5,5, 10, 5,5,5,5, 5,5,5,5};
-  return c;
-}
+// Values equal 官方 RL_deploy_cpg/config/rl_params.yaml, now loaded at runtime from this
+// tree's own config/robot.yaml + tasks/walk/config/walk.yaml — see walk_config.cpp.
+// yaml-cpp is intentionally kept OUT of this header (only walk_config.cpp includes it),
+// so downstream headers (walk_obs.h, walk_action.h, walk_history.h, walk_task.h, ...) and
+// everything that merely needs the WalkConfig struct stay free of the yaml-cpp dependency.
+WalkConfig walk_config();
 }  // namespace phybot

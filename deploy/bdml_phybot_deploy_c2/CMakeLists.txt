@@ -6,20 +6,50 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 
-# ── Dependency-free ctests (no Torch) ─────────────────────────────────────────
+# ── yaml-cpp (interim: points at official ThirdParty; vendor to own third_party later) ────
+# Used to load THIS tree's own SIM/policy config (below), not the official tree's yaml.
+set(YAML_CPP_ROOT       "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/yaml")
+set(YAML_CPP_INCLUDE_DIR "${YAML_CPP_ROOT}/include")
+set(YAML_CPP_LIB_DIR     "${YAML_CPP_ROOT}/lib")
+find_library(YAML_CPP_LIB yaml-cpp PATHS "${YAML_CPP_LIB_DIR}" NO_DEFAULT_PATH REQUIRED)
+
+# ── SIM/policy config (yaml, loaded at runtime by walk_config.cpp / zero_config.cpp) ──────
+# STRICT domain separation: these YAML describe SIM-only config. sim_kp/sim_kd are the SIM
+# actuator PD gains (fed to mujoco via DataPackage.sim_P/sim_D). The REAL robot uses the
+# motor-driver PD (official MotorList config) and is NOT configured from these files.
+# Interim: one compile-definition per directory (mirrors the GOLDEN_DIR pattern below);
+# revisit once this tree vendors its own config-loading story.
+set(CONFIG_DIR_PATH      "${CMAKE_CURRENT_SOURCE_DIR}/config")
+set(WALK_CONFIG_DIR_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tasks/walk/config")
+set(ZERO_CONFIG_DIR_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tasks/zero/config")
+
+# ── Dependency-free ctests (no Torch; now need yaml-cpp for walk_config()/zero_config()) ──
 
 add_executable(test_task_manager core/test/test_task_manager.cpp)
 target_include_directories(test_task_manager PRIVATE core/include core/test)
 add_test(NAME core_task_manager COMMAND test_task_manager)
 
-add_executable(test_walk_numeric core/test/test_walk_numeric.cpp)
-target_include_directories(test_walk_numeric PRIVATE core/include core/test)
+add_executable(test_walk_numeric core/test/test_walk_numeric.cpp
+    core/src/walk_config.cpp core/src/zero_config.cpp)
+target_include_directories(test_walk_numeric PRIVATE core/include core/test
+    "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(test_walk_numeric PRIVATE
+    CONFIG_DIR="${CONFIG_DIR_PATH}"
+    WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+target_link_libraries(test_walk_numeric PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME walk_numeric COMMAND test_walk_numeric)
 
-add_executable(test_obs_alignment core/test/test_obs_alignment.cpp)
-target_include_directories(test_obs_alignment PRIVATE core/include core/test)
+add_executable(test_obs_alignment core/test/test_obs_alignment.cpp
+    core/src/walk_config.cpp core/src/zero_config.cpp)
+target_include_directories(test_obs_alignment PRIVATE core/include core/test
+    "${YAML_CPP_INCLUDE_DIR}")
 target_compile_definitions(test_obs_alignment PRIVATE
-    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden")
+    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden"
+    CONFIG_DIR="${CONFIG_DIR_PATH}"
+    WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+target_link_libraries(test_obs_alignment PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME obs_alignment COMMAND test_obs_alignment)
 
 # ── libtorch (interim: points at official ThirdParty; vendor to own third_party later) ──
@@ -35,9 +65,19 @@ target_link_libraries(policy_runner PUBLIC "${TORCH_LIBRARIES}")
 set_property(TARGET policy_runner PROPERTY CXX_STANDARD 17)
 
 # ── WalkTask ──────────────────────────────────────────────────────────────────
-add_library(walk_task STATIC tasks/walk/walk_task.cpp)
-target_include_directories(walk_task PUBLIC core/include tasks)
-target_link_libraries(walk_task PUBLIC policy_runner)
+# walk_config.cpp/zero_config.cpp compiled in once here; every consumer of walk_task
+# (test_walk_e2e, task_dry_run, sim_walk, test_walk_sim) picks up walk_config()/zero_config()
+# and the yaml-cpp link requirement transitively -- they don't need CONFIG_DIR themselves.
+add_library(walk_task STATIC tasks/walk/walk_task.cpp
+    core/src/walk_config.cpp core/src/zero_config.cpp)
+target_include_directories(walk_task
+    PUBLIC  core/include tasks
+    PRIVATE "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(walk_task PRIVATE
+    CONFIG_DIR="${CONFIG_DIR_PATH}"
+    WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
+target_link_libraries(walk_task PUBLIC policy_runner "${YAML_CPP_LIB}")
 set_property(TARGET walk_task PROPERTY CXX_STANDARD 17)
 
 # ── E2E alignment test ────────────────────────────────────────────────────────
