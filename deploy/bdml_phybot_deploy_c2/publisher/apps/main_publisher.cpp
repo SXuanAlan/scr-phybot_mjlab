@@ -1,0 +1,23 @@
+#include "phybot/js_controller.h"
+#include "phybot/input_mapping.h"
+#include "phybot/input_protocol.h"
+#include <lcm/lcm-cpp.hpp>
+#include <cstdio>
+#include <ctime>
+int main() {
+  lcm::LCM lcm;
+  if (!lcm.good()) { std::printf("LCM init failed\n"); return 1; }
+  phybot::JsController jc; phybot::MappingState ms;
+  timespec ts{0, 10*1000*1000};  // ~100 Hz
+  std::printf("[publisher] running; discovering controller...\n");
+  while (true) {
+    if (!jc.connected()) { if (!jc.discover()) { nanosleep(&ts,nullptr); continue; }
+                           std::printf("[publisher] connected: %s\n", jc.name().c_str()); }
+    phybot::ControllerState s;
+    if (!jc.poll(s)) { nanosleep(&ts,nullptr); continue; }
+    phybot::DriveCmd c = phybot::MapControllerToDrive(s, ms);
+    custom_lcm::system2Algorithm_packet pkt; phybot::ip_encode(c, pkt);
+    lcm.publish("Robot_ControlData", &pkt);
+    nanosleep(&ts, nullptr);
+  }
+}

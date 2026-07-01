@@ -111,6 +111,13 @@ set(MUJOCO_INCLUDE_DIR "${MUJOCO_ROOT}")        # provides <mujoco/mujoco.h>
 set(MUJOCO_LIB_DIR     "${MUJOCO_ROOT}/lib")
 find_library(MUJOCO_LIB mujoco PATHS "${MUJOCO_LIB_DIR}" NO_DEFAULT_PATH REQUIRED)
 
+# --- interim LCM (point at official ThirdParty; vendor later) ---
+set(PHYBOT_LCM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/lcm_server/lcm/release")
+add_library(phybot_lcm INTERFACE)
+target_include_directories(phybot_lcm INTERFACE "${PHYBOT_LCM_DIR}/include")
+target_link_libraries(phybot_lcm INTERFACE
+    "${PHYBOT_LCM_DIR}/lib/liblcm.so" "${PHYBOT_LCM_DIR}/lib/libglib-2.0.so.0")
+
 # ── MuJoCo backend library ────────────────────────────────────────────────────
 add_library(mujoco_backend STATIC backends/mujoco/mujoco_backend.cpp)
 target_include_directories(mujoco_backend
@@ -166,3 +173,14 @@ add_executable(test_input_mapping publisher/test/test_input_mapping.cpp)
 target_include_directories(test_input_mapping PRIVATE publisher/include core/include core/test
     "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
 add_test(NAME input_mapping COMMAND test_input_mapping)
+
+# ── LCM loopback (transport gate: publish/subscribe/decode round-trip) ────────
+add_executable(test_lcm_loopback core/test/test_lcm_loopback.cpp core/src/input_protocol.cpp)
+target_include_directories(test_lcm_loopback PRIVATE core/include core/test)
+target_link_libraries(test_lcm_loopback PRIVATE phybot_lcm)
+add_test(NAME lcm_loopback COMMAND test_lcm_loopback)
+
+# ── Publisher process (JsController -> MapControllerToDrive -> ip_encode -> LCM) ──
+add_executable(main_publisher publisher/apps/main_publisher.cpp core/src/input_protocol.cpp)
+target_include_directories(main_publisher PRIVATE publisher/include core/include)
+target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm)
