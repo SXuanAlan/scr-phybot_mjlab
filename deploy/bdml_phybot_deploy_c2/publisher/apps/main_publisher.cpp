@@ -1,10 +1,12 @@
 #include "phybot/js_controller.h"
 #include "phybot/input_mapping.h"
 #include "phybot/input_protocol.h"
+#include "phybot/lcm_env.h"
 #include <lcm/lcm-cpp.hpp>
 #include <cstdio>
 #include <ctime>
 int main() {
+  phybot::AnnounceLcmInit("publisher");
   lcm::LCM lcm;
   if (!lcm.good()) { std::printf("LCM init failed\n"); return 1; }
   phybot::JsController jc; phybot::MappingState ms;

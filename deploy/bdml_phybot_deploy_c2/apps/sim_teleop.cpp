@@ -19,6 +19,7 @@
 #include "phybot/task_id.h"
 #include "phybot/zero_task.h"
 #include "phybot/input_protocol.h"
+#include "phybot/lcm_env.h"
 #include "walk/walk_task.h"
 #include "mujoco_backend.h"
 #include "teleop_loop.h"
@@ -66,6 +67,7 @@ int main(int argc, char** argv) {
   const char* policy_path = (argc > 1) ? argv[1] : POLICY_PATH;
   const char* xml_path    = (argc > 2) ? argv[2] : XML_PATH;
 
+  AnnounceLcmInit("sim_teleop");
   lcm::LCM lcm;
   if (!lcm.good()) {
     std::printf("[sim_teleop] LCM init failed (no multicast route?)\n");
