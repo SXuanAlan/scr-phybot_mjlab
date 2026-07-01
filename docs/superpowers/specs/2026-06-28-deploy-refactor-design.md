@@ -374,6 +374,14 @@ REGISTER_TASK(TaskId::WALK_AMP, "walk_amp", WalkAmpTask);
 - 测试物理防护:硬件急停 = 断电 = 双足会瘫倒,测试上吊架/护具;真机测试建议 publisher 跑在机器人本机(本地组播)。
 - 待确认项(不阻塞本设计):MotorList 的电机心跳保护(`HEART_BEAT_PROTECT_ON`/`SetHeartbeat`)当前是否使能。
 
+### 10.1 SIM 与真机的 PD 链路不同(关键,已在官方代码核实)
+**任务输出的 `sim_P/sim_D` 只对仿真有效;真机完全不看它。**
+- **SIM**:`MujocoInterface::SetTorque` 用 `sim_P/sim_D` 算力矩 `ctrl = tau_ff + P·(pos_des−pos) + D·(vel_des−vel)`。新 `MujocoBackend` 一致,是忠实的。ZeroState 的 `1000/100`、walk 的 `100/5` 都是**仿真增益**。
+- **真机**:`MotorList::SetCommandsFromPackage` 调 `SetBigparam(Pos,Vel,Cur=0)`——**签名无 kp/kd**,只发 位置+速度 目标、前馈力矩清零(`0*tor_cmd`),**从不引用 `sim_P/sim_D`**。真机 PD 增益在**电机驱动固件**里,由 `MotorList/config/phybot_mini_*.yaml`(`ControlMode:0x0B` + 每电机 `PDKp∈{20,50,100}`/`PDKd∈{5,10}`,大腿≈100/5)在初始化写入。
+- **推论**:`1000/100` 是 sim-only 保真值,**不是真机安全数**;真机 ≈ 100/5(电机配置)。二者不冲突,各管一条链路。
+- **B 组真机 backend 硬约束**:必须照 `SetCommandsFromPackage` —— **只发 pos/vel,增益走 MotorList 配置,不要把 `sim_P/sim_D` 发给硬件,前馈力矩清零**。
+- **但捕获位姿 + 0.5s 三次斜坡对真机仍必需**:`motor_Pos_desire`(位置目标)会发给真机电机,snap 到 default = 位置阶跃,驱动器 PD(100/5)照样猛追 → 顿挫。斜坡让位置目标平滑,是真机安全关键(与增益无关)。
+
 ---
 
 ## 11. 测试与验收
