@@ -31,6 +31,11 @@ class MujocoBackend : public RobotBackend {
   double baseY()      const { return m_ ? d_->qpos[1] : 0.0; }
   double simTime()    const { return m_ ? d_->time     : 0.0; }
 
+  // Non-owning access to the live model/data, so an optional MujocoViewer can
+  // render exactly what this backend steps. Headless callers never touch these.
+  mjModel* model() const { return m_; }
+  mjData*  data()  const { return d_; }
+
  private:
   mjModel* m_{nullptr};
   mjData*  d_{nullptr};

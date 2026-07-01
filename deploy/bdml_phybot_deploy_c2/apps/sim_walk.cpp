@@ -10,6 +10,13 @@
 #include <string>
 #include <vector>
 
+#ifdef PHYBOT_ENABLE_GUI
+#include "mujoco_viewer.h"
+#include <thread>
+#include <mutex>
+#include <ctime>
+#endif
+
 // Asset paths are baked in by CMake (absolute, vendored — CWD-independent).
 // These #ifndef fallbacks are relative to the repo root, for a manual build
 // without CMake; run such a build from deploy/bdml_phybot_deploy_c2/.
@@ -21,14 +28,27 @@
 #endif
 
 int main(int argc, char** argv) {
-    const char* policy_path = (argc > 1) ? argv[1] : POLICY_PATH;
-    const char* xml_path    = (argc > 2) ? argv[2] : XML_PATH;
-    double vx_cmd  = (argc > 3) ? std::atof(argv[3]) : 0.4;
-    double sim_sec = (argc > 4) ? std::atof(argv[4]) : 5.0;
+    // --gui may appear anywhere; the rest are positional [policy xml vx seconds].
+    bool gui = false;
+    std::vector<const char*> pos;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--gui") gui = true;
+        else pos.push_back(argv[i]);
+    }
+    // Empty positional ("") falls back to the default, so `--gui`, `"" "" 0.8 10`
+    // etc. all work without having to spell out the policy/xml paths.
+    const char* policy_path = (pos.size() > 0 && pos[0][0]) ? pos[0] : POLICY_PATH;
+    const char* xml_path    = (pos.size() > 1 && pos[1][0]) ? pos[1] : XML_PATH;
+    double vx_cmd  = (pos.size() > 2 && pos[2][0]) ? std::atof(pos[2]) : 0.4;
+    double sim_sec = (pos.size() > 3 && pos[3][0]) ? std::atof(pos[3]) : 5.0;
+#ifndef PHYBOT_ENABLE_GUI
+    if (gui) std::printf("[sim_walk] (built without GUI; running headless)\n");
+    gui = false;
+#endif
 
     std::printf("[sim_walk] policy=%s\n", policy_path);
     std::printf("[sim_walk] xml=%s\n",    xml_path);
-    std::printf("[sim_walk] vx=%.2f  sim_sec=%.1f\n", vx_cmd, sim_sec);
+    std::printf("[sim_walk] vx=%.2f  sim_sec=%.1f  gui=%d\n", vx_cmd, sim_sec, (int)gui);
 
     // Construct backend and task
     phybot::MujocoBackend backend(xml_path);
@@ -43,6 +63,36 @@ int main(int argc, char** argv) {
     // Read initial state so task has valid sensor data before enter()
     backend.readToPackage(io);
     task.enter(io);
+
+    // One control tick == one physics step (WalkTask handles policy decimation).
+    auto control_tick = [&]{
+        backend.readToPackage(io);
+        task.run(io);
+        backend.writeFromPackage(io);
+        backend.step();
+    };
+
+#ifdef PHYBOT_ENABLE_GUI
+    if (gui) {
+        phybot::MujocoViewer viewer("sim_walk");
+        std::thread physics([&]{
+            viewer.loadModel(backend.model(), backend.data());
+            const timespec dt{0, 2 * 1000 * 1000};  // ~2 ms, loose real-time pacing
+            while (!viewer.exitRequested()) {
+                {
+                    std::lock_guard<std::recursive_mutex> lk(viewer.mutex());
+                    if (viewer.running()) { control_tick(); viewer.trackCamera(); }
+                    else { mj_forward(backend.model(), backend.data()); }
+                }
+                nanosleep(&dt, nullptr);
+            }
+        });
+        std::printf("[sim_walk] GUI: space=pause, drag=rotate, scroll=zoom, ESC/close=quit\n");
+        viewer.renderLoop();   // blocks on the main thread until the window closes
+        physics.join();
+        return 0;
+    }
+#endif
 
     // Determine number of control ticks from sim time and XML timestep
     // (1 control tick = 1 physics step; policy fires every kDecimation ticks)
@@ -61,10 +111,7 @@ int main(int argc, char** argv) {
     std::printf("[sim_walk] running %d ticks...\n", total_ticks);
 
     for (int tick = 0; tick < total_ticks; ++tick) {
-        backend.readToPackage(io);
-        task.run(io);
-        backend.writeFromPackage(io);
-        backend.step();
+        control_tick();
 
         double h = backend.baseHeight();
         heights.push_back(h);

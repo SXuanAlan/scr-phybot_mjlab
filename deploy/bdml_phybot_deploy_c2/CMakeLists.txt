@@ -126,6 +126,26 @@ target_include_directories(mujoco_backend
 target_link_libraries(mujoco_backend PUBLIC "${MUJOCO_LIB}")
 set_property(TARGET mujoco_backend PROPERTY CXX_STANDARD 17)
 
+# ── Optional MuJoCo GUI (vendored `simulate` UI + MujocoViewer wrapper) ─────────
+# GLFW + GL are vendored in third_party/ (populate via vendor.sh; git-ignored).
+# This is a DEV-ONLY interactive viewer: only sim_walk/sim_teleop link it (via
+# --gui); the ctest binaries stay headless and never pull glfw/GL/X11.
+set(PHYBOT_GLFW_DIR    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/glfw")
+set(PHYBOT_GL_INCLUDE  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/gl/include")
+add_library(mujoco_gui STATIC
+    backends/mujoco/gui/src/simulate.cc
+    backends/mujoco/gui/src/glfw_adapter.cc
+    backends/mujoco/gui/src/platform_ui_adapter.cc
+    backends/mujoco/gui/src/glfw_dispatch.cc
+    backends/mujoco/gui/src/lodepng.cpp
+    backends/mujoco/mujoco_viewer.cpp)
+target_include_directories(mujoco_gui
+    PUBLIC  backends/mujoco backends/mujoco/gui/include
+    PRIVATE "${MUJOCO_INCLUDE_DIR}" "${PHYBOT_GLFW_DIR}" "${PHYBOT_GL_INCLUDE}")
+target_link_libraries(mujoco_gui PUBLIC
+    "${MUJOCO_LIB}" "${PHYBOT_GLFW_DIR}/lib/libglfw3.so" ${CMAKE_DL_LIBS} pthread)
+set_property(TARGET mujoco_gui PROPERTY CXX_STANDARD 17)
+
 # ── Headless sim walk app ─────────────────────────────────────────────────────
 set(PHYBOT_XML_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/robot/phybot_c2/xml/phybot_c2.xml")
@@ -137,8 +157,9 @@ target_include_directories(sim_walk PRIVATE core/include tasks backends/mujoco
     "${MUJOCO_INCLUDE_DIR}")
 target_compile_definitions(sim_walk PRIVATE
     POLICY_PATH="${POLICY_PT_PATH}"
-    XML_PATH="${PHYBOT_XML_PATH}")
-target_link_libraries(sim_walk PRIVATE walk_task mujoco_backend)
+    XML_PATH="${PHYBOT_XML_PATH}"
+    PHYBOT_ENABLE_GUI=1)
+target_link_libraries(sim_walk PRIVATE walk_task mujoco_backend mujoco_gui)
 set_property(TARGET sim_walk PROPERTY CXX_STANDARD 17)
 
 # ── Walk simulation ctest ─────────────────────────────────────────────────────
@@ -220,6 +241,7 @@ target_include_directories(sim_teleop PRIVATE core/include tasks backends/mujoco
     "${MUJOCO_INCLUDE_DIR}")
 target_compile_definitions(sim_teleop PRIVATE
     POLICY_PATH="${POLICY_PT_PATH}"
-    XML_PATH="${PHYBOT_XML_PATH}")
-target_link_libraries(sim_teleop PRIVATE walk_task mujoco_backend phybot_lcm)
+    XML_PATH="${PHYBOT_XML_PATH}"
+    PHYBOT_ENABLE_GUI=1)
+target_link_libraries(sim_teleop PRIVATE walk_task mujoco_backend mujoco_gui phybot_lcm)
 set_property(TARGET sim_teleop PROPERTY CXX_STANDARD 17)
