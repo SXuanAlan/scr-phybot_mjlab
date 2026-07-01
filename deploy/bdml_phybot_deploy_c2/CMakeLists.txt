@@ -297,9 +297,14 @@ target_link_libraries(test_lcm_loopback PRIVATE phybot_lcm)
 # add_test intentionally omitted (see above).
 
 # ── Publisher process (JsController -> MapControllerToDrive -> ip_encode -> LCM) ──
-add_executable(main_publisher publisher/apps/main_publisher.cpp core/src/input_protocol.cpp)
-target_include_directories(main_publisher PRIVATE publisher/include core/include)
-target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm)
+# buttons_config.cpp (yaml-cpp) is compiled ONLY into this app -- input_mapping.h itself
+# and test_input_mapping stay yaml-cpp-free (see buttons_config.h's own comment).
+add_executable(main_publisher publisher/apps/main_publisher.cpp core/src/input_protocol.cpp
+    publisher/src/buttons_config.cpp)
+target_include_directories(main_publisher PRIVATE publisher/include core/include
+    "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(main_publisher PRIVATE PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm "${YAML_CPP_LIB}")
 
 # ── Teleop loop: command -> task-switch (ZERO<->WALK) -> live MuJoCo sim ─────────
 # apps/sim_teleop.cpp (real LCM) drives backends/mujoco/teleop_loop.h's

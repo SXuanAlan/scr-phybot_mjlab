@@ -1,0 +1,7 @@
+# Button -> DriveCmd.model select-code. Must match the target task's own
+# select_code (see tasks/<name>/config/controller.yaml). Looked up at publisher
+# startup via load_buttons_config() (buttons_config.h) with a safe literal
+# fallback if a key is missing (see MappingState defaults in input_mapping.h).
+Y: 1   # zero
+B: 2   # walk
+# X: 3   # walk_amp (uncomment when added)

@@ -2,6 +2,7 @@
 #include "phybot/input_mapping.h"
 #include "phybot/input_protocol.h"
 #include "phybot/lcm_env.h"
+#include "phybot/buttons_config.h"
 #include <lcm/lcm-cpp.hpp>
 #include <cstdio>
 #include <ctime>
@@ -10,6 +11,12 @@ int main() {
   lcm::LCM lcm;
   if (!lcm.good()) { std::printf("LCM init failed\n"); return 1; }
   phybot::JsController jc; phybot::MappingState ms;
+  // buttons.yaml (button -> select_code) resolves the model codes once at startup;
+  // fall back to the zero/walk tasks' own literal select_codes (1/2) if a key is
+  // missing (see MappingState's defaults in input_mapping.h).
+  const phybot::ButtonsConfig bc = phybot::load_buttons_config();
+  ms.zero_code = bc.code_for("Y", 1);
+  ms.walk_code = bc.code_for("B", 2);
   timespec ts{0, 10*1000*1000};  // ~100 Hz
   std::printf("[publisher] running; discovering controller...\n");
   while (true) {
