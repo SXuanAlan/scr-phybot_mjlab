@@ -113,6 +113,38 @@ target_compile_definitions(walk_task PRIVATE
 target_link_libraries(walk_task PUBLIC policy_runner "${YAML_CPP_LIB}")
 set_property(TARGET walk_task PROPERTY CXX_STANDARD 17)
 
+# ── phybot_tasks (all task .cpp's + their config deps) ───────────────────────
+# Every REGISTER_TASK(...) registrar lives in one of these .cpp's as a file-scope
+# static-init object (see task_registry.h). Inside a plain STATIC lib, the linker
+# only pulls in .o's that satisfy an undefined symbol elsewhere -- since nothing
+# calls into these .o's directly (registration happens via static-init side effect,
+# not a referenced symbol), the linker is free to drop them entirely, silently
+# emptying TaskRegistry. Whole-archiving phybot_tasks below forces every .o (and
+# therefore every registrar) into the final link regardless of reference.
+add_library(phybot_tasks STATIC tasks/walk/walk_task.cpp tasks/zero/zero_task.cpp
+    tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
+target_include_directories(phybot_tasks
+    PUBLIC  core/include tasks
+    PRIVATE "${YAML_CPP_INCLUDE_DIR}")
+target_compile_definitions(phybot_tasks PRIVATE
+    CONFIG_DIR="${CONFIG_DIR_PATH}" WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
+    ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}" PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(phybot_tasks PUBLIC policy_runner "${YAML_CPP_LIB}")
+set_property(TARGET phybot_tasks PROPERTY CXX_STANDARD 17)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+  set(PHYBOT_TASKS_WHOLE "$<LINK_LIBRARY:WHOLE_ARCHIVE,phybot_tasks>")
+else()
+  set(PHYBOT_TASKS_WHOLE -Wl,--whole-archive phybot_tasks -Wl,--no-whole-archive)
+endif()
+
+# ── Link-guard test: proves REGISTER_TASK registrars survive whole-archiving ──
+# Links ONLY the whole-archived phybot_tasks (not walk_task, which would double-
+# define WalkTask's/ZeroState's symbols). Calls TaskRegistry::instance().size()/
+# name(i) only -- never make() -- so no task is constructed (no Torch model load).
+add_executable(test_task_registry_link core/test/test_task_registry_link.cpp)
+target_link_libraries(test_task_registry_link PRIVATE ${PHYBOT_TASKS_WHOLE})
+add_test(NAME task_registry_link COMMAND test_task_registry_link)
+
 # ── E2E alignment test ────────────────────────────────────────────────────────
 add_executable(test_walk_e2e tasks/walk/test/test_walk_e2e.cpp)
 target_include_directories(test_walk_e2e PRIVATE core/include core/test tasks)
