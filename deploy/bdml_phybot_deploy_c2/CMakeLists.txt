@@ -188,3 +188,35 @@ target_link_libraries(test_lcm_loopback PRIVATE phybot_lcm)
 add_executable(main_publisher publisher/apps/main_publisher.cpp core/src/input_protocol.cpp)
 target_include_directories(main_publisher PRIVATE publisher/include core/include)
 target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm)
+
+# ── Teleop loop: command -> task-switch (ZERO<->WALK) -> live MuJoCo sim ─────────
+# backends/mujoco/teleop_loop.h's ApplyCmdAndTick() is the shared loop body used by
+# BOTH targets below (apps/sim_teleop.cpp with real LCM, and the headless ctest
+# without LCM). ZeroState is not part of the `walk_task` library (only walk_config()/
+# zero_config() are, transitively) so tasks/zero/zero_task.cpp is added directly here.
+
+# Headless end-to-end smoke ctest: NO LCM (see the test_lcm_loopback note above for
+# why the vendored liblcm aborts headless in this sandbox) -- a DriveCmd is set
+# directly in-process instead of publishing it, through the same ApplyCmdAndTick().
+add_executable(test_teleop_smoke core/test/test_teleop_smoke.cpp tasks/zero/zero_task.cpp)
+target_include_directories(test_teleop_smoke PRIVATE core/include core/test tasks backends/mujoco
+    "${MUJOCO_INCLUDE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
+target_compile_definitions(test_teleop_smoke PRIVATE
+    POLICY_PATH="${POLICY_PT_PATH}"
+    XML_PATH="${PHYBOT_XML_PATH}")
+target_link_libraries(test_teleop_smoke PRIVATE walk_task mujoco_backend)
+set_property(TARGET test_teleop_smoke PROPERTY CXX_STANDARD 17)
+add_test(NAME teleop_smoke COMMAND test_teleop_smoke)
+
+# Real-host teleop main: LCM subscribe Robot_ControlData -> live sim. Pairs with
+# main_publisher for the Xbox demo. Requires LCM multicast on the host, so it is
+# built (and must compile) but intentionally NOT registered as a ctest.
+add_executable(sim_teleop apps/sim_teleop.cpp tasks/zero/zero_task.cpp core/src/input_protocol.cpp)
+target_include_directories(sim_teleop PRIVATE core/include tasks backends/mujoco
+    "${MUJOCO_INCLUDE_DIR}")
+target_compile_definitions(sim_teleop PRIVATE
+    POLICY_PATH="${POLICY_PT_PATH}"
+    XML_PATH="${PHYBOT_XML_PATH}")
+target_link_libraries(sim_teleop PRIVATE walk_task mujoco_backend phybot_lcm)
+set_property(TARGET sim_teleop PROPERTY CXX_STANDARD 17)
