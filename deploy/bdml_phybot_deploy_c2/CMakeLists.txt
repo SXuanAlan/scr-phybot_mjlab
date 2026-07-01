@@ -98,8 +98,10 @@ set_property(TARGET policy_runner PROPERTY CXX_STANDARD 17)
 
 # ── WalkTask ──────────────────────────────────────────────────────────────────
 # walk_config.cpp/zero_config.cpp compiled in once here; every consumer of walk_task
-# (test_walk_e2e, task_dry_run, sim_walk, test_walk_sim) picks up walk_config()/zero_config()
+# (test_walk_e2e, task_dry_run, test_walk_sim) picks up walk_config()/zero_config()
 # and the yaml-cpp link requirement transitively -- they don't need CONFIG_DIR themselves.
+# sim_walk/sim_teleop no longer link walk_task directly -- they go through
+# sim_harness/phybot_tasks (registry-paired tasks; see sim_harness's own comment below).
 add_library(walk_task STATIC tasks/walk/walk_task.cpp
     tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
 target_include_directories(walk_task
@@ -229,20 +231,18 @@ target_include_directories(sim_harness_gui PUBLIC backends/mujoco PRIVATE "${MUJ
 target_link_libraries(sim_harness_gui PUBLIC sim_harness mujoco_gui)
 set_property(TARGET sim_harness_gui PROPERTY CXX_STANDARD 17)
 
-# ── Headless sim walk app ─────────────────────────────────────────────────────
+# ── sim_walk app (headless by default; --gui via sim_harness_gui/RunGui) ────────
 set(PHYBOT_XML_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/robot/phybot_c2/xml/phybot_c2.xml")
 set(POLICY_PT_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/tasks/walk/test/golden/cpg_policy.pt")
 
 add_executable(sim_walk apps/sim_walk.cpp)
-target_include_directories(sim_walk PRIVATE core/include tasks backends/mujoco
-    "${MUJOCO_INCLUDE_DIR}")
+target_include_directories(sim_walk PRIVATE core/include backends/mujoco
+    "${MUJOCO_INCLUDE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
 target_compile_definitions(sim_walk PRIVATE
-    POLICY_PATH="${POLICY_PT_PATH}"
-    XML_PATH="${PHYBOT_XML_PATH}"
-    PHYBOT_ENABLE_GUI=1)
-target_link_libraries(sim_walk PRIVATE walk_task mujoco_backend mujoco_gui)
+    XML_PATH="${PHYBOT_XML_PATH}")
+target_link_libraries(sim_walk PRIVATE sim_harness sim_harness_gui)
 set_property(TARGET sim_walk PROPERTY CXX_STANDARD 17)
 
 # ── Walk simulation ctest ─────────────────────────────────────────────────────
@@ -306,13 +306,12 @@ target_include_directories(main_publisher PRIVATE publisher/include core/include
 target_compile_definitions(main_publisher PRIVATE PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm "${YAML_CPP_LIB}")
 
-# ── Teleop loop: command -> task-switch (ZERO<->WALK) -> live MuJoCo sim ─────────
-# apps/sim_teleop.cpp (real LCM) drives backends/mujoco/teleop_loop.h's
-# ApplyCmdAndTick() directly against walk_task + a directly-compiled zero_task.cpp
-# (ZeroState is not part of the `walk_task` library -- only walk_config()/
-# zero_config() are, transitively). The headless ctest below instead goes through
-# SimHarness (registry-paired tasks; see sim_harness's own comment above), so it
-# needs neither teleop_loop.h nor a directly-named Task subclass.
+# ── Teleop: command -> task-switch (route/shape via TaskRouter) -> live MuJoCo sim ──
+# apps/sim_teleop.cpp (real LCM) drives SimHarness::tick() directly -- the same
+# route->shape->read->tick->write->step loop the headless smoke test below exercises
+# without LCM. Neither caller names a concrete Task subclass (registry-paired tasks;
+# see sim_harness's own comment above), so teleop_loop.h/ApplyCmdAndTick is gone --
+# absorbed into SimHarness::tick itself.
 
 # Headless end-to-end smoke ctest: NO LCM (see the test_lcm_loopback note above for
 # why the vendored liblcm aborts headless in this sandbox) -- a DriveCmd is set
@@ -330,15 +329,18 @@ target_link_libraries(test_teleop_smoke PRIVATE sim_harness)
 set_property(TARGET test_teleop_smoke PROPERTY CXX_STANDARD 17)
 add_test(NAME teleop_smoke COMMAND test_teleop_smoke)
 
-# Real-host teleop main: LCM subscribe Robot_ControlData -> live sim. Pairs with
-# main_publisher for the Xbox demo. Requires LCM multicast on the host, so it is
-# built (and must compile) but intentionally NOT registered as a ctest.
-add_executable(sim_teleop apps/sim_teleop.cpp tasks/zero/zero_task.cpp core/src/input_protocol.cpp)
-target_include_directories(sim_teleop PRIVATE core/include tasks backends/mujoco
+# Real-host teleop main: LCM subscribe Robot_ControlData -> live sim via SimHarness.
+# Pairs with main_publisher for the Xbox demo. Requires LCM multicast on the host, so
+# it is built (and must compile) but intentionally NOT registered as a ctest. Links
+# sim_harness/sim_harness_gui ONLY (like test_teleop_smoke above) -- NOT walk_task or
+# tasks/zero/zero_task.cpp, which would double-define WalkTask's/ZeroState's symbols
+# against the whole-archived phybot_tasks. core/src/input_protocol.cpp is compiled
+# directly in (mirrors main_publisher) since this app calls ip_decode() itself and
+# nothing it links already provides that symbol.
+add_executable(sim_teleop apps/sim_teleop.cpp core/src/input_protocol.cpp)
+target_include_directories(sim_teleop PRIVATE core/include backends/mujoco
     "${MUJOCO_INCLUDE_DIR}")
 target_compile_definitions(sim_teleop PRIVATE
-    POLICY_PATH="${POLICY_PT_PATH}"
-    XML_PATH="${PHYBOT_XML_PATH}"
-    PHYBOT_ENABLE_GUI=1)
-target_link_libraries(sim_teleop PRIVATE walk_task mujoco_backend mujoco_gui phybot_lcm)
+    XML_PATH="${PHYBOT_XML_PATH}")
+target_link_libraries(sim_teleop PRIVATE sim_harness sim_harness_gui phybot_lcm)
 set_property(TARGET sim_teleop PROPERTY CXX_STANDARD 17)
