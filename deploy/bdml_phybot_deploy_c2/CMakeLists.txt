@@ -181,6 +181,28 @@ target_include_directories(mujoco_backend
 target_link_libraries(mujoco_backend PUBLIC "${MUJOCO_LIB}")
 set_property(TARGET mujoco_backend PROPERTY CXX_STANDARD 17)
 
+# ── SimHarness (glfw-free) ─────────────────────────────────────────────────────
+# Composition root: its ctor iterates TaskRegistry (populated by REGISTER_TASK
+# static-init side effects inside the whole-archived phybot_tasks below) and pairs
+# each self-registered task with its own tasks/<name>/config/controller.yaml --
+# select_code decides TaskManager filing, the full ControllerConfig goes to
+# TaskRouter. Links the whole-archived phybot_tasks, exactly like
+# test_task_registry_link above -- so anything linking sim_harness must NOT also
+# link walk_task (duplicate WalkTask/ZeroState symbols; see that test's comment).
+# Also compiles controller_config.cpp itself (yaml-cpp include/link needed here,
+# independent of phybot_tasks' own yaml-cpp usage).
+add_library(sim_harness STATIC backends/mujoco/sim_harness.cpp
+    core/src/task_router.cpp core/src/controller_config.cpp)
+target_include_directories(sim_harness
+    PUBLIC  core/include backends/mujoco tasks
+    PRIVATE "${MUJOCO_INCLUDE_DIR}" "${YAML_CPP_INCLUDE_DIR}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
+target_compile_definitions(sim_harness PRIVATE
+    PHYBOT_TASKS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tasks"
+    PHYBOT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(sim_harness PUBLIC mujoco_backend ${PHYBOT_TASKS_WHOLE} "${YAML_CPP_LIB}" pthread)
+set_property(TARGET sim_harness PROPERTY CXX_STANDARD 17)
+
 # ── Optional MuJoCo GUI (vendored `simulate` UI + MujocoViewer wrapper) ─────────
 # GLFW + GL are vendored in third_party/ (populate via vendor.sh; git-ignored).
 # This is a DEV-ONLY interactive viewer: only sim_walk/sim_teleop link it (via
@@ -274,22 +296,26 @@ target_include_directories(main_publisher PRIVATE publisher/include core/include
 target_link_libraries(main_publisher PRIVATE phybot_publisher phybot_lcm)
 
 # ── Teleop loop: command -> task-switch (ZERO<->WALK) -> live MuJoCo sim ─────────
-# backends/mujoco/teleop_loop.h's ApplyCmdAndTick() is the shared loop body used by
-# BOTH targets below (apps/sim_teleop.cpp with real LCM, and the headless ctest
-# without LCM). ZeroState is not part of the `walk_task` library (only walk_config()/
-# zero_config() are, transitively) so tasks/zero/zero_task.cpp is added directly here.
+# apps/sim_teleop.cpp (real LCM) drives backends/mujoco/teleop_loop.h's
+# ApplyCmdAndTick() directly against walk_task + a directly-compiled zero_task.cpp
+# (ZeroState is not part of the `walk_task` library -- only walk_config()/
+# zero_config() are, transitively). The headless ctest below instead goes through
+# SimHarness (registry-paired tasks; see sim_harness's own comment above), so it
+# needs neither teleop_loop.h nor a directly-named Task subclass.
 
 # Headless end-to-end smoke ctest: NO LCM (see the test_lcm_loopback note above for
 # why the vendored liblcm aborts headless in this sandbox) -- a DriveCmd is set
-# directly in-process instead of publishing it, through the same ApplyCmdAndTick().
-add_executable(test_teleop_smoke core/test/test_teleop_smoke.cpp tasks/zero/zero_task.cpp)
-target_include_directories(test_teleop_smoke PRIVATE core/include core/test tasks backends/mujoco
+# directly in-process instead of publishing it, through SimHarness::tick(). Links
+# sim_harness ONLY: sim_harness already whole-archives phybot_tasks (walk_task and
+# tasks/zero/zero_task.cpp would double-define WalkTask's/ZeroState's symbols).
+add_executable(test_teleop_smoke core/test/test_teleop_smoke.cpp)
+target_include_directories(test_teleop_smoke PRIVATE core/include backends/mujoco
     "${MUJOCO_INCLUDE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lcm/include")
 target_compile_definitions(test_teleop_smoke PRIVATE
     POLICY_PATH="${POLICY_PT_PATH}"
     XML_PATH="${PHYBOT_XML_PATH}")
-target_link_libraries(test_teleop_smoke PRIVATE walk_task mujoco_backend)
+target_link_libraries(test_teleop_smoke PRIVATE sim_harness)
 set_property(TARGET test_teleop_smoke PROPERTY CXX_STANDARD 17)
 add_test(NAME teleop_smoke COMMAND test_teleop_smoke)
 
