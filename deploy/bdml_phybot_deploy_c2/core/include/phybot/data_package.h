@@ -1,12 +1,12 @@
 #pragma once
 #include <array>
-#include "phybot/task_id.h"
+#include "phybot/task_code.h"
 #include "phybot/robot_consts.h"
 namespace phybot {
 // 黑板。A0 起始最小, A1-num 扩展 cpg 走路所需字段。
 struct DataPackage {
-  TaskId requested_task{TaskId::ZERO};
-  TaskId current_task{TaskId::ZERO};
+  TaskCode requested_task{kNoTask};
+  TaskCode current_task{kNoTask};
 
   // —— 传感器 (task 读) ——
   std::array<double, 3>         imu_angular_vel{};

@@ -4,13 +4,14 @@
 #include "walk/walk_obs.h"
 #include "walk/walk_action.h"
 #include "phybot/data_package.h"
+#include "phybot/task_registry.h"
 #include <cstring>
 #include <stdexcept>
 
 namespace phybot {
 
 WalkTask::WalkTask(const std::string& model_path)
-    : Task(TaskId::WALK, "walk"),
+    : Task("walk"),
       model_path_(model_path),
       cfg_(walk_config()) {}
 
@@ -73,5 +74,12 @@ void WalkTask::exit(DataPackage& io) {
   last_action_.fill(0.0);
   history_.Reset();
 }
+
+// NOTE: REGISTER_TASK(NAME, CLASS) token-pastes CLASS##_Reg; a namespace-qualified
+// CLASS (e.g. phybot::WalkTask) would pave to the ill-formed `struct phybot::WalkTask_Reg`
+// (verified: gcc rejects it -- qualified name does not name a class). So, exactly like
+// zero_task.cpp's own REGISTER_TASK("zero", ZeroState), this uses the unqualified name
+// from inside namespace phybot; the registered factory still constructs phybot::WalkTask.
+REGISTER_TASK("walk", WalkTask)
 
 }  // namespace phybot

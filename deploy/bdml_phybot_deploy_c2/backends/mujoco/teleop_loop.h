@@ -4,7 +4,7 @@
 // (core/test/test_teleop_smoke.cpp). Both callers are responsible for producing a
 // DriveCmd (from LCM or set directly in-process) and pass it in here unchanged.
 //
-// Maps DriveCmd.model -> TaskId (1=ZERO, 2=WALK; anything else defaults to ZERO,
+// Maps DriveCmd.model -> TaskCode (1=ZERO, 2=WALK; anything else defaults to ZERO,
 // the safe power-on state), clamps the joystick axes into the DataPackage, then
 // drives one full backend<->task-manager tick: read sensors, tick the TaskManager
 // (which performs the ZERO<->WALK switch when requested), write actuator targets,
@@ -17,8 +17,8 @@
 
 namespace phybot {
 
-inline TaskId ModelToTask(int8_t model) {
-  return model == 2 ? TaskId::WALK : TaskId::ZERO;
+inline int ModelToTask(int8_t model) {
+  return model == 2 ? 2 : 1;
 }
 
 inline void ApplyCmdAndTick(const DriveCmd& cmd, DataPackage& io,

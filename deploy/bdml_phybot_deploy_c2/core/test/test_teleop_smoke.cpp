@@ -10,7 +10,6 @@
 // "commanded directly" -- everything downstream (task switch + live sim) is identical.
 #include "phybot/data_package.h"
 #include "phybot/task_manager.h"
-#include "phybot/task_id.h"
 #include "zero/zero_task.h"
 #include "phybot/input_protocol.h"
 #include "walk/walk_task.h"
@@ -44,12 +43,12 @@ int main() {
   MujocoBackend backend(XML_PATH);   // keyframe-0 standing pose
 
   TaskManager manager;
-  manager.add(std::make_unique<ZeroState>());
-  manager.add(std::make_unique<WalkTask>(POLICY_PATH));
+  manager.add(std::make_unique<ZeroState>(), 1);
+  manager.add(std::make_unique<WalkTask>(POLICY_PATH), 2);
 
   DataPackage io;
   io.control_period = 0.002;
-  manager.start(TaskId::ZERO, io);   // power-on: captures pose on 1st run()
+  manager.start(1, io);   // power-on: captures pose on 1st run() (code 1 = ZERO)
 
   const double start_x = backend.baseX();
   double min_height = 1e9;
@@ -66,7 +65,7 @@ int main() {
 
     ApplyCmdAndTick(cmd, io, manager, backend);
 
-    if (manager.current() == TaskId::WALK) saw_walk = true;
+    if (manager.current() == 2) saw_walk = true;   // code 2 = WALK
 
     if (tick >= SETTLE_TICKS) {
       double h = backend.baseHeight();
@@ -77,11 +76,11 @@ int main() {
   double x_disp = backend.baseX() - start_x;
 
   std::printf("[teleop_smoke] saw_walk=%d final_task=%s min_height=%.4f x_disp=%.4f\n",
-              saw_walk, manager.current() == TaskId::WALK ? "WALK" : "other",
+              saw_walk, manager.current() == 2 ? "WALK" : "other",
               min_height, x_disp);
 
   CHECK(saw_walk);                          // task switched to WALK via the command
-  CHECK(manager.current() == TaskId::WALK);
+  CHECK(manager.current() == 2);            // code 2 = WALK
   CHECK(min_height > HEIGHT_FLOOR);         // robot did not fall
   CHECK(x_disp > 0.0);                      // base advanced in +x while walking
 

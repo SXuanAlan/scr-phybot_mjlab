@@ -16,7 +16,6 @@
 // Usage: ./sim_teleop [cpg_policy.pt] [phybot_c2.xml]
 #include "phybot/data_package.h"
 #include "phybot/task_manager.h"
-#include "phybot/task_id.h"
 #include "zero/zero_task.h"
 #include "phybot/input_protocol.h"
 #include "phybot/lcm_env.h"
@@ -59,11 +58,11 @@ struct CmdHolder {
   }
 };
 
-const char* TaskName(phybot::TaskId id) {
+const char* TaskName(int id) {
   switch (id) {
-    case phybot::TaskId::ZERO: return "ZERO";
-    case phybot::TaskId::WALK: return "WALK";
-    default:                   return "?";
+    case 1:    return "ZERO";
+    case 2:    return "WALK";
+    default:   return "?";
   }
 }
 
@@ -101,12 +100,12 @@ int main(int argc, char** argv) {
   MujocoBackend backend(xml_path);   // keyframe-0 standing pose
 
   TaskManager manager;
-  manager.add(std::make_unique<ZeroState>());
-  manager.add(std::make_unique<WalkTask>(policy_path));
+  manager.add(std::make_unique<ZeroState>(), 1);
+  manager.add(std::make_unique<WalkTask>(policy_path), 2);
 
   DataPackage io;
   io.control_period = 0.002;
-  manager.start(TaskId::ZERO, io);   // power-on: captures pose on 1st run()
+  manager.start(1, io);   // power-on: captures pose on 1st run() (code 1 = ZERO)
 
   // One iteration: drain LCM (updates holder.latest) then advance the FSM + sim.
   auto control_tick = [&]{

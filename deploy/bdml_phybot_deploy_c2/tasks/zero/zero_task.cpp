@@ -28,5 +28,5 @@ void ZeroState::run(DataPackage& io) {
     io.sim_D[i]               = z.zero_d[i];
   }
 }
-REGISTER_TASK(TaskId::ZERO, "zero", ZeroState)
+REGISTER_TASK("zero", ZeroState)
 }  // namespace phybot

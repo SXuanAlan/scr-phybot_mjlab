@@ -7,7 +7,7 @@ namespace phybot {
 // 从 init_pose_ 平滑坡到 zero_config().zero_pose,以 zero_p/zero_d 刚性保持。
 class ZeroState : public Task {
  public:
-  ZeroState() : Task(TaskId::ZERO, "zero") {}
+  ZeroState() : Task("zero") {}
   void enter(DataPackage& io) override;   // arm first-run capture, reset t
   void run(DataPackage& io) override;     // first run captures init_pose; then cubic ramp
  private:

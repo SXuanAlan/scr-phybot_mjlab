@@ -1,27 +1,20 @@
 #pragma once
 #include <string>
 #include <utility>
-#include "phybot/task_id.h"
-
+#include "phybot/task_code.h"
 namespace phybot {
-struct DataPackage;  // 前置声明: Task 接口只按引用使用黑板
-
+struct DataPackage;
 class Task {
  public:
-  Task(TaskId id, std::string name) : id_(id), name_(std::move(name)) {}
+  explicit Task(std::string name) : name_(std::move(name)) {}
   virtual ~Task() = default;
-
-  TaskId id() const { return id_; }
   const std::string& name() const { return name_; }
-
-  virtual void enter(DataPackage&) {}                 // 进入(复位/加载)
-  virtual void run(DataPackage&) = 0;                  // 每拍执行
-  virtual void exit(DataPackage&) {}                   // 退出(清零)
-  virtual TaskId checkChange(DataPackage&) { return id_; }  // 自跳转, 返回自身=不变
-  virtual bool canExit(DataPackage&) { return true; }       // 互锁
-
+  virtual void enter(DataPackage&) {}
+  virtual void run(DataPackage&) = 0;
+  virtual void exit(DataPackage&) {}
+  virtual TaskCode checkChange(DataPackage&) { return kNoTask; }   // kNoTask = stay
+  virtual bool canExit(DataPackage&) { return true; }
  protected:
-  TaskId id_;
   std::string name_;
 };
 }  // namespace phybot
