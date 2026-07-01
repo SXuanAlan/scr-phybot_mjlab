@@ -150,3 +150,9 @@ add_executable(test_input_protocol core/test/test_input_protocol.cpp core/src/in
 target_include_directories(test_input_protocol PRIVATE core/include core/test
     "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
 add_test(NAME input_protocol COMMAND test_input_protocol)
+
+# ── Input mapping (ControllerState → DriveCmd) ─────────────────────────────────
+add_executable(test_input_mapping publisher/test/test_input_mapping.cpp)
+target_include_directories(test_input_mapping PRIVATE publisher/include core/include core/test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../phybot_deploy_c2/ThirdParty/LCM/include")
+add_test(NAME input_mapping COMMAND test_input_mapping)
