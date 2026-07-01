@@ -10,7 +10,7 @@
 
 // Paths injected by CMake
 #ifndef POLICY_PATH
-#define POLICY_PATH "core/test/golden/cpg_policy.pt"
+#define POLICY_PATH "tasks/walk/test/golden/cpg_policy.pt"
 #endif
 #ifndef XML_PATH
 #define XML_PATH "assets/robot/phybot_c2/xml/phybot_c2.xml"

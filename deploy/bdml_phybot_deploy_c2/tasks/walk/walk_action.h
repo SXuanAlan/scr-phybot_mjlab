@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include "phybot/robot_consts.h"
-#include "phybot/walk_config.h"
+#include "walk/walk_config.h"
 #include "phybot/data_package.h"
 namespace phybot {
 inline void ApplyWalkAction(const std::array<double, kNumDofs>& action_raw,

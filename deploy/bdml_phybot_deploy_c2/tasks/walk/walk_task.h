@@ -4,8 +4,8 @@
 #include <string>
 #include "phybot/task.h"
 #include "phybot/task_id.h"
-#include "phybot/walk_config.h"
-#include "phybot/walk_history.h"
+#include "walk/walk_config.h"
+#include "walk/walk_history.h"
 #include "phybot/robot_consts.h"
 
 namespace phybot {

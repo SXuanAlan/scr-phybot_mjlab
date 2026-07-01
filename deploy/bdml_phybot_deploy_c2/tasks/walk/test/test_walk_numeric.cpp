@@ -2,12 +2,12 @@
 #include "phybot/data_package.h"
 #include "check.h"
 #include <cstdio>
-#include "phybot/walk_config.h"
+#include "walk/walk_config.h"
 #include "phybot/gravity.h"
 #include <cmath>
-#include "phybot/walk_history.h"
-#include "phybot/walk_obs.h"
-#include "phybot/walk_action.h"
+#include "walk/walk_history.h"
+#include "walk/walk_obs.h"
+#include "walk/walk_action.h"
 
 static void test_datapackage_cpg_fields_zeroed() {
   phybot::DataPackage io;

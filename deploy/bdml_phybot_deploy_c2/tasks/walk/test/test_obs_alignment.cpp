@@ -11,10 +11,10 @@
 #endif
 
 #include "phybot/robot_consts.h"
-#include "phybot/walk_config.h"
+#include "walk/walk_config.h"
 #include "phybot/gravity.h"
-#include "phybot/walk_history.h"
-#include "phybot/walk_obs.h"
+#include "walk/walk_history.h"
+#include "walk/walk_obs.h"
 
 #include <array>
 #include <cmath>

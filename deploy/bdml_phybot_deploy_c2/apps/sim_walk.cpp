@@ -21,7 +21,7 @@
 // These #ifndef fallbacks are relative to the repo root, for a manual build
 // without CMake; run such a build from deploy/bdml_phybot_deploy_c2/.
 #ifndef POLICY_PATH
-#define POLICY_PATH "core/test/golden/cpg_policy.pt"
+#define POLICY_PATH "tasks/walk/test/golden/cpg_policy.pt"
 #endif
 #ifndef XML_PATH
 #define XML_PATH "assets/robot/phybot_c2/xml/phybot_c2.xml"

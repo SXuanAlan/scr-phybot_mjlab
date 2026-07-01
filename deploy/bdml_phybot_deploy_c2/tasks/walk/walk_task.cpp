@@ -1,8 +1,8 @@
 #include "walk/walk_task.h"
 #include "phybot/policy_runner.h"
 #include "phybot/gravity.h"
-#include "phybot/walk_obs.h"
-#include "phybot/walk_action.h"
+#include "walk/walk_obs.h"
+#include "walk/walk_action.h"
 #include "phybot/data_package.h"
 #include <cstring>
 #include <stdexcept>

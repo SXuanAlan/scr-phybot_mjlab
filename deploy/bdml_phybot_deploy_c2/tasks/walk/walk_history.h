@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <vector>
 #include "phybot/robot_consts.h"
-#include "phybot/walk_config.h"
+#include "walk/walk_config.h"
 namespace phybot {
 class WalkHistory {
  public:

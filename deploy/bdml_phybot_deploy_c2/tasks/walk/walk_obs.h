@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include "phybot/robot_consts.h"
-#include "phybot/walk_config.h"
+#include "walk/walk_config.h"
 namespace phybot {
 struct WalkObsInputs {
   std::array<double, 3>        gravity{};

@@ -1,5 +1,5 @@
-#include "phybot/zero_task.h"
-#include "phybot/zero_config.h"
+#include "zero/zero_task.h"
+#include "zero/zero_config.h"
 #include "phybot/cubic_traj.h"
 #include "phybot/data_package.h"
 #include "check.h"

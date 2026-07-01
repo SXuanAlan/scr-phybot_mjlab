@@ -6,7 +6,7 @@
 // same interim pattern as GOLDEN_DIR (see CMakeLists.txt). yaml-cpp itself is wired in an
 // interim way too, pointing at the official tree's ThirdParty/yaml -- both need proper
 // vendoring into this tree's own third_party later.
-#include "phybot/zero_config.h"
+#include "zero/zero_config.h"
 
 #include <yaml-cpp/yaml.h>
 

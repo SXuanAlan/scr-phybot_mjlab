@@ -29,9 +29,9 @@ add_executable(test_task_manager core/test/test_task_manager.cpp)
 target_include_directories(test_task_manager PRIVATE core/include core/test)
 add_test(NAME core_task_manager COMMAND test_task_manager)
 
-add_executable(test_walk_numeric core/test/test_walk_numeric.cpp
-    core/src/walk_config.cpp core/src/zero_config.cpp)
-target_include_directories(test_walk_numeric PRIVATE core/include core/test
+add_executable(test_walk_numeric tasks/walk/test/test_walk_numeric.cpp
+    tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
+target_include_directories(test_walk_numeric PRIVATE core/include core/test tasks
     "${YAML_CPP_INCLUDE_DIR}")
 target_compile_definitions(test_walk_numeric PRIVATE
     CONFIG_DIR="${CONFIG_DIR_PATH}"
@@ -40,21 +40,21 @@ target_compile_definitions(test_walk_numeric PRIVATE
 target_link_libraries(test_walk_numeric PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME walk_numeric COMMAND test_walk_numeric)
 
-add_executable(test_obs_alignment core/test/test_obs_alignment.cpp
-    core/src/walk_config.cpp core/src/zero_config.cpp)
-target_include_directories(test_obs_alignment PRIVATE core/include core/test
+add_executable(test_obs_alignment tasks/walk/test/test_obs_alignment.cpp
+    tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
+target_include_directories(test_obs_alignment PRIVATE core/include core/test tasks
     "${YAML_CPP_INCLUDE_DIR}")
 target_compile_definitions(test_obs_alignment PRIVATE
-    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden"
+    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tasks/walk/test/golden"
     CONFIG_DIR="${CONFIG_DIR_PATH}"
     WALK_CONFIG_DIR="${WALK_CONFIG_DIR_PATH}"
     ZERO_CONFIG_DIR="${ZERO_CONFIG_DIR_PATH}")
 target_link_libraries(test_obs_alignment PRIVATE "${YAML_CPP_LIB}")
 add_test(NAME obs_alignment COMMAND test_obs_alignment)
 
-add_executable(test_zero_task core/test/test_zero_task.cpp
-    tasks/zero/zero_task.cpp core/src/zero_config.cpp)
-target_include_directories(test_zero_task PRIVATE core/include core/test
+add_executable(test_zero_task tasks/zero/test/test_zero_task.cpp
+    tasks/zero/zero_task.cpp tasks/zero/zero_config.cpp)
+target_include_directories(test_zero_task PRIVATE core/include core/test tasks
     "${YAML_CPP_INCLUDE_DIR}")
 target_compile_definitions(test_zero_task PRIVATE
     CONFIG_DIR="${CONFIG_DIR_PATH}"
@@ -79,7 +79,7 @@ set_property(TARGET policy_runner PROPERTY CXX_STANDARD 17)
 # (test_walk_e2e, task_dry_run, sim_walk, test_walk_sim) picks up walk_config()/zero_config()
 # and the yaml-cpp link requirement transitively -- they don't need CONFIG_DIR themselves.
 add_library(walk_task STATIC tasks/walk/walk_task.cpp
-    core/src/walk_config.cpp core/src/zero_config.cpp)
+    tasks/walk/walk_config.cpp tasks/zero/zero_config.cpp)
 target_include_directories(walk_task
     PUBLIC  core/include tasks
     PRIVATE "${YAML_CPP_INCLUDE_DIR}")
@@ -91,10 +91,10 @@ target_link_libraries(walk_task PUBLIC policy_runner "${YAML_CPP_LIB}")
 set_property(TARGET walk_task PROPERTY CXX_STANDARD 17)
 
 # ── E2E alignment test ────────────────────────────────────────────────────────
-add_executable(test_walk_e2e core/test/test_walk_e2e.cpp)
+add_executable(test_walk_e2e tasks/walk/test/test_walk_e2e.cpp)
 target_include_directories(test_walk_e2e PRIVATE core/include core/test tasks)
 target_compile_definitions(test_walk_e2e PRIVATE
-    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden")
+    GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tasks/walk/test/golden")
 target_link_libraries(test_walk_e2e PRIVATE walk_task)
 set_property(TARGET test_walk_e2e PROPERTY CXX_STANDARD 17)
 add_test(NAME walk_e2e COMMAND test_walk_e2e)
@@ -150,7 +150,7 @@ set_property(TARGET mujoco_gui PROPERTY CXX_STANDARD 17)
 set(PHYBOT_XML_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/robot/phybot_c2/xml/phybot_c2.xml")
 set(POLICY_PT_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/test/golden/cpg_policy.pt")
+    "${CMAKE_CURRENT_SOURCE_DIR}/tasks/walk/test/golden/cpg_policy.pt")
 
 add_executable(sim_walk apps/sim_walk.cpp)
 target_include_directories(sim_walk PRIVATE core/include tasks backends/mujoco
@@ -163,7 +163,7 @@ target_link_libraries(sim_walk PRIVATE walk_task mujoco_backend mujoco_gui)
 set_property(TARGET sim_walk PROPERTY CXX_STANDARD 17)
 
 # ── Walk simulation ctest ─────────────────────────────────────────────────────
-add_executable(test_walk_sim core/test/test_walk_sim.cpp)
+add_executable(test_walk_sim tasks/walk/test/test_walk_sim.cpp)
 target_include_directories(test_walk_sim PRIVATE core/include tasks backends/mujoco
     "${MUJOCO_INCLUDE_DIR}")
 target_compile_definitions(test_walk_sim PRIVATE

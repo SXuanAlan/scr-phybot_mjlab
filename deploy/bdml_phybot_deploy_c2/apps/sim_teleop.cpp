@@ -17,7 +17,7 @@
 #include "phybot/data_package.h"
 #include "phybot/task_manager.h"
 #include "phybot/task_id.h"
-#include "phybot/zero_task.h"
+#include "zero/zero_task.h"
 #include "phybot/input_protocol.h"
 #include "phybot/lcm_env.h"
 #include "walk/walk_task.h"
@@ -39,7 +39,7 @@
 // Paths injected by CMake (mirrors test_walk_sim's POLICY_PATH/XML_PATH pattern);
 // overridable via argv for ad hoc runs.
 #ifndef POLICY_PATH
-#define POLICY_PATH "core/test/golden/cpg_policy.pt"
+#define POLICY_PATH "tasks/walk/test/golden/cpg_policy.pt"
 #endif
 #ifndef XML_PATH
 #define XML_PATH "assets/robot/phybot_c2/xml/phybot_c2.xml"
