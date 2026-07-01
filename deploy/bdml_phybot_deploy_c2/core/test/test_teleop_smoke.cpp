@@ -25,7 +25,7 @@
 #define POLICY_PATH "core/test/golden/cpg_policy.pt"
 #endif
 #ifndef XML_PATH
-#define XML_PATH "../phybot_deploy_c2/RobotModel/phybot_c2/xml/phybot_c2.xml"
+#define XML_PATH "assets/robot/phybot_c2/xml/phybot_c2.xml"
 #endif
 
 int main() {

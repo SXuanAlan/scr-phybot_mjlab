@@ -10,10 +10,19 @@
 #include <string>
 #include <vector>
 
+// Asset paths are baked in by CMake (absolute, vendored — CWD-independent).
+// These #ifndef fallbacks are relative to the repo root, for a manual build
+// without CMake; run such a build from deploy/bdml_phybot_deploy_c2/.
+#ifndef POLICY_PATH
+#define POLICY_PATH "core/test/golden/cpg_policy.pt"
+#endif
+#ifndef XML_PATH
+#define XML_PATH "assets/robot/phybot_c2/xml/phybot_c2.xml"
+#endif
+
 int main(int argc, char** argv) {
-    const char* policy_path = (argc > 1) ? argv[1] : "core/test/golden/cpg_policy.pt";
-    const char* xml_path    = (argc > 2) ? argv[2]
-        : "../phybot_deploy_c2/RobotModel/phybot_c2/xml/phybot_c2.xml";
+    const char* policy_path = (argc > 1) ? argv[1] : POLICY_PATH;
+    const char* xml_path    = (argc > 2) ? argv[2] : XML_PATH;
     double vx_cmd  = (argc > 3) ? std::atof(argv[3]) : 0.4;
     double sim_sec = (argc > 4) ? std::atof(argv[4]) : 5.0;
 

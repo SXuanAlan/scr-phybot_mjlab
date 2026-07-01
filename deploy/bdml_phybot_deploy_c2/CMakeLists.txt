@@ -135,6 +135,9 @@ set(POLICY_PT_PATH
 add_executable(sim_walk apps/sim_walk.cpp)
 target_include_directories(sim_walk PRIVATE core/include tasks backends/mujoco
     "${MUJOCO_INCLUDE_DIR}")
+target_compile_definitions(sim_walk PRIVATE
+    POLICY_PATH="${POLICY_PT_PATH}"
+    XML_PATH="${PHYBOT_XML_PATH}")
 target_link_libraries(sim_walk PRIVATE walk_task mujoco_backend)
 set_property(TARGET sim_walk PROPERTY CXX_STANDARD 17)
 
