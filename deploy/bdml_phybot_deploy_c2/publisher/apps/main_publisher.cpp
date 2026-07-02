@@ -11,12 +11,12 @@ int main() {
   lcm::LCM lcm;
   if (!lcm.good()) { std::printf("LCM init failed\n"); return 1; }
   phybot::JsController jc; phybot::MappingState ms;
-  // buttons.yaml (button -> select_code) resolves the model codes once at startup;
-  // fall back to the zero/walk tasks' own literal select_codes (1/2) if a key is
-  // missing (see MappingState's defaults in input_mapping.h).
+  // buttons.yaml (button -> select_code) fully drives ms.binds: any button listed
+  // there (see ButtonField in buttons_config.cpp for the recognized
+  // A/B/X/Y/LB/RB/BACK/START names) binds to its code with no changes here --
+  // e.g. uncommenting `X: 3` in buttons.yaml binds X with zero code edits.
   const phybot::ButtonsConfig bc = phybot::load_buttons_config();
-  ms.zero_code = bc.code_for("Y", 1);
-  ms.walk_code = bc.code_for("B", 2);
+  ms.binds = phybot::BuildButtonBinds(bc);
   timespec ts{0, 10*1000*1000};  // ~100 Hz
   std::printf("[publisher] running; discovering controller...\n");
   while (true) {
