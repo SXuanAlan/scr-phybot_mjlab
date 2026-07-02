@@ -38,13 +38,20 @@ int main() {
   double h_zero = h.backend().baseHeight();
 
   // WALK (select_code=2, tasks/walk/config/controller.yaml) with forward vx.
+  double x0 = h.backend().baseX();
   DriveCmd walk;
   walk.model = 2;
   walk.vx    = 0.6f;
   for (int i = 0; i < 1500; ++i) h.tick(walk);
-  double h_walk = h.backend().baseHeight();
+  double   h_walk = h.backend().baseHeight();
+  TaskCode task    = h.manager().current();
+  double   dx      = h.backend().baseX() - x0;
 
-  bool ok = h_zero > 0.4 && h_walk > 0.4;
-  std::printf("h_zero=%.3f h_walk=%.3f -> %s\n", h_zero, h_walk, ok ? "OK" : "FALL");
+  // h_walk > 0.4 alone can't distinguish an actually-walking robot from one
+  // that silently never left ZERO (a standing robot also clears 0.4m) -- also
+  // require the manager switched to WALK (code 2) and the base moved forward.
+  bool ok = h_zero > 0.4 && h_walk > 0.4 && task == 2 && dx > 0.1;
+  std::printf("h_zero=%.3f h_walk=%.3f task=%d dx=%.3f -> %s\n",
+              h_zero, h_walk, (int)task, dx, ok ? "OK" : "FALL");
   return ok ? 0 : 1;
 }
