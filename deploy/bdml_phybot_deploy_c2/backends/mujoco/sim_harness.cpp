@@ -3,6 +3,7 @@
 #include "phybot/controller_config.h"
 #include "phybot/input_protocol.h"
 #include <ctime>
+#include <stdexcept>
 
 namespace phybot {
 
@@ -22,6 +23,13 @@ SimHarness::SimHarness(const Options& opt) : backend_(opt.xml_path) {
     manager_.add(reg.make(i), cc.select_code);
     router_.addTask(cc.select_code, cc);
   }
+  // TaskRouter throws on a *second* default (see task_router.cpp), but a tree with
+  // ZERO defaults is legal by construction there -- default_ just stays kNoTask.
+  // That's a robot-safety hole: TaskManager::start(kNoTask, ...) leaves cur_==nullptr,
+  // so tick() would silently run with no active task. Fail loud here instead.
+  if (router_.defaultCode() == kNoTask)
+    throw std::runtime_error(
+        "SimHarness: no default task — exactly one controller.yaml must set 'default: true'");
   manager_.start(router_.defaultCode(), io_);
 }
 
