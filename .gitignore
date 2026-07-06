@@ -12,5 +12,5 @@ results/
 nohup.out
 .agents
 others/
-deploy/*
+/deploy/
 /image.png

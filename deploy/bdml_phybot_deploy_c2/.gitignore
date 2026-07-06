@@ -1,7 +1,0 @@
-# Vendored third-party dependencies + robot assets — NOT committed (large binaries).
-# Populate with ./vendor.sh (copies from the official deploy tree) before building.
-/third_party/
-/assets/
-
-# Build output (build in this directory)
-/build/
