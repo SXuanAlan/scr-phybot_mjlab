@@ -69,16 +69,30 @@ def add_contact_pairs_and_actuators(
 
   Runtime adhesion is applied through external body forces rather than MuJoCo
   adhesion actuators, so this function does not create ``adh_*`` actuators.
+
+  In ``attachment_mode == "constraint"`` the tangential lock and tension come
+  from the per-EE anchor equalities, so the contacts revert to physical
+  parameters: moderate friction, condim 3, critically damped solref. The
+  legacy mode keeps the high-friction condim-6 pairs the external adhesion
+  force relies on.
   """
+  if cfg.attachment_mode == "constraint":
+    friction = cfg.physical_pair_friction
+    condim = cfg.physical_pair_condim
+    solref = cfg.physical_pair_solref
+  else:
+    friction = cfg.wall_pair_friction
+    condim = 6
+    solref = cfg.wall_pair_solref
   for gname in get_sphere_geom_names(cfg):
     pair = spec.add_pair()
     pair.geomname1 = f"{robot_prefix}/{gname}"
     pair.geomname2 = cfg.wall_geom_name
-    pair.condim = 6
-    pair.friction = list(cfg.wall_pair_friction)
-    pair.solref = list(cfg.wall_pair_solref)
+    pair.condim = condim
+    pair.friction = list(friction)
+    pair.solref = list(solref)
     pair.solimp = list(cfg.wall_pair_solimp)
-    pair.solreffriction = list(cfg.wall_pair_solref)
+    pair.solreffriction = list(solref)
     pair.margin = cfg.wall_pair_margin
     pair.gap = cfg.wall_pair_gap
 

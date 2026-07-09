@@ -55,6 +55,20 @@ class TeleopConfig:
   spacemouse_bridge_port: int = 8765
   viser_host: str = "0.0.0.0"
   viser_port: int = 8080
+  debug: bool = False
+  """Re-enable the raw per-step [Microspine] SENSOR / TRANSITION prints."""
+  hud_period: float = 0.5
+  """Seconds between [microspine] status lines (transitions print instantly)."""
+  target_leash: float = 0.006
+  """Max wall-tangential distance [m] the IK target may lead the measured TCP
+  while latched. Sized so deliberate drags can swing the tangential load past
+  the arm's ~50 N gravity-lean bias (offset x ~25 N/mm) and trip the
+  reverse-shear release. 0 disables leashing entirely."""
+  target_leash_normal: float = 0.002
+  """Max wall-normal target lead [m] while latched. Kept tighter than the
+  tangential leash: press-through offsets leak into tangential grinding via
+  the damped IK solve, and ~10 N of leakage already trips the small
+  reverse-shear cap."""
 
 
 SPACEMOUSE_VENDOR_ID = 0x256F
@@ -736,8 +750,145 @@ def _convert_buffer(byte_low: int, byte_high: int) -> float:
   return max(-1.0, min(1.0, value / 350.0))
 
 
+_HUD_RELEASE_REASONS = {
+  0: "disengage-gate",
+  1: "reverse-shear",
+  2: "tension-cone",
+  3: "lateral",
+  4: "ultimate-shear",
+}
+_GREEN, _RED, _RESET = "\033[32m", "\033[31m", "\033[0m"
+
+
+class MicrospineHud:
+  """Throttled terminal readout of the microspine bench state (env 0).
+
+  Event lines print on every engage/release transition — releases name the
+  envelope face that fired and the violating load. A compact status line
+  prints every ``period`` seconds. Reads only the affordance/executor HUD
+  buffers; silently a no-op in legacy adhesion mode.
+  """
+
+  def __init__(self, env, period: float = 0.5):
+    self._period = period
+    self._last_status = 0.0
+    self._aff = None
+    self._executor = None
+    try:
+      aff = env.command_manager.get_term("microspine_affordance")
+      executor = env.event_manager.get_term_cfg("microspine_adhesion").func
+    except (KeyError, ValueError):
+      return
+    if not hasattr(aff, "release_reason") or not hasattr(
+      executor, "anchor_pos_w"
+    ):
+      return
+    self._aff = aff
+    self._executor = executor
+    self._spheres = (
+      aff._mcfg.spheres_per_ee_rows * aff._mcfg.spheres_per_ee_cols
+    )
+    self._prev_engaged = aff.engaged.clone()
+
+  def reset(self) -> None:
+    if self._aff is not None:
+      self._prev_engaged = self._aff.engaged.clone()
+
+  def _pull_push_caps(self, h: int, f_t: float) -> tuple[float, float]:
+    aff = self._aff
+    ft_pos = max(f_t, 0.0)
+    pull = (
+      float(aff.limit_mu_adhesion[0, h]) * ft_pos + float(aff.limit_f_n0[0, h])
+    )
+    push = -float(aff.limit_f_rev_max[0, h])
+    return pull, push
+
+  def _print_transitions(self, engaged: torch.Tensor) -> None:
+    changed = engaged != self._prev_engaged
+    if not bool(changed.any().item()):
+      return
+    aff = self._aff
+    for h in changed[0].nonzero(as_tuple=True)[0].tolist():
+      if bool(engaged[0, h].item()):
+        x, y, z = self._executor.anchor_pos_w[0, h].tolist()
+        print(
+          f"{_GREEN}[microspine] >>> ENGAGED  "
+          f"anchor=({x:.3f}, {y:.3f}, {z:.3f}){_RESET}",
+          flush=True,
+        )
+      else:
+        reason = int(aff.release_reason[0, h].item())
+        f_t, f_l, f_n = aff.anchor_load_tnl[0, h].tolist()
+        pull_cap, push_cap = self._pull_push_caps(h, f_t)
+        name = _HUD_RELEASE_REASONS.get(reason, f"reason-{reason}")
+        if reason == 1:
+          detail = f"f_t {f_t:.1f} < cap {push_cap:.1f} (pushed up the wall)"
+        elif reason == 2:
+          detail = f"f_n {f_n:.1f} > cap {pull_cap:.1f} (pulled off the wall)"
+        elif reason == 3:
+          cap_l = float(aff.limit_mu_lateral[0, h]) * max(f_t, 0.0) + float(
+            aff.limit_f_l0[0, h]
+          )
+          detail = f"|f_l| {abs(f_l):.1f} > cap {cap_l:.1f}"
+        elif reason == 4:
+          detail = f"f_t {f_t:.1f} > cap {float(aff.limit_f_t_max[0, h]):.1f}"
+        else:
+          detail = "force-z disengage gate"
+        print(
+          f"{_RED}[microspine] >>> RELEASED ({name}): {detail}  "
+          f"[f_t={f_t:.1f} f_l={f_l:.1f} f_n={f_n:.1f}]{_RESET}",
+          flush=True,
+        )
+    self._prev_engaged = engaged.clone()
+
+  def _print_status(self) -> None:
+    aff = self._aff
+    h = 0
+    contacts = int(aff.contact_count[0, h].item())
+    cos = float(aff.face_cos[0, h].item())
+    if bool(aff.engaged[0, h].item()):
+      f_t, f_l, f_n = aff.anchor_load_tnl[0, h].tolist()
+      steps = int(aff._steps_since_engage[0, h].item())
+      grace = aff._ls_cfg.hold_grace_steps
+      state = f"GRACE {steps}/{grace}" if steps < grace else "ENGAGED"
+      margin = float(aff.hold_margin[0, h].item())
+      pull_cap, push_cap = self._pull_push_caps(h, f_t)
+      line = (
+        f"[microspine] {state:<10} f_t={f_t:+6.1f}N f_l={f_l:+6.1f}N "
+        f"f_n={f_n:+6.1f}N  margin={margin:+.2f}  "
+        f"pull-cap≈{pull_cap:.1f}N push-cap≈{push_cap:.1f}N  "
+        f"contacts {contacts}/{self._spheres} cos={cos:.2f}"
+      )
+    else:
+      cooldown = int(aff._cooldown_steps[0, h].item())
+      state = f"OFF (cooldown {cooldown})" if cooldown > 0 else "OFF"
+      line = (
+        f"[microspine] {state:<18} contacts {contacts}/{self._spheres} "
+        f"cos={cos:.2f}"
+      )
+    print(line, flush=True)
+
+  def update(self) -> None:
+    if self._aff is None:
+      return
+    self._print_transitions(self._aff.engaged)
+    now = time.monotonic()
+    if now - self._last_status >= self._period:
+      self._last_status = now
+      self._print_status()
+
+
 class CartesianPosePolicy:
-  def __init__(self, env, input_device: CartesianDeltaInput):
+  def __init__(
+    self,
+    env,
+    input_device: CartesianDeltaInput,
+    hud_period: float = 0.5,
+    target_leash: float = 0.006,
+    target_leash_normal: float = 0.002,
+  ):
+    self._target_leash = target_leash
+    self._target_leash_normal = target_leash_normal
     self._env = env.unwrapped
     self._input = input_device
     self._robot = self._env.scene["robot"]
@@ -747,6 +898,8 @@ class CartesianPosePolicy:
     self._target_quat: torch.Tensor | None = None
     self._initial_quat: torch.Tensor | None = None
     self._microspine_physics = self._get_microspine_physics()
+    self._prev_engaged: torch.Tensor | None = None
+    self._hud = MicrospineHud(self._env, period=hud_period)
 
   def _get_microspine_physics(self):
     try:
@@ -761,6 +914,28 @@ class CartesianPosePolicy:
     if disengaged is None:
       return False
     return bool(disengaged.any().item())
+
+  def _microspine_engaged_this_step(self) -> bool:
+    """Rising-edge detector on the latch state.
+
+    On engage the accumulated command offset (press-through depth plus
+    whatever the hand was doing at that instant) must be cancelled: the IK is
+    effectively a stiff position servo (~10^2 N/mm through the anchor), so
+    even sub-mm residual motion blows through the unloaded envelope caps
+    (~20 N) right after grace and the pad releases the moment it latched.
+    Snapping the target to the measured TCP starts the lock load-free; any
+    later load is deliberate stick deflection.
+    """
+    if self._microspine_physics is None:
+      return False
+    engaged = getattr(self._microspine_physics, "engaged", None)
+    if engaged is None:
+      return False
+    prev = self._prev_engaged
+    self._prev_engaged = engaged.clone()
+    if prev is None:
+      return False
+    return bool((engaged & ~prev).any().item())
 
   def reset_target(self) -> None:
     self._target_pos = self._robot.data.site_pos_w[:, self._site_id, :].clone()
@@ -780,6 +955,8 @@ class CartesianPosePolicy:
     self._target_pos = None
     self._target_quat = None
     self._initial_quat = None
+    self._prev_engaged = None
+    self._hud.reset()
 
   def __call__(self, obs) -> torch.Tensor:
     del obs
@@ -803,7 +980,7 @@ class CartesianPosePolicy:
       )
     if command.reset_orientation:
       self.reset_orientation()
-    if self._microspine_disengaged_this_step():
+    if self._microspine_disengaged_this_step() or self._microspine_engaged_this_step():
       self.reset_target()
 
     delta = command.delta
@@ -813,7 +990,28 @@ class CartesianPosePolicy:
         self._target_quat,
         delta,
       )
+    # Leash only while latched: free-space tracking error must not eat the
+    # leash budget (it stalls the approach), but once the pad is anchored any
+    # target-vs-TCP offset IS injected force, so cap it.
+    latched = self._prev_engaged is not None and bool(
+      self._prev_engaged.any().item()
+    )
+    if self._target_leash > 0.0 and latched:
+      tcp = self._robot.data.site_pos_w[:, self._site_id, :]
+      offset = self._target_pos - tcp
+      # Anisotropic clamp: the bench wall is the fixed +x plane, so x is the
+      # wall normal (press/pull) and yz is the wall tangent (drag/push).
+      n_comp = offset[:, 0:1].clamp(
+        -self._target_leash_normal, self._target_leash_normal
+      )
+      t_comp = offset[:, 1:3]
+      t_norm = t_comp.norm(dim=-1, keepdim=True)
+      t_comp = t_comp * (
+        self._target_leash / t_norm.clamp_min(self._target_leash)
+      ).clamp(max=1.0)
+      self._target_pos = tcp + torch.cat([n_comp, t_comp], dim=-1)
     self._input.sync_target(self._target_pos, self._target_quat)
+    self._hud.update()
     return torch.cat((self._target_pos, self._target_quat), dim=-1)
 
 
@@ -976,6 +1174,17 @@ def run(cfg: TeleopConfig) -> None:
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
   env_cfg = load_env_cfg(cfg.task, play=True)
   env_cfg.scene.num_envs = cfg.num_envs
+  if not cfg.debug:
+    # The play cfg enables raw per-step microspine debug prints; the HUD
+    # replaces them. The scalar `debug` field is NOT shared between the
+    # command and event copies of MicrospineCfg (shallow dataclasses.replace),
+    # so both must be cleared — and before env construction, because the
+    # executor caches the flag in __init__.
+    for owner in (
+      env_cfg.commands["microspine_affordance"].microspine_cfg,
+      env_cfg.events["microspine_adhesion"].params["microspine_cfg"],
+    ):
+      owner.debug = False
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
   env = RslRlVecEnvWrapper(env)
   input_device: CartesianDeltaInput | None = None
@@ -983,7 +1192,13 @@ def run(cfg: TeleopConfig) -> None:
   try:
     action_shape: tuple[int, ...] = env.unwrapped.action_space.shape
     input_device = _make_input_device(cfg, input_kind, viewer, action_shape, env.unwrapped.device)
-    policy = CartesianPosePolicy(env, input_device)
+    policy = CartesianPosePolicy(
+      env,
+      input_device,
+      hud_period=cfg.hud_period,
+      target_leash=cfg.target_leash,
+      target_leash_normal=cfg.target_leash_normal,
+    )
 
     print(f"Viewer: {viewer}")
     input_label = "viser + spacemouse" if viewer == "viser" and input_kind == "spacemouse" else input_kind

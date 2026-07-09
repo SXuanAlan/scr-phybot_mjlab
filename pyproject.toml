@@ -6,6 +6,7 @@ dependencies = ["amp-rsl-rl==2.2.1", "mjlab", "trimesh>=4.0"]
 
 [project.optional-dependencies]
 teleop = ["hidapi>=0.14"]
+bench = ["pyqtgraph", "PyQt5", "pygame"]
 
 [project.entry-points."mjlab.tasks"]
 scr_phybot_mjab = "scr_phybot_mjab.tasks"

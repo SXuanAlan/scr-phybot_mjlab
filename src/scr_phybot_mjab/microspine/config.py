@@ -10,6 +10,77 @@ if TYPE_CHECKING:
 
 
 @dataclasses.dataclass(kw_only=True)
+class MicrospineLimitSurfaceCfg:
+  """Spine limit-surface (hold envelope) parameters.
+
+  The anchor load is decomposed in the engage frame (t̂ = rake/engage
+  direction down the wall, l̂ = lateral, n̂ = outward wall normal). An engaged
+  spine HOLDs iff all of:
+
+    1. f_t >= -f_rev_max                       (small reverse-shear tolerance)
+    2. f_n <= mu_adhesion * max(f_t, 0) + f_n0 (tension grows with engaged shear)
+    3. |f_l| <= mu_lateral * max(f_t, 0) + f_l0
+    4. f_t <= f_t_max                          (ultimate asperity/spine strength)
+
+  All ``*_range`` fields are per-env uniform sampling bounds drawn at reset —
+  built-in domain randomization. They map 1:1 to bench pull-off tests (see
+  docs/microspine_calibration.md and scripts/fit_limit_surface.py).
+  """
+
+  enable: bool = True
+  """Evaluate the hold envelope. False keeps engaged spines latched forever."""
+
+  rake_mode: str = "gravity"
+  """Engage direction source: "gravity" (gravity projected onto the wall) or
+  "ee_local" (EE-local axis projected onto the wall). "ee_local" is the
+  physical model — spines rake along a pad-fixed direction, so capacity
+  follows the pad orientation and a yawed pad pays for it (under "gravity"
+  the envelope is blind to pad yaw: measured trained-policy rollouts latched
+  hands 30-60 deg off-rake at full capacity)."""
+
+  ee_rake_local_axis: tuple[float, float, float] = (0.0, 0.0, -1.0)
+  """EE-local rake axis used when ``rake_mode == "ee_local"``."""
+
+  f_t_max_range: tuple[float, float] = (300.0, 500.0)
+  """Ultimate engaged shear capacity [N]. ~1.7-2.9x a 2-EE stance load."""
+
+  f_rev_max_range: tuple[float, float] = (15.0, 25.0)
+  """Reverse-shear (pushed up the wall) capacity [N]."""
+
+  mu_adhesion_range: tuple[float, float] = (0.3, 0.5)
+  """Tension capacity per unit engaged shear (pull-off cone slope) [-]."""
+
+  f_n0_range: tuple[float, float] = (10.0, 20.0)
+  """Tension capacity at zero engaged shear [N]."""
+
+  mu_lateral_range: tuple[float, float] = (0.5, 0.7)
+  """Lateral capacity per unit engaged shear [-]."""
+
+  f_l0_range: tuple[float, float] = (10.0, 20.0)
+  """Lateral capacity at zero engaged shear [N]."""
+
+  hold_grace_steps: int = 14
+  """Policy steps after an engage transition before hold checks apply. The
+  constraint only produces force on the next decimation loop, so the load is
+  zero on the engage step itself. The window doubles as the re-grip seating
+  phase (``MicrospineCfg.reanchor_after_grace``): each grace step re-seats the
+  anchor at the settled pad, walking pose preload out to the structural
+  equilibrium. Empirically (90° spawn-pose hang) convergence needs >10
+  rounds: grace 6 → 31% engaged / mass releases, 10 → 93%, 14 → 100% with
+  hold margins 0.2-0.8. 14 steps = 0.28 s of seating, the upper end of
+  physical spine engagement times; a fresh engagement is unkillable for that
+  window, but it cannot carry load either (the reseated anchor sheds force
+  every step), so cyclic re-engagement only creeps down the wall."""
+
+  violation_consecutive_steps: int = 2
+  """Debounce for conditions 1-3. Condition 4 (ultimate shear) is instant."""
+
+  release_mode: str = "binary"
+  """"binary" releases on any violation. "slip_drag" (anchor dragging /
+  stick-slip) is reserved for a later milestone and currently rejected."""
+
+
+@dataclasses.dataclass(kw_only=True)
 class MicrospineCfg:
   """Configuration for microspine wall contact and external adhesion forces.
 
@@ -105,6 +176,84 @@ class MicrospineCfg:
   initial_on: bool = True
   """Initial per-EE engaged state after reset."""
 
+  attachment_mode: str = "adhesion"
+  """Physical grip mechanism: "adhesion" (legacy: external wall-normal force +
+  high-friction contacts) or "constraint" (per-EE connect equality "virtual
+  anchor" toggled at runtime; anisotropy expressed by the limit surface)."""
+
+  anchor_solref: tuple[float, float] = (0.01, 1.0)
+  """Connect-equality solref. timeconst = 5 * dt keeps implicitfast stable."""
+
+  anchor_solimp: tuple[float, float, float, float, float] = (
+    0.9,
+    0.95,
+    0.001,
+    0.5,
+    2.0,
+  )
+  """Connect-equality solimp."""
+
+  anchor_lock_rotation: bool = False
+  """Lock pad orientation while engaged (weld equality instead of connect).
+
+  A real spine array grips asperities across the whole pad face: once
+  engaged the pad cannot pivot about the anchor point — the wall holds its
+  orientation, not the wrist servo. A connect leaves rotation free (single
+  point = ball joint); measured under push DR that allowed up to ~20 deg of
+  engaged-pad tilt and let policies latch pads at arbitrary yaw for free.
+  With this flag each EE's equality is a weld whose relpose is captured at
+  engage time and re-seated during the grace window exactly like the
+  position anchor; releasing and re-engaging is the only way to reorient an
+  engaged pad."""
+
+  anchor_torquescale: float = 1.0
+  """Weld torquescale (eq_data[10]): scales rotational residuals into the
+  constraint impedance. Used only when ``anchor_lock_rotation``."""
+
+  anchor_project_to_wall: bool = True
+  """Project the engage-time anchor point onto the wall surface plane.
+
+  Without this, anchoring a pad that slightly penetrates the wall (spawn
+  pose, or pressing in before engaging) locks the penetration in: the wall
+  contact pushes the pad out against the anchor and the constraint reads a
+  phantom pull-off tension, tripping the limit surface."""
+
+  reanchor_after_grace: bool = True
+  """Re-seat the anchor at the settled pad during the grace window ("re-grip").
+
+  Anchoring a PD-held pose locks in whatever pad tilt / penetration the pose
+  has; the contacts then push against the anchor and the standoff reads as
+  large phantom pull-off tension (spawn pose: >100 N on the feet) that a real
+  spine envelope correctly refuses to hold. Physically, a spine array seats
+  into the asperities under its initial load. Re-writing the anchor to the
+  *unprojected* settled pad position on every grace step (executor engage-age
+  1 .. hold_grace_steps - 1) lets the pad walk out of the standoff so the
+  first limit-surface check sees the true structural load of the pose. A
+  policy could in principle ratchet by cyclic re-engagement, but the gain is
+  ~mm per engage cycle."""
+
+  physical_pair_friction: tuple[float, float, float, float, float] = (
+    0.8,
+    0.8,
+    0.005,
+    1.0e-4,
+    1.0e-4,
+  )
+  """Sphere-wall pair friction in constraint mode. Tangential grip is the
+  anchor's job; contacts only handle compression and pre-engage sliding."""
+
+  physical_pair_condim: int = 3
+  """Sphere-wall pair condim in constraint mode (saves 16x3 efc rows vs 6)."""
+
+  physical_pair_solref: tuple[float, float] = (0.02, 1.0)
+  """Sphere-wall pair solref in constraint mode (drops the dampratio=5
+  anti-jitter patch needed by the high-friction legacy contacts)."""
+
+  limit_surface: MicrospineLimitSurfaceCfg = dataclasses.field(
+    default_factory=MicrospineLimitSurfaceCfg
+  )
+  """Hold envelope evaluated by the affordance in constraint mode."""
+
 
 @dataclasses.dataclass(kw_only=True)
 class MicrospineAffordanceCfg:
@@ -113,6 +262,9 @@ class MicrospineAffordanceCfg:
   microspine_cfg: MicrospineCfg
   asset_name: str = "robot"
   contact_sensor_name: str
+  physics_event_name: str = "microspine_adhesion"
+  """Event-term name of the physics executor. In constraint mode the
+  affordance reads per-EE anchor loads from it for the limit surface."""
   resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
   debug_vis: bool = False
 

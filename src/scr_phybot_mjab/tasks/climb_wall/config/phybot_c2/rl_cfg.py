@@ -25,7 +25,9 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
       activation="elu",
       obs_normalization=True,
     ),
-    obs_groups={"actor": ("actor",), "critic": ("actor",)},
+    # Asymmetric actor-critic: the critic env group = actor terms + privileged
+    # microspine state (see env_cfgs.py). Each side normalizes its own group.
+    obs_groups={"actor": ("actor",), "critic": ("critic",)},
     algorithm=RslRlPpoAlgorithmCfg(
       value_loss_coef=1.0,
       use_clipped_value_loss=True,
