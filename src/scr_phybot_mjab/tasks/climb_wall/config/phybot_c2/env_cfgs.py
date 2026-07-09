@@ -16,12 +16,19 @@ C2-specific notes:
 
 from __future__ import annotations
 
+import dataclasses
+
 import mujoco
 
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
+from mjlab.managers.metrics_manager import MetricsTermCfg
+from mjlab.managers.observation_manager import (
+  ObservationGroupCfg,
+  ObservationTermCfg,
+)
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
@@ -37,6 +44,10 @@ from scr_phybot_mjab.assets.wall import get_wall_cfg
 from scr_phybot_mjab.microspine.config import (
   MicrospineAffordanceCfg,
   MicrospineCfg,
+)
+from scr_phybot_mjab.microspine.constraint import (
+  add_attachment_equalities,
+  make_constraint_event_cfg,
 )
 from scr_phybot_mjab.microspine.physics import (
   add_contact_pairs_and_actuators,
@@ -56,8 +67,18 @@ def _policy_joint_cfg() -> SceneEntityCfg:
   )
 
 
-def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
-  """Create PHYBot C2 wall-climbing configuration."""
+def phybot_c2_climb_wall_env_cfg(
+  play: bool = False,
+  attachment_mode: str = "adhesion",
+) -> ManagerBasedRlEnvCfg:
+  """Create PHYBot C2 wall-climbing configuration.
+
+  ``attachment_mode``:
+    * ``"adhesion"`` (default, legacy): external wall-normal force +
+      high-friction condim-6 contacts.
+    * ``"constraint"``: per-EE connect-equality virtual anchors with the
+      limit-surface release model (anisotropic microspine physics).
+  """
   velocity_command_name = "climb_velocity"
   microspine_affordance_name = "microspine_affordance"
   microspine_contact_sensor_name = "microspine_wall_contact"
@@ -72,8 +93,26 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
     adhesion_force=600.0,
     spheres_per_ee_rows=2,
-    spheres_per_ee_cols=2
+    spheres_per_ee_cols=2,
+    attachment_mode=attachment_mode,
   )
+  if attachment_mode == "constraint":
+    # The contact force_z gates were tuned for the legacy mu=30 pairs: with
+    # physical friction they starve (engage) and are noise-driven (release).
+    # Engage gating falls back to compression count + face alignment; release
+    # is owned by the limit surface.
+    microspine_cfg.engage_force_z_threshold = 0.0
+    microspine_cfg.disengage_force_z_threshold = 0.0
+    # Real spine arrays grip across the whole pad face: an engaged pad cannot
+    # pivot about the anchor (weld, orientation captured at engage), and the
+    # rake direction is pad-fixed, so capacity follows pad orientation and
+    # latching at arbitrary yaw stops being free (under gravity rake,
+    # rollouts latched hands 30-60 deg off-rake at full capacity). EE-local
+    # rake axis (0, 0, -1) maps to down-the-wall at the nominal spawn pose
+    # (hands within 0.3 deg; feet toe out 11.5 deg — a truthful slightly
+    # off-rake engagement the envelope tolerates).
+    microspine_cfg.anchor_lock_rotation = True
+    microspine_cfg.limit_surface.rake_mode = "ee_local"
 
   cfg = make_climb_wall_env_cfg()
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
@@ -154,20 +193,28 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
   )
 
-  # Per-sphere wall-contact pairs; adhesion itself is external wall-normal force.
+  # Per-sphere wall-contact pairs; grip is external wall-normal force (legacy)
+  # or per-EE connect-equality virtual anchors (constraint mode).
   def _spec_fn(spec: mujoco.MjSpec) -> None:
     add_contact_pairs_and_actuators(spec, microspine_cfg)
+    if attachment_mode == "constraint":
+      add_attachment_equalities(spec, microspine_cfg)
     # Disable the aligned terrain ground plane — gravity-tilt curriculum
     # replaces the floor; this forces the robot to actually grip the wall.
     configure_phybot_c2_floor_geom(spec, enable_contact=False)
 
   cfg.scene.spec_fn = _spec_fn
 
-  # Per-spine microspine adhesion via environment affordance + external forces.
-  cfg.events["microspine_adhesion"] = make_physics_event_cfg(
-    microspine_cfg,
-    affordance_name=microspine_affordance_name,
-  )
+  if attachment_mode == "constraint":
+    cfg.events["microspine_adhesion"] = make_constraint_event_cfg(
+      microspine_cfg,
+      affordance_name=microspine_affordance_name,
+    )
+  else:
+    cfg.events["microspine_adhesion"] = make_physics_event_cfg(
+      microspine_cfg,
+      affordance_name=microspine_affordance_name,
+    )
 
   # ------------------------------------------------------------------------
   # Rewards — Anymal D quadruped template (locomotion/velocity), with climb
@@ -271,6 +318,29 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ),
     # -- termination penalty (common addition not in Anymal generic).
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-200.0),
+    # -- limit-surface release penalty (constraint mode; always 0 in legacy).
+    # Rewards are dt-scaled (step_dt = 0.02), so -5.0 = -0.1 per release
+    # event. Bump toward -50 if the signal is too weak to shape loading.
+    "microspine_forced_release_penalty": RewardTermCfg(
+      func=mdp.microspine_forced_release_penalty,
+      weight=-5.0,
+      params={"command_name": microspine_affordance_name},
+    ),
+  }
+
+  cfg.metrics = {
+    "microspine_engage_rate": MetricsTermCfg(
+      func=mdp.microspine_engage_rate,
+      params={"command_name": microspine_affordance_name},
+    ),
+    "microspine_forced_release_rate": MetricsTermCfg(
+      func=mdp.microspine_forced_release_rate,
+      params={"command_name": microspine_affordance_name},
+    ),
+    "microspine_hold_margin_engaged": MetricsTermCfg(
+      func=mdp.microspine_hold_margin_engaged,
+      params={"command_name": microspine_affordance_name},
+    ),
   }
 
   cfg.curriculum = {
@@ -296,6 +366,33 @@ def phybot_c2_climb_wall_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   actor_terms = cfg.observations["actor"].terms
   actor_terms["joint_pos_rel"].params = {"asset_cfg": _policy_joint_cfg()}
   actor_terms["joint_vel_rel"].params = {"asset_cfg": _policy_joint_cfg()}
+
+  # Asymmetric actor-critic: the critic group is the actor group plus
+  # privileged microspine state (hold margin, anchor loads, forced releases)
+  # that a real robot cannot sense. Term cfgs are re-instantiated so the two
+  # groups never share mutable cfg objects. Built after all actor-term edits
+  # above so the copies pick them up.
+  critic_terms = {
+    name: dataclasses.replace(term) for name, term in actor_terms.items()
+  }
+  critic_terms["microspine_hold_margin"] = ObservationTermCfg(
+    func=mdp.microspine_hold_margin,
+    params={"command_name": microspine_affordance_name},
+  )
+  critic_terms["microspine_anchor_load"] = ObservationTermCfg(
+    func=mdp.microspine_anchor_load,
+    params={"command_name": microspine_affordance_name},
+    scale=0.01,  # Newtons → O(1).
+  )
+  critic_terms["microspine_forced_release"] = ObservationTermCfg(
+    func=mdp.microspine_forced_release,
+    params={"command_name": microspine_affordance_name},
+  )
+  cfg.observations["critic"] = ObservationGroupCfg(
+    terms=critic_terms,
+    concatenate_terms=True,
+    enable_corruption=False,
+  )
 
   if play:
     cfg.episode_length_s = int(1e9)

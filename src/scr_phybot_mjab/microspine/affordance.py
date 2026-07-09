@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from mjlab.managers.command_manager import CommandTerm
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
@@ -81,6 +82,83 @@ class MicrospineAffordance(CommandTerm):
     face_norm = torch.linalg.norm(face_axis).clamp_min(1.0e-6)
     self._face_local_axis = face_axis / face_norm
 
+    # --- limit-surface state (constraint attachment mode) ---------------
+    # The hold envelope releases an engaged spine when its anchor load leaves
+    # the configured cone. Parameters are per-env tensors resampled from cfg
+    # ranges at reset — built-in domain randomization, calibratable against
+    # bench pull-off tests.
+    self._ls_cfg = self._mcfg.limit_surface
+    self._constraint_mode = self._mcfg.attachment_mode == "constraint"
+    self._executor = None
+    self._gravity_view: torch.Tensor | None = None
+    shape = (self.num_envs, self._num_ee)
+    self.limit_f_t_max = torch.zeros(shape, device=self.device)
+    self.limit_f_rev_max = torch.zeros(shape, device=self.device)
+    self.limit_mu_adhesion = torch.zeros(shape, device=self.device)
+    self.limit_f_n0 = torch.zeros(shape, device=self.device)
+    self.limit_mu_lateral = torch.zeros(shape, device=self.device)
+    self.limit_f_l0 = torch.zeros(shape, device=self.device)
+    self._violation_count = torch.zeros(
+      shape, dtype=torch.long, device=self.device
+    )
+    self._steps_since_engage = torch.zeros(
+      shape, dtype=torch.long, device=self.device
+    )
+    self.anchor_load_tnl = torch.zeros(
+      self.num_envs, self._num_ee, 3, device=self.device
+    )
+    self.hold_margin = torch.ones(shape, device=self.device)
+    self.forced_release_this_step = torch.zeros(
+      shape, dtype=torch.bool, device=self.device
+    )
+    # HUD/debug readouts (pure GPU writes; no host syncs in the step path).
+    # release_reason: which envelope face fired on a forced release —
+    # 0 none, 1 reverse-shear, 2 tension-cone, 3 lateral, 4 ultimate-shear.
+    # Like anchor_load_tnl it holds the violating value on the release step
+    # and resets the step after.
+    self.release_reason = torch.zeros(shape, dtype=torch.int8, device=self.device)
+    self.face_cos = torch.zeros(shape, device=self.device)
+    self.contact_count = torch.zeros(shape, device=self.device)
+    rake_axis = torch.tensor(
+      self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device
+    )
+    self._rake_local_axis = rake_axis / torch.linalg.norm(rake_axis).clamp_min(
+      1.0e-6
+    )
+    self._sample_limit_params(torch.arange(self.num_envs, device=self.device))
+
+  def _sample_limit_params(self, env_ids: torch.Tensor) -> None:
+    """Resample per-env limit-surface parameters from the cfg ranges."""
+    ls = self._ls_cfg
+
+    def sample(value_range: tuple[float, float]) -> torch.Tensor:
+      low, high = value_range
+      return torch.empty(
+        (len(env_ids), self._num_ee), device=self.device
+      ).uniform_(low, high)
+
+    self.limit_f_t_max[env_ids] = sample(ls.f_t_max_range)
+    self.limit_f_rev_max[env_ids] = sample(ls.f_rev_max_range)
+    self.limit_mu_adhesion[env_ids] = sample(ls.mu_adhesion_range)
+    self.limit_f_n0[env_ids] = sample(ls.f_n0_range)
+    self.limit_mu_lateral[env_ids] = sample(ls.mu_lateral_range)
+    self.limit_f_l0[env_ids] = sample(ls.f_l0_range)
+
+  def _get_executor(self):
+    """Lazily fetch the physics executor (built after command terms)."""
+    if self._executor is None:
+      term_cfg = self._env.event_manager.get_term_cfg(
+        self.cfg.physics_event_name
+      )
+      self._executor = term_cfg.func
+      if not hasattr(self._executor, "compute_anchor_loads"):
+        raise ValueError(
+          "Limit surface requires the constraint executor "
+          "(MicrospineConstraint) registered as event term "
+          f"'{self.cfg.physics_event_name}'."
+        )
+    return self._executor
+
   @property
   def command(self) -> torch.Tensor:
     return self._engaged.float()
@@ -99,6 +177,13 @@ class MicrospineAffordance(CommandTerm):
     self._engage_count[env_ids] = 0
     self._disengage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
+    self._violation_count[env_ids] = 0
+    self._steps_since_engage[env_ids] = 0
+    self.anchor_load_tnl[env_ids] = 0.0
+    self.hold_margin[env_ids] = 1.0
+    self.forced_release_this_step[env_ids] = False
+    self.release_reason[env_ids] = 0
+    self._sample_limit_params(env_ids)
 
   def _wall_inward_normal(self) -> torch.Tensor:
     wall = self._env.scene[self._mcfg.wall_entity_name]
@@ -111,6 +196,109 @@ class MicrospineAffordance(CommandTerm):
     inward_y = 2.0 * (wx * wy + ww * wz)
     inward_z = 2.0 * (wx * wz - ww * wy)
     return torch.stack([inward_x, inward_y, inward_z], dim=-1)
+
+  def _engage_frame(
+    self,
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """World-frame engage basis (t̂, l̂, n̂_out), each (E, H, 3).
+
+    t̂ is the rake/engage direction the spines load along ("down the wall"):
+    either gravity projected onto the wall plane (default — follows the
+    gravity-tilt curriculum) or a per-EE local axis projected onto the wall.
+    n̂_out is the outward wall normal, so positive f_n means pull-off tension.
+    """
+    n_out = -self._wall_inward_normal()  # (E, 3)
+    n = n_out.unsqueeze(1)  # (E, 1, 3)
+    if self._ls_cfg.rake_mode == "ee_local":
+      axes = []
+      for body_id in self._ee_body_ids:
+        hquat = self._asset.data.body_link_quat_w[:, body_id, :]
+        axes.append(_quat_rotate(hquat, self._rake_local_axis))
+      raw = torch.stack(axes, dim=1)  # (E, H, 3)
+    else:
+      if self._gravity_view is None:
+        # In-place view of the warp gravity array (the curriculum writes it
+        # in place too, so caching the view once is safe), shape (N, 3).
+        self._gravity_view = wp.to_torch(self._env.sim.wp_model.opt.gravity)
+      raw = self._gravity_view.unsqueeze(1).expand(
+        self.num_envs, self._num_ee, 3
+      )
+    t = raw - (raw * n).sum(dim=-1, keepdim=True) * n
+    t_norm = torch.linalg.norm(t, dim=-1, keepdim=True)
+    # Degenerate rake (load axis ⟂ wall plane): fall back to world -z projected.
+    fallback = torch.tensor(
+      [0.0, 0.0, -1.0], device=self.device
+    ).expand_as(t)
+    fb = fallback - (fallback * n).sum(dim=-1, keepdim=True) * n
+    fb = fb / torch.linalg.norm(fb, dim=-1, keepdim=True).clamp_min(1.0e-6)
+    t_hat = torch.where(t_norm > 1.0e-6, t / t_norm.clamp_min(1.0e-9), fb)
+    n_hat = n.expand_as(t_hat)
+    l_hat = torch.cross(n_hat, t_hat, dim=-1)
+    return t_hat, l_hat, n_hat
+
+  def _limit_surface_release(self) -> torch.Tensor:
+    """Evaluate the hold envelope on currently engaged EEs, (E, H) bool.
+
+    The anchor load comes from the constraint efc rows — a smooth function of
+    the pose error, unlike contact friction impulses — which is what makes
+    the release condition detectable at all. Conditions 1-3 (reverse shear,
+    tension cone, lateral cone) are debounced; condition 4 (ultimate shear)
+    releases instantly.
+    """
+    loads = self._get_executor().compute_anchor_loads()  # (E, H, 3) world
+    t_hat, l_hat, n_hat = self._engage_frame()
+    f_t = (loads * t_hat).sum(dim=-1)
+    f_l = (loads * l_hat).sum(dim=-1)
+    f_n = (loads * n_hat).sum(dim=-1)
+    self.anchor_load_tnl = torch.stack([f_t, f_l, f_n], dim=-1)
+
+    ft_pos = f_t.clamp(min=0.0)
+    cap_n = self.limit_mu_adhesion * ft_pos + self.limit_f_n0
+    cap_l = self.limit_mu_lateral * ft_pos + self.limit_f_l0
+    c_rev = f_t >= -self.limit_f_rev_max
+    c_tension = f_n <= cap_n
+    c_lateral = f_l.abs() <= cap_l
+    c_ultimate = f_t <= self.limit_f_t_max
+
+    # Normalized distance to each envelope face; min is the overall margin.
+    eps = 1.0e-6
+    m_rev = (f_t + self.limit_f_rev_max) / (self.limit_f_rev_max + eps)
+    m_tension = (cap_n - f_n) / (cap_n + eps)
+    m_lateral = (cap_l - f_l.abs()) / (cap_l + eps)
+    m_ultimate = (self.limit_f_t_max - f_t) / (self.limit_f_t_max + eps)
+    margin = torch.minimum(
+      torch.minimum(m_rev, m_tension), torch.minimum(m_lateral, m_ultimate)
+    )
+    self.hold_margin = torch.where(
+      self._engaged, margin, torch.ones_like(margin)
+    )
+
+    # The constraint only produces force one decimation after engaging, so
+    # give fresh engagements a few steps of grace before hold checks apply.
+    in_grace = self._steps_since_engage < self._ls_cfg.hold_grace_steps
+    active = self._engaged & ~in_grace
+    soft_violation = active & ~(c_rev & c_tension & c_lateral)
+    self._violation_count = torch.where(
+      soft_violation,
+      self._violation_count + 1,
+      torch.zeros_like(self._violation_count),
+    )
+    release = (active & ~c_ultimate) | (
+      self._violation_count
+      >= max(1, self._ls_cfg.violation_consecutive_steps)
+    )
+
+    # Which face fired (HUD/debug). Priority by overwrite order: lateral <
+    # reverse < tension < ultimate, masked to actual releases.
+    reason = torch.zeros_like(self.release_reason)
+    reason = torch.where(~c_lateral, torch.full_like(reason, 3), reason)
+    reason = torch.where(~c_rev, torch.full_like(reason, 1), reason)
+    reason = torch.where(~c_tension, torch.full_like(reason, 2), reason)
+    reason = torch.where(~c_ultimate, torch.full_like(reason, 4), reason)
+    self.release_reason = torch.where(
+      release, reason, torch.zeros_like(reason)
+    )
+    return release
 
   def _face_wall_cos(self) -> torch.Tensor:
     wall_inward = self._wall_inward_normal()
@@ -343,6 +531,7 @@ class MicrospineAffordance(CommandTerm):
     normal_forces, force_z, instant_force_z, found_count = (
       self._sensor_contact_features()
     )
+    self.contact_count = found_count
 
     # Engage from OFF requires all enabled gates: upward wall-on-spine force,
     # optional compression on the sphere grid, and optional face alignment.
@@ -351,10 +540,10 @@ class MicrospineAffordance(CommandTerm):
       engage_condition &= force_z > self._mcfg.engage_force_z_threshold
     engage_condition &= self._normal_force_condition(normal_forces)
 
-    if self._mcfg.engage_parallel_cos_threshold > 0.0 or self._mcfg.debug:
-      face_cos = self._face_wall_cos()
-    else:
-      face_cos = torch.zeros_like(force_z)
+    # Always computed (cheap, a few quat rotates) so HUD/debug readers see a
+    # live value even when the alignment gate is disabled.
+    face_cos = self._face_wall_cos()
+    self.face_cos = face_cos
 
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
       engage_condition &= (
@@ -392,6 +581,22 @@ class MicrospineAffordance(CommandTerm):
     disengage_transition = disengage_count >= max(
       1, self._mcfg.disengage_consecutive_steps
     )
+
+    # Constraint mode: the limit surface owns forced release. It runs on the
+    # pre-transition latch state, so a spine engaged this very step is never
+    # judged on stale loads.
+    if self._constraint_mode and self._ls_cfg.enable:
+      self.forced_release_this_step = self._limit_surface_release()
+      disengage_transition = disengage_transition | self.forced_release_this_step
+      if self._mcfg.debug and bool(self.forced_release_this_step[0].any()):
+        load = self.anchor_load_tnl[0].tolist()
+        print(
+          "[Microspine] LIMIT-SURFACE RELEASE env0 "
+          f"released={self.forced_release_this_step[0].tolist()} "
+          f"load_tnl={[[round(v, 1) for v in ee] for ee in load]}"
+        )
+    else:
+      self.forced_release_this_step = torch.zeros_like(self._engaged)
 
     new_engaged = torch.where(
       engage_transition,
@@ -444,4 +649,20 @@ class MicrospineAffordance(CommandTerm):
     # disengage counts are irrelevant. Keep only the counter that can matter next.
     self._engage_count = torch.where(
       self._engaged, torch.zeros_like(self._engage_count), self._engage_count
+    )
+
+    # Engage age drives the limit-surface grace window. Resets to 0 on the
+    # engage step (covers initial_on latches too, which never see a
+    # transition: they start counting from the reset value of 0).
+    self._steps_since_engage = torch.where(
+      self._engaged,
+      torch.where(
+        engage_transition,
+        torch.zeros_like(self._steps_since_engage),
+        self._steps_since_engage + 1,
+      ),
+      torch.zeros_like(self._steps_since_engage),
+    )
+    self._violation_count = torch.where(
+      self._engaged, self._violation_count, torch.zeros_like(self._violation_count)
     )

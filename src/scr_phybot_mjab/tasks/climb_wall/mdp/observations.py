@@ -216,3 +216,49 @@ def ee_disengage_time_obs(
 
   denom = max(float(clip), 1.0e-6)
   return physics.current_disengage_time.clamp(max=denom) / denom
+
+
+# ---------------------------------------------------------------------------
+# Privileged microspine state (critic-only).
+#
+# These read the limit-surface diagnostics that MicrospineAffordance maintains
+# in constraint mode. They are sim-only quantities (a real robot cannot sense
+# its hold margin), so they belong in the critic group, never the actor. In
+# legacy adhesion mode the buffers stay at their defaults (margin 1, load 0,
+# release False), which keeps the same MDP pipeline valid for both modes.
+# ---------------------------------------------------------------------------
+
+
+def microspine_hold_margin(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+) -> torch.Tensor:
+  """Per-EE normalized distance to the hold envelope, shape (E, H).
+
+  1 = unloaded, 0 = on the envelope boundary, < 0 = violating (about to
+  release once debounced).
+  """
+  affordance = env.command_manager.get_term(command_name)
+  return affordance.hold_margin
+
+
+def microspine_anchor_load(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+) -> torch.Tensor:
+  """Per-EE anchor load in the engage frame (f_t, f_l, f_n), shape (E, 3H).
+
+  Raw Newtons — pair with ``scale=0.01`` in the term cfg to keep the
+  normalized magnitude O(1).
+  """
+  affordance = env.command_manager.get_term(command_name)
+  return affordance.anchor_load_tnl.flatten(1)
+
+
+def microspine_forced_release(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+) -> torch.Tensor:
+  """Per-EE limit-surface release flag this step, shape (E, H) in {0, 1}."""
+  affordance = env.command_manager.get_term(command_name)
+  return affordance.forced_release_this_step.float()
