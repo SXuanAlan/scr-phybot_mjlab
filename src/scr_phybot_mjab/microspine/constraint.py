@@ -1,9 +1,7 @@
 """Microspine constraint physics: runtime-toggled equality anchors.
 
-This is the ``attachment_mode == "constraint"`` executor. Instead of pulling
-the spine spheres into the wall with a large external force (legacy
-``MicrospinePhysics``), each end-effector owns one pre-declared *inactive*
-connect equality ("virtual anchor"). On an engage transition the executor
+Each end-effector owns one pre-declared *inactive* connect equality ("virtual
+anchor"). On an engage transition the executor
 writes the current pad-center world position into ``eq_data[..., 3:6]`` and
 flips ``eq_active`` on; on release it flips ``eq_active`` off. The solver then
 holds the pad bilaterally at every physics substep — tangential lock and
@@ -54,7 +52,7 @@ if TYPE_CHECKING:
   from mjlab.managers.event_manager import EventTermCfg
 
 from scr_phybot_mjab.microspine.config import MicrospineCfg
-from scr_phybot_mjab.microspine.physics import _sphere_names
+from scr_phybot_mjab.microspine.contact import sphere_names
 
 _EFC_EQUALITY = int(ConstraintType.EQUALITY)
 
@@ -118,7 +116,7 @@ def add_attachment_equalities(
   for ee in cfg.ee_body_names:
     sphere_bodies = [
       f"{robot_prefix}/{name}"
-      for name in _sphere_names(
+      for name in sphere_names(
         ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols
       )
     ]
@@ -174,10 +172,9 @@ def make_constraint_event_cfg(
 class MicrospineConstraint:
   """Mirror the affordance's per-EE engage state into connect equalities.
 
-  Exposes the same duck-typed surface as ``MicrospinePhysics`` (``engaged``,
-  ``disengaged_this_step``, ``current_disengage_time``) so the existing MDP
-  terms keep working, plus anchor diagnostics for the limit-surface state
-  machine (``anchor_pos_w``, ``compute_anchor_loads``, ``anchor_error_w``).
+  Exposes engage state and timing for MDP terms, plus anchor diagnostics for
+  the limit-surface state machine (``anchor_pos_w``,
+  ``compute_anchor_loads``, ``anchor_error_w``).
   """
 
   # mjlab expands these model fields per env before the first step (the
@@ -234,16 +231,16 @@ class MicrospineConstraint:
     if self._lock_rotation:
       pad_local_rows = []
       for ee in self._mcfg.ee_body_names:
-        sphere_names = [
+        sphere_body_names = [
           f"{robot_prefix}/{name}"
-          for name in _sphere_names(
+          for name in sphere_names(
             ee,
             self._mcfg.spheres_per_ee_rows,
             self._mcfg.spheres_per_ee_cols,
           )
         ]
         ee_id = mj_model.body(f"{robot_prefix}/{ee}").id
-        for name in sphere_names:
+        for name in sphere_body_names:
           if int(mj_model.body_parentid[mj_model.body(name).id]) != ee_id:
             raise ValueError(
               f"Sphere body '{name}' is not a direct child of "
@@ -254,9 +251,9 @@ class MicrospineConstraint:
           pad_local_anchor(
             self._mcfg,
             np.stack(
-              [np.asarray(mj_model.body(name).pos) for name in sphere_names]
+              [np.asarray(mj_model.body(name).pos) for name in sphere_body_names]
             ),
-            float(mj_model.geom(sphere_names[0]).size[0]),
+            float(mj_model.geom(sphere_body_names[0]).size[0]),
           )
         )
       pad_local = np.stack(pad_local_rows)
@@ -272,7 +269,7 @@ class MicrospineConstraint:
     else:
       self._wall_half_thickness = 0.0
 
-    # State buffers (same duck-typed surface as MicrospinePhysics).
+    # State buffers consumed by observations and rewards.
     self.engaged = torch.zeros(
       self._num_envs, self._num_ee, dtype=torch.bool, device=self._device
     )
@@ -312,7 +309,7 @@ class MicrospineConstraint:
     self._checked_expansion = False
 
   # ---------------------------------------------------------------------
-  # Affordance input (same contract as MicrospinePhysics).
+  # Affordance input.
   # ---------------------------------------------------------------------
 
   def _get_engage_command(self, env: ManagerBasedRlEnv) -> torch.Tensor:

@@ -1,4 +1,4 @@
-"""Environment-side affordance model for microspine adhesion."""
+"""Environment-side affordance model for microspine grip."""
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -27,18 +27,16 @@ def _quat_rotate(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 
 class MicrospineAffordance(CommandTerm):
-  """Stateful world affordance for per-EE microspine adhesion.
+  """Stateful world affordance for per-EE microspine grip.
 
   The affordance is intentionally outside the robot action space. It reads the
   world's contact features and owns the per-EE engage/disengage state machine.
-  The physics term only consumes the resulting on/off signal and applies
-  external sphere-body forces.
+  The constraint executor consumes the resulting on/off signal and toggles the
+  per-EE equality anchors.
 
-  Force sign convention used here:
-  - ``force_z > 0`` means the wall pushes the spine in world +z.
-  - ``force_z < 0`` means the wall pushes the spine in world -z.
-  Engage requires enough +z support; an already-engaged spine only releases on
-  enough -z force, so losing the engage condition alone does not drop the latch.
+  Engagement requires sphere compression and optional face alignment. Once
+  latched, release is governed exclusively by the anisotropic load limit
+  surface; losing contact alone does not silently drop the anchor.
   """
 
   cfg: MicrospineAffordanceCfg
@@ -47,9 +45,8 @@ class MicrospineAffordance(CommandTerm):
     super().__init__(cfg, env)
     self._mcfg = cfg.microspine_cfg
     self._num_ee = len(self._mcfg.ee_body_names)
-    # This is the latched affordance state consumed by MicrospinePhysics. It is
-    # intentionally separate from robot actions, so policy outputs cannot command
-    # adhesion directly.
+    # This latched state is consumed by MicrospineConstraint. It is separate
+    # from robot actions, so policy outputs cannot command grip directly.
     self._engaged = torch.full(
       (self.num_envs, self._num_ee),
       bool(self._mcfg.initial_on),
@@ -59,9 +56,6 @@ class MicrospineAffordance(CommandTerm):
     # Consecutive-step counters implement hysteresis/debouncing for noisy contact
     # signals. Cooldown prevents immediate re-engage after a forced release.
     self._engage_count = torch.zeros(
-      self.num_envs, self._num_ee, dtype=torch.long, device=self.device
-    )
-    self._disengage_count = torch.zeros(
       self.num_envs, self._num_ee, dtype=torch.long, device=self.device
     )
     self._cooldown_steps = torch.zeros(
@@ -82,13 +76,12 @@ class MicrospineAffordance(CommandTerm):
     face_norm = torch.linalg.norm(face_axis).clamp_min(1.0e-6)
     self._face_local_axis = face_axis / face_norm
 
-    # --- limit-surface state (constraint attachment mode) ---------------
+    # --- limit-surface state ---------------------------------------------
     # The hold envelope releases an engaged spine when its anchor load leaves
     # the configured cone. Parameters are per-env tensors resampled from cfg
     # ranges at reset — built-in domain randomization, calibratable against
     # bench pull-off tests.
     self._ls_cfg = self._mcfg.limit_surface
-    self._constraint_mode = self._mcfg.attachment_mode == "constraint"
     self._executor = None
     self._gravity_view: torch.Tensor | None = None
     shape = (self.num_envs, self._num_ee)
@@ -175,7 +168,6 @@ class MicrospineAffordance(CommandTerm):
     # the command so old contact history cannot leak into the new episode.
     self._engaged[env_ids] = bool(self._mcfg.initial_on)
     self._engage_count[env_ids] = 0
-    self._disengage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
@@ -188,9 +180,7 @@ class MicrospineAffordance(CommandTerm):
   def _wall_inward_normal(self) -> torch.Tensor:
     wall = self._env.scene[self._mcfg.wall_entity_name]
     wquat = wall.data.root_link_quat_w
-    # Same convention as MicrospinePhysics: wall local +x is the inward normal.
-    # Keeping this calculation identical makes the sensing gate and applied
-    # adhesion force agree when the wall pose changes.
+    # Wall local +x is the inward normal.
     ww, wx, wy, wz = wquat[:, 0], wquat[:, 1], wquat[:, 2], wquat[:, 3]
     inward_x = 1.0 - 2.0 * (wy * wy + wz * wz)
     inward_y = 2.0 * (wx * wy + ww * wz)
@@ -347,8 +337,6 @@ class MicrospineAffordance(CommandTerm):
     self,
     found: torch.Tensor,
     force: torch.Tensor,
-    normal: torch.Tensor,
-    tangent: torch.Tensor,
   ) -> None:
     spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
     expected_spheres = self._num_ee * spheres_per_ee
@@ -366,117 +354,40 @@ class MicrospineAffordance(CommandTerm):
         f"{tuple(force.shape)} does not match expected "
         f"({self.num_envs}, {expected_spheres}, 3)."
       )
-    if normal.shape != (self.num_envs, expected_spheres, 3):
-      raise ValueError(
-        f"Contact sensor '{self.cfg.contact_sensor_name}' normal shape "
-        f"{tuple(normal.shape)} does not match expected "
-        f"({self.num_envs}, {expected_spheres}, 3)."
-      )
-    if tangent.shape != (self.num_envs, expected_spheres, 3):
-      raise ValueError(
-        f"Contact sensor '{self.cfg.contact_sensor_name}' tangent shape "
-        f"{tuple(tangent.shape)} does not match expected "
-        f"({self.num_envs}, {expected_spheres}, 3)."
-      )
-
-  def _contact_force_features(
-    self,
-    force: torch.Tensor,
-    normal: torch.Tensor,
-    tangent: torch.Tensor,
-  ) -> tuple[torch.Tensor, torch.Tensor]:
-    normal_unit = normal / torch.linalg.norm(
-      normal, dim=-1, keepdim=True
-    ).clamp_min(1.0e-6)
-    tangent_unit = tangent / torch.linalg.norm(
-      tangent, dim=-1, keepdim=True
-    ).clamp_min(1.0e-6)
-    tangent2_unit = torch.cross(normal_unit, tangent_unit, dim=-1)
-
-    # MuJoCo Warp CONTACT sensor stores force as
-    # [normal, tangent, second_tangent] in the primary->secondary contact frame.
-    # Therefore force[..., 2] is not world z. Reconstruct the contact basis in
-    # world coordinates and project the full contact-frame force onto world z.
-    normal_force = force[..., 0]
-    primary_on_secondary_force_z = (
-      force[..., 0] * normal_unit[..., 2]
-      + force[..., 1] * tangent_unit[..., 2]
-      + force[..., 2] * tangent2_unit[..., 2]
-    )
-    return normal_force, primary_on_secondary_force_z
-
   def _sensor_contact_features(
     self,
-  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+  ) -> tuple[torch.Tensor, torch.Tensor]:
     sensor = self._env.scene[self.cfg.contact_sensor_name]
     data = sensor.data
-    if (
-      data.found is None
-      or data.force is None
-      or data.normal is None
-      or data.tangent is None
-    ):
+    if data.found is None or data.force is None:
       raise ValueError(
         f"Contact sensor '{self.cfg.contact_sensor_name}' must provide "
-        "'found', 'force', 'normal', and 'tangent' fields."
+        "'found' and 'force' fields."
       )
 
     found = data.found
-    instant_force = data.force
-    engage_force = instant_force
+    engage_force = data.force
     if data.force_history is not None:
-      # Average the force history for engage so a single supporting impulse does
-      # not latch the spine. Disengage uses the instantaneous force below; using
-      # the same history average there can hide a real pull-off load behind older
-      # +z support frames.
+      # Average force history so one compression impulse cannot latch a spine.
       engage_force = data.force_history.mean(dim=2)
-    normal = data.normal
-    tangent = data.tangent
 
-    self._validate_sensor_shapes(found, engage_force, normal, tangent)
+    self._validate_sensor_shapes(found, engage_force)
 
     found_mask = found > 0
-    normal_force, primary_on_secondary_force_z = self._contact_force_features(
-      engage_force, normal, tangent
-    )
-    normal_force = normal_force.clamp(min=0.0)
+    # CONTACT sensor force is expressed as [normal, tangent1, tangent2].
+    normal_force = engage_force[..., 0].clamp(min=0.0)
     normal_force = torch.where(
       found_mask, normal_force, torch.zeros_like(normal_force)
     )
 
-    # Primary is the robot sphere and secondary is the wall. The sensor reports
-    # robot-on-wall force, so negate to get the wall-on-robot support force.
-    # This makes +z mean the wall supports/pushes the spine upward.
-    force_z_raw = -primary_on_secondary_force_z
-    force_z_per_sphere = torch.where(
-      found_mask,
-      force_z_raw,
-      torch.zeros_like(force_z_raw),
-    )
-    _, instant_primary_on_secondary_force_z = self._contact_force_features(
-      instant_force, normal, tangent
-    )
-    instant_force_z_per_sphere = torch.where(
-      found_mask,
-      -instant_primary_on_secondary_force_z,
-      torch.zeros_like(instant_primary_on_secondary_force_z),
-    )
-    force_z = torch.zeros(self.num_envs, self._num_ee, device=self.device)
-    instant_force_z = torch.zeros_like(force_z)
     found_count = torch.zeros(self.num_envs, self._num_ee, device=self.device)
     spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
     for h in range(self._num_ee):
       s_start = h * spheres_per_ee
       s_end = s_start + spheres_per_ee
-      # Aggregate z support over all spheres on the same end-effector. The state
-      # machine works per EE, not per individual sphere.
-      force_z[:, h] = force_z_per_sphere[:, s_start:s_end].sum(dim=1)
-      instant_force_z[:, h] = instant_force_z_per_sphere[
-        :, s_start:s_end
-      ].sum(dim=1)
       found_count[:, h] = found_mask[:, s_start:s_end].sum(dim=1)
 
-    return normal_force, force_z, instant_force_z, found_count
+    return normal_force, found_count
 
   def _log_transition_sensor_data(
     self,
@@ -484,12 +395,9 @@ class MicrospineAffordance(CommandTerm):
     new_engaged: torch.Tensor,
     engage_condition: torch.Tensor,
     normal_forces: torch.Tensor,
-    force_z: torch.Tensor,
-    instant_force_z: torch.Tensor,
     found_count: torch.Tensor,
     face_cos: torch.Tensor,
     engage_count: torch.Tensor,
-    disengage_count: torch.Tensor,
   ) -> None:
     if not self._mcfg.debug:
       return
@@ -519,26 +427,18 @@ class MicrospineAffordance(CommandTerm):
         f"found={int(found_count[0, ee_index].item())}/{spheres_per_ee} "
         f"normal_above={int(normal_above)}/{spheres_per_ee} "
         f"normal_max={normal_max:.3f}N normal_mean={normal_mean:.3f}N "
-        f"wall_on_spine_z={force_z[0, ee_index].item():.3f}N "
-        f"instant_wall_on_spine_z={instant_force_z[0, ee_index].item():.3f}N "
         f"face_cos={face_cos[0, ee_index].item():.3f} "
         f"engage_count={int(engage_count[0, ee_index].item())} "
-        f"disengage_count={int(disengage_count[0, ee_index].item())} "
         f"cooldown={int(self._cooldown_steps[0, ee_index].item())}"
       )
 
   def _update_command(self) -> None:
-    normal_forces, force_z, instant_force_z, found_count = (
-      self._sensor_contact_features()
-    )
+    normal_forces, found_count = self._sensor_contact_features()
     self.contact_count = found_count
 
-    # Engage from OFF requires all enabled gates: upward wall-on-spine force,
-    # optional compression on the sphere grid, and optional face alignment.
-    engage_condition = torch.ones_like(self._engaged)
-    if self._mcfg.engage_force_z_threshold > 0.0:
-      engage_condition &= force_z > self._mcfg.engage_force_z_threshold
-    engage_condition &= self._normal_force_condition(normal_forces)
+    # Engage from OFF requires compression on the sphere grid and optional
+    # face alignment.
+    engage_condition = self._normal_force_condition(normal_forces)
 
     # Always computed (cheap, a few quat rotates) so HUD/debug readers see a
     # live value even when the alignment gate is disabled.
@@ -564,30 +464,10 @@ class MicrospineAffordance(CommandTerm):
       1, self._mcfg.engage_consecutive_steps
     )
 
-    # Once latched, release only when the wall pushes the EE downward strongly
-    # enough. Losing the +z engage condition alone does not disengage.
-    disengage_candidate = torch.zeros_like(self._engaged)
-    if self._mcfg.disengage_force_z_threshold > 0.0:
-      disengage_candidate |= self._engaged & (
-        instant_force_z < -self._mcfg.disengage_force_z_threshold
-      )
-    # Disengage also uses consecutive steps, so a transient downward impulse does
-    # not immediately release the spine unless configured to one step.
-    disengage_count = torch.where(
-      disengage_candidate,
-      self._disengage_count + 1,
-      torch.zeros_like(self._disengage_count),
-    )
-    disengage_transition = disengage_count >= max(
-      1, self._mcfg.disengage_consecutive_steps
-    )
-
-    # Constraint mode: the limit surface owns forced release. It runs on the
-    # pre-transition latch state, so a spine engaged this very step is never
-    # judged on stale loads.
-    if self._constraint_mode and self._ls_cfg.enable:
+    # The limit surface owns release. It runs on the pre-transition latch state,
+    # so a spine engaged this very step is never judged on stale loads.
+    if self._ls_cfg.enable:
       self.forced_release_this_step = self._limit_surface_release()
-      disengage_transition = disengage_transition | self.forced_release_this_step
       if self._mcfg.debug and bool(self.forced_release_this_step[0].any()):
         load = self.anchor_load_tnl[0].tolist()
         print(
@@ -597,6 +477,7 @@ class MicrospineAffordance(CommandTerm):
         )
     else:
       self.forced_release_this_step = torch.zeros_like(self._engaged)
+    disengage_transition = self.forced_release_this_step
 
     new_engaged = torch.where(
       engage_transition,
@@ -612,26 +493,16 @@ class MicrospineAffordance(CommandTerm):
       new_engaged,
       engage_condition,
       normal_forces,
-      force_z,
-      instant_force_z,
       found_count,
       face_cos,
       engage_count,
-      disengage_count,
     )
 
     self._engaged[:] = new_engaged
     self._engage_count = engage_count
-    self._disengage_count = disengage_count
-    # After a transition, clear that transition's counter. Without this, an old
-    # satisfied counter could immediately retrigger after the latch changes.
+    # After an engage transition, clear its counter.
     self._engage_count = torch.where(
       engage_transition, torch.zeros_like(self._engage_count), self._engage_count
-    )
-    self._disengage_count = torch.where(
-      disengage_transition,
-      torch.zeros_like(self._disengage_count),
-      self._disengage_count,
     )
 
     self._cooldown_steps = (self._cooldown_steps - 1).clamp(min=0)
@@ -645,8 +516,7 @@ class MicrospineAffordance(CommandTerm):
         self._cooldown_steps,
       )
 
-    # Once engaged, stale engage counts are irrelevant; once disengaged, stale
-    # disengage counts are irrelevant. Keep only the counter that can matter next.
+    # Once engaged, stale engage counts are irrelevant.
     self._engage_count = torch.where(
       self._engaged, torch.zeros_like(self._engage_count), self._engage_count
     )

@@ -82,18 +82,14 @@ class MicrospineLimitSurfaceCfg:
 
 @dataclasses.dataclass(kw_only=True)
 class MicrospineCfg:
-  """Configuration for microspine wall contact and external adhesion forces.
+  """Configuration for constraint-based microspine wall contact.
 
-  This config owns the physical layout: end-effector names, contact-sphere
-  grid, wall contact pairs, external adhesion force strength, and affordance
-  engage/disengage thresholds.
+  This config owns the physical layout, ordinary sphere-wall contact pairs,
+  equality anchors, limit surface, and affordance engage/release thresholds.
   """
 
   ee_body_names: tuple[str, ...]
   """End-effector body names that have microspine contact surfaces."""
-
-  adhesion_force: float
-  """Per-EE adhesion force [N], split evenly across that EE's spheres."""
 
   spheres_per_ee_rows: int
   """Rows in the per-EE contact-sphere grid."""
@@ -101,47 +97,44 @@ class MicrospineCfg:
   spheres_per_ee_cols: int
   """Columns in the per-EE contact-sphere grid."""
 
-  ctrl_value: float = 1.0
-  """External adhesion force scale [0, 1]."""
-
   affordance_name: str | None = None
   """Command-manager term name that provides the per-EE engage state."""
 
   wall_geom_name: str = "wall/wall_geom"
   """Scoped wall geom name used by generated sphere-wall contact pairs."""
 
-  wall_pair_friction: tuple[float, float, float, float, float] = (
-    30.0,
-    30.0,
-    1.0,
-    1.0,
-    1.0,
+  contact_friction: tuple[float, float, float, float, float] = (
+    0.8,
+    0.8,
+    0.005,
+    1.0e-4,
+    1.0e-4,
   )
-  """MuJoCo pair friction for microspine sphere-to-wall contacts."""
+  """Ordinary sphere-wall contact friction; grip comes from the anchor."""
 
-  wall_pair_solref: tuple[float, float] = (0.02, 5.0)
-  """MuJoCo pair solref for microspine sphere-to-wall contacts."""
+  contact_condim: int = 3
+  """Sphere-wall contact dimension (normal plus two sliding directions)."""
 
-  wall_pair_solimp: tuple[float, float, float, float, float] = (
+  contact_solref: tuple[float, float] = (0.02, 1.0)
+  """MuJoCo solref for ordinary microspine sphere-wall contacts."""
+
+  contact_solimp: tuple[float, float, float, float, float] = (
     0.9,
     0.99,
     0.001,
     0.5,
     2.0,
   )
-  """MuJoCo pair solimp for microspine sphere-to-wall contacts."""
+  """MuJoCo solimp for ordinary microspine sphere-wall contacts."""
 
-  wall_pair_margin: float = 0.01
+  contact_margin: float = 0.01
   """MuJoCo pair margin for microspine sphere-to-wall contacts."""
 
-  wall_pair_gap: float = 0.01
+  contact_gap: float = 0.01
   """MuJoCo pair gap for microspine sphere-to-wall contacts."""
 
   debug: bool = False
   """Print engage-state diagnostics. This causes CPU-GPU sync and is slow."""
-
-  engage_force_z_threshold: float = 10
-  """Minimum summed wall-on-EE world-z force [N] required to engage. 0 disables."""
 
   engage_normal_force_threshold: float = 3.0
   """Minimum per-sphere normal compression [N] used by the engage condition."""
@@ -158,12 +151,6 @@ class MicrospineCfg:
   engage_consecutive_steps: int = 5
   """Number of consecutive engage-condition steps required before enabling."""
 
-  disengage_force_z_threshold: float = 3.0
-  """Release when summed wall-on-EE world-z force is below -threshold. 0 disables."""
-
-  disengage_consecutive_steps: int = 3
-  """Number of consecutive disengage-candidate steps required before release."""
-
   reengage_cooldown_steps: int = 30
   """Steps after release during which re-engagement is blocked."""
 
@@ -175,11 +162,6 @@ class MicrospineCfg:
 
   initial_on: bool = True
   """Initial per-EE engaged state after reset."""
-
-  attachment_mode: str = "adhesion"
-  """Physical grip mechanism: "adhesion" (legacy: external wall-normal force +
-  high-friction contacts) or "constraint" (per-EE connect equality "virtual
-  anchor" toggled at runtime; anisotropy expressed by the limit surface)."""
 
   anchor_solref: tuple[float, float] = (0.01, 1.0)
   """Connect-equality solref. timeconst = 5 * dt keeps implicitfast stable."""
@@ -232,23 +214,6 @@ class MicrospineCfg:
   policy could in principle ratchet by cyclic re-engagement, but the gain is
   ~mm per engage cycle."""
 
-  physical_pair_friction: tuple[float, float, float, float, float] = (
-    0.8,
-    0.8,
-    0.005,
-    1.0e-4,
-    1.0e-4,
-  )
-  """Sphere-wall pair friction in constraint mode. Tangential grip is the
-  anchor's job; contacts only handle compression and pre-engage sliding."""
-
-  physical_pair_condim: int = 3
-  """Sphere-wall pair condim in constraint mode (saves 16x3 efc rows vs 6)."""
-
-  physical_pair_solref: tuple[float, float] = (0.02, 1.0)
-  """Sphere-wall pair solref in constraint mode (drops the dampratio=5
-  anti-jitter patch needed by the high-friction legacy contacts)."""
-
   limit_surface: MicrospineLimitSurfaceCfg = dataclasses.field(
     default_factory=MicrospineLimitSurfaceCfg
   )
@@ -262,9 +227,8 @@ class MicrospineAffordanceCfg:
   microspine_cfg: MicrospineCfg
   asset_name: str = "robot"
   contact_sensor_name: str
-  physics_event_name: str = "microspine_adhesion"
-  """Event-term name of the physics executor. In constraint mode the
-  affordance reads per-EE anchor loads from it for the limit surface."""
+  physics_event_name: str = "microspine_grip"
+  """Event-term name of the constraint executor that exposes anchor loads."""
   resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
   debug_vis: bool = False
 

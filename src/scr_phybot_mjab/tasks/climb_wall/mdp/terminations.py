@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 def both_hands_unlatched(
   env: ManagerBasedRlEnv,
-  event_term_name: str = "microspine_adhesion",
+  event_term_name: str = "microspine_grip",
 ) -> torch.Tensor:
   """Terminate when neither hand is engaged (airborne).
 

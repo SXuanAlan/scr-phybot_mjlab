@@ -58,7 +58,7 @@ class PadTeleop:
         self.Dtask_hover = Dtask_hover
         self.hover_dist = hover_dist
         self._hover: np.ndarray | None = None
-        cfg = rizon4_microspine_env_cfg(play=False, attachment_mode="constraint")
+        cfg = rizon4_microspine_env_cfg(play=False)
         # Free the null-space (no IK posture pull) and disable the arm's position
         # servo so it does not fight the injected torque. The builtin position
         # actuator divides effort_limit/stiffness at build, so stiffness cannot be
@@ -80,7 +80,7 @@ class PadTeleop:
             "f_t_max_range", "f_rev_max_range", "mu_adhesion_range",
             "f_n0_range", "mu_lateral_range", "f_l0_range",
         )
-        for owner in (m, cfg.events["microspine_adhesion"].params["microspine_cfg"]):
+        for owner in (m, cfg.events["microspine_grip"].params["microspine_cfg"]):
             owner.limit_surface.f_n0_range = d.f_n0_range
             owner.limit_surface.f_l0_range = d.f_l0_range
             for attr in _range_attrs:
@@ -90,7 +90,7 @@ class PadTeleop:
         cfg.episode_length_s = 1.0e9
         self.env = ManagerBasedRlEnv(cfg=cfg, device=device)
         self.affordance = self.env.command_manager._terms["microspine_affordance"]
-        self.executor = self.env.event_manager.get_term_cfg("microspine_adhesion").func
+        self.executor = self.env.event_manager.get_term_cfg("microspine_grip").func
         self.robot = self.env.scene["robot"]
         self.wall = self.env.scene["wall"]
         self._pid = self.robot.find_bodies(["microspine_pad"])[0]

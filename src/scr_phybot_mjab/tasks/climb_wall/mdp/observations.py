@@ -183,7 +183,7 @@ def velocity_command(
 
 def hand_engaged_state(
   env: ManagerBasedRlEnv,
-  event_term_name: str = "microspine_adhesion",
+  event_term_name: str = "microspine_grip",
 ) -> torch.Tensor:
   """Per-hand microspine latch state. Shape (E, 2) float in {0, 1}.
 
@@ -200,12 +200,12 @@ def hand_engaged_state(
 
 def ee_disengage_time_obs(
   env: ManagerBasedRlEnv,
-  event_term_name: str = "microspine_adhesion",
+  event_term_name: str = "microspine_grip",
   clip: float = 0.5,
 ) -> torch.Tensor:
   """Normalized per-EE continuous disengage time, shape ``(E, H)``.
 
-  The timer is maintained by ``MicrospinePhysics`` and reset to 0 while an
+  The timer is maintained by ``MicrospineConstraint`` and reset to 0 while an
   EE is engaged. Clipping keeps the observation bounded and matches the
   max-time gate used by the capped disengage-time gait reward.
   """
@@ -222,10 +222,8 @@ def ee_disengage_time_obs(
 # Privileged microspine state (critic-only).
 #
 # These read the limit-surface diagnostics that MicrospineAffordance maintains
-# in constraint mode. They are sim-only quantities (a real robot cannot sense
-# its hold margin), so they belong in the critic group, never the actor. In
-# legacy adhesion mode the buffers stay at their defaults (margin 1, load 0,
-# release False), which keeps the same MDP pipeline valid for both modes.
+# They are sim-only quantities (a real robot cannot sense its hold margin), so
+# they belong in the critic group, never the actor.
 # ---------------------------------------------------------------------------
 
 

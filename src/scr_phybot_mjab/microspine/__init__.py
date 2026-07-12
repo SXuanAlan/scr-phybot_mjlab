@@ -1,1 +1,1 @@
-"""Microspine adhesion package."""
+"""Constraint-based microspine grip package."""

@@ -6,9 +6,9 @@ Warp GPU simulation.
 The main task is `Mjlab-Climb-Wall-Phybot-C2`: a 23-DOF humanoid climbs a
 vertical wall with four fixed microspine end-effectors
 (`left/right_hand_spine`, `left/right_foot_spine`). Each spine has a 2x2 sphere
-contact grid. Microspine adhesion is applied as external force on the sphere
-bodies along the wall inward normal; engage/disengage is driven by contact
-sensor force semantics.
+contact grid. Ordinary sphere-wall contacts use moderate physical friction;
+runtime equality anchors provide grip, and the anisotropic limit surface owns
+release behavior.
 
 ## Registered Tasks
 
@@ -319,7 +319,8 @@ src/scr_phybot_mjab/
   microspine/
     config.py           # Microspine config and affordance command cfg.
     affordance.py       # Contact-sensor engage/disengage state machine.
-    physics.py          # External sphere-body adhesion forces.
+    contact.py          # Contact-grid names and ordinary wall contact pairs.
+    constraint.py       # Runtime equality anchors and load readout.
   tasks/
     climb_wall/         # C2 wall-climbing task.
     microspine_rizon4/  # Rizon4 Cartesian-control microspine test task.

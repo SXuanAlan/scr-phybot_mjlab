@@ -162,7 +162,7 @@ def _hand_body_ids(
 def hand_grip_time_min_climb():
   """Factory: stateful reward tracking per-hand swing/grip time.
 
-  Per-hand timers update every step based on the ``microspine_adhesion``
+  Per-hand timers update every step based on the ``microspine_grip``
   latch flag:
 
       t_mode[h] = e[h] * t_grip[h] + (1 - e[h]) * t_swing[h]
@@ -186,7 +186,7 @@ def hand_grip_time_min_climb():
   def call(
     env: ManagerBasedRlEnv,
     *,
-    event_term_name: str = "microspine_adhesion",
+    event_term_name: str = "microspine_grip",
     tau: float = 0.5,
     vz_cmd: float = 0.08,
     cmd_eps: float = 0.0,
@@ -234,7 +234,7 @@ def hand_grip_time_min_climb():
 def ee_capped_disengage_time(
   env: ManagerBasedRlEnv,
   *,
-  event_term_name: str = "microspine_adhesion",
+  event_term_name: str = "microspine_grip",
   command_name: str | None = None,
   vz_cmd: float = 0.08,
   command_threshold: float = 0.01,
@@ -274,7 +274,7 @@ def ee_capped_disengage_time(
 def hand_slide_penalty(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
-  event_term_name: str = "microspine_adhesion",
+  event_term_name: str = "microspine_grip",
   hand_body_names: tuple[str, ...] = ("left_hand", "right_hand"),
 ) -> torch.Tensor:
   """Penalise tangential wall-plane velocity of ENGAGED hands.
@@ -556,7 +556,7 @@ def ee_air_time():
     threshold: float = 0.3,
     vz_cmd: float = 0.08,
     cmd_eps: float = 0.0,
-    event_term_name: str = "microspine_adhesion",
+    event_term_name: str = "microspine_grip",
   ) -> torch.Tensor:
     term_cfg = env.event_manager.get_term_cfg(event_term_name)
     engaged: torch.Tensor = term_cfg.func.engaged  # (E, H) bool
@@ -685,7 +685,7 @@ def microspine_forced_release_penalty(
 
   Penalizing forced releases teaches the policy to keep anchor loads inside
   the hold envelope (lean into shear, avoid pull-off/lateral peeling) instead
-  of treating grip as unconditional. Always 0 in legacy adhesion mode.
+  of treating grip as unconditional.
   """
   affordance = env.command_manager.get_term(command_name)
   return affordance.forced_release_this_step.float().sum(dim=1)

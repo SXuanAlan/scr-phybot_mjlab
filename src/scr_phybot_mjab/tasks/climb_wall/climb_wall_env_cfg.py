@@ -45,7 +45,10 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         "gait_clock": ObservationTermCfg(func=mdp.gait_clock),
         # Per-hand latch state (left, right). Lets the policy coordinate
         # motion with grip transitions.
-        "hand_engaged_state": ObservationTermCfg(func=mdp.hand_engaged_state),
+        "hand_engaged_state": ObservationTermCfg(
+          func=mdp.hand_engaged_state,
+          params={"event_term_name": "microspine_grip"},
+        ),
         # Robot z above spawn — critic needs this to value climbing.
         "height_above_spawn": ObservationTermCfg(func=mdp.height_above_spawn),
         # Commanded world-frame velocity (vx, vy, vz). The command manager

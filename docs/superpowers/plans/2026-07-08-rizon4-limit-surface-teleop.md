@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Reuse the microspine core unchanged: read `affordance.anchor_load_tnl`, `affordance.hold_margin`, `affordance.forced_release_this_step`; do NOT edit `src/scr_phybot_mjab/microspine/*`.
-- Env config for the tool (verbatim, proven in the sweep): `attachment_mode="constraint"` (weld); joint actuator `stiffness=50.0`, `damping=14.0`; IK `posture_weight=0.0`; restore `MicrospineLimitSurfaceCfg` defaults (do NOT keep the bench's `f_n0=200`/`f_l0=200`).
+- Env config for the tool (verbatim, proven in the sweep): constraint-only weld; joint actuator `stiffness=50.0`, `damping=14.0`; IK `posture_weight=0.0`; restore `MicrospineLimitSurfaceCfg` defaults (do NOT keep the bench's `f_n0=200`/`f_l0=200`).
 - Engage frame convention: `t̂` = down-wall shear, `l̂` = lateral, `n̂` = outward normal (pull-off +). Load vector order is `(f_t, f_l, f_n)`.
 - Rizon4 constants: EE body `"microspine_pad"`, TCP site `"microspine_tcp"`, action is a 7D absolute TCP pose `[x,y,z,qw,qx,qy,qz]`.
 - `num_envs = 1` (one bench arm/pad).
@@ -395,20 +395,20 @@ class PadTeleop:
     def __init__(self, device: str = "cuda:0", leash: float = 0.02):
         self.device = device
         self.leash = leash
-        cfg = rizon4_microspine_env_cfg(play=False, attachment_mode="constraint")
+        cfg = rizon4_microspine_env_cfg(play=False)
         cfg.actions["cartesian_pose"].posture_weight = 0.0
         for a in cfg.scene.entities["robot"].articulation.actuators:
             a.stiffness = 50.0; a.damping = 14.0
         d = MicrospineLimitSurfaceCfg()
         m = cfg.commands["microspine_affordance"].microspine_cfg
-        for owner in (m, cfg.events["microspine_adhesion"].params["microspine_cfg"]):
+        for owner in (m, cfg.events["microspine_grip"].params["microspine_cfg"]):
             owner.limit_surface.f_n0_range = d.f_n0_range
             owner.limit_surface.f_l0_range = d.f_l0_range
         cfg.scene.num_envs = 1
         cfg.episode_length_s = 1.0e9
         self.env = ManagerBasedRlEnv(cfg=cfg, device=device)
         self.affordance = self.env.command_manager._terms["microspine_affordance"]
-        self.executor = self.env.event_manager.get_term_cfg("microspine_adhesion").func
+        self.executor = self.env.event_manager.get_term_cfg("microspine_grip").func
         self.robot = self.env.scene["robot"]
         self.wall = self.env.scene["wall"]
         self._pid = self.robot.find_bodies(["microspine_pad"])[0]

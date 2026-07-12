@@ -349,6 +349,13 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # No velocity-range curriculum to ramp.
   cfg.curriculum.pop("command_vel", None)
 
+  # Wider joint randomization at reset so the stand policy learns to pull back
+  # to default from diverse poses. NOTE: reset_joints_by_offset ADDS radians
+  # (clamped to soft joint limits); the walk value (0.8, 1.2) it would inherit
+  # is a one-sided offset, so use a symmetric range covering both directions.
+  reset_joints = cfg.events["reset_robot_joints"]
+  reset_joints.params["position_range"] = (-0.8, 0.8)
+
   return cfg
 
 

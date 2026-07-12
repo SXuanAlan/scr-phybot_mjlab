@@ -3,8 +3,7 @@
 Subcommands:
   hang     16-env hang test on a vertical (90°) wall: all 4 EEs anchored,
            zero actions. Asserts the anchors hold the robot weight without
-           sag, jitter, NaNs, or efc overflow. ``--compare-legacy`` also runs
-           the legacy adhesion mode and reports stability side by side.
+           sag, jitter, NaNs, or efc overflow.
   sweep    GPU-parallel limit-surface envelope scan: each env pulls one EE in
            a different direction of the t-n / t-l planes with a per-direction
            force ramp, recording the anchor load at forced release. Checks
@@ -52,12 +51,11 @@ SWEEP_PARAMS = {
 
 def build_env(
   num_envs: int,
-  attachment_mode: str = "constraint",
   limit_surface_enable: bool = True,
   reanchor_after_grace: bool = True,
   anchor_lock_rotation: bool | None = None,
 ) -> ManagerBasedRlEnv:
-  cfg = phybot_c2_climb_wall_env_cfg(play=False, attachment_mode=attachment_mode)
+  cfg = phybot_c2_climb_wall_env_cfg(play=False)
   cfg.scene.num_envs = num_envs
   cfg.episode_length_s = 1.0e9  # No time_out resets during tests.
   cfg.curriculum = {}  # Gravity is set explicitly per test.
@@ -70,7 +68,7 @@ def build_env(
   # the equality type and the executor stay consistent.
   mcfg = cfg.commands["microspine_affordance"].microspine_cfg
   mcfg.limit_surface.enable = limit_surface_enable
-  for owner in (mcfg, cfg.events["microspine_adhesion"].params["microspine_cfg"]):
+  for owner in (mcfg, cfg.events["microspine_grip"].params["microspine_cfg"]):
     owner.reanchor_after_grace = reanchor_after_grace
     if anchor_lock_rotation is not None:
       owner.anchor_lock_rotation = anchor_lock_rotation
@@ -87,7 +85,7 @@ def set_gravity(env: ManagerBasedRlEnv, angle_deg: float, magnitude: float = 9.8
 
 
 def get_terms(env: ManagerBasedRlEnv):
-  executor = env.event_manager.get_term_cfg("microspine_adhesion").func
+  executor = env.event_manager.get_term_cfg("microspine_grip").func
   affordance = env.command_manager._terms["microspine_affordance"]
   return executor, affordance
 
@@ -115,29 +113,14 @@ def check(name: str, ok: bool, detail: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _run_hang_rollout(env: ManagerBasedRlEnv, steps: int):
-  """Roll out zero actions; return per-step root z and termination count."""
-  robot = env.scene["robot"]
-  actions = zero_actions(env)
-  root_z, terminations = [], 0
-  for _ in range(steps):
-    _, _, terminated, truncated, _ = env.step(actions)
-    terminations += int((terminated | truncated).sum().item())
-    root_z.append(robot.data.root_link_pos_w[:, 2].clone())
-  return torch.stack(root_z), terminations
-
-
 def cmd_hang(args) -> bool:
   print(f"== hang: {args.num_envs} envs, 90° wall, {args.seconds}s ==")
-  # Limit surface ON by default: the re-grip (reanchor_after_grace) re-seats
-  # each anchor at the settled pad pose one step after engaging, which must
-  # relieve the spawn-pose preload (the pose was tuned for the legacy 600 N
-  # adhesion and used to pull >100 N of phantom pull-off tension on the feet).
+  # Limit surface ON by default: re-grip re-seats each anchor at the settled
+  # pad pose and relieves spawn-pose preload before hold checks begin.
   # "all engaged" passing with hold checks active is therefore the re-grip
   # acceptance test. --no-limit-surface restores the mechanics-only variant.
   env = build_env(
     args.num_envs,
-    "constraint",
     limit_surface_enable=not args.no_limit_surface,
   )
   env.reset()
@@ -208,20 +191,6 @@ def cmd_hang(args) -> bool:
     )
   env.close()
 
-  if args.compare_legacy:
-    print("-- legacy adhesion mode (reference, report-only) --")
-    env = build_env(args.num_envs, "adhesion")
-    env.reset()
-    set_gravity(env, 90.0)
-    root_z_leg, terms_leg = _run_hang_rollout(env, steps)
-    jitter_leg = root_z_leg[half:].std(dim=0).max().item()
-    sag_leg = (root_z_leg[0].unsqueeze(0) - root_z_leg).max().item()
-    print(
-      f"  legacy: root jitter {jitter_leg * 1000:.3f} mm std, "
-      f"sag {sag_leg * 1000:.1f} mm, terminations {terms_leg}"
-    )
-    print(f"  constraint: root jitter {jitter * 1000:.3f} mm std, sag {sag * 1000:.1f} mm")
-    env.close()
   return ok
 
 
@@ -281,7 +250,7 @@ def cmd_sweep(args) -> bool:
   # (measured p50 0.012 in weld mode), but the all-rays-release criterion
   # breaks. The sweep validates the limit-surface geometry, which is anchor-
   # type independent, so pin the original pure-force connect anchor.
-  env = build_env(num_envs, "constraint", anchor_lock_rotation=args.lock_rotation)
+  env = build_env(num_envs, anchor_lock_rotation=args.lock_rotation)
   env.reset()
   set_gravity(env, 90.0, magnitude=0.0)  # Zero gravity: pure scripted pulls.
   executor, affordance = get_terms(env)
@@ -481,7 +450,7 @@ def cmd_readout(args) -> bool:
   print(f"== readout: {args.num_envs} envs, efc gather vs kinematic error ==")
   # Re-grip off: this test regresses load against anchor error, and grace-
   # window reseating decouples the two by design (the anchor follows the pad).
-  env = build_env(args.num_envs, "constraint", reanchor_after_grace=False)
+  env = build_env(args.num_envs, reanchor_after_grace=False)
   env.reset()
   set_gravity(env, 90.0)
   executor, _ = get_terms(env)
@@ -592,9 +561,7 @@ def cmd_dynamic(args) -> bool:
        are anchor-type independent; connect is the clean default.
   """
   target = args.ee_index
-  env = build_env(
-    args.num_envs, "constraint", anchor_lock_rotation=args.lock_rotation
-  )
+  env = build_env(args.num_envs, anchor_lock_rotation=args.lock_rotation)
   executor, affordance = get_terms(env)
   robot = env.scene["robot"]
   actions = zero_actions(env)
@@ -710,7 +677,6 @@ def main() -> None:
   p_hang = sub.add_parser("hang")
   p_hang.add_argument("--num-envs", type=int, default=16)
   p_hang.add_argument("--seconds", type=float, default=10.0)
-  p_hang.add_argument("--compare-legacy", action="store_true")
   p_hang.add_argument(
     "--no-limit-surface",
     action="store_true",

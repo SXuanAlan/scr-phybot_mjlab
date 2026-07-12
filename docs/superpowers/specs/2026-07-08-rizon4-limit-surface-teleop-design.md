@@ -57,7 +57,7 @@ window + controller plugged into the same machine), single process.
 
 ## Configuration (fixed inside the tool)
 
-Build the Rizon4 env with `attachment_mode="constraint"` (weld — the production
+Build the constraint-only Rizon4 env (weld — the production
 scheme), then override at runtime so all load directions are reachable and
 releases are meaningful:
 

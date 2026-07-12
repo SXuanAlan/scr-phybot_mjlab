@@ -1,10 +1,7 @@
 """Episode metrics for the wall-climbing task.
 
 Each function returns a per-env (E,) sample; the MetricsManager accumulates
-it every step and logs the episode mean as ``Episode_Metrics/<key>``. All
-three read the microspine affordance, so in legacy adhesion mode
-``forced_release_rate`` and ``hold_margin_engaged`` sit at their defaults
-(0 and 1) while ``engage_rate`` stays comparable across both A/B arms.
+it every step and logs the episode mean as ``Episode_Metrics/<key>``.
 """
 
 from __future__ import annotations

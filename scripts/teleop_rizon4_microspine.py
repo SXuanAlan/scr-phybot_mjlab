@@ -766,7 +766,7 @@ class MicrospineHud:
   Event lines print on every engage/release transition — releases name the
   envelope face that fired and the violating load. A compact status line
   prints every ``period`` seconds. Reads only the affordance/executor HUD
-  buffers; silently a no-op in legacy adhesion mode.
+  buffers from the constraint-based grip model.
   """
 
   def __init__(self, env, period: float = 0.5):
@@ -776,7 +776,7 @@ class MicrospineHud:
     self._executor = None
     try:
       aff = env.command_manager.get_term("microspine_affordance")
-      executor = env.event_manager.get_term_cfg("microspine_adhesion").func
+      executor = env.event_manager.get_term_cfg("microspine_grip").func
     except (KeyError, ValueError):
       return
     if not hasattr(aff, "release_reason") or not hasattr(
@@ -903,7 +903,7 @@ class CartesianPosePolicy:
 
   def _get_microspine_physics(self):
     try:
-      return self._env.event_manager.get_term_cfg("microspine_adhesion").func
+      return self._env.event_manager.get_term_cfg("microspine_grip").func
     except ValueError:
       return None
 
@@ -1182,7 +1182,7 @@ def run(cfg: TeleopConfig) -> None:
     # executor caches the flag in __init__.
     for owner in (
       env_cfg.commands["microspine_affordance"].microspine_cfg,
-      env_cfg.events["microspine_adhesion"].params["microspine_cfg"],
+      env_cfg.events["microspine_grip"].params["microspine_cfg"],
     ):
       owner.debug = False
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
