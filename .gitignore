@@ -14,3 +14,12 @@ nohup.out
 others/
 /deploy/
 /image.png
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+Testing/
+.superpowers/
+.codex
+/limit_surface_manual.npz

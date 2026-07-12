@@ -98,7 +98,7 @@ def main() -> None:
   parser.add_argument(
     "--output",
     type=Path,
-    default=_REPO / "src/scr_phybot_mjab/assets/amp_motions/c2_stand_zero.npy",
+    default=_REPO / "src/scr_phybot_mjab/assets/motions/c2_stand_zero.npy",
   )
   parser.add_argument("--duration-s", type=float, default=15.0)
   parser.add_argument("--fps", type=float, default=50.0)

@@ -157,7 +157,7 @@ def main() -> None:
   parser.add_argument(
     "--data-dir",
     type=Path,
-    default=_REPO / "src/scr_phybot_mjab/assets/amp_motions",
+    default=_REPO / "src/scr_phybot_mjab/assets/motions",
   )
   parser.add_argument(
     "--output-dir",

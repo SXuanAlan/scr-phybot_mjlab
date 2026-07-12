@@ -21,8 +21,13 @@ from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.utils.spec_config import CollisionCfg
 from scr_phybot_mjab.tasks.walk import mdp
-from scr_phybot_mjab.tasks.walk.mdp import PresetVelocityCommandCfg, UniformVelocityCommandCfg
+from scr_phybot_mjab.tasks.walk.mdp import (
+  AmpReferenceResetCommandCfg,
+  PresetVelocityCommandCfg,
+  UniformVelocityCommandCfg,
+)
 from scr_phybot_mjab.tasks.walk.walk_env_cfg import make_velocity_env_cfg
+from scr_phybot_mjab.tasks.walk.config.phybot_c2.amp_rl_cfg import AmpDatasetCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
@@ -320,6 +325,33 @@ def phybot_c2_walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return cfg
 
 
+def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Stand at the default pose using the walk pipeline (rewards + DR), no AMP.
+
+  Plain-PPO standing policy: hold the default standing pose and recover to it from
+  the off-nominal poses / pushes that walk's domain randomization produces. Intended
+  as the deploy "prepare / stand" policy the robot switches into after enable, before
+  handing over to walk or squat -- so those tasks receive an in-distribution standing
+  state instead of a collapsed one.
+  """
+  cfg = phybot_c2_walk_env_cfg(play=play)
+
+  # Lock the velocity command to zero: the task is purely to stand.
+  twist_cmd = cfg.commands["twist"]
+  assert isinstance(twist_cmd, UniformVelocityCommandCfg)
+  twist_cmd.heading_command = False
+  twist_cmd.ranges.heading = None
+  twist_cmd.ranges.lin_vel_x = (0.0, 0.0)
+  twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
+  twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
+  twist_cmd.rel_standing_envs = 1.0  # every env holds the zero (stand) command.
+
+  # No velocity-range curriculum to ramp.
+  cfg.curriculum.pop("command_vel", None)
+
+  return cfg
+
+
 def phybot_c2_walk_amp_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create PHYBot C2 flat-terrain velocity config with AMP style reward."""
   cfg = phybot_c2_walk_env_cfg(play=play)
@@ -448,6 +480,24 @@ def phybot_c2_walk_preset_amp_env_cfg(play: bool = False) -> ManagerBasedRlEnvCf
   # stand-with-fixed-feet behavior is reliable.
   cfg.curriculum = {}
   cfg.events.pop("push_robot", None)
+
+  # Reference State Initialization from the AMP dataset: reset into valid reference
+  # poses (standing / mid-stride / turn) sampled from the same clips the
+  # discriminator uses, replacing the random reset. AMP's reward is
+  # distribution-based, so this is a coverage aid, not a requirement.
+  _amp_ds = AmpDatasetCfg()
+  cfg.commands["amp_reset"] = AmpReferenceResetCommandCfg(
+    entity_name="robot",
+    resampling_time_range=(1.0e9, 1.0e9),  # RSI on reset only, never mid-episode.
+    amp_data_path=_amp_ds.amp_data_path,
+    datasets=_amp_ds.datasets,
+    joint_names=tuple(PHYBOT_C2_POLICY_JOINT_NAMES),
+    slow_down_factor=_amp_ds.slow_down_factor,
+    velocity_representation=_amp_ds.velocity_representation,
+    reset_height=_WALK_STANDING_KEYFRAME.pos[2],
+  )
+  cfg.events.pop("reset_base", None)
+  cfg.events.pop("reset_robot_joints", None)
 
   cfg.rewards["alive"] = RewardTermCfg(func=mdp.is_alive, weight=1.0)
   cfg.rewards["track_linear_velocity"].weight = 0.0
