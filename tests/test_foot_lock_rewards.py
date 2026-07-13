@@ -8,7 +8,12 @@ import torch
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.tasks.squat.mdp.rewards import (
+  feet_xy_anchor_huber_error,
+  feet_xy_velocity_huber_error,
   joint_action_limit_cost,
+  joint_action_pair_symmetry_huber_error,
+  joint_action_reference_tube_cost,
+  joint_pair_symmetry_huber_error,
   joint_pos_tracking_huber_error,
   track_feet_anchor,
   track_feet_stationary,
@@ -109,9 +114,18 @@ class FootRewardTest(unittest.TestCase):
     cfg = SceneEntityCfg("robot", site_ids=[0, 1])
 
     anchor = track_feet_anchor(env, "motion", 0.04, cfg)
-    self.assertAlmostEqual(float(anchor), float(torch.exp(torch.tensor(-0.125))), places=6)
+    self.assertAlmostEqual(float(anchor), 16.0 / 17.0, places=6)
     stationary = track_feet_stationary(env, "feet", 0.10, cfg)
     self.assertEqual(float(stationary), 1.0)
+
+    robot.data.site_lin_vel_w[:, 0, 0] = 0.10
+    stationary = track_feet_stationary(env, "feet", 0.10, cfg)
+    self.assertAlmostEqual(float(stationary), 0.75, places=6)
+    slip = feet_xy_velocity_huber_error(env, 0.05, cfg)
+    self.assertAlmostEqual(float(slip), 0.0375, places=6)
+    anchor_cost = feet_xy_anchor_huber_error(env, "motion", 0.02, cfg)
+    self.assertAlmostEqual(float(anchor_cost), 0.0025, places=6)
+
     sensor.data.found[:, 1] = 0
     self.assertEqual(float(track_feet_stationary(env, "feet", 0.10, cfg)), 0.0)
 
@@ -120,6 +134,7 @@ class FootRewardTest(unittest.TestCase):
       data=_ns(
         joint_pos=torch.tensor([[0.0, 0.4]]),
         joint_vel=torch.tensor([[0.0, 1.0]]),
+        encoder_bias=torch.zeros(1, 2),
       )
     )
     command = _ns(
@@ -132,6 +147,8 @@ class FootRewardTest(unittest.TestCase):
     action_term = _ns(
       target_names=["arm_a", "arm_b"],
       raw_action=torch.tensor([[1.2, 3.0]]),
+      scale=1.0,
+      offset=torch.zeros(1, 2),
     )
     env = _ns(
       command_manager=_CommandManager(command),
@@ -172,6 +189,30 @@ class FootRewardTest(unittest.TestCase):
       float(env.extras["log"]["Metrics/motion/arm_action_limit_fraction"]),
       1.0,
     )
+    reference_action_cost = joint_action_reference_tube_cost(
+      env,
+      "motion",
+      "joint_pos",
+      joints,
+      (1.0, 2.0),
+      0.5,
+      "arm",
+    )
+    self.assertAlmostEqual(float(reference_action_cost), 0.79, places=6)
+    position_symmetry = joint_pair_symmetry_huber_error(
+      env, "motion", ("arm_a",), ("arm_b",), 0.25, "arm"
+    )
+    self.assertAlmostEqual(float(position_symmetry), 0.275, places=6)
+    action_symmetry = joint_action_pair_symmetry_huber_error(
+      env,
+      "motion",
+      "joint_pos",
+      ("arm_a",),
+      ("arm_b",),
+      0.5,
+      "arm",
+    )
+    self.assertAlmostEqual(float(action_symmetry), 1.55, places=6)
 
 
 if __name__ == "__main__":

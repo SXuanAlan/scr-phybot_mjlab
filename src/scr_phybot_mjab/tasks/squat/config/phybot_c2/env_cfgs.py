@@ -186,8 +186,17 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     "arm_tracking_error",
     "track_arm_velocity",
     "arm_action_limits",
+    "arm_reference_action",
   ):
     cfg.rewards[reward_name].params["joint_names"] = _ARM_JOINT_NAMES
+  left_arm_names = _ARM_JOINT_NAMES[:4]
+  right_arm_names = _ARM_JOINT_NAMES[4:]
+  for reward_name in ("arm_position_symmetry", "arm_action_symmetry"):
+    cfg.rewards[reward_name].params["left_joint_names"] = left_arm_names
+    cfg.rewards[reward_name].params["right_joint_names"] = right_arm_names
+  cfg.rewards["arm_reference_action"].params["max_abs_deviation"] = (
+    (0.75,) * len(_ARM_JOINT_NAMES)
+  )
   cfg.rewards["arm_action_limits"].params["max_abs_actions"] = (
     _motion_action_limits(
       _SQUAT_MOTION_FILE,
@@ -195,12 +204,15 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       PHYBOT_C2_ACTION_SCALE,
     )
   )
-  cfg.rewards["track_feet_stationary"].params["asset_cfg"] = SceneEntityCfg(
-    "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
-  )
-  cfg.rewards["track_feet_anchor"].params["asset_cfg"] = SceneEntityCfg(
-    "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
-  )
+  for reward_name in (
+    "track_feet_stationary",
+    "foot_slip_error",
+    "track_feet_anchor",
+    "foot_anchor_error",
+  ):
+    cfg.rewards[reward_name].params["asset_cfg"] = SceneEntityCfg(
+      "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
+    )
   cfg.rewards["feet_distance"] = RewardTermCfg(
     func=mdp.feet_lateral_distance,
     weight=-5.0,

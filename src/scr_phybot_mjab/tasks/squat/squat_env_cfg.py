@@ -174,6 +174,7 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
         "std": 0.20,
         "joint_names": (),  # Arms, set per-robot.
         "metric_prefix": "arm",
+        "worst_joint_weight": 0.5,
       },
     ),
     "arm_tracking_error": RewardTermCfg(
@@ -183,6 +184,7 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
         "command_name": _COMMAND_NAME,
         "beta": 0.25,
         "joint_names": (),  # Arms, set per-robot.
+        "reduction": "sum",
       },
     ),
     "track_arm_velocity": RewardTermCfg(
@@ -203,6 +205,42 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
         "joint_names": (),  # Arms, set per-robot.
         "max_abs_actions": (),  # Motion-derived, set per-robot.
         "global_clip": 6.0,
+        "metric_prefix": "arm",
+        "reduction": "sum",
+      },
+    ),
+    "arm_reference_action": RewardTermCfg(
+      func=mdp.joint_action_reference_tube_cost,
+      weight=-0.5,
+      params={
+        "command_name": _COMMAND_NAME,
+        "action_name": "joint_pos",
+        "joint_names": (),  # Arms, set per-robot.
+        "max_abs_deviation": (),  # Raw-action correction room, set per-robot.
+        "beta": 0.5,
+        "metric_prefix": "arm",
+      },
+    ),
+    "arm_position_symmetry": RewardTermCfg(
+      func=mdp.joint_pair_symmetry_huber_error,
+      weight=-2.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "left_joint_names": (),  # Set per-robot.
+        "right_joint_names": (),  # Set per-robot.
+        "beta": 0.10,
+        "metric_prefix": "arm",
+      },
+    ),
+    "arm_action_symmetry": RewardTermCfg(
+      func=mdp.joint_action_pair_symmetry_huber_error,
+      weight=-0.5,
+      params={
+        "command_name": _COMMAND_NAME,
+        "action_name": "joint_pos",
+        "left_joint_names": (),  # Set per-robot.
+        "right_joint_names": (),  # Set per-robot.
+        "beta": 0.25,
         "metric_prefix": "arm",
       },
     ),
@@ -233,19 +271,36 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "track_feet_stationary": RewardTermCfg(
       func=mdp.track_feet_stationary,
-      weight=1.5,
+      weight=3.0,
       params={
         "sensor_name": "feet_ground_contact",
-        "std": 0.10,
+        "std": 0.04,
+        "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
+      },
+    ),
+    "foot_slip_error": RewardTermCfg(
+      func=mdp.feet_xy_velocity_huber_error,
+      weight=-4.0,
+      params={
+        "beta": 0.05,
         "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
       },
     ),
     "track_feet_anchor": RewardTermCfg(
       func=mdp.track_feet_anchor,
-      weight=3.0,
+      weight=5.0,
       params={
         "command_name": _COMMAND_NAME,
-        "std": 0.04,
+        "std": 0.02,
+        "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
+      },
+    ),
+    "foot_anchor_error": RewardTermCfg(
+      func=mdp.feet_xy_anchor_huber_error,
+      weight=-5.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "beta": 0.02,
         "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
       },
     ),

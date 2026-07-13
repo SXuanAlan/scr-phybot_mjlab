@@ -81,6 +81,16 @@ def main() -> None:
   arm_action_limits = torch.tensor(
     action_limit_cfg["max_abs_actions"], device=args.device
   )
+  action_reference_cfg = cfg.rewards["arm_reference_action"].params
+  arm_action_tolerance = torch.tensor(
+    action_reference_cfg["max_abs_deviation"], device=args.device
+  )
+  arm_action_scale = action_term.scale
+  if isinstance(arm_action_scale, torch.Tensor):
+    arm_action_scale = arm_action_scale[:, arm_action_ids]
+  arm_action_offset = action_term.offset
+  if isinstance(arm_action_offset, torch.Tensor):
+    arm_action_offset = arm_action_offset[:, arm_action_ids]
   arm_pairs = tuple(
     (arm_names.index(name), arm_names.index(name.replace("left_", "right_")))
     for name in arm_names
@@ -94,6 +104,7 @@ def main() -> None:
 
   max_error = torch.zeros(args.num_envs, 2, device=args.device)
   speed_sum = torch.zeros(args.num_envs, device=args.device)
+  foot_speed_sum = torch.zeros(args.num_envs, 2, device=args.device)
   contact_sum = torch.zeros(args.num_envs, device=args.device)
   samples = 0
   failed = torch.zeros(args.num_envs, dtype=torch.bool, device=args.device)
@@ -103,7 +114,12 @@ def main() -> None:
   arm_max_error = torch.zeros(args.num_envs, device=args.device)
   arm_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_action_limit_hits = torch.zeros((), device=args.device)
+  arm_action_tube_hits = torch.zeros((), device=args.device)
   arm_global_clip_hits = torch.zeros((), device=args.device)
+  arm_action_reference_squared_error_sum = torch.zeros(
+    args.num_envs, device=args.device
+  )
+  arm_action_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_action_rate_squared_sum = torch.zeros((), device=args.device)
   previous_arm_action: torch.Tensor | None = None
   ankle_pair_contacts = 0
@@ -125,6 +141,7 @@ def main() -> None:
       if frame > 0:  # Contact sensors need one physics step after reset.
         speed = torch.norm(robot.data.site_lin_vel_w[:, foot_ids, :2], dim=-1)
         speed_sum += speed.mean(dim=1)
+        foot_speed_sum += speed
         contact_sum += (feet_contact.data.found > 0).all(dim=1).float()
         samples += 1
 
@@ -132,6 +149,28 @@ def main() -> None:
         -agent_cfg.clip_actions, agent_cfg.clip_actions
       )
       arm_action = actions[:, arm_action_ids]
+      arm_reference_action = (
+        command.joint_pos_ref[:, arm_ref_ids]
+        - arm_action_offset
+        + robot.data.encoder_bias[:, arm_joint_ids]
+      ) / arm_action_scale
+      arm_action_error = arm_action - arm_reference_action
+      arm_action_reference_squared_error_sum += torch.sum(
+        torch.square(arm_action_error), dim=1
+      )
+      arm_action_tube_hits += (
+        torch.abs(arm_action_error) > arm_action_tolerance
+      ).sum()
+      action_symmetry_error = torch.stack(
+        [
+          arm_action_error[:, left] - arm_action_error[:, right]
+          for left, right in arm_pairs
+        ],
+        dim=1,
+      )
+      arm_action_symmetry_error_sum += torch.sum(
+        torch.square(action_symmetry_error), dim=1
+      )
       arm_action_limit_hits += (torch.abs(arm_action) > arm_action_limits).sum()
       arm_global_clip_hits += (
         torch.abs(arm_action) >= agent_cfg.clip_actions - 1.0e-3
@@ -184,6 +223,7 @@ def main() -> None:
     max_error = torch.maximum(max_error, error)
     speed = torch.norm(robot.data.site_lin_vel_w[:, foot_ids, :2], dim=-1)
     speed_sum += speed.mean(dim=1)
+    foot_speed_sum += speed
     contact_sum += (feet_contact.data.found > 0).all(dim=1).float()
     relative = robot.data.site_pos_w[:, foot_ids] - robot.data.root_link_pos_w.unsqueeze(1)
     root_quat = robot.data.root_link_quat_w.unsqueeze(1).expand(-1, 2, -1)
@@ -198,6 +238,10 @@ def main() -> None:
   max_per_env = max_error.max(dim=1).values
   error_p95 = torch.quantile(max_per_env, 0.95)
   mean_speed = torch.mean(speed_sum / max(samples, 1))
+  worst_foot_mean_speed = torch.max(
+    foot_speed_sum / max(samples, 1), dim=1
+  ).values
+  worst_foot_mean_speed_p95 = torch.quantile(worst_foot_mean_speed, 0.95)
   contact_rate = torch.mean(contact_sum / max(samples, 1))
   separation_p01 = torch.quantile(min_separation, 0.01)
   separation_p05 = torch.quantile(min_separation, 0.05)
@@ -214,7 +258,20 @@ def main() -> None:
   arm_symmetry_rmse_p95 = torch.quantile(arm_symmetry_rmse, 0.95)
   arm_action_count = args.num_envs * frames * len(arm_names)
   arm_action_limit_fraction = arm_action_limit_hits / arm_action_count
+  arm_action_tube_fraction = arm_action_tube_hits / arm_action_count
   arm_global_clip_fraction = arm_global_clip_hits / arm_action_count
+  arm_action_reference_rmse = torch.sqrt(
+    arm_action_reference_squared_error_sum / (frames * len(arm_names))
+  )
+  arm_action_reference_rmse_p95 = torch.quantile(
+    arm_action_reference_rmse, 0.95
+  )
+  arm_action_symmetry_rmse = torch.sqrt(
+    arm_action_symmetry_error_sum / (frames * len(arm_pairs))
+  )
+  arm_action_symmetry_rmse_p95 = torch.quantile(
+    arm_action_symmetry_rmse, 0.95
+  )
   arm_action_rate_count = args.num_envs * (frames - 1) * len(arm_names)
   arm_action_rate_rms = torch.sqrt(
     arm_action_rate_squared_sum / arm_action_rate_count
@@ -227,6 +284,7 @@ def main() -> None:
     "completion_rate": float(completion_rate),
     "max_foot_error_p95_m": float(error_p95),
     "mean_foot_speed_mps": float(mean_speed),
+    "worst_foot_mean_speed_p95_mps": float(worst_foot_mean_speed_p95),
     "both_feet_contact": float(contact_rate),
     "foot_separation_p01_m": float(separation_p01),
     "foot_separation_p05_m": float(separation_p05),
@@ -235,6 +293,9 @@ def main() -> None:
     "arm_position_rmse_p95_rad": float(arm_rmse_p95),
     "arm_position_max_error_p95_rad": float(arm_max_error_p95),
     "arm_symmetry_rmse_p95_rad": float(arm_symmetry_rmse_p95),
+    "arm_action_reference_rmse_p95": float(arm_action_reference_rmse_p95),
+    "arm_action_symmetry_rmse_p95": float(arm_action_symmetry_rmse_p95),
+    "arm_action_tube_fraction": float(arm_action_tube_fraction),
     "arm_action_limit_fraction": float(arm_action_limit_fraction),
     "arm_global_clip_fraction": float(arm_global_clip_fraction),
     "arm_action_rate_rms": float(arm_action_rate_rms),
@@ -248,11 +309,15 @@ def main() -> None:
     metrics["completion_rate"] >= 0.98
     and metrics["max_foot_error_p95_m"] <= limit
     and metrics["mean_foot_speed_mps"] <= 0.02
+    and metrics["worst_foot_mean_speed_p95_mps"] <= 0.025
     and metrics["both_feet_contact"] >= 0.99
     and metrics["foot_separation_p01_m"] >= 0.15
     and metrics["arm_position_rmse_p95_rad"] <= 0.15
     and metrics["arm_position_max_error_p95_rad"] <= 0.35
     and metrics["arm_symmetry_rmse_p95_rad"] <= 0.10
+    and metrics["arm_action_reference_rmse_p95"] <= 0.65
+    and metrics["arm_action_symmetry_rmse_p95"] <= 0.25
+    and metrics["arm_action_tube_fraction"] <= 0.01
     and metrics["arm_action_limit_fraction"] <= 0.01
     and metrics["arm_global_clip_fraction"] == 0.0
     and hits == 0
