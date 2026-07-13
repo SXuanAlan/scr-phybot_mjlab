@@ -163,12 +163,48 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=3.0,
       params={"command_name": _COMMAND_NAME, "std": 0.3, "joint_names": ()},  # legs, set per-robot.
     ),
-    # Arms follow the raise/lower choreography; looser std than legs so the policy
-    # can still deviate them slightly for balance.
+    # Arm joints need independent dense scores. A single exponential over all
+    # eight joints saturated near zero and let the policy sacrifice its arms to
+    # optimize the planted-foot and base rewards.
     "track_arms": RewardTermCfg(
-      func=mdp.track_joint_pos,
-      weight=1.5,
-      params={"command_name": _COMMAND_NAME, "std": 0.4, "joint_names": ()},  # arms, set per-robot.
+      func=mdp.track_joint_pos_cauchy,
+      weight=3.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "std": 0.20,
+        "joint_names": (),  # Arms, set per-robot.
+        "metric_prefix": "arm",
+      },
+    ),
+    "arm_tracking_error": RewardTermCfg(
+      func=mdp.joint_pos_tracking_huber_error,
+      weight=-2.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "beta": 0.25,
+        "joint_names": (),  # Arms, set per-robot.
+      },
+    ),
+    "track_arm_velocity": RewardTermCfg(
+      func=mdp.track_joint_vel_cauchy,
+      weight=1.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "std": 1.0,
+        "joint_names": (),  # Arms, set per-robot.
+        "metric_prefix": "arm",
+      },
+    ),
+    "arm_action_limits": RewardTermCfg(
+      func=mdp.joint_action_limit_cost,
+      weight=-0.5,
+      params={
+        "action_name": "joint_pos",
+        "joint_names": (),  # Arms, set per-robot.
+        "max_abs_actions": (),  # Motion-derived, set per-robot.
+        "global_clip": 6.0,
+        "metric_prefix": "arm",
+      },
     ),
     "track_waist": RewardTermCfg(
       func=mdp.track_joint_pos,

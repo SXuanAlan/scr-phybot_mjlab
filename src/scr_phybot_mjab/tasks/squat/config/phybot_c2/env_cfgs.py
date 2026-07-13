@@ -80,6 +80,28 @@ def _motion_duration_s(path: Path, control_dt: float = 0.02) -> float:
     raise ValueError(f"Squat motion fps {fps} must equal control fps {1.0 / control_dt}.")
   return duration_s
 
+
+def _motion_action_limits(
+  path: Path,
+  joint_names: tuple[str, ...],
+  action_scale: float,
+  margin: float = 0.75,
+  minimum: float = 1.0,
+) -> tuple[float, ...]:
+  """Build raw-action envelopes that contain the complete arm reference."""
+  data = np.load(path, allow_pickle=True).item()
+  clip_joint_names = list(data["joints_list"])
+  joint_ids = [clip_joint_names.index(name) for name in joint_names]
+  joint_pos = np.asarray(data["joint_positions"], dtype=np.float32)[:, joint_ids]
+  default = np.asarray(
+    [PHYBOT_C2_STANDING_JOINT_POS[name] for name in joint_names],
+    dtype=np.float32,
+  )
+  reference_action = (joint_pos - default) / action_scale
+  limits = np.maximum(np.max(np.abs(reference_action), axis=0) + margin, minimum)
+  return tuple(float(limit) for limit in limits)
+
+
 _SQUAT_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
   pos=(0.0, 0.0, 0.726),
   rot=(1.0, 0.0, 0.0, 0.0),
@@ -159,7 +181,20 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   cfg.rewards["track_legs"].params["joint_names"] = _LEG_JOINT_NAMES
   cfg.rewards["track_waist"].params["joint_names"] = _WAIST_JOINT_NAMES
-  cfg.rewards["track_arms"].params["joint_names"] = _ARM_JOINT_NAMES
+  for reward_name in (
+    "track_arms",
+    "arm_tracking_error",
+    "track_arm_velocity",
+    "arm_action_limits",
+  ):
+    cfg.rewards[reward_name].params["joint_names"] = _ARM_JOINT_NAMES
+  cfg.rewards["arm_action_limits"].params["max_abs_actions"] = (
+    _motion_action_limits(
+      _SQUAT_MOTION_FILE,
+      _ARM_JOINT_NAMES,
+      PHYBOT_C2_ACTION_SCALE,
+    )
+  )
   cfg.rewards["track_feet_stationary"].params["asset_cfg"] = SceneEntityCfg(
     "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
   )

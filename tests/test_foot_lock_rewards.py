@@ -8,8 +8,12 @@ import torch
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.tasks.squat.mdp.rewards import (
+  joint_action_limit_cost,
+  joint_pos_tracking_huber_error,
   track_feet_anchor,
   track_feet_stationary,
+  track_joint_pos_cauchy,
+  track_joint_vel_cauchy,
 )
 from scr_phybot_mjab.tasks.walk.mdp.rewards import feet_lock_after_recovery
 
@@ -24,6 +28,16 @@ class _CommandManager:
 
   def get_term(self, _name):
     return self.command
+
+
+class _ActionManager:
+  def __init__(self, action_term):
+    self.action_term = action_term
+    self.total_action_dim = action_term.raw_action.shape[1]
+    self.prev_action = torch.zeros_like(action_term.raw_action)
+
+  def get_term(self, _name):
+    return self.action_term
 
 
 class FootRewardTest(unittest.TestCase):
@@ -100,6 +114,64 @@ class FootRewardTest(unittest.TestCase):
     self.assertEqual(float(stationary), 1.0)
     sensor.data.found[:, 1] = 0
     self.assertEqual(float(track_feet_stationary(env, "feet", 0.10, cfg)), 0.0)
+
+  def test_dense_arm_tracking_and_action_guard_formulas(self) -> None:
+    robot = _ns(
+      data=_ns(
+        joint_pos=torch.tensor([[0.0, 0.4]]),
+        joint_vel=torch.tensor([[0.0, 1.0]]),
+      )
+    )
+    command = _ns(
+      cfg=_ns(joint_names=("arm_a", "arm_b")),
+      joint_ids=torch.tensor([0, 1]),
+      joint_pos_ref=torch.zeros(1, 2),
+      joint_vel_ref=torch.zeros(1, 2),
+      robot=robot,
+    )
+    action_term = _ns(
+      target_names=["arm_a", "arm_b"],
+      raw_action=torch.tensor([[1.2, 3.0]]),
+    )
+    env = _ns(
+      command_manager=_CommandManager(command),
+      action_manager=_ActionManager(action_term),
+      device="cpu",
+      extras={"log": {}},
+    )
+    joints = ("arm_a", "arm_b")
+
+    position_score = track_joint_pos_cauchy(
+      env, "motion", 0.2, joints, "arm"
+    )
+    self.assertAlmostEqual(float(position_score), 0.6, places=6)
+    self.assertAlmostEqual(
+      float(env.extras["log"]["Metrics/motion/arm_arm_a_pos_mae"]),
+      0.0,
+    )
+    self.assertAlmostEqual(
+      float(env.extras["log"]["Metrics/motion/arm_arm_b_pos_mae"]),
+      0.4,
+    )
+    huber = joint_pos_tracking_huber_error(env, "motion", 0.25, joints)
+    self.assertAlmostEqual(float(huber), 0.1375, places=6)
+    velocity_score = track_joint_vel_cauchy(
+      env, "motion", 1.0, joints, "arm"
+    )
+    self.assertAlmostEqual(float(velocity_score), 0.75, places=6)
+    action_cost = joint_action_limit_cost(
+      env,
+      "joint_pos",
+      joints,
+      (1.0, 2.0),
+      6.0,
+      "arm",
+    )
+    self.assertAlmostEqual(float(action_cost), 0.52, places=6)
+    self.assertAlmostEqual(
+      float(env.extras["log"]["Metrics/motion/arm_action_limit_fraction"]),
+      1.0,
+    )
 
 
 if __name__ == "__main__":

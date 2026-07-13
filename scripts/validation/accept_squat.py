@@ -64,6 +64,28 @@ def main() -> None:
   command = base_env.command_manager.get_term("motion")
   feet_contact = base_env.scene["feet_ground_contact"]
   self_sensor = base_env.scene["self_collision"]
+  arm_names = tuple(cfg.rewards["track_arms"].params["joint_names"])
+  arm_ref_ids = torch.tensor(
+    [command.cfg.joint_names.index(name) for name in arm_names],
+    dtype=torch.long,
+    device=args.device,
+  )
+  arm_joint_ids = command.joint_ids[arm_ref_ids]
+  action_limit_cfg = cfg.rewards["arm_action_limits"].params
+  action_term = base_env.action_manager.get_term(action_limit_cfg["action_name"])
+  arm_action_ids = torch.tensor(
+    [action_term.target_names.index(name) for name in arm_names],
+    dtype=torch.long,
+    device=args.device,
+  )
+  arm_action_limits = torch.tensor(
+    action_limit_cfg["max_abs_actions"], device=args.device
+  )
+  arm_pairs = tuple(
+    (arm_names.index(name), arm_names.index(name.replace("left_", "right_")))
+    for name in arm_names
+    if name.startswith("left_")
+  )
   wp_data = base_env.sim._wp_data
   mj_model = base_env.sim.mj_model
   left_ankle_geom = _geom_id_with_suffix(mj_model, "left_ankle_roll_collision")
@@ -77,6 +99,13 @@ def main() -> None:
   failed = torch.zeros(args.num_envs, dtype=torch.bool, device=args.device)
   min_separation = torch.full((args.num_envs,), torch.inf, device=args.device)
   collision_hits = torch.zeros(args.num_envs, dtype=torch.long, device=args.device)
+  arm_squared_error_sum = torch.zeros(args.num_envs, device=args.device)
+  arm_max_error = torch.zeros(args.num_envs, device=args.device)
+  arm_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
+  arm_action_limit_hits = torch.zeros((), device=args.device)
+  arm_global_clip_hits = torch.zeros((), device=args.device)
+  arm_action_rate_squared_sum = torch.zeros((), device=args.device)
+  previous_arm_action: torch.Tensor | None = None
   ankle_pair_contacts = 0
 
   base_env.reset()
@@ -99,7 +128,38 @@ def main() -> None:
         contact_sum += (feet_contact.data.found > 0).all(dim=1).float()
         samples += 1
 
-      env.step(policy(env.get_observations()))
+      actions = policy(env.get_observations()).clamp(
+        -agent_cfg.clip_actions, agent_cfg.clip_actions
+      )
+      arm_action = actions[:, arm_action_ids]
+      arm_action_limit_hits += (torch.abs(arm_action) > arm_action_limits).sum()
+      arm_global_clip_hits += (
+        torch.abs(arm_action) >= agent_cfg.clip_actions - 1.0e-3
+      ).sum()
+      if previous_arm_action is not None:
+        arm_action_rate_squared_sum += torch.sum(
+          torch.square(arm_action - previous_arm_action)
+        )
+      previous_arm_action = arm_action.clone()
+
+      env.step(actions)
+      arm_position = robot.data.joint_pos[:, arm_joint_ids]
+      arm_reference = command.joint_pos_ref[:, arm_ref_ids]
+      arm_error = arm_position - arm_reference
+      arm_squared_error_sum += torch.sum(torch.square(arm_error), dim=1)
+      arm_max_error = torch.maximum(
+        arm_max_error, torch.abs(arm_error).max(dim=1).values
+      )
+      symmetry_error = torch.stack(
+        [
+          (arm_position[:, left] - arm_position[:, right])
+          - (arm_reference[:, left] - arm_reference[:, right])
+          for left, right in arm_pairs
+        ],
+        dim=1,
+      )
+      arm_symmetry_error_sum += torch.sum(torch.square(symmetry_error), dim=1)
+
       force_history = self_sensor.data.force_history
       assert force_history is not None
       force = torch.norm(force_history, dim=-1)
@@ -142,6 +202,23 @@ def main() -> None:
   separation_p01 = torch.quantile(min_separation, 0.01)
   separation_p05 = torch.quantile(min_separation, 0.05)
   separation_min = torch.min(min_separation)
+  arm_rmse = torch.sqrt(
+    arm_squared_error_sum / (frames * len(arm_names))
+  )
+  arm_rmse_mean = torch.mean(arm_rmse)
+  arm_rmse_p95 = torch.quantile(arm_rmse, 0.95)
+  arm_max_error_p95 = torch.quantile(arm_max_error, 0.95)
+  arm_symmetry_rmse = torch.sqrt(
+    arm_symmetry_error_sum / (frames * len(arm_pairs))
+  )
+  arm_symmetry_rmse_p95 = torch.quantile(arm_symmetry_rmse, 0.95)
+  arm_action_count = args.num_envs * frames * len(arm_names)
+  arm_action_limit_fraction = arm_action_limit_hits / arm_action_count
+  arm_global_clip_fraction = arm_global_clip_hits / arm_action_count
+  arm_action_rate_count = args.num_envs * (frames - 1) * len(arm_names)
+  arm_action_rate_rms = torch.sqrt(
+    arm_action_rate_squared_sum / arm_action_rate_count
+  )
   hits = int(collision_hits.sum().item())
   limit = 0.01 if args.friction == 0.7 else 0.02
 
@@ -154,6 +231,13 @@ def main() -> None:
     "foot_separation_p01_m": float(separation_p01),
     "foot_separation_p05_m": float(separation_p05),
     "foot_separation_min_m": float(separation_min),
+    "arm_position_rmse_mean_rad": float(arm_rmse_mean),
+    "arm_position_rmse_p95_rad": float(arm_rmse_p95),
+    "arm_position_max_error_p95_rad": float(arm_max_error_p95),
+    "arm_symmetry_rmse_p95_rad": float(arm_symmetry_rmse_p95),
+    "arm_action_limit_fraction": float(arm_action_limit_fraction),
+    "arm_global_clip_fraction": float(arm_global_clip_fraction),
+    "arm_action_rate_rms": float(arm_action_rate_rms),
     "self_collision_hits": hits,
     "raw_ankle_pair_contacts": ankle_pair_contacts,
   }
@@ -166,6 +250,11 @@ def main() -> None:
     and metrics["mean_foot_speed_mps"] <= 0.02
     and metrics["both_feet_contact"] >= 0.99
     and metrics["foot_separation_p01_m"] >= 0.15
+    and metrics["arm_position_rmse_p95_rad"] <= 0.15
+    and metrics["arm_position_max_error_p95_rad"] <= 0.35
+    and metrics["arm_symmetry_rmse_p95_rad"] <= 0.10
+    and metrics["arm_action_limit_fraction"] <= 0.01
+    and metrics["arm_global_clip_fraction"] == 0.0
     and hits == 0
     and ankle_pair_contacts == 0
   )

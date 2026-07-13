@@ -118,6 +118,30 @@ class SquatMotionContractTest(unittest.TestCase):
     max_reference_action = float(np.max(np.abs((joint_pos - zero_pos) / 0.25)))
     self.assertLessEqual(max_reference_action, phybot_c2_squat_ppo_runner_cfg().clip_actions)
 
+  def test_arm_rewards_are_dense_and_reference_actions_have_safe_limits(self) -> None:
+    cfg = phybot_c2_squat_env_cfg()
+    arm_names = tuple(cfg.rewards["track_arms"].params["joint_names"])
+    self.assertEqual(arm_names, tuple(PHYBOT_C2_POLICY_JOINT_NAMES[13:21]))
+    self.assertEqual(cfg.rewards["track_arms"].weight, 3.0)
+    self.assertEqual(cfg.rewards["track_arms"].params["std"], 0.20)
+    self.assertEqual(cfg.rewards["arm_tracking_error"].weight, -2.0)
+    self.assertEqual(cfg.rewards["arm_tracking_error"].params["beta"], 0.25)
+    self.assertEqual(cfg.rewards["track_arm_velocity"].weight, 1.0)
+    self.assertEqual(cfg.rewards["arm_action_limits"].weight, -0.5)
+
+    limits = np.asarray(
+      cfg.rewards["arm_action_limits"].params["max_abs_actions"]
+    )
+    motion_names = list(self.motion["joints_list"])
+    arm_ids = [motion_names.index(name) for name in arm_names]
+    arm_default = np.asarray([PHYBOT_C2_STANDING_JOINT_POS[name] for name in arm_names])
+    reference_actions = (
+      np.asarray(self.motion["joint_positions"])[:, arm_ids] - arm_default
+    ) / 0.25
+    self.assertEqual(limits.shape, (len(arm_names),))
+    self.assertTrue(np.all(np.max(np.abs(reference_actions), axis=0) <= limits))
+    self.assertTrue(np.all(limits < phybot_c2_squat_ppo_runner_cfg().clip_actions))
+
 
 if __name__ == "__main__":
   unittest.main()
