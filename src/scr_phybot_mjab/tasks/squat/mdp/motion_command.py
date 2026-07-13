@@ -36,11 +36,16 @@ class SquatMotionLoader:
 
   The clip uses the AMP/motion schema (see ``scripts/gen_squat_clip.py``): a dict
   with ``joints_list``, ``joint_positions`` (T, N), ``root_position`` (T, 3),
-  ``root_quaternion`` (T, 4) in xyzw, and ``fps``.
+  ``root_quaternion`` (T, 4) in xyzw, ``foot_sites_list``, ``foot_positions``
+  (T, 2, 3), and ``fps``.
   """
 
   def __init__(
-    self, motion_files: tuple[str, ...], joint_names: tuple[str, ...], device: str
+    self,
+    motion_files: tuple[str, ...],
+    joint_names: tuple[str, ...],
+    foot_site_names: tuple[str, ...],
+    device: str,
   ) -> None:
     if not motion_files:
       raise ValueError("SquatMotionCommandCfg.motion_files must not be empty.")
@@ -53,6 +58,7 @@ class SquatMotionLoader:
     joint_pos_parts: list[np.ndarray] = []
     root_pos_parts: list[np.ndarray] = []
     root_quat_parts: list[np.ndarray] = []
+    foot_pos_parts: list[np.ndarray] = []
     fps: float | None = None
     for motion_file in motion_files:
       path = Path(motion_file)
@@ -68,6 +74,24 @@ class SquatMotionLoader:
           f"Clip {path.name} joints_list does not match the task's tracked joints.\n"
           f"  clip: {clip_joints}\n  task: {list(joint_names)}"
         )
+      clip_foot_sites = list(data.get("foot_sites_list", ()))
+      if clip_foot_sites != list(foot_site_names):
+        raise ValueError(
+          f"Clip {path.name} foot_sites_list does not match the task's foot sites.\n"
+          f"  clip: {clip_foot_sites}\n  task: {list(foot_site_names)}"
+        )
+      if "foot_positions" not in data:
+        raise ValueError(f"Clip {path.name} is missing required foot_positions.")
+      clip_joint_pos = np.asarray(data["joint_positions"], dtype=np.float32)
+      clip_foot_pos = np.asarray(data["foot_positions"], dtype=np.float32)
+      expected_foot_shape = (clip_joint_pos.shape[0], len(foot_site_names), 3)
+      if clip_foot_pos.shape != expected_foot_shape:
+        raise ValueError(
+          f"Clip {path.name} foot_positions has shape {clip_foot_pos.shape}; "
+          f"expected {expected_foot_shape}."
+        )
+      if not np.isfinite(clip_foot_pos).all():
+        raise ValueError(f"Clip {path.name} foot_positions contains NaN or Inf.")
       clip_fps = float(np.asarray(data["fps"]).reshape(-1)[0])
       if fps is None:
         fps = clip_fps
@@ -75,14 +99,16 @@ class SquatMotionLoader:
         raise ValueError(
           f"All squat clips must share one fps; {path.name} has {clip_fps} != {fps}."
         )
-      joint_pos_parts.append(np.asarray(data["joint_positions"], dtype=np.float32))
+      joint_pos_parts.append(clip_joint_pos)
       root_pos_parts.append(np.asarray(data["root_position"], dtype=np.float32))
       root_quat_parts.append(np.asarray(data["root_quaternion"], dtype=np.float32))
+      foot_pos_parts.append(clip_foot_pos)
 
     assert fps is not None
     self.fps = fps
     joint_pos = np.concatenate(joint_pos_parts, axis=0)
     root_pos = np.concatenate(root_pos_parts, axis=0)
+    foot_pos = np.concatenate(foot_pos_parts, axis=0)
     # Store quaternions wxyz (mjlab/MuJoCo convention).
     root_quat = np.concatenate(root_quat_parts, axis=0)[:, [3, 0, 1, 2]]
 
@@ -92,6 +118,7 @@ class SquatMotionLoader:
     self.joint_pos = torch.tensor(joint_pos, device=device)
     self.joint_vel = torch.tensor(joint_vel, device=device)
     self.root_pos = torch.tensor(root_pos, device=device)
+    self.foot_pos = torch.tensor(foot_pos, device=device)
     self.root_quat = torch.tensor(root_quat, device=device)
     self.root_lin_vel = torch.tensor(root_lin_vel, device=device)
     self.time_step_total = self.joint_pos.shape[0]
@@ -120,7 +147,9 @@ class SquatMotionCommand(CommandTerm):
       device=self.device,
     )
 
-    self.motion = SquatMotionLoader(cfg.motion_files, cfg.joint_names, self.device)
+    self.motion = SquatMotionLoader(
+      cfg.motion_files, cfg.joint_names, cfg.foot_site_names, self.device
+    )
     self._check_playback_rate()
 
     self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -171,6 +200,11 @@ class SquatMotionCommand(CommandTerm):
   @property
   def root_quat_ref(self) -> torch.Tensor:
     return self.motion.root_quat[self.time_steps]
+
+  @property
+  def foot_position_ref_w(self) -> torch.Tensor:
+    """Current reference foot positions in each environment's world frame."""
+    return self.motion.foot_pos[self.time_steps] + self._env.scene.env_origins.unsqueeze(1)
 
   # CommandTerm hooks.
 
@@ -249,6 +283,7 @@ class SquatMotionCommandCfg(CommandTermCfg):
   # Exactly one standalone clip; a tuple keeps the CommandTermCfg serialization stable.
   motion_files: tuple[str, ...]
   joint_names: tuple[str, ...]
+  foot_site_names: tuple[str, ...] = ()
   sampling_mode: str = "start"
   pose_range: dict[str, tuple[float, float]] = field(default_factory=dict)
   velocity_range: dict[str, tuple[float, float]] = field(default_factory=dict)

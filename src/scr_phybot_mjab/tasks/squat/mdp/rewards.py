@@ -105,13 +105,39 @@ def track_feet_stationary(
   """Reward both reference feet remaining planted and motionless.
 
   The generated squat pins both foot sites for the complete clip.  Requiring
-  contact and tracking zero 3-D foot velocity closes the position-only loophole
+  contact and tracking zero XY foot velocity closes the foot-tapping loophole
   that allowed rapid foot taps while joint angles stayed near the reference.
   """
   asset: Entity = env.scene[asset_cfg.name]
   sensor: ContactSensor = env.scene[sensor_name]
   assert sensor.data.found is not None
-  foot_velocity = asset.data.site_lin_vel_w[:, asset_cfg.site_ids, :]
+  foot_velocity = asset.data.site_lin_vel_w[:, asset_cfg.site_ids, :2]
   velocity_error = torch.sum(torch.square(foot_velocity), dim=(1, 2))
   both_in_contact = (sensor.data.found > 0).all(dim=1).float()
+  foot_speed = torch.norm(foot_velocity, dim=-1)
+  env.extras["log"]["Metrics/motion/foot_speed_xy_mean"] = foot_speed.mean()
+  env.extras["log"]["Metrics/motion/both_feet_contact_fraction"] = (
+    both_in_contact.mean()
+  )
   return torch.exp(-velocity_error / std**2) * both_in_contact
+
+
+def track_feet_anchor(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  std: float,
+  asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+  """Track the motion's absolute planted-foot XY positions.
+
+  Unlike a velocity-only reward, this accumulates slow creep into a growing
+  position error. It is intentionally not contact-gated so a lifted foot keeps
+  a dense gradient back toward its reference foothold.
+  """
+  command = cast(SquatMotionCommand, env.command_manager.get_term(command_name))
+  foot_xy = command.robot.data.site_pos_w[:, asset_cfg.site_ids, :2]
+  reference_xy = command.foot_position_ref_w[:, :, :2]
+  error_xy = torch.norm(foot_xy - reference_xy, dim=-1)
+  env.extras["log"]["Metrics/motion/error_foot_xy_mean"] = error_xy.mean()
+  env.extras["log"]["Metrics/motion/error_foot_xy_max"] = error_xy.max()
+  return torch.exp(-torch.sum(torch.square(error_xy), dim=1) / std**2)

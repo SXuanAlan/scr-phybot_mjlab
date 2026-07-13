@@ -193,7 +193,7 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
       primary=ContactMatch(mode="subtree", pattern=_TORSO_BODY, entity="robot"),
       secondary=ContactMatch(mode="subtree", pattern=_TORSO_BODY, entity="robot"),
       fields=("found", "force"),
-      reduce="none",
+      reduce="maxforce",
       num_slots=1,
       history_length=4,
     ),
@@ -349,12 +349,113 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # No velocity-range curriculum to ramp.
   cfg.curriculum.pop("command_vel", None)
 
-  # Wider joint randomization at reset so the stand policy learns to pull back
-  # to default from diverse poses. NOTE: reset_joints_by_offset ADDS radians
-  # (clamped to soft joint limits); the walk value (0.8, 1.2) it would inherit
-  # is a one-sided offset, so use a symmetric range covering both directions.
+  # One reset perturbation creates a recovery problem; repeated pushes would
+  # make a final stationary phase impossible. Keep the leg offsets small enough
+  # that reset itself cannot cross the feet, while the upper body gets the full
+  # recovery range. Unlike walk's scale reset, stand needs true radian offsets
+  # so zero-valued joints are perturbed as well.
+  cfg.events.pop("push_robot", None)
+  leg_joint_names = tuple(PHYBOT_C2_POLICY_JOINT_NAMES[:12])
+  upper_joint_names = tuple(PHYBOT_C2_POLICY_JOINT_NAMES[12:])
   reset_joints = cfg.events["reset_robot_joints"]
-  reset_joints.params["position_range"] = (-0.8, 0.8)
+  reset_joints.func = mdp.reset_joints_by_offset
+  reset_joints.params["position_range"] = (-0.05, 0.05)
+  reset_joints.params["velocity_range"] = (-0.05, 0.05)
+  reset_joints.params["asset_cfg"] = SceneEntityCfg(
+    "robot", joint_names=leg_joint_names, preserve_order=True
+  )
+  cfg.events["reset_robot_upper_joints"] = EventTermCfg(
+    func=mdp.reset_joints_by_offset,
+    mode="reset",
+    params={
+      "position_range": (-0.15, 0.15),
+      "velocity_range": (-0.10, 0.10),
+      "asset_cfg": SceneEntityCfg(
+        "robot", joint_names=upper_joint_names, preserve_order=True
+      ),
+    },
+  )
+  reset_base = cfg.events["reset_base"]
+  reset_base.params["velocity_range"] = {
+    "x": (-0.15, 0.15),
+    "y": (-0.15, 0.15),
+    "z": (0.0, 0.0),
+    "roll": (-0.10, 0.10),
+    "pitch": (-0.10, 0.10),
+    "yaw": (-0.10, 0.10),
+  }
+
+  # Stand-specific reward: recover for three seconds, then freeze the current
+  # footholds and converge to the default policy-joint pose without creeping.
+  for reward_name in (
+    "foot_slip",
+    "air_time",
+    "foot_clearance",
+    "foot_swing_height",
+    "soft_landing",
+  ):
+    cfg.rewards.pop(reward_name, None)
+  cfg.rewards["pose"].weight = 2.0
+  cfg.rewards["pose"].params["asset_cfg"] = SceneEntityCfg(
+    "robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True
+  )
+  cfg.rewards["pose"].params["std_standing"] = {".*": 0.12}
+  for std_name in ("std_walking", "std_running"):
+    cfg.rewards["pose"].params[std_name].pop(r".*neck.*", None)
+  cfg.rewards["stand_still"].params["start_time_s"] = 3.0
+  cfg.rewards["stand_feet_contact"].weight = 1.0
+  cfg.rewards["self_collisions"].weight = -5.0
+  cfg.rewards["stand_feet_lock"] = RewardTermCfg(
+    func=mdp.feet_lock_after_recovery(),
+    weight=-0.25,
+    params={
+      "sensor_name": _FEET_GROUND_CONTACT_SENSOR,
+      "recovery_time_s": 3.0,
+      "speed_scale": 0.10,
+      "drift_scale": 0.05,
+      "max_scaled_cost": 4.0,
+      "missing_contact_cost": 4.0,
+      "asset_cfg": SceneEntityCfg(
+        "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
+      ),
+    },
+  )
+  cfg.rewards["stand_base_motion"] = RewardTermCfg(
+    func=mdp.base_motion_when_standing,
+    weight=-0.05,
+    params={
+      "command_name": "twist",
+      "command_threshold": 0.05,
+      "start_time_s": 3.0,
+    },
+  )
+
+  if not play:
+    cfg.curriculum.update(
+      {
+        "stand_feet_lock_weight": CurriculumTermCfg(
+          func=mdp.reward_weight,
+          params={
+            "reward_name": "stand_feet_lock",
+            "weight_stages": [
+              {"step": 0, "weight": -0.25},
+              {"step": 1000 * 24, "weight": -0.50},
+              {"step": 2500 * 24, "weight": -0.75},
+            ],
+          },
+        )
+      }
+    )
+  else:
+    # Deployment preview starts exactly at zero state and remains deterministic.
+    reset_joints.params["position_range"] = (0.0, 0.0)
+    reset_joints.params["velocity_range"] = (0.0, 0.0)
+    reset_upper_joints = cfg.events["reset_robot_upper_joints"]
+    reset_upper_joints.params["position_range"] = (0.0, 0.0)
+    reset_upper_joints.params["velocity_range"] = (0.0, 0.0)
+    reset_base.params["pose_range"] = {}
+    reset_base.params["velocity_range"] = {}
+    cfg.curriculum = {}
 
   return cfg
 

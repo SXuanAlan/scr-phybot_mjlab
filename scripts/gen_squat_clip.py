@@ -21,6 +21,8 @@ The output format matches the AMP/motion `.npy` schema (same as
     joint_positions   (T, 21) float32  rad
     root_position     (T, 3)  float32  world xyz (standing base z ~= 0.726)
     root_quaternion   (T, 4)  float32  xyzw (SciPy convention)
+    foot_sites_list   list[str]        left/right foot site order
+    foot_positions    (T, 2, 3) float32 fixed motion-local world xyz
     fps               float32
 
 Validate/preview the result with:
@@ -358,6 +360,10 @@ def generate_clip(
     "joint_positions": joint_positions,
     "root_position": root_position,
     "root_quaternion": root_quaternion,
+    "foot_sites_list": list(_FOOT_SITE_NAMES),
+    "foot_positions": np.repeat(
+      np.asarray(ik.foot_pos_tar, dtype=np.float32)[None, :, :], frames, axis=0
+    ),
     "fps": np.float32(fps),
   }
   output.parent.mkdir(parents=True, exist_ok=True)

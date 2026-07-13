@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
+  PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
 )
@@ -52,7 +53,10 @@ class SquatMotionContractTest(unittest.TestCase):
     self.assertLess(max_frame_delta, 0.03)
 
     loader = SquatMotionLoader(
-      (str(_MOTION),), tuple(PHYBOT_C2_POLICY_JOINT_NAMES), device="cpu"
+      (str(_MOTION),),
+      tuple(PHYBOT_C2_POLICY_JOINT_NAMES),
+      tuple(site for _, site in PHYBOT_C2_FOOT_SITES),
+      device="cpu",
     )
     np.testing.assert_allclose(loader.joint_vel[[0, -1]].numpy(), 0.0)
     np.testing.assert_allclose(loader.root_lin_vel[[0, -1]].numpy(), 0.0)
@@ -67,6 +71,9 @@ class SquatMotionContractTest(unittest.TestCase):
     fps = float(self.motion["fps"])
     self.assertEqual(command.motion_files, (str(_MOTION),))
     self.assertEqual(command.sampling_mode, "start")
+    self.assertEqual(
+      command.foot_site_names, tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
+    )
     self.assertEqual(cfg.episode_length_s, frames / fps)
     self.assertEqual(play_cfg.episode_length_s, frames / fps)
     self.assertEqual(frames, cfg.episode_length_s / (cfg.sim.mujoco.timestep * cfg.decimation))
@@ -78,6 +85,30 @@ class SquatMotionContractTest(unittest.TestCase):
     )
     self.assertEqual(tracked, tuple(PHYBOT_C2_POLICY_JOINT_NAMES))
     self.assertEqual(len(set(tracked)), len(tracked))
+
+  def test_reference_feet_are_fixed_for_the_complete_clip(self) -> None:
+    foot_names = tuple(self.motion["foot_sites_list"])
+    foot_positions = np.asarray(self.motion["foot_positions"])
+    frames = len(self.motion["joint_positions"])
+
+    self.assertEqual(foot_names, tuple(site for _, site in PHYBOT_C2_FOOT_SITES))
+    self.assertEqual(foot_positions.shape, (frames, 2, 3))
+    self.assertTrue(np.isfinite(foot_positions).all())
+    np.testing.assert_allclose(
+      foot_positions, np.broadcast_to(foot_positions[0], foot_positions.shape), atol=2e-4
+    )
+
+    cfg = phybot_c2_squat_env_cfg()
+    self.assertEqual(cfg.rewards["track_feet_anchor"].weight, 3.0)
+    self.assertEqual(cfg.rewards["track_feet_anchor"].params["std"], 0.04)
+    self.assertEqual(cfg.rewards["track_feet_stationary"].params["std"], 0.10)
+    self.assertEqual(cfg.rewards["self_collisions"].weight, -3.0)
+    self.assertEqual(cfg.rewards["feet_distance"].params["min_dist"], 0.15)
+
+    self_collision = next(s for s in cfg.scene.sensors if s.name == "self_collision")
+    self.assertEqual(self_collision.reduce, "maxforce")
+    self.assertEqual(self_collision.num_slots, 1)
+    self.assertEqual(self_collision.history_length, 4)
 
   def test_reference_action_fits_configured_clip(self) -> None:
     joint_pos = np.asarray(self.motion["joint_positions"])

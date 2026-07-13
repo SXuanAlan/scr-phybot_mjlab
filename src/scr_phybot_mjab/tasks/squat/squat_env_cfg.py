@@ -200,7 +200,16 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=1.5,
       params={
         "sensor_name": "feet_ground_contact",
-        "std": 0.15,
+        "std": 0.10,
+        "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
+      },
+    ),
+    "track_feet_anchor": RewardTermCfg(
+      func=mdp.track_feet_anchor,
+      weight=3.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "std": 0.04,
         "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
       },
     ),
@@ -215,7 +224,7 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "self_collisions": RewardTermCfg(
       func=mdp.self_collision_cost,
-      weight=-1.0,
+      weight=-3.0,
       params={"sensor_name": "self_collision", "force_threshold": 10.0},
     ),
   }

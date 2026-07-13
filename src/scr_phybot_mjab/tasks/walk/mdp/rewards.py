@@ -144,6 +144,7 @@ def stand_still_joint_vel(
   env: ManagerBasedRlEnv,
   command_name: str,
   command_threshold: float = 0.05,
+  start_time_s: float = 0.0,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
 ) -> torch.Tensor:
   """Penalize joint motion when the commanded velocity is (near) zero."""
@@ -152,8 +153,9 @@ def stand_still_joint_vel(
   assert command is not None, f"Command '{command_name}' not found."
   total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
   standing = (total_command < command_threshold).float()
+  active = (env.episode_length_buf.float() * env.step_dt >= start_time_s).float()
   joint_vel = asset.data.joint_vel[:, asset_cfg.joint_ids]
-  return standing * torch.sum(torch.abs(joint_vel), dim=1)
+  return standing * active * torch.sum(torch.abs(joint_vel), dim=1)
 
 
 def feet_contact_when_standing(
@@ -190,8 +192,13 @@ def self_collision_cost(
     # force_history: [B, N, H, 3]
     force_mag = torch.norm(data.force_history, dim=-1)  # [B, N, H]
     hit = (force_mag > force_threshold).any(dim=1)  # [B, H]
+    env.extras["log"]["Metrics/self_collision_force_max"] = force_mag.max()
+    env.extras["log"]["Metrics/self_collision_hit_rate"] = hit.any(dim=-1).float().mean()
     return hit.sum(dim=-1).float()  # [B]
   assert data.found is not None
+  env.extras["log"]["Metrics/self_collision_hit_rate"] = (
+    data.found.reshape(data.found.shape[0], -1).any(dim=-1).float().mean()
+  )
   return data.found.squeeze(-1)
 
 
@@ -496,6 +503,7 @@ def base_motion_when_standing(
   env: ManagerBasedRlEnv,
   command_name: str,
   command_threshold: float = 0.05,
+  start_time_s: float = 0.0,
   lin_std: float = 0.2,
   yaw_std: float = 0.3,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
@@ -506,10 +514,100 @@ def base_motion_when_standing(
   assert command is not None, f"Command '{command_name}' not found."
   total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
   standing = (total_command < command_threshold).float()
+  active = (env.episode_length_buf.float() * env.step_dt >= start_time_s).float()
   lin_xy = torch.norm(asset.data.root_link_lin_vel_b[:, :2], dim=1)
   yaw = torch.abs(asset.data.root_link_ang_vel_b[:, 2])
   cost = torch.square(lin_xy / lin_std) + torch.square(yaw / yaw_std)
-  return standing * cost
+  return standing * active * cost
+
+
+def feet_lock_after_recovery():
+  """Create a stateful stand reward that freezes the final footholds.
+
+  During the recovery window the policy may step and the anchor follows the
+  feet. At the boundary, each environment freezes its current world-frame foot
+  XY positions. From then until reset, foot speed, accumulated drift, and lost
+  contact are penalized. The frozen anchor closes the slow-creep loophole that
+  an instantaneous slip penalty cannot detect.
+  """
+
+  state: dict[str, torch.Tensor | None] = {
+    "anchor_xy": None,
+    "frozen": None,
+  }
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    sensor_name: str,
+    recovery_time_s: float,
+    speed_scale: float,
+    drift_scale: float,
+    max_scaled_cost: float,
+    missing_contact_cost: float,
+    asset_cfg: SceneEntityCfg,
+  ) -> torch.Tensor:
+    asset: Entity = env.scene[asset_cfg.name]
+    sensor: ContactSensor = env.scene[sensor_name]
+    assert sensor.data.found is not None
+
+    foot_xy = asset.data.site_pos_w[:, asset_cfg.site_ids, :2]
+    shape = foot_xy.shape
+    if state["anchor_xy"] is None or tuple(state["anchor_xy"].shape) != tuple(shape):
+      state["anchor_xy"] = foot_xy.clone()
+      state["frozen"] = torch.zeros(shape[0], dtype=torch.bool, device=env.device)
+
+    anchor_xy = state["anchor_xy"]
+    frozen = state["frozen"]
+    assert anchor_xy is not None and frozen is not None
+
+    elapsed_s = env.episode_length_buf.float() * env.step_dt
+    strict = elapsed_s >= recovery_time_s
+    recovering = ~strict
+    anchor_xy[recovering] = foot_xy[recovering]
+    newly_strict = strict & ~frozen
+    anchor_xy[newly_strict] = foot_xy[newly_strict]
+    frozen[newly_strict] = True
+
+    foot_speed = torch.norm(
+      asset.data.site_lin_vel_w[:, asset_cfg.site_ids, :2], dim=-1
+    )
+    foot_drift = torch.norm(foot_xy - anchor_xy, dim=-1)
+    speed_cost = torch.square(foot_speed / speed_scale).clamp(max=max_scaled_cost)
+    drift_cost = torch.square(foot_drift / drift_scale).clamp(max=max_scaled_cost)
+    missing_contact = (sensor.data.found == 0).float()
+    cost = torch.sum(
+      speed_cost + drift_cost + missing_contact_cost * missing_contact, dim=1
+    )
+    strict_f = strict.float()
+
+    denom = torch.clamp(strict_f.sum() * foot_speed.shape[1], min=1.0)
+    env.extras["log"]["Metrics/stand_foot_speed_mean"] = torch.sum(
+      foot_speed * strict_f.unsqueeze(1)
+    ) / denom
+    env.extras["log"]["Metrics/stand_foot_drift_mean"] = torch.sum(
+      foot_drift * strict_f.unsqueeze(1)
+    ) / denom
+    env.extras["log"]["Metrics/stand_missing_contact_mean"] = torch.sum(
+      missing_contact * strict_f.unsqueeze(1)
+    ) / denom
+    # Keep the per-step training diagnostic reduction cheap. The checkpoint
+    # acceptance script computes the strict-window p95 over complete rollouts.
+    env.extras["log"]["Metrics/stand_foot_drift_max"] = torch.max(
+      foot_drift * strict_f.unsqueeze(1)
+    )
+    return strict_f * cost
+
+  def reset(env_ids: torch.Tensor | slice | None = None) -> None:
+    if state["anchor_xy"] is None or state["frozen"] is None:
+      return
+    if env_ids is None:
+      env_ids = slice(None)
+    state["anchor_xy"][env_ids] = 0.0
+    state["frozen"][env_ids] = False
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
 
 
 def soft_landing(

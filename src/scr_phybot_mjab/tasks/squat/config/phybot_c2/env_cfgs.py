@@ -17,6 +17,7 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
@@ -153,6 +154,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   assert isinstance(motion_cmd, SquatMotionCommandCfg)
   motion_cmd.motion_files = _SQUAT_MOTION_FILES
   motion_cmd.joint_names = tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
+  motion_cmd.foot_site_names = _FOOT_SITE_NAMES
   cfg.episode_length_s = _motion_duration_s(_SQUAT_MOTION_FILE)
 
   cfg.rewards["track_legs"].params["joint_names"] = _LEG_JOINT_NAMES
@@ -160,6 +162,19 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.rewards["track_arms"].params["joint_names"] = _ARM_JOINT_NAMES
   cfg.rewards["track_feet_stationary"].params["asset_cfg"] = SceneEntityCfg(
     "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
+  )
+  cfg.rewards["track_feet_anchor"].params["asset_cfg"] = SceneEntityCfg(
+    "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
+  )
+  cfg.rewards["feet_distance"] = RewardTermCfg(
+    func=mdp.feet_lateral_distance,
+    weight=-5.0,
+    params={
+      "min_dist": 0.15,
+      "asset_cfg": SceneEntityCfg(
+        "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
+      ),
+    },
   )
 
   ##
@@ -181,7 +196,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       primary=ContactMatch(mode="subtree", pattern=_TORSO_BODY, entity="robot"),
       secondary=ContactMatch(mode="subtree", pattern=_TORSO_BODY, entity="robot"),
       fields=("found", "force"),
-      reduce="none",
+      reduce="maxforce",
       num_slots=1,
       history_length=4,
     ),
@@ -257,5 +272,9 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     motion_cmd.pose_range = {}
     motion_cmd.velocity_range = {}
     motion_cmd.joint_position_range = (0.0, 0.0)
+    body_friction.params["ranges"] = (1.0, 1.0)
+    cfg.events["foot_friction"].params["ranges"] = (0.7, 0.7)
+    base_mass.params["ranges"] = (0.0, 0.0)
+    cfg.events["encoder_bias"].params["bias_range"] = (0.0, 0.0)
 
   return cfg
