@@ -10,6 +10,8 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
+import numpy as np
+
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
@@ -21,6 +23,7 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP,
   PHYBOT_C2_STANDING_JOINT_POS,
@@ -45,18 +48,36 @@ _BASE_QUAT_SENSOR = "robot/baselink-quat"
 _BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
 _BASE_ANG_VEL_SENSOR = "robot/baselink-gyro"
 
-# Legs = the first 12 policy joints (2 x 6); arms = the last 8 (index 13:21, after
-# waist_yaw at 12). Both are tracked; the waist is left free (reference ~ 0).
+# All 21 policy joints are motion-tracked. The neck is not policy-controlled and
+# is intentionally absent from both this list and squat.npy.
 _LEG_JOINT_NAMES = PHYBOT_C2_POLICY_JOINT_NAMES[:12]
+_WAIST_JOINT_NAMES = (PHYBOT_C2_POLICY_JOINT_NAMES[12],)
 _ARM_JOINT_NAMES = PHYBOT_C2_POLICY_JOINT_NAMES[13:21]
+_FOOT_SITE_NAMES = tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
+assert _LEG_JOINT_NAMES + _WAIST_JOINT_NAMES + _ARM_JOINT_NAMES == tuple(
+  PHYBOT_C2_POLICY_JOINT_NAMES
+)
 
 _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
-# The tracked timeline is a standing clip followed by the squat transition, so the
-# standing dwell comes from the standing clip (not padded into the squat clip).
-_SQUAT_MOTION_FILES = (
-  str(_MOTIONS_DIR / "c2_stand_zero.npy"),
-  str(_MOTIONS_DIR / "squat.npy"),
-)
+_SQUAT_MOTION_FILE = _MOTIONS_DIR / "squat.npy"
+_SQUAT_MOTION_FILES = (str(_SQUAT_MOTION_FILE),)
+
+
+def _motion_duration_s(path: Path, control_dt: float = 0.02) -> float:
+  """Read an exact frame-count duration and require one frame per control step."""
+  data = np.load(path, allow_pickle=True).item()
+  frames = int(np.asarray(data["joint_positions"]).shape[0])
+  fps = float(np.asarray(data["fps"]).reshape(-1)[0])
+  duration_s = frames / fps
+  control_steps = duration_s / control_dt
+  if not np.isclose(control_steps, round(control_steps), atol=1e-9):
+    raise ValueError(
+      f"Squat motion duration {duration_s}s is not an integer number of "
+      f"{control_dt}s control steps."
+    )
+  if not np.isclose(fps, 1.0 / control_dt, atol=1e-6):
+    raise ValueError(f"Squat motion fps {fps} must equal control fps {1.0 / control_dt}.")
+  return duration_s
 
 _SQUAT_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
   pos=(0.0, 0.0, 0.726),
@@ -132,15 +153,29 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   assert isinstance(motion_cmd, SquatMotionCommandCfg)
   motion_cmd.motion_files = _SQUAT_MOTION_FILES
   motion_cmd.joint_names = tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
+  cfg.episode_length_s = _motion_duration_s(_SQUAT_MOTION_FILE)
 
   cfg.rewards["track_legs"].params["joint_names"] = _LEG_JOINT_NAMES
+  cfg.rewards["track_waist"].params["joint_names"] = _WAIST_JOINT_NAMES
   cfg.rewards["track_arms"].params["joint_names"] = _ARM_JOINT_NAMES
+  cfg.rewards["track_feet_stationary"].params["asset_cfg"] = SceneEntityCfg(
+    "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
+  )
 
   ##
   # Contact sensors and terminations
   ##
 
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (
+    ContactSensorCfg(
+      name="feet_ground_contact",
+      primary=ContactMatch(mode="subtree", pattern=_FEET_ROOT_BODIES, entity="robot"),
+      secondary=ContactMatch(mode="body", pattern="terrain"),
+      fields=("found", "force"),
+      reduce="netforce",
+      num_slots=1,
+      track_air_time=True,
+    ),
     ContactSensorCfg(
       name="self_collision",
       primary=ContactMatch(mode="subtree", pattern=_TORSO_BODY, entity="robot"),
@@ -169,19 +204,9 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # Domain randomization
   ##
 
-  # Pushes aligned to the walk task (more frequent and stronger than a gentle
-  # squat default). These fire mid-episode, so they do not touch the RSI reward
-  # scale; a push near the squat bottom is a real robustness test.
-  push_robot = cfg.events["push_robot"]
-  push_robot.interval_range_s = (1.0, 3.0)
-  push_robot.params["velocity_range"] = {
-    "x": (-0.8, 0.8),
-    "y": (-0.8, 0.8),
-    "z": (-0.4, 0.4),
-    "roll": (-0.52, 0.52),
-    "pitch": (-0.52, 0.52),
-    "yaw": (-0.78, 0.78),
-  }
+  # Do not train recovery steps in a planted-foot squat task. Strong periodic
+  # velocity pushes taught the old policy to stomp while preserving joint angles.
+  cfg.events.pop("push_robot", None)
   # Friction DR split like walk: non-foot body geoms 0.6-1.0, feet 0.4-1.0.
   body_friction = cfg.events["body_friction"]
   body_friction.params["asset_cfg"].geom_names = (
@@ -227,9 +252,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   ##
 
   if play:
-    cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
-    cfg.events.pop("push_robot", None)
     motion_cmd.sampling_mode = "start"
     motion_cmd.pose_range = {}
     motion_cmd.velocity_range = {}

@@ -1,15 +1,12 @@
-"""Phase-driven squat reference command (DeepMimic-style).
+"""Phase-driven full-body squat reference command.
 
-Loads a stand->squat->stand reference clip (the ``.npy`` produced by
-``scripts/gen_squat_clip.py``), advances a per-env phase clock, and exposes the
-reference joint/base targets for the tracking rewards. On episode reset it does
-Reference State Initialization (RSI): the robot is teleported to a random phase
-of the motion so every part of the squat is explored.
+Loads the standalone ``squat.npy`` produced by ``scripts/gen_squat_clip.py`` and
+exposes its joint/base targets.  Start-mode playback is synchronized directly to
+the episode step, so one episode consumes exactly one motion frame per control
+step without skipping frame zero after a timeout reset.
 
-The policy observation (the ``command`` term) is the phase clock ``(sin, cos)`` --
-a single 0->1 clock at deploy time, no joystick. Only the tracked joints are
-written on RSI; the untracked joints (arms/waist) keep their default pose and are
-left to the policy.
+The policy observation is the phase clock ``(sin, cos)``.  All motion joints are
+written on reset; the neck is absent from both the policy and the motion.
 """
 
 from __future__ import annotations
@@ -35,14 +32,11 @@ if TYPE_CHECKING:
 
 
 class SquatMotionLoader:
-  """Loads one or more ``.npy`` clips, concatenates them, and derives velocities.
+  """Loads one standalone ``.npy`` squat clip and derives velocities.
 
-  Each clip uses the AMP/motion schema (see ``scripts/gen_squat_clip.py``): a dict
+  The clip uses the AMP/motion schema (see ``scripts/gen_squat_clip.py``): a dict
   with ``joints_list``, ``joint_positions`` (T, N), ``root_position`` (T, 3),
-  ``root_quaternion`` (T, 4) in xyzw, and ``fps``. Multiple clips are concatenated
-  into a single looping timeline -- e.g. a standing clip followed by the squat
-  transition, so the standing dwell comes from the standing clip rather than being
-  padded into the squat clip.
+  ``root_quaternion`` (T, 4) in xyzw, and ``fps``.
   """
 
   def __init__(
@@ -50,6 +44,11 @@ class SquatMotionLoader:
   ) -> None:
     if not motion_files:
       raise ValueError("SquatMotionCommandCfg.motion_files must not be empty.")
+    if len(motion_files) != 1:
+      raise ValueError(
+        "The squat task requires exactly one standalone motion clip; "
+        f"received {len(motion_files)}."
+      )
 
     joint_pos_parts: list[np.ndarray] = []
     root_pos_parts: list[np.ndarray] = []
@@ -99,8 +98,12 @@ class SquatMotionLoader:
 
   @staticmethod
   def _derivative(x: np.ndarray, fps: float) -> np.ndarray:
-    d = (x[1:] - x[:-1]) * fps
-    return np.vstack([d, d[-1:]])
+    # The standalone clip starts and ends at the same zero-command pose with a
+    # smooth stop. Use centered differences internally and make that endpoint
+    # contract explicit so reset does not inject a non-zero standing velocity.
+    d = np.zeros_like(x)
+    d[1:-1] = 0.5 * (x[2:] - x[:-2]) * fps
+    return d
 
 
 class SquatMotionCommand(CommandTerm):
@@ -158,6 +161,14 @@ class SquatMotionCommand(CommandTerm):
     return self.motion.root_pos[self.time_steps, 2]
 
   @property
+  def root_position_ref(self) -> torch.Tensor:
+    return self.motion.root_pos[self.time_steps]
+
+  @property
+  def root_lin_vel_ref(self) -> torch.Tensor:
+    return self.motion.root_lin_vel[self.time_steps]
+
+  @property
   def root_quat_ref(self) -> torch.Tensor:
     return self.motion.root_quat[self.time_steps]
 
@@ -173,8 +184,12 @@ class SquatMotionCommand(CommandTerm):
     )
 
   def _update_command(self) -> None:
-    # Loop the cyclic clip (it starts and ends standing).
-    self.time_steps = (self.time_steps + 1) % self.motion.time_step_total
+    if self.cfg.sampling_mode == "start":
+      # The command manager runs after timeout resets.  Reading the reset-aware
+      # episode counter avoids advancing a freshly reset env from frame 0 to 1.
+      self.time_steps = self._env.episode_length_buf % self.motion.time_step_total
+    else:
+      self.time_steps = (self.time_steps + 1) % self.motion.time_step_total
 
   def _resample_command(self, env_ids: torch.Tensor) -> None:
     if self.cfg.sampling_mode == "start":
@@ -231,10 +246,10 @@ class SquatMotionCommand(CommandTerm):
 @dataclass(kw_only=True)
 class SquatMotionCommandCfg(CommandTermCfg):
   entity_name: str
-  # Clips concatenated into one looping timeline (e.g. standing clip + squat clip).
+  # Exactly one standalone clip; a tuple keeps the CommandTermCfg serialization stable.
   motion_files: tuple[str, ...]
   joint_names: tuple[str, ...]
-  sampling_mode: str = "uniform"  # "uniform" (RSI over the whole clip) or "start".
+  sampling_mode: str = "start"
   pose_range: dict[str, tuple[float, float]] = field(default_factory=dict)
   velocity_range: dict[str, tuple[float, float]] = field(default_factory=dict)
   joint_position_range: tuple[float, float] = (0.0, 0.0)

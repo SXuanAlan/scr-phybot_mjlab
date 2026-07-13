@@ -1,11 +1,10 @@
 """Generate a PHYBot C2 squat motion clip (with arm front-raise) via lower-body IK.
 
 Choreography: raise arms to a forward horizontal front-raise -> descend -> hold ->
-ascend -> lower arms back to the sides. The clip contains only this transition; its
-endpoints are the standing pose (arms down), so the squat RL task composes the full
-"stand -> squat -> stand" reference by concatenating a standing clip (e.g.
-``c2_stand_zero.npy``) with this one. Pass ``--stand-s`` to pad standing into the
-clip itself if you want a standalone clip.
+ascend -> lower arms back to the sides. The clip contains the complete standalone
+squat and no separate standing clip is prepended by the RL task. Its first and last
+frames are exactly the robot's zero-command standing pose (arms down), which makes
+the reference cyclic without a reset impulse.
 
 The reference is produced directly on the robot's own kinematics (no human mocap /
 retargeting): the two foot sites are pinned to their standing footprints and kept
@@ -295,22 +294,64 @@ def generate_clip(
   root_position = np.zeros((frames, 3), dtype=np.float32)
   root_quaternion = np.zeros((frames, 4), dtype=np.float32)
 
-  base_x = 0.0
+  # ``balance_x`` is the fully CoM-balanced pelvis shift.  Fade that shift in with
+  # the C2-continuous motion curves so frame zero remains the robot's exact
+  # zero-command standing pose instead of jumping immediately to a different IK
+  # solution.  A second IK solve at the faded x keeps both feet pinned.
+  balance_x = 0.0
   max_residual = 0.0
   for t in range(frames):
     r = float(reach[t])
     # Compensate the torso lean so the raised forearms stay world-horizontal.
     raise_upper = _front_raise_pose(float(pitch[t]))
     upper_angles = {n: (1.0 - r) * stand_upper[n] + r * raise_upper[n] for n in _UPPER_JOINT_NAMES}
-    joints, base_x, residual = ik.solve_frame(
-      base_x, float(base_z[t]), float(pitch[t]), upper_angles, balance=balance, balance_iters=6
-    )
+    if balance:
+      _, balance_x, balance_residual = ik.solve_frame(
+        balance_x,
+        float(base_z[t]),
+        float(pitch[t]),
+        upper_angles,
+        balance=True,
+        balance_iters=6,
+      )
+      activity = max(float(depth[t]), r)
+      frame_x = activity * balance_x
+      joints, _, residual = ik.solve_frame(
+        frame_x,
+        float(base_z[t]),
+        float(pitch[t]),
+        upper_angles,
+        balance=False,
+        balance_iters=1,
+      )
+      residual = max(residual, balance_residual)
+    else:
+      frame_x = 0.0
+      joints, _, residual = ik.solve_frame(
+        frame_x,
+        float(base_z[t]),
+        float(pitch[t]),
+        upper_angles,
+        balance=False,
+        balance_iters=1,
+      )
     joint_positions[t] = joints
-    root_position[t] = (base_x, 0.0, base_z[t])
+    root_position[t] = (frame_x, 0.0, base_z[t])
     q_wxyz = _pitch_quat_wxyz(float(pitch[t]))
     # Store xyzw (SciPy convention) to match the AMP/motion .npy schema.
     root_quaternion[t] = (q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0])
     max_residual = max(max_residual, residual)
+
+  # Make the endpoint contract exact, rather than relying on the IK tolerance.
+  # PHYBOT_C2_STANDING_JOINT_POS is the deployed zero-command position; the neck
+  # is intentionally absent because it is not a policy/motion joint.
+  zero_pos = np.asarray(
+    [PHYBOT_C2_STANDING_JOINT_POS[name] for name in PHYBOT_C2_POLICY_JOINT_NAMES],
+    dtype=np.float32,
+  )
+  joint_positions[[0, -1]] = zero_pos
+  root_position[[0, -1]] = (0.0, 0.0, _STANDING_BASE_Z)
+  root_quaternion[[0, -1]] = (0.0, 0.0, 0.0, 1.0)
 
   data = {
     "joints_list": list(PHYBOT_C2_POLICY_JOINT_NAMES),
@@ -343,7 +384,7 @@ def main() -> None:
     type=Path,
     default=_REPO / "src/scr_phybot_mjab/assets/motions/squat.npy",
   )
-  parser.add_argument("--depth", type=float, default=0.20, help="pelvis drop at squat bottom (m)")
+  parser.add_argument("--depth", type=float, default=0.22, help="pelvis drop at squat bottom (m)")
   parser.add_argument(
     "--stand-s",
     type=float,

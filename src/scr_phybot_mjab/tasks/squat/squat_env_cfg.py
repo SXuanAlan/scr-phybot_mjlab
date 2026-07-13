@@ -1,10 +1,8 @@
-"""Squat motion-tracking task configuration (DeepMimic-style, plain PPO).
+"""Full-body squat motion-tracking task configuration (plain PPO).
 
-Factory for a base stand->squat->stand tracking task: the policy tracks a
-lower-body + base-height reference driven by a phase clock, with the upper body
-left free. Robot-specific configs call the factory and customize (see
-``config/phybot_c2``). This mirrors ``walk_env_cfg.make_velocity_env_cfg`` and
-mjlab's ``tracking_env_cfg.make_tracking_env_cfg``.
+One episode is one standalone squat clip.  Robot-specific configs set the exact
+motion duration and track every policy joint plus the reference base and planted
+feet; non-policy neck joints are held by their actuators and excluded.
 """
 
 import math
@@ -108,26 +106,16 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
   commands: dict[str, CommandTermCfg] = {
     _COMMAND_NAME: SquatMotionCommandCfg(
       entity_name="robot",
-      # Never resample mid-episode; RSI happens on reset, the clip loops in-episode.
+      # Never resample mid-episode; every episode starts at motion frame zero.
       resampling_time_range=(1.0e9, 1.0e9),
-      motion_files=(),  # Set per-robot (standing clip + squat clip).
+      motion_files=(),  # Set per-robot (standalone squat clip).
       joint_names=(),  # Set per-robot (the tracked policy joints).
-      sampling_mode="uniform",
-      # Init-state randomization aligned to walk's reset_base, kept RSI-reward-safe:
-      # x/y are untracked; yaw is safe now that track_base_orientation is
-      # yaw-invariant; z / roll / pitch position stay off (base height and tilt are
-      # tightly tracked). Joint noise is additive (not walk's x0.8-1.2 scale, which
-      # would override the RSI reference pose and collapse the tracking reward).
-      pose_range={"x": (-0.2, 0.2), "y": (-0.2, 0.2), "yaw": (-1.0, 1.0)},
-      velocity_range={
-        "x": (-0.2, 0.2),
-        "y": (-0.2, 0.2),
-        "z": (-0.1, 0.1),
-        "roll": (-0.2, 0.2),
-        "pitch": (-0.2, 0.2),
-        "yaw": (-0.2, 0.2),
-      },
-      joint_position_range=(-0.1, 0.1),
+      sampling_mode="start",
+      # Reset exactly to motion frame zero. Robustness comes from physical
+      # parameter randomization, not from corrupting the motion timeline.
+      pose_range={},
+      velocity_range={},
+      joint_position_range=(0.0, 0.0),
     )
   }
 
@@ -168,7 +156,8 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
   ##
 
   rewards: dict[str, RewardTermCfg] = {
-    # Track the legs, arms, and base; the waist is left free (reference ~ 0).
+    # Track every motion joint. The neck is not policy-controlled and is absent
+    # from the motion's joints_list.
     "track_legs": RewardTermCfg(
       func=mdp.track_joint_pos,
       weight=3.0,
@@ -181,8 +170,18 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=1.5,
       params={"command_name": _COMMAND_NAME, "std": 0.4, "joint_names": ()},  # arms, set per-robot.
     ),
-    "track_base_height": RewardTermCfg(
-      func=mdp.track_base_height,
+    "track_waist": RewardTermCfg(
+      func=mdp.track_joint_pos,
+      weight=1.0,
+      params={"command_name": _COMMAND_NAME, "std": 0.2, "joint_names": ()},
+    ),
+    "track_joint_velocity": RewardTermCfg(
+      func=mdp.track_joint_vel,
+      weight=2.0,
+      params={"command_name": _COMMAND_NAME, "std": 2.0, "joint_names": None},
+    ),
+    "track_base_position": RewardTermCfg(
+      func=mdp.track_base_position,
       weight=2.0,
       params={"command_name": _COMMAND_NAME, "std": 0.05},
     ),
@@ -191,12 +190,26 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
       weight=1.0,
       params={"command_name": _COMMAND_NAME, "std": 0.3},
     ),
-    "alive": RewardTermCfg(func=mdp.is_alive, weight=1.0),
+    "track_base_lin_vel": RewardTermCfg(
+      func=mdp.track_base_lin_vel,
+      weight=1.0,
+      params={"command_name": _COMMAND_NAME, "std": 0.3},
+    ),
+    "track_feet_stationary": RewardTermCfg(
+      func=mdp.track_feet_stationary,
+      weight=1.5,
+      params={
+        "sensor_name": "feet_ground_contact",
+        "std": 0.15,
+        "asset_cfg": SceneEntityCfg("robot", site_names=()),  # Set per-robot.
+      },
+    ),
+    "alive": RewardTermCfg(func=mdp.is_alive, weight=0.5),
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-20.0),
-    # Regularization (also the only thing shaping the free upper body).
-    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.1),
+    # Regularization supplements the explicit full-body tracking terms.
+    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.2),
     "dof_pos_limits": RewardTermCfg(func=mdp.joint_pos_limits, weight=-5.0),
-    "dof_acc_l2": RewardTermCfg(func=mdp.joint_acc_l2, weight=-1.5e-8),
+    "dof_acc_l2": RewardTermCfg(func=mdp.joint_acc_l2, weight=-1.0e-7),
     "energy": RewardTermCfg(
       func=mdp.energy, weight=-5e-4, params={"asset_cfg": SceneEntityCfg("robot")}
     ),
@@ -213,10 +226,11 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
 
   terminations: dict[str, TerminationTermCfg] = {
     "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True),
-    # Relaxed vs walk (70 deg): a deep squat legitimately leans the torso forward.
+    # The reference lean peaks near 20 deg, so 70 deg leaves ample squat margin
+    # while terminating genuinely unstable poses.
     "fell_over": TerminationTermCfg(
       func=mdp.bad_orientation,
-      params={"limit_angle": math.radians(85.0)},
+      params={"limit_angle": math.radians(70.0)},
     ),
   }
 
@@ -246,5 +260,6 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
       mujoco=MujocoCfg(timestep=0.005, iterations=10, ls_iterations=20),
     ),
     decimation=4,
-    episode_length_s=15.0,
+    episode_length_s=1.0,  # Set from the robot motion metadata.
+    is_finite_horizon=True,
   )
