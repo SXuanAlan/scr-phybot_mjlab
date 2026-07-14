@@ -152,7 +152,7 @@ def joint_pos_tracking_huber_error(
 ) -> torch.Tensor:
   """Dense smooth-L1 position error for motion joints.
 
-  Its linear tail keeps pulling heavily displaced arms back toward the motion
+  Its linear tail keeps pulling heavily displaced joints back toward the motion
   after bounded similarity rewards have become small.
   """
   error = torch.abs(
@@ -191,7 +191,7 @@ def joint_action_limit_cost(
   metric_prefix: str,
   reduction: str = "mean",
 ) -> torch.Tensor:
-  """Penalize selected raw actions outside motion-derived safe envelopes."""
+  """Penalize selected raw actions outside configured safe envelopes."""
   action_term = env.action_manager.get_term(action_name)
   action_ids = torch.tensor(
     [action_term.target_names.index(name) for name in joint_names],

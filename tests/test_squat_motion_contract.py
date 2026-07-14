@@ -123,6 +123,60 @@ class SquatMotionContractTest(unittest.TestCase):
     max_reference_action = float(np.max(np.abs((joint_pos - zero_pos) / 0.25)))
     self.assertLessEqual(max_reference_action, phybot_c2_squat_ppo_runner_cfg().clip_actions)
 
+  def test_waist_reference_is_zero_and_has_independent_guards(self) -> None:
+    motion_names = list(self.motion["joints_list"])
+    waist_names = (PHYBOT_C2_POLICY_JOINT_NAMES[12],)
+    waist_id = motion_names.index(waist_names[0])
+    waist_reference = np.asarray(self.motion["joint_positions"])[:, waist_id]
+    self.assertEqual(waist_names, ("waist_yaw",))
+    np.testing.assert_allclose(
+      waist_reference,
+      PHYBOT_C2_STANDING_JOINT_POS[waist_names[0]],
+      atol=1.0e-8,
+    )
+
+    cfg = phybot_c2_squat_env_cfg()
+    for reward_name in (
+      "track_waist",
+      "waist_tracking_error",
+      "track_waist_velocity",
+      "waist_action_limits",
+      "waist_reference_action",
+    ):
+      self.assertEqual(cfg.rewards[reward_name].params["joint_names"], waist_names)
+
+    self.assertEqual(cfg.rewards["track_waist"].weight, 2.0)
+    self.assertEqual(cfg.rewards["track_waist"].params["std"], 0.08)
+    self.assertEqual(cfg.rewards["track_waist"].params["metric_prefix"], "waist")
+    self.assertEqual(cfg.rewards["waist_tracking_error"].weight, -3.0)
+    self.assertEqual(cfg.rewards["waist_tracking_error"].params["beta"], 0.10)
+    self.assertEqual(
+      cfg.rewards["waist_tracking_error"].params["reduction"], "sum"
+    )
+    self.assertEqual(cfg.rewards["track_waist_velocity"].weight, 1.0)
+    self.assertEqual(cfg.rewards["track_waist_velocity"].params["std"], 0.5)
+    self.assertEqual(cfg.rewards["waist_action_limits"].weight, -0.5)
+    self.assertEqual(
+      cfg.rewards["waist_action_limits"].params["max_abs_actions"], (0.75,)
+    )
+    self.assertEqual(
+      cfg.rewards["waist_action_limits"].params["reduction"], "sum"
+    )
+    self.assertEqual(cfg.rewards["waist_reference_action"].weight, -1.0)
+    self.assertEqual(cfg.rewards["waist_reference_action"].params["beta"], 0.25)
+    self.assertEqual(
+      cfg.rewards["waist_reference_action"].params["max_abs_deviation"],
+      (0.30,),
+    )
+
+    action_scale = 0.25
+    self.assertEqual(0.30 * action_scale, 0.075)
+    self.assertEqual(0.75 * action_scale, 0.1875)
+    self.assertLess(
+      0.75,
+      phybot_c2_squat_ppo_runner_cfg().clip_actions,
+    )
+
   def test_arm_rewards_are_dense_and_reference_actions_have_safe_limits(self) -> None:
     cfg = phybot_c2_squat_env_cfg()
     arm_names = tuple(cfg.rewards["track_arms"].params["joint_names"])

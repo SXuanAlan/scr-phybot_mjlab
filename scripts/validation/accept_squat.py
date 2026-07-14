@@ -64,6 +64,13 @@ def main() -> None:
   command = base_env.command_manager.get_term("motion")
   feet_contact = base_env.scene["feet_ground_contact"]
   self_sensor = base_env.scene["self_collision"]
+  waist_names = tuple(cfg.rewards["track_waist"].params["joint_names"])
+  waist_ref_ids = torch.tensor(
+    [command.cfg.joint_names.index(name) for name in waist_names],
+    dtype=torch.long,
+    device=args.device,
+  )
+  waist_joint_ids = command.joint_ids[waist_ref_ids]
   arm_names = tuple(cfg.rewards["track_arms"].params["joint_names"])
   arm_ref_ids = torch.tensor(
     [command.cfg.joint_names.index(name) for name in arm_names],
@@ -71,19 +78,40 @@ def main() -> None:
     device=args.device,
   )
   arm_joint_ids = command.joint_ids[arm_ref_ids]
-  action_limit_cfg = cfg.rewards["arm_action_limits"].params
-  action_term = base_env.action_manager.get_term(action_limit_cfg["action_name"])
+  arm_action_limit_cfg = cfg.rewards["arm_action_limits"].params
+  action_term = base_env.action_manager.get_term(arm_action_limit_cfg["action_name"])
+  waist_action_limit_cfg = cfg.rewards["waist_action_limits"].params
+  if waist_action_limit_cfg["action_name"] != arm_action_limit_cfg["action_name"]:
+    raise ValueError("Waist and arm guards must inspect the same action term.")
+  waist_action_ids = torch.tensor(
+    [action_term.target_names.index(name) for name in waist_names],
+    dtype=torch.long,
+    device=args.device,
+  )
+  waist_action_limits = torch.tensor(
+    waist_action_limit_cfg["max_abs_actions"], device=args.device
+  )
+  waist_action_reference_cfg = cfg.rewards["waist_reference_action"].params
+  waist_action_tolerance = torch.tensor(
+    waist_action_reference_cfg["max_abs_deviation"], device=args.device
+  )
+  waist_action_scale = action_term.scale
+  if isinstance(waist_action_scale, torch.Tensor):
+    waist_action_scale = waist_action_scale[:, waist_action_ids]
+  waist_action_offset = action_term.offset
+  if isinstance(waist_action_offset, torch.Tensor):
+    waist_action_offset = waist_action_offset[:, waist_action_ids]
   arm_action_ids = torch.tensor(
     [action_term.target_names.index(name) for name in arm_names],
     dtype=torch.long,
     device=args.device,
   )
   arm_action_limits = torch.tensor(
-    action_limit_cfg["max_abs_actions"], device=args.device
+    arm_action_limit_cfg["max_abs_actions"], device=args.device
   )
-  action_reference_cfg = cfg.rewards["arm_reference_action"].params
+  arm_action_reference_cfg = cfg.rewards["arm_reference_action"].params
   arm_action_tolerance = torch.tensor(
-    action_reference_cfg["max_abs_deviation"], device=args.device
+    arm_action_reference_cfg["max_abs_deviation"], device=args.device
   )
   arm_action_scale = action_term.scale
   if isinstance(arm_action_scale, torch.Tensor):
@@ -110,6 +138,16 @@ def main() -> None:
   failed = torch.zeros(args.num_envs, dtype=torch.bool, device=args.device)
   min_separation = torch.full((args.num_envs,), torch.inf, device=args.device)
   collision_hits = torch.zeros(args.num_envs, dtype=torch.long, device=args.device)
+  waist_squared_error_sum = torch.zeros(args.num_envs, device=args.device)
+  waist_max_error = torch.zeros(args.num_envs, device=args.device)
+  waist_action_limit_hits = torch.zeros((), device=args.device)
+  waist_action_tube_hits = torch.zeros((), device=args.device)
+  waist_global_clip_hits = torch.zeros((), device=args.device)
+  waist_action_reference_squared_error_sum = torch.zeros(
+    args.num_envs, device=args.device
+  )
+  waist_action_rate_squared_sum = torch.zeros((), device=args.device)
+  previous_waist_action: torch.Tensor | None = None
   arm_squared_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_max_error = torch.zeros(args.num_envs, device=args.device)
   arm_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
@@ -148,6 +186,31 @@ def main() -> None:
       actions = policy(env.get_observations()).clamp(
         -agent_cfg.clip_actions, agent_cfg.clip_actions
       )
+      waist_action = actions[:, waist_action_ids]
+      waist_reference_action = (
+        command.joint_pos_ref[:, waist_ref_ids]
+        - waist_action_offset
+        + robot.data.encoder_bias[:, waist_joint_ids]
+      ) / waist_action_scale
+      waist_action_error = waist_action - waist_reference_action
+      waist_action_reference_squared_error_sum += torch.sum(
+        torch.square(waist_action_error), dim=1
+      )
+      waist_action_tube_hits += (
+        torch.abs(waist_action_error) > waist_action_tolerance
+      ).sum()
+      waist_action_limit_hits += (
+        torch.abs(waist_action) > waist_action_limits
+      ).sum()
+      waist_global_clip_hits += (
+        torch.abs(waist_action) >= agent_cfg.clip_actions - 1.0e-3
+      ).sum()
+      if previous_waist_action is not None:
+        waist_action_rate_squared_sum += torch.sum(
+          torch.square(waist_action - previous_waist_action)
+        )
+      previous_waist_action = waist_action.clone()
+
       arm_action = actions[:, arm_action_ids]
       arm_reference_action = (
         command.joint_pos_ref[:, arm_ref_ids]
@@ -182,6 +245,13 @@ def main() -> None:
       previous_arm_action = arm_action.clone()
 
       env.step(actions)
+      waist_position = robot.data.joint_pos[:, waist_joint_ids]
+      waist_reference = command.joint_pos_ref[:, waist_ref_ids]
+      waist_error = waist_position - waist_reference
+      waist_squared_error_sum += torch.sum(torch.square(waist_error), dim=1)
+      waist_max_error = torch.maximum(
+        waist_max_error, torch.abs(waist_error).max(dim=1).values
+      )
       arm_position = robot.data.joint_pos[:, arm_joint_ids]
       arm_reference = command.joint_pos_ref[:, arm_ref_ids]
       arm_error = arm_position - arm_reference
@@ -246,6 +316,26 @@ def main() -> None:
   separation_p01 = torch.quantile(min_separation, 0.01)
   separation_p05 = torch.quantile(min_separation, 0.05)
   separation_min = torch.min(min_separation)
+  waist_rmse = torch.sqrt(
+    waist_squared_error_sum / (frames * len(waist_names))
+  )
+  waist_rmse_mean = torch.mean(waist_rmse)
+  waist_rmse_p95 = torch.quantile(waist_rmse, 0.95)
+  waist_max_error_p95 = torch.quantile(waist_max_error, 0.95)
+  waist_action_count = args.num_envs * frames * len(waist_names)
+  waist_action_limit_fraction = waist_action_limit_hits / waist_action_count
+  waist_action_tube_fraction = waist_action_tube_hits / waist_action_count
+  waist_global_clip_fraction = waist_global_clip_hits / waist_action_count
+  waist_action_reference_rmse = torch.sqrt(
+    waist_action_reference_squared_error_sum / (frames * len(waist_names))
+  )
+  waist_action_reference_rmse_p95 = torch.quantile(
+    waist_action_reference_rmse, 0.95
+  )
+  waist_action_rate_count = args.num_envs * (frames - 1) * len(waist_names)
+  waist_action_rate_rms = torch.sqrt(
+    waist_action_rate_squared_sum / waist_action_rate_count
+  )
   arm_rmse = torch.sqrt(
     arm_squared_error_sum / (frames * len(arm_names))
   )
@@ -289,6 +379,14 @@ def main() -> None:
     "foot_separation_p01_m": float(separation_p01),
     "foot_separation_p05_m": float(separation_p05),
     "foot_separation_min_m": float(separation_min),
+    "waist_position_rmse_mean_rad": float(waist_rmse_mean),
+    "waist_position_rmse_p95_rad": float(waist_rmse_p95),
+    "waist_position_max_error_p95_rad": float(waist_max_error_p95),
+    "waist_action_reference_rmse_p95": float(waist_action_reference_rmse_p95),
+    "waist_action_tube_fraction": float(waist_action_tube_fraction),
+    "waist_action_limit_fraction": float(waist_action_limit_fraction),
+    "waist_global_clip_fraction": float(waist_global_clip_fraction),
+    "waist_action_rate_rms": float(waist_action_rate_rms),
     "arm_position_rmse_mean_rad": float(arm_rmse_mean),
     "arm_position_rmse_p95_rad": float(arm_rmse_p95),
     "arm_position_max_error_p95_rad": float(arm_max_error_p95),
@@ -312,6 +410,13 @@ def main() -> None:
     and metrics["worst_foot_mean_speed_p95_mps"] <= 0.025
     and metrics["both_feet_contact"] >= 0.99
     and metrics["foot_separation_p01_m"] >= 0.15
+    and metrics["waist_position_rmse_p95_rad"] <= 0.05
+    and metrics["waist_position_max_error_p95_rad"] <= 0.12
+    and metrics["waist_action_reference_rmse_p95"] <= 0.35
+    and metrics["waist_action_tube_fraction"] <= 0.01
+    and metrics["waist_action_limit_fraction"] <= 0.01
+    and metrics["waist_global_clip_fraction"] == 0.0
+    and metrics["waist_action_rate_rms"] <= 0.25
     and metrics["arm_position_rmse_p95_rad"] <= 0.15
     and metrics["arm_position_max_error_p95_rad"] <= 0.35
     and metrics["arm_symmetry_rmse_p95_rad"] <= 0.10

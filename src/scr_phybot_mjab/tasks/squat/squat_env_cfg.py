@@ -244,10 +244,64 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
         "metric_prefix": "arm",
       },
     ),
+    # The squat clip keeps waist_yaw at zero.  A single exponential used to
+    # saturate after a modest error, allowing PPO to sacrifice the waist and
+    # hold its action at the global clip as a cheap balance actuator.  Keep a
+    # dense position/velocity score and non-saturating position/action costs so
+    # large yaw errors always retain a restoring gradient.
     "track_waist": RewardTermCfg(
-      func=mdp.track_joint_pos,
+      func=mdp.track_joint_pos_cauchy,
+      weight=2.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "std": 0.08,
+        "joint_names": (),  # Waist, set per-robot.
+        "metric_prefix": "waist",
+      },
+    ),
+    "waist_tracking_error": RewardTermCfg(
+      func=mdp.joint_pos_tracking_huber_error,
+      weight=-3.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "beta": 0.10,
+        "joint_names": (),  # Waist, set per-robot.
+        "reduction": "sum",
+      },
+    ),
+    "track_waist_velocity": RewardTermCfg(
+      func=mdp.track_joint_vel_cauchy,
       weight=1.0,
-      params={"command_name": _COMMAND_NAME, "std": 0.2, "joint_names": ()},
+      params={
+        "command_name": _COMMAND_NAME,
+        "std": 0.5,
+        "joint_names": (),  # Waist, set per-robot.
+        "metric_prefix": "waist",
+      },
+    ),
+    "waist_action_limits": RewardTermCfg(
+      func=mdp.joint_action_limit_cost,
+      weight=-0.5,
+      params={
+        "action_name": "joint_pos",
+        "joint_names": (),  # Waist, set per-robot.
+        "max_abs_actions": (),  # Static-reference guard, set per-robot.
+        "global_clip": 6.0,
+        "metric_prefix": "waist",
+        "reduction": "sum",
+      },
+    ),
+    "waist_reference_action": RewardTermCfg(
+      func=mdp.joint_action_reference_tube_cost,
+      weight=-1.0,
+      params={
+        "command_name": _COMMAND_NAME,
+        "action_name": "joint_pos",
+        "joint_names": (),  # Waist, set per-robot.
+        "max_abs_deviation": (),  # Raw-action correction room, set per-robot.
+        "beta": 0.25,
+        "metric_prefix": "waist",
+      },
     ),
     "track_joint_velocity": RewardTermCfg(
       func=mdp.track_joint_vel,

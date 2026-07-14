@@ -180,7 +180,19 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.episode_length_s = _motion_duration_s(_SQUAT_MOTION_FILE)
 
   cfg.rewards["track_legs"].params["joint_names"] = _LEG_JOINT_NAMES
-  cfg.rewards["track_waist"].params["joint_names"] = _WAIST_JOINT_NAMES
+  for reward_name in (
+    "track_waist",
+    "waist_tracking_error",
+    "track_waist_velocity",
+    "waist_action_limits",
+    "waist_reference_action",
+  ):
+    cfg.rewards[reward_name].params["joint_names"] = _WAIST_JOINT_NAMES
+  # waist_yaw is identically zero in squat.npy.  The inner tube leaves 0.075
+  # rad of target correction for balance (0.30 raw * 0.25-rad action scale),
+  # while the outer envelope prevents another global-clip exploit.
+  cfg.rewards["waist_reference_action"].params["max_abs_deviation"] = (0.30,)
+  cfg.rewards["waist_action_limits"].params["max_abs_actions"] = (0.75,)
   for reward_name in (
     "track_arms",
     "arm_tracking_error",
