@@ -521,8 +521,8 @@ def base_motion_when_standing(
   return standing * active * cost
 
 
-def feet_lock_after_recovery():
-  """Create a stateful stand reward that freezes the final footholds.
+class feet_lock_after_recovery:
+  """Stateful stand reward that freezes the final footholds.
 
   During the recovery window the policy may step and the anchor follows the
   feet. At the boundary, each environment freezes its current world-frame foot
@@ -531,12 +531,13 @@ def feet_lock_after_recovery():
   an instantaneous slip penalty cannot detect.
   """
 
-  state: dict[str, torch.Tensor | None] = {
-    "anchor_xy": None,
-    "frozen": None,
-  }
+  def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
+    del cfg, env
+    self.anchor_xy: torch.Tensor | None = None
+    self.frozen: torch.Tensor | None = None
 
-  def call(
+  def __call__(
+    self,
     env: ManagerBasedRlEnv,
     *,
     sensor_name: str,
@@ -553,12 +554,12 @@ def feet_lock_after_recovery():
 
     foot_xy = asset.data.site_pos_w[:, asset_cfg.site_ids, :2]
     shape = foot_xy.shape
-    if state["anchor_xy"] is None or tuple(state["anchor_xy"].shape) != tuple(shape):
-      state["anchor_xy"] = foot_xy.clone()
-      state["frozen"] = torch.zeros(shape[0], dtype=torch.bool, device=env.device)
+    if self.anchor_xy is None or tuple(self.anchor_xy.shape) != tuple(shape):
+      self.anchor_xy = foot_xy.clone()
+      self.frozen = torch.zeros(shape[0], dtype=torch.bool, device=env.device)
 
-    anchor_xy = state["anchor_xy"]
-    frozen = state["frozen"]
+    anchor_xy = self.anchor_xy
+    frozen = self.frozen
     assert anchor_xy is not None and frozen is not None
 
     elapsed_s = env.episode_length_buf.float() * env.step_dt
@@ -598,16 +599,13 @@ def feet_lock_after_recovery():
     )
     return strict_f * cost
 
-  def reset(env_ids: torch.Tensor | slice | None = None) -> None:
-    if state["anchor_xy"] is None or state["frozen"] is None:
+  def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
+    if self.anchor_xy is None or self.frozen is None:
       return
     if env_ids is None:
       env_ids = slice(None)
-    state["anchor_xy"][env_ids] = 0.0
-    state["frozen"][env_ids] = False
-
-  call.reset = reset  # type: ignore[attr-defined]
-  return call
+    self.anchor_xy[env_ids] = 0.0
+    self.frozen[env_ids] = False
 
 
 def soft_landing(

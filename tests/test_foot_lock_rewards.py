@@ -5,6 +5,7 @@ import unittest
 
 import torch
 
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.tasks.squat.mdp.rewards import (
@@ -67,7 +68,8 @@ class FootRewardTest(unittest.TestCase):
   def test_stand_anchor_tracks_then_freezes_and_resets(self) -> None:
     env = self._stand_env()
     cfg = SceneEntityCfg("robot", site_ids=[0, 1])
-    reward = feet_lock_after_recovery()
+    reward_cfg = RewardTermCfg(func=feet_lock_after_recovery, weight=1.0)
+    reward = feet_lock_after_recovery(reward_cfg, env)
     params = {
       "sensor_name": "feet",
       "recovery_time_s": 3.0,

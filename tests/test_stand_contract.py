@@ -11,6 +11,7 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
   phybot_c2_stand_default_env_cfg,
   phybot_c2_walk_env_cfg,
 )
+from scr_phybot_mjab.tasks.walk.mdp.rewards import feet_lock_after_recovery
 
 
 class StandContractTest(unittest.TestCase):
@@ -33,6 +34,7 @@ class StandContractTest(unittest.TestCase):
     self.assertEqual(tracked_reset_joints, PHYBOT_C2_POLICY_JOINT_NAMES)
 
     self.assertNotIn("foot_slip", cfg.rewards)
+    self.assertIs(cfg.rewards["stand_feet_lock"].func, feet_lock_after_recovery)
     self.assertEqual(cfg.rewards["stand_feet_lock"].weight, -0.25)
     self.assertEqual(cfg.rewards["stand_feet_lock"].params["recovery_time_s"], 3.0)
     self.assertEqual(cfg.rewards["stand_feet_contact"].weight, 1.0)
@@ -58,6 +60,9 @@ class StandContractTest(unittest.TestCase):
     self.assertEqual(reset_upper_joints.params["velocity_range"], (0.0, 0.0))
     self.assertEqual(reset_base.params["pose_range"], {})
     self.assertEqual(reset_base.params["velocity_range"], {})
+    self.assertEqual(cfg.events["body_friction"].params["ranges"], (1.0, 1.0))
+    self.assertEqual(cfg.events["foot_friction"].params["ranges"], (0.7, 0.7))
+    self.assertEqual(cfg.events["base_mass"].params["ranges"], (0.0, 0.0))
     self.assertEqual(cfg.curriculum, {})
 
   def test_walk_and_stand_self_collision_sensor_selects_strongest_contact(self) -> None:

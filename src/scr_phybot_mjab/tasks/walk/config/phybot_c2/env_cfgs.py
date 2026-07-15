@@ -58,10 +58,11 @@ _BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
 _BASE_ANG_VEL_SENSOR = "robot/baselink-gyro"
 _FEET_GROUND_CONTACT_SENSOR = "feet_ground_contact"
 
-# Walk-specific collision config. The shared PHYBOT_C2_COLLISION carries
-# microspine climbing values (foot sliding friction 30, condim 6) which let the
+# Walk/deployment collision config. The shared PHYBOT_C2_COLLISION carries
+# legacy microspine values (foot sliding friction 30, condim 6) which let the
 # policy balance on a heel point without ever slipping; on real ground
-# (mu ~ 0.5-1.0) that gait falls over. The climb task keeps the shared config.
+# (mu ~ 0.5-1.0) that gait falls over. Climb imports this exact CollisionCfg so
+# its robot-side collision geometry and parameters cannot diverge from walk.
 _FOOT_COLLISION_GEOMS = r"^(left|right)_ankle_roll_collision$"
 _SPINE_PLATE_GEOMS = r"^(left|right)_(foot|hand)_spine_collision$"
 PHYBOT_C2_WALK_COLLISION = CollisionCfg(
@@ -406,7 +407,7 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.rewards["stand_feet_contact"].weight = 1.0
   cfg.rewards["self_collisions"].weight = -5.0
   cfg.rewards["stand_feet_lock"] = RewardTermCfg(
-    func=mdp.feet_lock_after_recovery(),
+    func=mdp.feet_lock_after_recovery,
     weight=-0.25,
     params={
       "sensor_name": _FEET_GROUND_CONTACT_SENSOR,
@@ -447,7 +448,7 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       }
     )
   else:
-    # Deployment preview starts exactly at zero state and remains deterministic.
+    # Deployment preview uses a nominal model and starts exactly at zero state.
     reset_joints.params["position_range"] = (0.0, 0.0)
     reset_joints.params["velocity_range"] = (0.0, 0.0)
     reset_upper_joints = cfg.events["reset_robot_upper_joints"]
@@ -455,6 +456,9 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     reset_upper_joints.params["velocity_range"] = (0.0, 0.0)
     reset_base.params["pose_range"] = {}
     reset_base.params["velocity_range"] = {}
+    cfg.events["body_friction"].params["ranges"] = (1.0, 1.0)
+    cfg.events["foot_friction"].params["ranges"] = (0.7, 0.7)
+    cfg.events["base_mass"].params["ranges"] = (0.0, 0.0)
     cfg.curriculum = {}
 
   return cfg

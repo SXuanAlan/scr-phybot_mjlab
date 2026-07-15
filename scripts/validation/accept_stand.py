@@ -1,8 +1,9 @@
 """Headless acceptance test for the stand-default policy.
 
-The first three seconds are the task's recovery window. Metrics start at five
-seconds, giving the policy two additional seconds to settle after its footholds
-are frozen. The process exits non-zero when any acceptance threshold fails.
+The first three seconds are the task's recovery window. The foot anchor is
+captured at that same boundary, while metrics start at five seconds to give the
+rest of the robot two additional seconds to settle. The process exits non-zero
+when any acceptance threshold fails.
 """
 
 from __future__ import annotations
@@ -60,6 +61,15 @@ def main() -> None:
   # 20-second timeout auto-reset it inside the final env.step().
   control_dt = cfg.sim.mujoco.timestep * cfg.decimation
   cfg.episode_length_s = max(cfg.episode_length_s, (args.steps + 1) * control_dt)
+  recovery_time_s = float(
+    cfg.rewards["stand_feet_lock"].params["recovery_time_s"]
+  )
+  if args.strict_start_s < recovery_time_s:
+    parser.error(
+      f"--strict-start-s must be >= the task recovery time ({recovery_time_s:.1f} s)"
+    )
+  recovery_step = int(round(recovery_time_s / control_dt))
+  strict_start_step = int(round(args.strict_start_s / control_dt))
   agent_cfg = load_rl_cfg(TASK)
   base_env = ManagerBasedRlEnv(cfg=cfg, device=args.device)
   env = RslRlVecEnvWrapper(base_env, clip_actions=agent_cfg.clip_actions)
@@ -74,6 +84,7 @@ def main() -> None:
   policy = runner.get_inference_policy(device=args.device)
 
   robot = base_env.scene["robot"]
+  feet_lock_term = base_env.reward_manager.get_term_cfg("stand_feet_lock").func
   foot_ids = robot.find_sites(("left_foot", "right_foot"), preserve_order=True)[0]
   policy_joint_ids = robot.find_joints(
     tuple(PHYBOT_C2_POLICY_JOINT_NAMES),
@@ -84,8 +95,6 @@ def main() -> None:
   mj_model = base_env.sim.mj_model
   left_ankle_geom = _geom_id_with_suffix(mj_model, "left_ankle_roll_collision")
   right_ankle_geom = _geom_id_with_suffix(mj_model, "right_ankle_roll_collision")
-  strict_start_step = int(round(args.strict_start_s / base_env.step_dt))
-
   anchor_xy: torch.Tensor | None = None
   valid = torch.ones(args.num_envs, dtype=torch.bool, device=args.device)
   speed_sum = torch.zeros(args.num_envs, device=args.device)
@@ -129,6 +138,7 @@ def main() -> None:
       )
 
       foot_pos = robot.data.site_pos_w[:, foot_ids]
+      foot_xy = foot_pos[:, :, :2]
       relative = foot_pos - robot.data.root_link_pos_w.unsqueeze(1)
       root_quat = robot.data.root_link_quat_w.unsqueeze(1).expand(-1, 2, -1)
       foot_pos_b = quat_apply_inverse(
@@ -139,11 +149,15 @@ def main() -> None:
         sample_mask, torch.minimum(min_separation, separation), min_separation
       )
 
-      if step < strict_start_step:
+      completed_steps = step + 1
+      if anchor_xy is None and completed_steps >= recovery_step:
+        if feet_lock_term.anchor_xy is None:
+          raise RuntimeError("stand_feet_lock did not freeze its anchor on schedule")
+        anchor_xy = feet_lock_term.anchor_xy.clone()
+
+      if completed_steps < strict_start_step:
         continue
-      foot_xy = robot.data.site_pos_w[:, foot_ids, :2]
-      if anchor_xy is None:
-        anchor_xy = foot_xy.clone()
+      assert anchor_xy is not None
       foot_speed = torch.norm(robot.data.site_lin_vel_w[:, foot_ids, :2], dim=-1)
       drift = torch.norm(foot_xy - anchor_xy, dim=-1).max(dim=1).values
       contact = (base_env.scene["feet_ground_contact"].data.found > 0).all(dim=1)
