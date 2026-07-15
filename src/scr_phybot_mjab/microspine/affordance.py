@@ -47,12 +47,17 @@ class MicrospineAffordance(CommandTerm):
     self._num_ee = len(self._mcfg.ee_body_names)
     # This latched state is consumed by MicrospineConstraint. It is separate
     # from robot actions, so policy outputs cannot command grip directly.
-    self._engaged = torch.full(
-      (self.num_envs, self._num_ee),
-      bool(self._mcfg.initial_on),
+    initial_mask = self._mcfg.resolve_initial_engaged_mask()
+    if not self._mcfg.grip_enabled:
+      initial_mask = (False,) * self._num_ee
+    self._initial_engaged = torch.tensor(
+      initial_mask,
       dtype=torch.bool,
       device=self.device,
     )
+    self._engaged = self._initial_engaged.expand(
+      self.num_envs, self._num_ee
+    ).clone()
     # Consecutive-step counters implement hysteresis/debouncing for noisy contact
     # signals. Cooldown prevents immediate re-engage after a forced release.
     self._engage_count = torch.zeros(
@@ -102,6 +107,12 @@ class MicrospineAffordance(CommandTerm):
     )
     self.hold_margin = torch.ones(shape, device=self.device)
     self.forced_release_this_step = torch.zeros(
+      shape, dtype=torch.bool, device=self.device
+    )
+    # True only for a debounced OFF -> ON affordance transition. Unlike the
+    # constraint executor's rising edge, this deliberately excludes reset-time
+    # placement of initially engaged anchors.
+    self.engaged_this_step = torch.zeros(
       shape, dtype=torch.bool, device=self.device
     )
     # HUD/debug readouts (pure GPU writes; no host syncs in the step path).
@@ -160,20 +171,52 @@ class MicrospineAffordance(CommandTerm):
   def engaged(self) -> torch.Tensor:
     return self._engaged
 
+  @property
+  def cooldown_steps(self) -> torch.Tensor:
+    """Remaining per-EE re-engagement cooldown in policy steps."""
+    return self._cooldown_steps
+
+  def set_initial_engaged_mask(self, mask: tuple[bool, ...]) -> None:
+    """Set the latch mask used by subsequent episode resets."""
+    if len(mask) != self._num_ee:
+      raise ValueError(
+        f"Initial mask has {len(mask)} entries; expected {self._num_ee}."
+      )
+    self._initial_engaged.copy_(
+      torch.tensor(mask, dtype=torch.bool, device=self.device)
+    )
+
+  def set_initial_engaged_ee_names(self, names: tuple[str, ...]) -> None:
+    """Select reset latches by configured EE name."""
+    selected = set(names)
+    unknown = selected.difference(self._mcfg.ee_body_names)
+    if unknown:
+      raise ValueError(
+        "Unknown initial microspine EEs: " + ", ".join(sorted(unknown))
+      )
+    self.set_initial_engaged_mask(
+      tuple(name in selected for name in self._mcfg.ee_body_names)
+    )
+
   def _update_metrics(self) -> None:
     return
 
   def _resample_command(self, env_ids: torch.Tensor) -> None:
     # Command terms are resampled on reset. Reset all latch bookkeeping alongside
     # the command so old contact history cannot leak into the new episode.
-    self._engaged[env_ids] = bool(self._mcfg.initial_on)
+    self._engaged[env_ids] = (
+      self._initial_engaged if self._mcfg.grip_enabled else False
+    )
     self._engage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
     self.anchor_load_tnl[env_ids] = 0.0
     self.hold_margin[env_ids] = 1.0
+    self.face_cos[env_ids] = 0.0
+    self.contact_count[env_ids] = 0.0
     self.forced_release_this_step[env_ids] = False
+    self.engaged_this_step[env_ids] = False
     self.release_reason[env_ids] = 0
     self._sample_limit_params(env_ids)
 
@@ -366,14 +409,21 @@ class MicrospineAffordance(CommandTerm):
       )
 
     found = data.found
+    found_mask = found > 0
     engage_force = data.force
     if data.force_history is not None:
       # Average force history so one compression impulse cannot latch a spine.
       engage_force = data.force_history.mean(dim=2)
+      # MuJoCo 3.10 contacts can be created and resolved within a decimation
+      # window. In that case the instantaneous ``found`` value is zero even
+      # though the force history contains the compression that should be used
+      # by the latch gate. The history length is configured to one policy step,
+      # so treating any historical normal force as contact cannot leak across
+      # steps.
+      found_mask |= (data.force_history[..., 0] > 0.0).any(dim=2)
 
     self._validate_sensor_shapes(found, engage_force)
 
-    found_mask = found > 0
     # CONTACT sensor force is expressed as [normal, tangent1, tangent2].
     normal_force = engage_force[..., 0].clamp(min=0.0)
     normal_force = torch.where(
@@ -435,6 +485,7 @@ class MicrospineAffordance(CommandTerm):
   def _update_command(self) -> None:
     normal_forces, found_count = self._sensor_contact_features()
     self.contact_count = found_count
+    self.engaged_this_step.zero_()
 
     # Engage from OFF requires compression on the sphere grid and optional
     # face alignment.
@@ -444,6 +495,18 @@ class MicrospineAffordance(CommandTerm):
     # live value even when the alignment gate is disabled.
     face_cos = self._face_wall_cos()
     self.face_cos = face_cos
+
+    if not self._mcfg.grip_enabled:
+      self._engaged.zero_()
+      self._engage_count.zero_()
+      self._cooldown_steps.zero_()
+      self._violation_count.zero_()
+      self._steps_since_engage.zero_()
+      self.anchor_load_tnl.zero_()
+      self.hold_margin.fill_(1.0)
+      self.forced_release_this_step.zero_()
+      self.release_reason.zero_()
+      return
 
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
       engage_condition &= (
@@ -463,6 +526,7 @@ class MicrospineAffordance(CommandTerm):
     engage_transition = engage_count >= max(
       1, self._mcfg.engage_consecutive_steps
     )
+    self.engaged_this_step.copy_(engage_transition)
 
     # The limit surface owns release. It runs on the pre-transition latch state,
     # so a spine engaged this very step is never judged on stale loads.

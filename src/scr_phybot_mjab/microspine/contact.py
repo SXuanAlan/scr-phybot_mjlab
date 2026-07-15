@@ -56,3 +56,24 @@ def add_contact_pairs(
     pair.solreffriction = list(cfg.contact_solref)
     pair.margin = cfg.contact_margin
     pair.gap = cfg.contact_gap
+
+
+def add_pad_wall_contact_excludes(
+  spec: mujoco.MjSpec,
+  cfg: MicrospineCfg,
+  robot_prefix: str = "robot",
+  wall_body_name: str = "wall/wall_body",
+) -> None:
+  """Exclude each pad's coarse collision box from the wall.
+
+  The pad body owns a coarse box while its child bodies own the contact-sphere
+  grid. Letting both representations collide with the wall duplicates and
+  over-constrains the contact patch. MuJoCo body-pair excludes apply only to
+  the named bodies, not their children, so all explicit sphere-wall pairs
+  added by :func:`add_contact_pairs` remain active.
+  """
+  for ee_body_name in cfg.ee_body_names:
+    spec.add_exclude(
+      bodyname1=f"{robot_prefix}/{ee_body_name}",
+      bodyname2=wall_body_name,
+    )

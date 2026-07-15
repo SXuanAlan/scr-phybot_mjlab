@@ -4,6 +4,9 @@ Subcommands:
   hang     16-env hang test on a vertical (90°) wall: all 4 EEs anchored,
            zero actions. Asserts the anchors hold the robot weight without
            sag, jitter, NaNs, or efc overflow.
+  ablation Disable physical grip at the same low ordinary wall friction and
+           assert that the robot falls. This proves the equality anchors, not
+           incidental contact friction, provide vertical support.
   sweep    GPU-parallel limit-surface envelope scan: each env pulls one EE in
            a different direction of the t-n / t-l planes with a per-direction
            force ramp, recording the anchor load at forced release. Checks
@@ -54,11 +57,16 @@ def build_env(
   limit_surface_enable: bool = True,
   reanchor_after_grace: bool = True,
   anchor_lock_rotation: bool | None = None,
+  grip_enabled: bool = True,
 ) -> ManagerBasedRlEnv:
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   cfg.scene.num_envs = num_envs
   cfg.episode_length_s = 1.0e9  # No time_out resets during tests.
   cfg.curriculum = {}  # Gravity is set explicitly per test.
+  # Mechanics probes deliberately hold a fixed pose or apply artificial force
+  # ramps; task-level lack-of-climb is expected here and must not reset them.
+  cfg.terminations.pop("no_progress", None)
+  cfg.terminations.pop("gait_curriculum_success", None)
   cfg.events["reset_robot_joints"].params["velocity_range"] = (0.0, 0.0)
   # The nested limit_surface cfg is shared between the affordance command and
   # the physics event term (dataclasses.replace is shallow copy: nested
@@ -67,6 +75,12 @@ def build_env(
   # closes over the commands-side cfg — written before env construction, so
   # the equality type and the executor stay consistent.
   mcfg = cfg.commands["microspine_affordance"].microspine_cfg
+  # Mechanics tests intentionally exercise every anchor regardless of the
+  # performance curriculum stage selected by the production task.
+  mcfg.initial_engaged_ee_names = EE_NAMES
+  mcfg.grip_enabled = grip_enabled
+  if not grip_enabled:
+    cfg.terminations.pop("base_height", None)
   mcfg.limit_surface.enable = limit_surface_enable
   for owner in (mcfg, cfg.events["microspine_grip"].params["microspine_cfg"]):
     owner.reanchor_after_grace = reanchor_after_grace
@@ -191,6 +205,50 @@ def cmd_hang(args) -> bool:
     )
   env.close()
 
+  return ok
+
+
+def cmd_ablation(args) -> bool:
+  print(
+    f"== ablation: {args.num_envs} envs, 90° wall, {args.seconds}s, grip OFF =="
+  )
+  env = build_env(args.num_envs, grip_enabled=False)
+  env.reset()
+  set_gravity(env, 90.0)
+  executor, affordance = get_terms(env)
+  executor.assert_now(env)
+
+  robot = env.scene["robot"]
+  z0 = robot.data.root_link_pos_w[:, 2].clone()
+  actions = zero_actions(env)
+  steps = int(args.seconds / env.step_dt)
+  for _ in range(steps):
+    env.step(actions)
+
+  drop = z0 - robot.data.root_link_pos_w[:, 2]
+  eq_active = env.sim.data.eq_active[:, executor._eq_ids]
+  ok = True
+  ok &= check(
+    "no microspines engaged",
+    not bool(affordance.engaged.any().item()),
+    f"occupancy={affordance.engaged.float().mean().item():.3f}",
+  )
+  ok &= check(
+    "all grip equalities inactive",
+    not bool(eq_active.any().item()),
+    f"active={int(eq_active.sum().item())}",
+  )
+  ok &= check(
+    "robot falls without grip",
+    bool((drop > args.minimum_drop).all().item()),
+    f"minimum drop={drop.min().item():.3f} m",
+  )
+  ok &= check(
+    "finite state",
+    bool(torch.isfinite(robot.data.root_link_pos_w).all().item()),
+    "root position finite",
+  )
+  env.close()
   return ok
 
 
@@ -684,6 +742,11 @@ def main() -> None:
     "(pre-re-grip behavior; engaged spines stay latched forever).",
   )
 
+  p_ablation = sub.add_parser("ablation")
+  p_ablation.add_argument("--num-envs", type=int, default=16)
+  p_ablation.add_argument("--seconds", type=float, default=1.0)
+  p_ablation.add_argument("--minimum-drop", type=float, default=0.25)
+
   p_sweep = sub.add_parser("sweep")
   p_sweep.add_argument("--num-envs", type=int, default=1024)
   p_sweep.add_argument("--seconds", type=float, default=6.0)
@@ -714,6 +777,7 @@ def main() -> None:
   args = parser.parse_args()
   ok = {
     "hang": cmd_hang,
+    "ablation": cmd_ablation,
     "sweep": cmd_sweep,
     "readout": cmd_readout,
     "dynamic": cmd_dynamic,

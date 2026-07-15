@@ -69,8 +69,10 @@ class MicrospineLimitSurfaceCfg:
   rounds: grace 6 → 31% engaged / mass releases, 10 → 93%, 14 → 100% with
   hold margins 0.2-0.8. 14 steps = 0.28 s of seating, the upper end of
   physical spine engagement times; a fresh engagement is unkillable for that
-  window, but it cannot carry load either (the reseated anchor sheds force
-  every step), so cyclic re-engagement only creeps down the wall."""
+  window. Its equality can carry transient load inside each policy interval,
+  but the next re-seat discards accumulated anchor error, so it has no fixed
+  cross-step reference until grace ends. Cyclic re-engagement can therefore
+  ratchet the reference and creep along the wall."""
 
   violation_consecutive_steps: int = 2
   """Debounce for conditions 1-3. Condition 4 (ultimate shear) is instant."""
@@ -96,6 +98,9 @@ class MicrospineCfg:
 
   spheres_per_ee_cols: int
   """Columns in the per-EE contact-sphere grid."""
+
+  grip_enabled: bool = True
+  """Enable physical latch engagement. False is the explicit ablation mode."""
 
   affordance_name: str | None = None
   """Command-manager term name that provides the per-EE engage state."""
@@ -163,6 +168,15 @@ class MicrospineCfg:
   initial_on: bool = True
   """Initial per-EE engaged state after reset."""
 
+  initial_engaged_ee_names: tuple[str, ...] | None = None
+  """Optional per-EE override for the engaged state after reset.
+
+  When set, only the listed entries from ``ee_body_names`` start engaged and
+  ``initial_on`` is ignored. This is an environment initialization choice,
+  not an action: the policy still has no engage/disengage control channel.
+  ``None`` preserves the legacy all-on/all-off behavior from ``initial_on``.
+  """
+
   anchor_solref: tuple[float, float] = (0.01, 1.0)
   """Connect-equality solref. timeconst = 5 * dt keeps implicitfast stable."""
 
@@ -211,13 +225,29 @@ class MicrospineCfg:
   *unprojected* settled pad position on every grace step (executor engage-age
   1 .. hold_grace_steps - 1) lets the pad walk out of the standoff so the
   first limit-surface check sees the true structural load of the pose. A
-  policy could in principle ratchet by cyclic re-engagement, but the gain is
-  ~mm per engage cycle."""
+  policy could in principle ratchet by repeatedly causing passive release and
+  re-engagement: each fresh grace window lets the reference follow the pad
+  again, with a gain of roughly millimeters per engage cycle."""
 
   limit_surface: MicrospineLimitSurfaceCfg = dataclasses.field(
     default_factory=MicrospineLimitSurfaceCfg
   )
   """Hold envelope evaluated by the affordance in constraint mode."""
+
+  def resolve_initial_engaged_mask(self) -> tuple[bool, ...]:
+    """Resolve the reset latch state in ``ee_body_names`` order."""
+    if self.initial_engaged_ee_names is None:
+      return (bool(self.initial_on),) * len(self.ee_body_names)
+
+    selected = set(self.initial_engaged_ee_names)
+    unknown = selected.difference(self.ee_body_names)
+    if unknown:
+      unknown_names = ", ".join(sorted(unknown))
+      raise ValueError(
+        "initial_engaged_ee_names contains names outside ee_body_names: "
+        f"{unknown_names}"
+      )
+    return tuple(name in selected for name in self.ee_body_names)
 
 
 @dataclasses.dataclass(kw_only=True)

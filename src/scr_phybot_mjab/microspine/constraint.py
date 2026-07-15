@@ -274,6 +274,7 @@ class MicrospineConstraint:
       self._num_envs, self._num_ee, dtype=torch.bool, device=self._device
     )
     self.disengaged_this_step = torch.zeros_like(self.engaged)
+    self.engaged_this_step = torch.zeros_like(self.engaged)
     self.current_disengage_time = torch.zeros(
       self._num_envs, self._num_ee, dtype=torch.float32, device=self._device
     )
@@ -307,6 +308,15 @@ class MicrospineConstraint:
     )
     self._row_arange = None  # Lazily sized to njmax at first load readout.
     self._checked_expansion = False
+
+  @property
+  def engage_age(self) -> torch.Tensor:
+    """Policy-step age of each currently engaged equality.
+
+    This controller-owned timer is safe for reward/observation terms to read;
+    exposing it avoids coupling those terms to the executor's private storage.
+    """
+    return self._engage_age
 
   # ---------------------------------------------------------------------
   # Affordance input.
@@ -502,6 +512,7 @@ class MicrospineConstraint:
   def _update_disengage_time(
     self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor
   ) -> None:
+    self.engaged_this_step = ~was_engaged & self.engaged
     self.disengaged_this_step = was_engaged & ~self.engaged
     self.current_disengage_time = torch.where(
       self.engaged,
@@ -564,6 +575,7 @@ class MicrospineConstraint:
   def reset(self, env_ids: torch.Tensor | None = None) -> None:
     ids = slice(None) if env_ids is None else env_ids
     self.engaged[ids] = False
+    self.engaged_this_step[ids] = False
     self.disengaged_this_step[ids] = False
     self.current_disengage_time[ids] = 0.0
     self.last_engage_command[ids] = False
