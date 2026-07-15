@@ -93,7 +93,7 @@ class AmpReferenceResetCommand(CommandTerm):
       base_ang_vel = quat_apply(quat, base_ang_vel)
     root_state = torch.cat([root_pos, quat, base_lin_vel, base_ang_vel], dim=-1)
     self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
-    self.robot.clear_state(env_ids=env_ids)
+    self.robot.reset(env_ids=env_ids)
 
 
 @dataclass(kw_only=True)

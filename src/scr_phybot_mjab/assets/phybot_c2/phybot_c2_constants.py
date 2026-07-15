@@ -11,9 +11,10 @@ import mujoco
 
 from mjlab.actuator import BuiltinPositionActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
-from mjlab.utils.os import update_assets
 from mjlab.utils import spec_config as spec_cfg
 from mjlab.utils.spec_config import CollisionCfg
+
+from scr_phybot_mjab.assets.utils import update_assets
 
 ##
 # MJCF and assets.
@@ -337,9 +338,29 @@ def _sync_joint_force_limits_to_ctrlrange(spec: mujoco.MjSpec) -> None:
     joint.actfrclimited = True
 
 
+def _reset_global_fields_for_scene_attach(spec: mujoco.MjSpec) -> None:
+  """Drop child-global settings that ``MjSpec.attach`` cannot propagate.
+
+  The standalone robot XML intentionally keeps its own solver, visual, and
+  memory settings for deployment-side MuJoCo programs.  MJLab attaches the
+  robot as a child of a scene, where these fields are always owned by the
+  parent scene (and MuJoCo 3.10 now warns about every conflict).  Resetting
+  only the in-memory child spec keeps standalone behavior unchanged while the
+  task's ``SimulationCfg`` remains the single source of truth in MJLab.
+  """
+  defaults = mujoco.MjSpec()
+  spec.option.iterations = defaults.option.iterations
+  spec.option.solver = defaults.option.solver
+  spec.visual.map.znear = defaults.visual.map.znear
+  spec.visual.map.zfar = defaults.visual.map.zfar
+  spec.njmax = defaults.njmax
+  spec.nconmax = defaults.nconmax
+
+
 def get_spec() -> mujoco.MjSpec:
   spec = mujoco.MjSpec.from_file(str(PHYBOT_C2_XML))
   spec.assets = get_assets(spec.meshdir)
+  _reset_global_fields_for_scene_attach(spec)
   _delete_embedded_floor(spec)
   _delete_embedded_keyframes(spec)
   _delete_embedded_actuators(spec)

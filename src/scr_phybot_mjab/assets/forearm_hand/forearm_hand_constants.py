@@ -10,8 +10,9 @@ import mujoco
 
 from mjlab.actuator import BuiltinPositionActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
-from mjlab.utils.os import update_assets
 from mjlab.utils.spec_config import CollisionCfg
+
+from scr_phybot_mjab.assets.utils import update_assets
 
 
 ##

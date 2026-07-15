@@ -274,7 +274,7 @@ class SquatMotionCommand(CommandTerm):
 
     root_state = torch.cat([root_pos, root_quat, root_lin_vel, root_ang_vel], dim=-1)
     self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
-    self.robot.clear_state(env_ids=env_ids)
+    self.robot.reset(env_ids=env_ids)
 
 
 @dataclass(kw_only=True)

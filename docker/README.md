@@ -25,7 +25,7 @@ claude --dangerously-skip-permissions
 
 - **Base**: `nvidia/cuda:12.8.0-devel-ubuntu24.04`
 - **Python**: 3.11 (via Miniconda)
-- **Key packages**: PyTorch 2.10, MuJoCo 3.6, mjlab 1.2
+- **Key packages**: PyTorch 2.10, MuJoCo 3.10, MJLab 1.5
 - **GPU**: Full NVIDIA GPU passthrough
 - **Claude Code**: Pre-installed via npm
 

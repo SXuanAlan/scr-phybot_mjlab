@@ -23,9 +23,9 @@ import time
 import mujoco
 import numpy as np
 import viser
+from mjviser import ViserMujocoScene
 
 from mjlab.entity import Entity
-from mjlab.viewer.viser.scene import ViserMujocoScene
 
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
@@ -133,7 +133,7 @@ def main() -> None:
   init_mocap_quat = data.mocap_quat.copy() if model.nmocap else None
 
   server = viser.ViserServer(label="pose-tuner")
-  scene = ViserMujocoScene.create(server=server, mj_model=model, num_envs=1)
+  scene = ViserMujocoScene(server=server, mj_model=model, num_envs=1)
   scene.env_idx = 0
 
   # Locate the robot's free joint (root pose) and list articulated joints.

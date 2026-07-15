@@ -118,7 +118,7 @@ RIZON4_VISUAL_SPECS = (
 
 def get_assets(meshdir: str) -> dict[str, bytes]:
   """Return mesh assets embedded into the generated MuJoCo spec."""
-  from mjlab.utils.os import update_assets
+  from scr_phybot_mjab.assets.utils import update_assets
 
   assets: dict[str, bytes] = {}
   update_assets(assets, RIZON4_COLLISION_MESHES, meshdir)
