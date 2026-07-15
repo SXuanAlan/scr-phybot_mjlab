@@ -4,6 +4,7 @@ Adds climb-wall gravity playback controls on top of mjlab's play script:
 
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file logs/.../model_2000.pt
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --gravity-angle-deg 90 --agent zero
+  python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file ... --disable-microspine
 
 Walk can also be driven by a local physical gamepad (left stick = linear x/y,
 right stick = yaw, shoulder buttons cycle slow/medium/fast; medium is the
@@ -44,7 +45,9 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_gravity_ang
 @dataclass(frozen=True)
 class PlayConfig(MjlabPlayConfig):
   gravity_angle_deg: float | None = None
-  """Override climb-wall play gravity angle in degrees. If omitted, infer it from model_<iter>.pt."""
+  """Override climb gravity; otherwise use the final performance stage or legacy checkpoint stage."""
+  disable_microspine: bool = False
+  """Disable physical latch engagement for a climb-policy ablation rollout."""
   gamepad: bool = False
   """Drive the walk velocity command from a physical gamepad (left stick = linear x/y, right stick = yaw)."""
   gamepad_auto_bridge: bool = True
@@ -81,7 +84,7 @@ def _normalize_cli_aliases(argv: list[str]) -> list[str]:
     "--gravity-angle": "--gravity-angle-deg",
     "--gravity-angle-degrees": "--gravity-angle-deg",
   }
-  bool_flags = {"--gamepad", "--gamepad-auto-bridge"}
+  bool_flags = {"--disable-microspine", "--gamepad", "--gamepad-auto-bridge"}
   normalized: list[str] = []
   for idx, raw_arg in enumerate(argv):
     if raw_arg == "--no-gamepad-auto-bridge":
@@ -114,7 +117,28 @@ def _apply_climb_wall_play_gravity(
   checkpoint_hint: str | None = None,
 ) -> None:
   curriculum = getattr(env_cfg, "curriculum", None)
-  if not curriculum or "gravity_angle" not in curriculum:
+  if not curriculum:
+    return
+
+  if "climb_difficulty" in curriculum:
+    term_cfg = curriculum["climb_difficulty"]
+    stages = term_cfg.params.get("stages")
+    if not stages:
+      return
+    final_stage = dict(stages[-1])
+    if gravity_angle_deg is not None:
+      final_stage["angle_deg"] = float(gravity_angle_deg)
+      source = "CLI override"
+    else:
+      source = "final performance stage"
+    term_cfg.params["stages"] = [final_stage]
+    print(
+      f"[INFO]: Play gravity angle set to {final_stage['angle_deg']:.2f} deg "
+      f"({source})"
+    )
+    return
+
+  if "gravity_angle" not in curriculum:
     return
 
   term_cfg = curriculum["gravity_angle"]
@@ -305,6 +329,15 @@ def run_play(task_id: str, cfg: PlayConfig):
     checkpoint_path=resume_path,
     checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
   )
+  if cfg.disable_microspine:
+    affordance_cfg = env_cfg.commands.get("microspine_affordance")
+    if affordance_cfg is None:
+      raise ValueError("--disable-microspine requires a microspine climb task.")
+    affordance_cfg.microspine_cfg.grip_enabled = False
+    event_cfg = env_cfg.events.get("microspine_grip")
+    if event_cfg is not None:
+      event_cfg.params["microspine_cfg"].grip_enabled = False
+    print("[INFO]: Microspine grip disabled for ablation playback")
 
   if cfg.num_envs is not None:
     env_cfg.scene.num_envs = cfg.num_envs

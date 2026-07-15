@@ -30,6 +30,84 @@ def both_hands_unlatched(
   return engaged.sum(dim=-1) == 0
 
 
+def gait_curriculum_success(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """Truncate an episode after meeting its current productive re-grip goal."""
+  gait = env.command_manager.get_term(command_name)
+  return gait.episode_success
+
+
+def no_progress_stall():
+  """Factory for terminating commanded climbs that make no new height.
+
+  The initial settling window continuously follows the base height, so the
+  unavoidable reset-pose sag does not consume the stall budget. Afterwards a
+  new progress mark must be cleared by ``minimum_progress`` before the timer
+  resets. Tiny solver jitter therefore cannot keep a hanging episode alive.
+  """
+  state: dict[str, torch.Tensor | None] = {
+    "progress_mark_z": None,
+    "stall_time": None,
+    "fresh": None,
+  }
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    asset_cfg: SceneEntityCfg,
+    command_name: str = "climb_velocity",
+    settle_time_s: float = 0.5,
+    stall_time_s: float = 5.0,
+    minimum_progress: float = 0.01,
+    command_threshold: float = 0.01,
+  ) -> torch.Tensor:
+    asset: Entity = env.scene[asset_cfg.name]
+    z = asset.data.root_link_pos_w[:, 2]
+
+    if state["progress_mark_z"] is None or state["progress_mark_z"].shape != z.shape:
+      state["progress_mark_z"] = z.clone()
+      state["stall_time"] = torch.zeros_like(z)
+      state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
+      return torch.zeros_like(z, dtype=torch.bool)
+
+    mark = state["progress_mark_z"]
+    timer = state["stall_time"]
+    fresh = state["fresh"]
+    assert mark is not None and timer is not None and fresh is not None
+
+    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+    initialize = fresh | settling
+    advanced = z >= mark + minimum_progress
+
+    mark = torch.where(initialize | advanced, z, mark)
+    timer = torch.where(
+      initialize | advanced,
+      torch.zeros_like(timer),
+      timer + env.step_dt,
+    )
+    fresh.zero_()
+    state["progress_mark_z"] = mark
+    state["stall_time"] = timer
+
+    command_z = env.command_manager.get_command(command_name)[:, 2].abs()
+    active = command_z > command_threshold
+    return active & ~initialize & (timer >= stall_time_s)
+
+  def reset(env_ids=None) -> dict:
+    fresh = state["fresh"]
+    if fresh is None:
+      return {}
+    ids = slice(None) if env_ids is None else env_ids
+    fresh[ids] = True
+    state["stall_time"][ids] = 0.0
+    return {}
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
+
+
 def bad_state(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,

@@ -47,6 +47,97 @@ class WallAngleStage(TypedDict):
   # by tilting GRAVITY while keeping the wall geometry vertical.
 
 
+class ClimbDifficultyStage(TypedDict):
+  """One performance-gated climbing stage."""
+
+  angle_deg: float
+  initial_engaged_ee_names: tuple[str, ...]
+  required_productive_regrips: int
+  randomize_start_limb: bool
+
+
+class performance_gated_climb:
+  """Advance grip initialization and wall angle from episode success rate."""
+
+  def __init__(self, cfg, env: ManagerBasedRlEnv):
+    del env
+    self.level = 0
+    self.evaluated_episodes = 0
+    self.successful_episodes = 0
+    self.last_success_rate = 0.0
+    stages = cfg.params.get("stages", [])
+    if not stages:
+      raise ValueError("performance_gated_climb requires at least one stage.")
+
+  @staticmethod
+  def _set_gravity(
+    env: ManagerBasedRlEnv,
+    angle_deg: float,
+    gravity_magnitude: float,
+  ) -> None:
+    import warp as wp
+
+    rad = math.radians(angle_deg)
+    grav_view = wp.to_torch(env.sim.wp_model.opt.gravity)
+    grav_view[:, 0] = gravity_magnitude * math.cos(rad)
+    grav_view[:, 1] = 0.0
+    grav_view[:, 2] = -gravity_magnitude * math.sin(rad)
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    env_ids: torch.Tensor,
+    *,
+    stages: list[ClimbDifficultyStage],
+    gait_command_name: str = "climb_gait",
+    affordance_command_name: str = "microspine_affordance",
+    min_evaluated_episodes: int = 512,
+    advance_success_rate: float = 0.7,
+    gravity_magnitude: float = 9.81,
+  ) -> dict[str, torch.Tensor]:
+    if not 0.0 <= advance_success_rate <= 1.0:
+      raise ValueError("advance_success_rate must be in [0, 1].")
+    if min_evaluated_episodes < 1:
+      raise ValueError("min_evaluated_episodes must be positive.")
+
+    gait = env.command_manager.get_term(gait_command_name)
+    completed = env.episode_length_buf[env_ids] > 0
+    successes = gait.episode_success[env_ids] & completed
+    self.evaluated_episodes += int(completed.sum().item())
+    self.successful_episodes += int(successes.sum().item())
+
+    if self.evaluated_episodes >= min_evaluated_episodes:
+      self.last_success_rate = (
+        self.successful_episodes / self.evaluated_episodes
+      )
+      if (
+        self.last_success_rate >= advance_success_rate
+        and self.level + 1 < len(stages)
+      ):
+        self.level += 1
+      self.evaluated_episodes = 0
+      self.successful_episodes = 0
+
+    stage = stages[self.level]
+    affordance = env.command_manager.get_term(affordance_command_name)
+    affordance.set_initial_engaged_ee_names(stage["initial_engaged_ee_names"])
+    gait.set_training_stage(
+      required_productive_regrips=stage["required_productive_regrips"],
+      randomize_start_limb=stage["randomize_start_limb"],
+    )
+    self._set_gravity(env, stage["angle_deg"], gravity_magnitude)
+
+    device = env.device
+    return {
+      "stage": torch.tensor(float(self.level), device=device),
+      "angle_deg": torch.tensor(stage["angle_deg"], device=device),
+      "success_rate": torch.tensor(self.last_success_rate, device=device),
+      "required_regrips": torch.tensor(
+        float(stage["required_productive_regrips"]), device=device
+      ),
+    }
+
+
 class ClimbVelocityRangeStage(TypedDict, total=False):
   iter: int
   lin_vel_x: tuple[float, float]

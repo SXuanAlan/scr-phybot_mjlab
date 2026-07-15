@@ -181,21 +181,56 @@ def velocity_command(
   return cmd.unsqueeze(0).expand(env.num_envs, 3)
 
 
-def hand_engaged_state(
+def microspine_engaged_state(
   env: ManagerBasedRlEnv,
   event_term_name: str = "microspine_grip",
+  command_name: str | None = None,
 ) -> torch.Tensor:
-  """Per-hand microspine latch state. Shape (E, 2) float in {0, 1}.
+  """Per-EE microspine latch state, shape ``(E, num_ee)`` in ``{0, 1}``.
 
-  Tells the policy whether each hand is currently gripping the wall. This
-  is the same ``engaged`` flag that ``airborne_penalty`` reads from the
-  event manager — exposing it as an observation lets the policy
-  coordinate motion with latch transitions (e.g. don't try to reach with
-  a hand that's still engaged).
+  The affordance command is preferred because it is the source of truth and is
+  already initialized on the reset observation; the physics event mirrors that
+  state into equalities one event pass later. ``event_term_name`` retains the
+  legacy physics-state path.
   """
-  term_cfg = env.event_manager.get_term_cfg(event_term_name)
-  engaged = term_cfg.func.engaged  # (E, H) bool
+  if command_name is not None:
+    engaged = env.command_manager.get_term(command_name).engaged
+  else:
+    term_cfg = env.event_manager.get_term_cfg(event_term_name)
+    engaged = term_cfg.func.engaged  # (E, H) bool
   return engaged.float()
+
+
+# Backward-compatible name retained for old climb configs.
+hand_engaged_state = microspine_engaged_state
+
+
+def microspine_contact_fraction(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+  spheres_per_ee: int = 4,
+) -> torch.Tensor:
+  """Per-EE fraction of contact spheres currently touching the wall."""
+  affordance = env.command_manager.get_term(command_name)
+  return (affordance.contact_count / max(1, spheres_per_ee)).clamp(0.0, 1.0)
+
+
+def microspine_cooldown_obs(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+  cooldown_steps: int = 30,
+) -> torch.Tensor:
+  """Normalized per-EE re-engagement cooldown known to the grip controller."""
+  affordance = env.command_manager.get_term(command_name)
+  return affordance.cooldown_steps.float() / max(1, cooldown_steps)
+
+
+def climb_gait_command(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """Selected limb, event phase, and normalized target displacement."""
+  return env.command_manager.get_command(command_name)
 
 
 def ee_disengage_time_obs(

@@ -12,6 +12,8 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+from .commands import ClimbGaitPhase
+
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
@@ -35,10 +37,15 @@ class _SphereGeomCache:
       mj = env.sim.mj_model
       ids = []
       radii = []
-      for side in ("left", "right"):
+      for ee_name in (
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine",
+      ):
         for i in range(2):
-          for j in range(4):
-            gid = mj.geom(f"robot/{side}_hand_c_{i}_{j}").id
+          for j in range(2):
+            gid = mj.geom(f"robot/{ee_name}_c_{i}_{j}").id
             ids.append(gid)
             radii.append(float(mj.geom_size[gid, 0]))
       cls._instance.geom_ids = torch.tensor(ids, dtype=torch.long, device=env.device)
@@ -383,12 +390,14 @@ def climb_linear_velocity_z_gauss(
 
 
 def climb_height_progress():
-  """Factory: reward net upward progress, not oscillatory vertical velocity.
+  """Factory: reward new height after the reset pose has physically settled.
 
   The term tracks the best base height reached in each episode and rewards
   only increases of that high-water mark. A policy that thrusts the hips up
   and falls back down can receive this reward once for the first peak, but not
-  repeatedly for the same oscillation.
+  repeatedly for the same oscillation. During ``settle_time_s`` the high-water
+  mark follows the base without reward, preventing the unavoidable reset sag
+  from creating a several-centimeter reward dead zone.
   """
   state: dict[str, torch.Tensor | None] = {"best_z": None, "fresh": None}
 
@@ -400,6 +409,7 @@ def climb_height_progress():
     target_vz: float = 0.08,
     command_threshold: float = 0.01,
     max_normalized_progress: float = 1.5,
+    settle_time_s: float = 0.5,
   ) -> torch.Tensor:
     asset: Entity = env.scene[asset_cfg.name]
     z = asset.data.root_link_pos_w[:, 2]
@@ -410,16 +420,15 @@ def climb_height_progress():
       return torch.zeros_like(z)
 
     fresh = state["fresh"]
-    assert fresh is not None
-    if fresh.any():
-      state["best_z"][fresh] = z[fresh]
-      fresh.zero_()
-
     prev_best = state["best_z"]
-    assert prev_best is not None
+    assert fresh is not None and prev_best is not None
+    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+    initialize = fresh | settling
+    prev_best = torch.where(initialize, z, prev_best)
     new_best = torch.maximum(prev_best, z)
     progress_m = new_best - prev_best
-    state["best_z"] = new_best
+    state["best_z"] = torch.where(initialize, z, new_best)
+    fresh.zero_()
 
     if command_name is not None:
       cmd_z = env.command_manager.get_command(command_name)[:, 2].abs()
@@ -429,6 +438,7 @@ def climb_height_progress():
     active = cmd_z > command_threshold
     target_step = (cmd_z * env.step_dt).clamp_min(1.0e-6)
     progress = (progress_m / target_step).clamp(max=max_normalized_progress)
+    progress = torch.where(initialize, torch.zeros_like(progress), progress)
     return torch.where(active, progress, torch.zeros_like(progress))
 
   def reset(env_ids=None) -> dict:
@@ -442,6 +452,143 @@ def climb_height_progress():
 
   call.reset = reset  # type: ignore[attr-defined]
   return call
+
+
+def signed_climb_height_progress():
+  """Factory: dense signed base-height change after initial settling.
+
+  Unlike a positive-only velocity reward, a closed up/down cycle has roughly
+  zero undiscounted return. Its weight should stay below the high-water term:
+  it supplies a recovery gradient below the previous maximum, while genuinely
+  new height remains the primary objective.
+  """
+  state: dict[str, torch.Tensor | None] = {"prev_z": None, "fresh": None}
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    asset_cfg: SceneEntityCfg,
+    command_name: str | None = None,
+    target_vz: float = 0.08,
+    command_threshold: float = 0.01,
+    max_normalized_progress: float = 1.0,
+    settle_time_s: float = 0.5,
+  ) -> torch.Tensor:
+    asset: Entity = env.scene[asset_cfg.name]
+    z = asset.data.root_link_pos_w[:, 2]
+
+    if state["prev_z"] is None or state["prev_z"].shape != z.shape:
+      state["prev_z"] = z.clone()
+      state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
+      return torch.zeros_like(z)
+
+    prev_z = state["prev_z"]
+    fresh = state["fresh"]
+    assert prev_z is not None and fresh is not None
+    dz = z - prev_z
+    state["prev_z"] = z.clone()
+
+    if command_name is not None:
+      cmd_z = env.command_manager.get_command(command_name)[:, 2]
+    else:
+      cmd_z = torch.full_like(z, target_vz)
+    active = cmd_z.abs() > command_threshold
+    target_step = (cmd_z.abs() * env.step_dt).clamp_min(1.0e-6)
+    progress = (dz / target_step).clamp(
+      min=-max_normalized_progress,
+      max=max_normalized_progress,
+    )
+
+    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+    initialize = fresh | settling
+    fresh.zero_()
+    return torch.where(active & ~initialize, progress, torch.zeros_like(progress))
+
+  def reset(env_ids=None) -> dict:
+    if state["fresh"] is None:
+      return {}
+    ids = slice(None) if env_ids is None else env_ids
+    state["fresh"][ids] = True
+    return {}
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
+
+
+def climb_velocity_z_error_l2(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  command_name: str | None = None,
+  target_vz: float = 0.08,
+  velocity_scale: float = 0.1,
+  max_error: float = 4.0,
+) -> torch.Tensor:
+  """Normalized vertical command error with zero reward at perfect tracking."""
+  asset: Entity = env.scene[asset_cfg.name]
+  if command_name is not None:
+    target = env.command_manager.get_command(command_name)[:, 2]
+  else:
+    target = torch.full_like(asset.data.root_link_lin_vel_w[:, 2], target_vz)
+  error = (asset.data.root_link_lin_vel_w[:, 2] - target) / velocity_scale
+  return error.square().clamp(max=max_error)
+
+
+def climb_lateral_velocity_y_l2(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  velocity_scale: float = 0.1,
+  max_error: float = 4.0,
+) -> torch.Tensor:
+  """Penalize wall-tangent lateral drift without suppressing wall-normal motion."""
+  asset: Entity = env.scene[asset_cfg.name]
+  error = asset.data.root_link_lin_vel_w[:, 1] / velocity_scale
+  return error.square().clamp(max=max_error)
+
+
+def wall_distance_band_l2(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  target_distance: float = 0.255,
+  tolerance: float = 0.08,
+  distance_scale: float = 0.1,
+  max_error: float = 4.0,
+  wall_half_thickness: float = 0.5,
+) -> torch.Tensor:
+  """Penalize only base-to-wall distances outside a permissive dead band."""
+  asset: Entity = env.scene[asset_cfg.name]
+  wall_pos, outward_normal = _SphereGeomCache.wall_plane(env)
+  base_offset = asset.data.root_link_pos_w - wall_pos
+  distance = (
+    (base_offset * outward_normal).sum(dim=-1) - wall_half_thickness
+  )
+  error = (distance - target_distance).abs().sub(tolerance).clamp_min(0.0)
+  return (error / distance_scale).square().clamp(max=max_error)
+
+
+def bounded_joint_acc_l2(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  acceleration_scale: float = 100.0,
+  max_cost: float = 10.0,
+) -> torch.Tensor:
+  """Mean squared joint acceleration with a finite influence bound.
+
+  Constraint release and failed episodes can produce brief acceleration
+  impulses several orders of magnitude above normal motion. An unbounded
+  squared cost lets one such sample dominate an entire PPO batch. Normalize
+  before averaging across joints and cap only that regularizer's influence;
+  the termination and grip-safety terms still represent the failure itself.
+  """
+  if acceleration_scale <= 0.0:
+    raise ValueError("acceleration_scale must be positive")
+  if max_cost <= 0.0:
+    raise ValueError("max_cost must be positive")
+
+  asset: Entity = env.scene[asset_cfg.name]
+  joint_acc = asset.data.joint_acc[:, asset_cfg.joint_ids]
+  cost = torch.mean(torch.square(joint_acc / acceleration_scale), dim=1)
+  cost = torch.nan_to_num(cost, nan=max_cost, posinf=max_cost, neginf=max_cost)
+  return torch.clamp(cost, max=max_cost)
 
 
 def flat_orientation_gauss(
@@ -626,30 +773,13 @@ def ee_air_time():
 ee_slide_penalty = hand_slide_penalty
 
 
-def ee_face_parallel_to_wall(
+def _ee_face_alignment_scores(
   env: ManagerBasedRlEnv,
   asset_cfg: SceneEntityCfg,
-  ee_body_names: tuple[str, ...] = (
-    "left_hand_spine",
-    "right_hand_spine",
-    "left_foot_spine",
-    "right_foot_spine",
-  ),
-  face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0),
+  ee_body_names: tuple[str, ...],
+  face_local_axis: tuple[float, float, float],
 ) -> torch.Tensor:
-  """Reward the WORST-aligned EE's contact face staying parallel to the wall.
-
-  For each EE body, ``face_local_axis`` is rotated by the body's world quat
-  and dotted with the wall inward normal. Per-EE score = ``(dot + 1) / 2``
-  in [0, 1] (1 = face perfectly aligned, 0 = opposite). Returns the MIN
-  across EEs — strictest "weakest link" measure: if any single spine
-  rotates off-axis the reward drops, forcing ALL spines flush.
-
-  For c2 spines, the contact face (sphere-bearing -y face of the collision
-  box) maps to world wall-inward in default pose, so the default
-  ``face_local_axis = (0, -1, 0)`` gives +1 per EE when the spine is flush
-  against the wall.
-  """
+  """Return per-EE wall-facing alignment scores in ``[0, 1]``."""
   asset: Entity = env.scene[asset_cfg.name]
   _, wall_normal = _SphereGeomCache.wall_plane(env)  # (E, 3) outer normal
   target = -wall_normal  # wall inward direction (robot → wall)
@@ -673,8 +803,254 @@ def ee_face_parallel_to_wall(
     face = torch.stack([fx, fy, fz], dim=-1)  # (E, 3)
     dot = (face * target).sum(dim=-1).clamp(-1.0, 1.0)
     per_ee.append((dot + 1.0) * 0.5)
-  scores = torch.stack(per_ee, dim=-1)  # (E, num_ee)
-  return scores.min(dim=-1).values  # (E,)
+  return torch.stack(per_ee, dim=-1)
+
+
+def ee_face_parallel_to_wall(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  ee_body_names: tuple[str, ...] = (
+    "left_hand_spine",
+    "right_hand_spine",
+    "left_foot_spine",
+    "right_foot_spine",
+  ),
+  face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0),
+) -> torch.Tensor:
+  """Legacy positive alignment score: minimum across all configured EEs."""
+  scores = _ee_face_alignment_scores(
+    env, asset_cfg, ee_body_names, face_local_axis
+  )
+  return scores.min(dim=-1).values
+
+
+def ee_face_parallel_error(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  ee_body_names: tuple[str, ...],
+  event_term_name: str = "microspine_grip",
+  command_name: str | None = "microspine_affordance",
+  face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0),
+) -> torch.Tensor:
+  """Mean face-alignment error for engaged or wall-contacting EEs only.
+
+  A remote swing limb is free to reorient. Once it touches the wall it joins
+  the mask, providing approach alignment without paying a constant positive
+  reward for an already-static pose.
+  """
+  scores = _ee_face_alignment_scores(
+    env, asset_cfg, ee_body_names, face_local_axis
+  )
+  physics = env.event_manager.get_term_cfg(event_term_name).func
+  mask = physics.engaged.clone()
+  if command_name is not None:
+    affordance = env.command_manager.get_term(command_name)
+    mask |= affordance.contact_count > 0
+  mask_f = mask.float()
+  return ((1.0 - scores) * mask_f).sum(dim=-1) / mask_f.sum(
+    dim=-1
+  ).clamp_min(1.0)
+
+
+def microspine_support_loss(
+  env: ManagerBasedRlEnv,
+  event_term_name: str = "microspine_grip",
+  minimum_supports: int = 2,
+) -> torch.Tensor:
+  """Penalty kernel for having fewer than the minimum safe anchors."""
+  engaged = env.event_manager.get_term_cfg(event_term_name).func.engaged
+  shortfall = minimum_supports - engaged.sum(dim=-1)
+  return shortfall.clamp_min(0).float()
+
+
+def unsafe_microspine_release_penalty(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+  minimum_supports: int = 2,
+  settle_time_s: float = 0.5,
+  reverse_release_cost: float = 0.0,
+  tension_release_cost: float = 0.25,
+  lateral_release_cost: float = 0.25,
+  ultimate_release_cost: float = 1.0,
+  support_loss_cost: float = 1.0,
+) -> torch.Tensor:
+  """Per-event cost that distinguishes controlled and failed disengagement.
+
+  Reason 1 (reverse shear) is the passive spine's intended unhooking path and
+  is free while sufficient support remains. Pull-off, lateral, and ultimate
+  failures carry increasing costs. Dividing by ``step_dt`` makes the configured
+  weight an actual one-shot event cost after RewardManager's dt scaling.
+  """
+  affordance = env.command_manager.get_term(command_name)
+  released = affordance.forced_release_this_step
+  reason = affordance.release_reason
+  cost = torch.zeros_like(reason, dtype=torch.float32)
+  reason_costs = (
+    (1, reverse_release_cost),
+    (2, tension_release_cost),
+    (3, lateral_release_cost),
+    (4, ultimate_release_cost),
+  )
+  for reason_id, value in reason_costs:
+    cost += (released & (reason == reason_id)).float() * value
+
+  engaged_count = affordance.engaged.sum(dim=-1)
+  unsafe_support = released.any(dim=-1) & (engaged_count < minimum_supports)
+  event_cost = cost.sum(dim=-1) + unsafe_support.float() * support_loss_cost
+  settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+  return torch.where(
+    settling,
+    torch.zeros_like(event_cost),
+    event_cost / env.step_dt,
+  )
+
+
+def confirmed_anchor_advance():
+  """Factory: reward stable re-engagement at a genuinely different height.
+
+  A rising edge becomes eligible only after it survives the full grace and
+  debounce window. Reset-time contacts merely initialize per-EE baselines.
+  Updating the baseline on both upward and downward confirmed re-grips makes
+  a down/up cycle approximately zero-sum, while same-height engage spam earns
+  nothing. The optional frontier bonus advances only when the lowest of all
+  four confirmed anchors rises, marking completion of a full limb cycle.
+  """
+  state: dict[str, torch.Tensor | None] = {
+    "last_anchor_z": None,
+    "has_baseline": None,
+    "prev_engaged": None,
+    "swing_time": None,
+    "pending": None,
+    "pending_swing_time": None,
+    "fresh": None,
+  }
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    event_term_name: str = "microspine_grip",
+    settle_time_s: float = 0.5,
+    confirmation_steps: int = 16,
+    minimum_swing_time: float = 0.1,
+    step_height: float = 0.08,
+    max_normalized_advance: float = 1.0,
+    frontier_bonus_scale: float = 0.5,
+  ) -> torch.Tensor:
+    physics = env.event_manager.get_term_cfg(event_term_name).func
+    engaged: torch.Tensor = physics.engaged
+    anchor_z: torch.Tensor = physics.anchor_pos_w[..., 2]
+    engage_age: torch.Tensor = physics.engage_age
+    shape = engaged.shape
+
+    if state["last_anchor_z"] is None or state["last_anchor_z"].shape != shape:
+      state["last_anchor_z"] = anchor_z.clone()
+      state["has_baseline"] = engaged.clone()
+      state["prev_engaged"] = engaged.clone()
+      state["swing_time"] = torch.zeros(shape, device=engaged.device)
+      state["pending"] = torch.zeros(shape, dtype=torch.bool, device=engaged.device)
+      state["pending_swing_time"] = torch.zeros(shape, device=engaged.device)
+      state["fresh"] = torch.zeros(
+        shape[0], dtype=torch.bool, device=engaged.device
+      )
+      return torch.zeros(shape[0], device=engaged.device)
+
+    last_anchor_z = state["last_anchor_z"]
+    has_baseline = state["has_baseline"]
+    prev_engaged = state["prev_engaged"]
+    swing_time = state["swing_time"]
+    pending = state["pending"]
+    pending_swing_time = state["pending_swing_time"]
+    fresh = state["fresh"]
+    assert all(
+      item is not None
+      for item in (
+        last_anchor_z,
+        has_baseline,
+        prev_engaged,
+        swing_time,
+        pending,
+        pending_swing_time,
+        fresh,
+      )
+    )
+
+    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+    initialize = fresh | settling
+    initialize_ee = initialize.unsqueeze(-1)
+
+    # Settling contacts establish baselines but can never produce reward.
+    baseline_now = initialize_ee & engaged
+    last_anchor_z = torch.where(baseline_now, anchor_z, last_anchor_z)
+    has_baseline = has_baseline | baseline_now
+    pending = pending & ~initialize_ee
+
+    rising = engaged & ~prev_engaged & ~initialize_ee
+    pending_swing_time = torch.where(rising, swing_time, pending_swing_time)
+    pending = (pending | rising) & engaged
+    swing_time = torch.where(
+      engaged,
+      torch.zeros_like(swing_time),
+      swing_time + env.step_dt,
+    )
+
+    confirmed = pending & engaged & (engage_age >= confirmation_steps)
+    eligible = (
+      confirmed
+      & has_baseline
+      & (pending_swing_time >= minimum_swing_time)
+    )
+
+    old_all_baselined = has_baseline.all(dim=-1)
+    old_frontier = last_anchor_z.min(dim=-1).values
+    delta = ((anchor_z - last_anchor_z) / step_height).clamp(
+      min=-max_normalized_advance,
+      max=max_normalized_advance,
+    )
+    per_ee_score = torch.where(eligible, delta, torch.zeros_like(delta)).sum(
+      dim=-1
+    )
+
+    last_anchor_z = torch.where(confirmed, anchor_z, last_anchor_z)
+    has_baseline = has_baseline | confirmed
+    new_frontier = last_anchor_z.min(dim=-1).values
+    frontier_score = ((new_frontier - old_frontier) / step_height).clamp(
+      min=-max_normalized_advance,
+      max=max_normalized_advance,
+    )
+    frontier_valid = old_all_baselined & eligible.any(dim=-1)
+    frontier_score = torch.where(
+      frontier_valid, frontier_score, torch.zeros_like(frontier_score)
+    )
+
+    pending = pending & ~confirmed
+    prev_engaged = engaged.clone()
+    fresh.zero_()
+    state["last_anchor_z"] = last_anchor_z
+    state["has_baseline"] = has_baseline
+    state["prev_engaged"] = prev_engaged
+    state["swing_time"] = swing_time
+    state["pending"] = pending
+    state["pending_swing_time"] = pending_swing_time
+
+    score = per_ee_score + frontier_bonus_scale * frontier_score
+    return torch.where(initialize, torch.zeros_like(score), score / env.step_dt)
+
+  def reset(env_ids=None) -> dict:
+    fresh = state["fresh"]
+    if fresh is None:
+      return {}
+    ids = slice(None) if env_ids is None else env_ids
+    fresh[ids] = True
+    state["last_anchor_z"][ids] = 0.0
+    state["has_baseline"][ids] = False
+    state["prev_engaged"][ids] = False
+    state["pending"][ids] = False
+    state["swing_time"][ids] = 0.0
+    state["pending_swing_time"][ids] = 0.0
+    return {}
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
 
 
 def microspine_forced_release_penalty(
@@ -689,3 +1065,68 @@ def microspine_forced_release_penalty(
   """
   affordance = env.command_manager.get_term(command_name)
   return affordance.forced_release_this_step.float().sum(dim=1)
+
+
+def commanded_anchor_advance(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+  max_normalized_advance: float = 1.5,
+) -> torch.Tensor:
+  """One-shot signed height change of the commanded, confirmed re-grip."""
+  gait = env.command_manager.get_term(command_name)
+  advance = gait.anchor_advance_this_step.clamp(
+    min=-max_normalized_advance,
+    max=max_normalized_advance,
+  )
+  return advance / env.step_dt
+
+
+def productive_gait_cycle(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """One-shot reward after all four commanded re-grips advance upward."""
+  gait = env.command_manager.get_term(command_name)
+  return gait.productive_cycle_this_step.float() / env.step_dt
+
+
+def unscheduled_microspine_release(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """One-shot cost for releases on any limb other than the commanded limb."""
+  gait = env.command_manager.get_term(command_name)
+  return gait.unscheduled_release_count / env.step_dt
+
+
+def climb_gait_phase_timeout(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """One-shot cost when a contact-driven gait phase exceeds its deadline."""
+  gait = env.command_manager.get_term(command_name)
+  return gait.phase_timeout_this_step.float() / env.step_dt
+
+
+def climb_gait_support_shortfall(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """Adaptive support cost: three-point crawl after all anchors are acquired."""
+  gait = env.command_manager.get_term(command_name)
+  return gait.support_shortfall
+
+
+def commanded_ee_target_error_l2(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+  max_cost: float = 4.0,
+) -> torch.Tensor:
+  """Guide a released EE toward its commanded wall target during swing/seat."""
+  gait = env.command_manager.get_term(command_name)
+  delta = gait.command[:, -3:]
+  active = (gait.phase == int(ClimbGaitPhase.SWING)) | (
+    gait.phase == int(ClimbGaitPhase.SEAT)
+  )
+  cost = delta.square().mean(dim=1).clamp(max=max_cost)
+  return torch.where(active, cost, torch.zeros_like(cost))

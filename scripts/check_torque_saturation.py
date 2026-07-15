@@ -72,7 +72,28 @@ def _apply_climb_wall_gravity(
   checkpoint_hint: str | None = None,
 ) -> None:
   curriculum = getattr(env_cfg, "curriculum", None)
-  if not curriculum or "gravity_angle" not in curriculum:
+  if not curriculum:
+    return
+
+  if "climb_difficulty" in curriculum:
+    term_cfg = curriculum["climb_difficulty"]
+    stages = term_cfg.params.get("stages")
+    if not stages:
+      return
+    final_stage = dict(stages[-1])
+    if gravity_angle_deg is not None:
+      final_stage["angle_deg"] = float(gravity_angle_deg)
+      source = "CLI override"
+    else:
+      source = "final performance stage"
+    term_cfg.params["stages"] = [final_stage]
+    print(
+      f"[INFO]: Saturation check gravity angle set to "
+      f"{final_stage['angle_deg']:.2f} deg ({source})"
+    )
+    return
+
+  if "gravity_angle" not in curriculum:
     return
 
   term_cfg = curriculum["gravity_angle"]
