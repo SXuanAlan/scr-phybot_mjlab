@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
+# Avoid MJLab entry-point discovery re-importing a partially initialized PHYBot
+# constants module during this direct contract-test import.
+import mjlab  # noqa: F401
 import numpy as np
+import torch
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_FOOT_SITES,
@@ -16,7 +21,11 @@ from scr_phybot_mjab.tasks.squat.config.phybot_c2.env_cfgs import (
 from scr_phybot_mjab.tasks.squat.config.phybot_c2.rl_cfg import (
   phybot_c2_squat_ppo_runner_cfg,
 )
-from scr_phybot_mjab.tasks.squat.mdp import SquatMotionCommandCfg, SquatMotionLoader
+from scr_phybot_mjab.tasks.squat.mdp import (
+  SquatMotionCommand,
+  SquatMotionCommandCfg,
+  SquatMotionLoader,
+)
 
 
 _REPO = Path(__file__).resolve().parents[1]
@@ -47,8 +56,24 @@ class SquatMotionContractTest(unittest.TestCase):
       np.tile((0.0, 0.0, 0.0, 1.0), (2, 1)),
     )
 
-  def test_motion_has_no_discontinuous_stand_clip_seam(self) -> None:
+  def test_motion_has_three_second_standing_holds_and_no_seam(self) -> None:
     joint_pos = np.asarray(self.motion["joint_positions"])
+    zero_pos = np.asarray(
+      [PHYBOT_C2_STANDING_JOINT_POS[name] for name in self.motion["joints_list"]]
+    )
+    fps = float(self.motion["fps"])
+    stand_frames = int(round(3.0 * fps))
+
+    self.assertEqual(fps, 50.0)
+    self.assertEqual(len(joint_pos), 650)
+    stand_pose = np.broadcast_to(zero_pos, (stand_frames, len(zero_pos)))
+    np.testing.assert_allclose(joint_pos[:stand_frames], stand_pose, atol=2.0e-6)
+    np.testing.assert_allclose(joint_pos[-stand_frames:], stand_pose, atol=2.0e-6)
+    self.assertGreater(
+      float(np.max(np.abs(joint_pos[stand_frames:-stand_frames] - zero_pos))),
+      0.5,
+    )
+
     max_frame_delta = float(np.max(np.abs(np.diff(joint_pos, axis=0))))
     self.assertLess(max_frame_delta, 0.03)
 
@@ -108,20 +133,70 @@ class SquatMotionContractTest(unittest.TestCase):
     self.assertEqual(cfg.rewards["foot_anchor_error"].weight, -5.0)
     self.assertEqual(cfg.rewards["foot_anchor_error"].params["beta"], 0.02)
     self.assertEqual(cfg.rewards["self_collisions"].weight, -3.0)
-    self.assertEqual(cfg.rewards["feet_distance"].params["min_dist"], 0.15)
+    self.assertEqual(cfg.rewards["feet_distance"].params["min_dist"], 0.26)
+    reference_separation = abs(
+      float(foot_positions[0, 0, 1] - foot_positions[0, 1, 1])
+    )
+    self.assertGreater(reference_separation, 0.29)
+    self.assertLess(cfg.rewards["feet_distance"].params["min_dist"], reference_separation)
+    self.assertFalse(cfg.events["foot_friction"].params["shared_random"])
 
     self_collision = next(s for s in cfg.scene.sensors if s.name == "self_collision")
     self.assertEqual(self_collision.reduce, "maxforce")
     self.assertEqual(self_collision.num_slots, 1)
     self.assertEqual(self_collision.history_length, 4)
 
-  def test_reference_action_fits_configured_clip(self) -> None:
-    joint_pos = np.asarray(self.motion["joint_positions"])
-    zero_pos = np.asarray(
-      [PHYBOT_C2_STANDING_JOINT_POS[name] for name in PHYBOT_C2_POLICY_JOINT_NAMES]
+  def test_runner_does_not_clip_actions(self) -> None:
+    self.assertIsNone(phybot_c2_squat_ppo_runner_cfg().clip_actions)
+
+  def test_training_reset_covers_task_switch_state_but_play_is_exact(self) -> None:
+    cfg = phybot_c2_squat_env_cfg()
+    play_cfg = phybot_c2_squat_env_cfg(play=True)
+    command = cfg.commands["motion"]
+    play_command = play_cfg.commands["motion"]
+    self.assertIsInstance(command, SquatMotionCommandCfg)
+    self.assertIsInstance(play_command, SquatMotionCommandCfg)
+
+    self.assertEqual(
+      command.pose_range,
+      {
+        "z": (-0.005, 0.005),
+        "roll": (-0.025, 0.025),
+        "pitch": (-0.025, 0.025),
+      },
     )
-    max_reference_action = float(np.max(np.abs((joint_pos - zero_pos) / 0.25)))
-    self.assertLessEqual(max_reference_action, phybot_c2_squat_ppo_runner_cfg().clip_actions)
+    self.assertEqual(
+      command.velocity_range,
+      {
+        "x": (-0.075, 0.075),
+        "y": (-0.075, 0.075),
+        "z": (-0.025, 0.025),
+        "roll": (-0.05, 0.05),
+        "pitch": (-0.05, 0.05),
+        "yaw": (-0.05, 0.05),
+      },
+    )
+    self.assertEqual(command.joint_position_range, (-0.025, 0.025))
+    self.assertEqual(command.joint_velocity_range, (-0.05, 0.05))
+
+    self.assertEqual(play_command.pose_range, {})
+    self.assertEqual(play_command.velocity_range, {})
+    self.assertEqual(play_command.joint_position_range, (0.0, 0.0))
+    self.assertEqual(play_command.joint_velocity_range, (0.0, 0.0))
+
+  def test_phase_clock_ignores_runner_episode_length_randomization(self) -> None:
+    command = object.__new__(SquatMotionCommand)
+    command.cfg = SimpleNamespace(sampling_mode="start")
+    command.motion = SimpleNamespace(time_step_total=650)
+    command.time_steps = torch.tensor([0, 312, 649])
+    command._env = SimpleNamespace(episode_length_buf=torch.tensor([477, 0, 12]))
+
+    command._update_command()
+
+    # Env 0 models RSL-RL randomizing the episode counter after a frame-zero
+    # reset: phase advances to one instead of jumping to frame 478. Env 1 has
+    # just reset and must stay at zero; env 2 verifies cyclic wrapping.
+    torch.testing.assert_close(command.time_steps, torch.tensor([1, 0, 0]))
 
   def test_waist_reference_is_zero_and_has_independent_guards(self) -> None:
     motion_names = list(self.motion["joints_list"])
@@ -172,10 +247,6 @@ class SquatMotionContractTest(unittest.TestCase):
     action_scale = 0.25
     self.assertEqual(0.30 * action_scale, 0.075)
     self.assertEqual(0.75 * action_scale, 0.1875)
-    self.assertLess(
-      0.75,
-      phybot_c2_squat_ppo_runner_cfg().clip_actions,
-    )
 
   def test_arm_rewards_are_dense_and_reference_actions_have_safe_limits(self) -> None:
     cfg = phybot_c2_squat_env_cfg()
@@ -231,7 +302,6 @@ class SquatMotionContractTest(unittest.TestCase):
       (0.75,) * len(arm_names),
     )
     self.assertTrue(np.all(np.max(np.abs(reference_actions), axis=0) <= limits))
-    self.assertTrue(np.all(limits < phybot_c2_squat_ppo_runner_cfg().clip_actions))
 
 
 if __name__ == "__main__":

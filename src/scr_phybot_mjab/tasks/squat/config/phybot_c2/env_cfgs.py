@@ -63,6 +63,33 @@ _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
 _SQUAT_MOTION_FILE = _MOTIONS_DIR / "squat.npy"
 _SQUAT_MOTION_FILES = (str(_SQUAT_MOTION_FILE),)
 
+# The nominal foot-site separation in squat.npy is about 0.296 m. Leave roughly
+# 3.6 cm of total lateral compliance while penalizing inward drift well before
+# the shoes approach each other.
+_MIN_FOOT_LATERAL_DISTANCE = 0.26
+
+# A squat policy is selected while the real robot is already standing, not
+# teleported to an exact simulator keyframe. These modest perturbations model
+# residual settling error from the previous policy. Deliberately omit x/y/yaw
+# pose offsets: the motion uses fixed world-frame foot anchors, so translating or
+# rotating the whole robot would create an artificial command to slide back to
+# the environment origin.
+_RESET_POSE_RANGE = {
+  "z": (-0.005, 0.005),
+  "roll": (-0.025, 0.025),
+  "pitch": (-0.025, 0.025),
+}
+_RESET_VELOCITY_RANGE = {
+  "x": (-0.075, 0.075),
+  "y": (-0.075, 0.075),
+  "z": (-0.025, 0.025),
+  "roll": (-0.05, 0.05),
+  "pitch": (-0.05, 0.05),
+  "yaw": (-0.05, 0.05),
+}
+_RESET_JOINT_POSITION_RANGE = (-0.025, 0.025)
+_RESET_JOINT_VELOCITY_RANGE = (-0.05, 0.05)
+
 
 def _motion_duration_s(path: Path, control_dt: float = 0.02) -> float:
   """Read an exact frame-count duration and require one frame per control step."""
@@ -178,6 +205,10 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   motion_cmd.joint_names = tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
   motion_cmd.foot_site_names = _FOOT_SITE_NAMES
   cfg.episode_length_s = _motion_duration_s(_SQUAT_MOTION_FILE)
+  motion_cmd.pose_range = dict(_RESET_POSE_RANGE)
+  motion_cmd.velocity_range = dict(_RESET_VELOCITY_RANGE)
+  motion_cmd.joint_position_range = _RESET_JOINT_POSITION_RANGE
+  motion_cmd.joint_velocity_range = _RESET_JOINT_VELOCITY_RANGE
 
   cfg.rewards["track_legs"].params["joint_names"] = _LEG_JOINT_NAMES
   for reward_name in (
@@ -229,7 +260,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     func=mdp.feet_lateral_distance,
     weight=-5.0,
     params={
-      "min_dist": 0.15,
+      "min_dist": _MIN_FOOT_LATERAL_DISTANCE,
       "asset_cfg": SceneEntityCfg(
         "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
       ),
@@ -282,6 +313,8 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # velocity pushes taught the old policy to stomp while preserving joint angles.
   cfg.events.pop("push_robot", None)
   # Friction DR split like walk: non-foot body geoms 0.6-1.0, feet 0.4-1.0.
+  # Sample the two feet independently so the policy cannot rely on perfectly
+  # symmetric contact conditions that are unlikely on the real floor.
   body_friction = cfg.events["body_friction"]
   body_friction.params["asset_cfg"].geom_names = (
     r"^(?!(left|right)_ankle_roll_collision$).*_collision$",
@@ -294,7 +327,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       "asset_cfg": SceneEntityCfg("robot", geom_names=(_FOOT_COLLISION_GEOMS,)),
       "operation": "abs",
       "ranges": (0.4, 1.0),
-      "shared_random": True,
+      "shared_random": False,
     },
   )
   base_mass = cfg.events["base_mass"]
@@ -331,6 +364,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     motion_cmd.pose_range = {}
     motion_cmd.velocity_range = {}
     motion_cmd.joint_position_range = (0.0, 0.0)
+    motion_cmd.joint_velocity_range = (0.0, 0.0)
     body_friction.params["ranges"] = (1.0, 1.0)
     cfg.events["foot_friction"].params["ranges"] = (0.7, 0.7)
     base_mass.params["ranges"] = (0.0, 0.0)

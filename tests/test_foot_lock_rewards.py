@@ -179,12 +179,11 @@ class FootRewardTest(unittest.TestCase):
     )
     self.assertAlmostEqual(float(velocity_score), 0.75, places=6)
     action_cost = joint_action_limit_cost(
-      env,
-      "joint_pos",
-      joints,
-      (1.0, 2.0),
-      6.0,
-      "arm",
+      env=env,
+      action_name="joint_pos",
+      joint_names=joints,
+      max_abs_actions=(1.0, 2.0),
+      metric_prefix="arm",
     )
     self.assertAlmostEqual(float(action_cost), 0.52, places=6)
     self.assertAlmostEqual(

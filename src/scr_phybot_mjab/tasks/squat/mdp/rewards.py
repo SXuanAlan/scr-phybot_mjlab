@@ -187,7 +187,6 @@ def joint_action_limit_cost(
   action_name: str,
   joint_names: tuple[str, ...],
   max_abs_actions: tuple[float, ...],
-  global_clip: float,
   metric_prefix: str,
   reduction: str = "mean",
 ) -> torch.Tensor:
@@ -212,9 +211,6 @@ def joint_action_limit_cost(
   )
   env.extras["log"][f"Metrics/motion/{metric_prefix}_action_limit_fraction"] = (
     (torch.abs(action) > limits).float().mean()
-  )
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_global_clip_fraction"] = (
-    (torch.abs(action) >= global_clip - 1.0e-3).float().mean()
   )
 
   # Squat currently has one action term, so its raw-action order is the action

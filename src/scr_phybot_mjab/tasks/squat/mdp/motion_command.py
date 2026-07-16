@@ -219,9 +219,17 @@ class SquatMotionCommand(CommandTerm):
 
   def _update_command(self) -> None:
     if self.cfg.sampling_mode == "start":
-      # The command manager runs after timeout resets.  Reading the reset-aware
-      # episode counter avoids advancing a freshly reset env from frame 0 to 1.
-      self.time_steps = self._env.episode_length_buf % self.motion.time_step_total
+      # Advance our own phase clock instead of deriving it from episode_length_buf.
+      # RSL-RL randomizes that buffer once at training startup to desynchronize
+      # timeouts; using it as the phase would jump a frame-zero robot directly into
+      # the middle of the squat. The command manager runs after timeout resets, so
+      # a zero episode counter identifies envs that must remain on frame zero.
+      next_steps = (self.time_steps + 1) % self.motion.time_step_total
+      self.time_steps = torch.where(
+        self._env.episode_length_buf == 0,
+        torch.zeros_like(next_steps),
+        next_steps,
+      )
     else:
       self.time_steps = (self.time_steps + 1) % self.motion.time_step_total
 
@@ -238,6 +246,9 @@ class SquatMotionCommand(CommandTerm):
     joint_vel = self.joint_vel_ref[env_ids].clone()
     joint_pos += sample_uniform(
       *self.cfg.joint_position_range, joint_pos.shape, device=self.device
+    )
+    joint_vel += sample_uniform(
+      *self.cfg.joint_velocity_range, joint_vel.shape, device=self.device
     )
     limits = self.robot.data.soft_joint_pos_limits[env_ids][:, self.joint_ids]
     joint_pos = torch.clip(joint_pos, limits[..., 0], limits[..., 1])
@@ -288,6 +299,7 @@ class SquatMotionCommandCfg(CommandTermCfg):
   pose_range: dict[str, tuple[float, float]] = field(default_factory=dict)
   velocity_range: dict[str, tuple[float, float]] = field(default_factory=dict)
   joint_position_range: tuple[float, float] = (0.0, 0.0)
+  joint_velocity_range: tuple[float, float] = (0.0, 0.0)
 
   def build(self, env: ManagerBasedRlEnv) -> SquatMotionCommand:
     return SquatMotionCommand(self, env)

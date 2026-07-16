@@ -13,10 +13,6 @@ from mjlab.rl import (
 
 def phybot_c2_squat_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   return RslRlOnPolicyRunnerCfg(
-    # A deep squat needs roughly 5.8 normalized units with the 0.25-rad action
-    # scale.  Clip just above that requirement to prevent unconstrained outputs
-    # such as the old waist action of +/-14.
-    clip_actions=6.0,
     actor=RslRlModelCfg(
       hidden_dims=(512, 256, 128),
       activation="elu",

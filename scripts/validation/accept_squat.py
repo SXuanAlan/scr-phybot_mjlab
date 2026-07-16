@@ -43,8 +43,8 @@ def main() -> None:
   cfg.scene.num_envs = args.num_envs
   cfg.events["foot_friction"].params["ranges"] = (args.friction, args.friction)
   # Add one validation-only step to the episode horizon. The loop still sends
-  # exactly one action for each of the 350 reference frames, but the final
-  # transition remains observable instead of being hidden by timeout auto-reset.
+  # exactly one action for each reference frame, but the final transition remains
+  # observable instead of being hidden by timeout auto-reset.
   cfg.episode_length_s += cfg.sim.mujoco.timestep * cfg.decimation
   agent_cfg = load_rl_cfg(TASK)
   base_env = ManagerBasedRlEnv(cfg=cfg, device=args.device)
@@ -62,6 +62,7 @@ def main() -> None:
   robot = base_env.scene["robot"]
   foot_ids = robot.find_sites(("left_foot", "right_foot"), preserve_order=True)[0]
   command = base_env.command_manager.get_term("motion")
+  min_foot_separation = float(cfg.rewards["feet_distance"].params["min_dist"])
   feet_contact = base_env.scene["feet_ground_contact"]
   self_sensor = base_env.scene["self_collision"]
   waist_names = tuple(cfg.rewards["track_waist"].params["joint_names"])
@@ -142,7 +143,6 @@ def main() -> None:
   waist_max_error = torch.zeros(args.num_envs, device=args.device)
   waist_action_limit_hits = torch.zeros((), device=args.device)
   waist_action_tube_hits = torch.zeros((), device=args.device)
-  waist_global_clip_hits = torch.zeros((), device=args.device)
   waist_action_reference_squared_error_sum = torch.zeros(
     args.num_envs, device=args.device
   )
@@ -153,7 +153,6 @@ def main() -> None:
   arm_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_action_limit_hits = torch.zeros((), device=args.device)
   arm_action_tube_hits = torch.zeros((), device=args.device)
-  arm_global_clip_hits = torch.zeros((), device=args.device)
   arm_action_reference_squared_error_sum = torch.zeros(
     args.num_envs, device=args.device
   )
@@ -183,9 +182,7 @@ def main() -> None:
         contact_sum += (feet_contact.data.found > 0).all(dim=1).float()
         samples += 1
 
-      actions = policy(env.get_observations()).clamp(
-        -agent_cfg.clip_actions, agent_cfg.clip_actions
-      )
+      actions = policy(env.get_observations())
       waist_action = actions[:, waist_action_ids]
       waist_reference_action = (
         command.joint_pos_ref[:, waist_ref_ids]
@@ -201,9 +198,6 @@ def main() -> None:
       ).sum()
       waist_action_limit_hits += (
         torch.abs(waist_action) > waist_action_limits
-      ).sum()
-      waist_global_clip_hits += (
-        torch.abs(waist_action) >= agent_cfg.clip_actions - 1.0e-3
       ).sum()
       if previous_waist_action is not None:
         waist_action_rate_squared_sum += torch.sum(
@@ -235,9 +229,6 @@ def main() -> None:
         torch.square(action_symmetry_error), dim=1
       )
       arm_action_limit_hits += (torch.abs(arm_action) > arm_action_limits).sum()
-      arm_global_clip_hits += (
-        torch.abs(arm_action) >= agent_cfg.clip_actions - 1.0e-3
-      ).sum()
       if previous_arm_action is not None:
         arm_action_rate_squared_sum += torch.sum(
           torch.square(arm_action - previous_arm_action)
@@ -325,7 +316,6 @@ def main() -> None:
   waist_action_count = args.num_envs * frames * len(waist_names)
   waist_action_limit_fraction = waist_action_limit_hits / waist_action_count
   waist_action_tube_fraction = waist_action_tube_hits / waist_action_count
-  waist_global_clip_fraction = waist_global_clip_hits / waist_action_count
   waist_action_reference_rmse = torch.sqrt(
     waist_action_reference_squared_error_sum / (frames * len(waist_names))
   )
@@ -349,7 +339,6 @@ def main() -> None:
   arm_action_count = args.num_envs * frames * len(arm_names)
   arm_action_limit_fraction = arm_action_limit_hits / arm_action_count
   arm_action_tube_fraction = arm_action_tube_hits / arm_action_count
-  arm_global_clip_fraction = arm_global_clip_hits / arm_action_count
   arm_action_reference_rmse = torch.sqrt(
     arm_action_reference_squared_error_sum / (frames * len(arm_names))
   )
@@ -385,7 +374,6 @@ def main() -> None:
     "waist_action_reference_rmse_p95": float(waist_action_reference_rmse_p95),
     "waist_action_tube_fraction": float(waist_action_tube_fraction),
     "waist_action_limit_fraction": float(waist_action_limit_fraction),
-    "waist_global_clip_fraction": float(waist_global_clip_fraction),
     "waist_action_rate_rms": float(waist_action_rate_rms),
     "arm_position_rmse_mean_rad": float(arm_rmse_mean),
     "arm_position_rmse_p95_rad": float(arm_rmse_p95),
@@ -395,7 +383,6 @@ def main() -> None:
     "arm_action_symmetry_rmse_p95": float(arm_action_symmetry_rmse_p95),
     "arm_action_tube_fraction": float(arm_action_tube_fraction),
     "arm_action_limit_fraction": float(arm_action_limit_fraction),
-    "arm_global_clip_fraction": float(arm_global_clip_fraction),
     "arm_action_rate_rms": float(arm_action_rate_rms),
     "self_collision_hits": hits,
     "raw_ankle_pair_contacts": ankle_pair_contacts,
@@ -409,13 +396,12 @@ def main() -> None:
     and metrics["mean_foot_speed_mps"] <= 0.02
     and metrics["worst_foot_mean_speed_p95_mps"] <= 0.025
     and metrics["both_feet_contact"] >= 0.99
-    and metrics["foot_separation_p01_m"] >= 0.15
+    and metrics["foot_separation_p01_m"] >= min_foot_separation
     and metrics["waist_position_rmse_p95_rad"] <= 0.05
     and metrics["waist_position_max_error_p95_rad"] <= 0.12
     and metrics["waist_action_reference_rmse_p95"] <= 0.35
     and metrics["waist_action_tube_fraction"] <= 0.01
     and metrics["waist_action_limit_fraction"] <= 0.01
-    and metrics["waist_global_clip_fraction"] == 0.0
     and metrics["waist_action_rate_rms"] <= 0.25
     and metrics["arm_position_rmse_p95_rad"] <= 0.15
     and metrics["arm_position_max_error_p95_rad"] <= 0.35
@@ -424,7 +410,6 @@ def main() -> None:
     and metrics["arm_action_symmetry_rmse_p95"] <= 0.25
     and metrics["arm_action_tube_fraction"] <= 0.01
     and metrics["arm_action_limit_fraction"] <= 0.01
-    and metrics["arm_global_clip_fraction"] == 0.0
     and hits == 0
     and ankle_pair_contacts == 0
   )

@@ -111,11 +111,12 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
       motion_files=(),  # Set per-robot (standalone squat clip).
       joint_names=(),  # Set per-robot (the tracked policy joints).
       sampling_mode="start",
-      # Reset exactly to motion frame zero. Robustness comes from physical
-      # parameter randomization, not from corrupting the motion timeline.
+      # Per-robot training configs set small switch-state perturbations. Play
+      # mode keeps all ranges at zero for deterministic full-clip validation.
       pose_range={},
       velocity_range={},
       joint_position_range=(0.0, 0.0),
+      joint_velocity_range=(0.0, 0.0),
     )
   }
 
@@ -204,7 +205,6 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
         "action_name": "joint_pos",
         "joint_names": (),  # Arms, set per-robot.
         "max_abs_actions": (),  # Motion-derived, set per-robot.
-        "global_clip": 6.0,
         "metric_prefix": "arm",
         "reduction": "sum",
       },
@@ -286,7 +286,6 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
         "action_name": "joint_pos",
         "joint_names": (),  # Waist, set per-robot.
         "max_abs_actions": (),  # Static-reference guard, set per-robot.
-        "global_clip": 6.0,
         "metric_prefix": "waist",
         "reduction": "sum",
       },

@@ -1,10 +1,11 @@
 """Generate a PHYBot C2 squat motion clip (with arm front-raise) via lower-body IK.
 
-Choreography: raise arms to a forward horizontal front-raise -> descend -> hold ->
-ascend -> lower arms back to the sides. The clip contains the complete standalone
-squat and no separate standing clip is prepended by the RL task. Its first and last
-frames are exactly the robot's zero-command standing pose (arms down), which makes
-the reference cyclic without a reset impulse.
+Choreography: stand -> raise arms to a forward horizontal front-raise -> descend ->
+hold -> ascend -> lower arms back to the sides -> stand. The default clip pads the
+motion with three seconds of the robot's zero-command standing pose at both ends.
+This gives a newly selected policy time to absorb observation/state mismatch before
+the squat begins and leaves a stationary tail for deployment to hold after standing
+back up.
 
 The reference is produced directly on the robot's own kinematics (no human mocap /
 retargeting): the two foot sites are pinned to their standing footprints and kept
@@ -35,6 +36,9 @@ import argparse
 import sys
 from pathlib import Path
 
+# Initialize MJLab task entry points before importing PHYBot constants. Otherwise
+# MJLab discovers this package while the constants module is only half initialized.
+import mjlab  # noqa: F401
 import mujoco
 import numpy as np
 
@@ -344,16 +348,19 @@ def generate_clip(
     root_quaternion[t] = (q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0])
     max_residual = max(max_residual, residual)
 
-  # Make the endpoint contract exact, rather than relying on the IK tolerance.
-  # PHYBOT_C2_STANDING_JOINT_POS is the deployed zero-command position; the neck
-  # is intentionally absent because it is not a policy/motion joint.
+  # Make every stationary frame exact, rather than relying on the IK tolerance.
+  # Even a converged standing IK solution differs from the deployed zero-command
+  # pose by about 1e-3 rad, which would turn a nominal hold into a small command
+  # step at task selection. The neck is intentionally absent because it is not a
+  # policy/motion joint.
   zero_pos = np.asarray(
     [PHYBOT_C2_STANDING_JOINT_POS[name] for name in PHYBOT_C2_POLICY_JOINT_NAMES],
     dtype=np.float32,
   )
-  joint_positions[[0, -1]] = zero_pos
-  root_position[[0, -1]] = (0.0, 0.0, _STANDING_BASE_Z)
-  root_quaternion[[0, -1]] = (0.0, 0.0, 0.0, 1.0)
+  standing = (depth == 0.0) & (reach == 0.0)
+  joint_positions[standing] = zero_pos
+  root_position[standing] = (0.0, 0.0, _STANDING_BASE_Z)
+  root_quaternion[standing] = (0.0, 0.0, 0.0, 1.0)
 
   data = {
     "joints_list": list(PHYBOT_C2_POLICY_JOINT_NAMES),
@@ -394,8 +401,8 @@ def main() -> None:
   parser.add_argument(
     "--stand-s",
     type=float,
-    default=0.0,
-    help="standing hold padded before/after (s); default 0 -- standing is a separate clip",
+    default=3.0,
+    help="standing hold padded before and after the squat (s)",
   )
   parser.add_argument("--descent-s", type=float, default=2.0, help="descend (and ascend) duration (s)")
   parser.add_argument("--hold-s", type=float, default=1.0, help="hold at squat bottom (s)")
