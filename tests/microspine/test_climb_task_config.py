@@ -104,13 +104,15 @@ def test_climb_curriculum_is_performance_gated_through_vertical_wall():
     45.0,
     45.0,
     45.0,
+    45.0,
     60.0,
     75.0,
     90.0,
   ]
-  assert stages[0]["required_productive_regrips"] == 1
-  assert stages[1]["required_productive_regrips"] == 4
-  assert stages[2]["initial_engaged_ee_names"] == (
+  # 1 -> 2 -> 3 -> 4 ladder: a direct 1 -> 4 jump makes hang-and-stretch the
+  # rational policy (2026-07-15 stage-1 stall).
+  assert [s["required_productive_regrips"] for s in stages] == [1, 2, 3, 4, 4, 4, 4]
+  assert stages[3]["initial_engaged_ee_names"] == (
     "left_hand_spine",
     "right_hand_spine",
   )

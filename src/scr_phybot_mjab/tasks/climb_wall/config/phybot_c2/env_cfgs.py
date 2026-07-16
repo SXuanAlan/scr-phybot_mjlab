@@ -383,7 +383,10 @@ def phybot_c2_climb_wall_env_cfg(
     ),
     "climb_gait_phase_timeout": RewardTermCfg(
       func=mdp.climb_gait_phase_timeout,
-      weight=-1.0,
+      # -1.0 made ignoring the gait command a cheap fee: hang-and-stretch
+      # farmed climb_height_progress (+0.2/ep) against a -0.02/ep fine.
+      # Disobedience must dominate the stretch-farming income.
+      weight=-5.0,
       params={"command_name": gait_command_name},
     ),
     "commanded_ee_target_error": RewardTermCfg(
@@ -549,10 +552,20 @@ def phybot_c2_climb_wall_env_cfg(
             "required_productive_regrips": 1,
             "randomize_start_limb": True,
           },
+          # Regrip requirement climbs 1 -> 2 -> 3 -> 4. A direct 1 -> 4 jump
+          # flips the risk/benefit balance and the policy rationally settles
+          # into a hang-and-stretch local optimum (observed 2026-07-15:
+          # phase-timeout rate 0.98, release rate decaying, success pinned 0).
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
-            "required_productive_regrips": 4,
+            "required_productive_regrips": 2,
+            "randomize_start_limb": True,
+          },
+          {
+            "angle_deg": 45.0,
+            "initial_engaged_ee_names": all_anchors,
+            "required_productive_regrips": 3,
             "randomize_start_limb": True,
           },
           {
