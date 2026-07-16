@@ -123,6 +123,10 @@ class MicrospineAffordance(CommandTerm):
     self.release_reason = torch.zeros(shape, dtype=torch.int8, device=self.device)
     self.face_cos = torch.zeros(shape, device=self.device)
     self.contact_count = torch.zeros(shape, device=self.device)
+    # Per-EE total pad compression against the wall (N). A contact fact, not a
+    # latch state: nonzero whenever the sphere grid presses the wall, engaged
+    # or not. Consumed by the seat-phase press shaping reward.
+    self.pad_press_force = torch.zeros(shape, device=self.device)
     rake_axis = torch.tensor(
       self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device
     )
@@ -215,6 +219,7 @@ class MicrospineAffordance(CommandTerm):
     self.hold_margin[env_ids] = 1.0
     self.face_cos[env_ids] = 0.0
     self.contact_count[env_ids] = 0.0
+    self.pad_press_force[env_ids] = 0.0
     self.forced_release_this_step[env_ids] = False
     self.engaged_this_step[env_ids] = False
     self.release_reason[env_ids] = 0
@@ -485,6 +490,14 @@ class MicrospineAffordance(CommandTerm):
   def _update_command(self) -> None:
     normal_forces, found_count = self._sensor_contact_features()
     self.contact_count = found_count
+    spheres_per_ee = (
+      self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
+    )
+    self.pad_press_force = (
+      normal_forces.clamp(min=0.0)
+      .view(self.num_envs, self._num_ee, spheres_per_ee)
+      .sum(dim=2)
+    )
     self.engaged_this_step.zero_()
 
     # Engage from OFF requires compression on the sphere grid and optional

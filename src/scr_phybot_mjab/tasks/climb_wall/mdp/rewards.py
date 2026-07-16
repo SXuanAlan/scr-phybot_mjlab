@@ -1130,3 +1130,27 @@ def commanded_ee_target_error_l2(
   )
   cost = delta.square().mean(dim=1).clamp(max=max_cost)
   return torch.where(active, cost, torch.zeros_like(cost))
+
+
+def climb_seat_press_shaping(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+  affordance_command_name: str = "microspine_affordance",
+  force_scale: float = 12.0,
+) -> torch.Tensor:
+  """Partial credit for pressing the commanded pad into the wall during SEAT.
+
+  Re-engagement was a sparse all-or-nothing jump: policies that released a
+  pad almost never latched it back (engage 0.03 Hz vs release 0.83 Hz,
+  2026-07-15) because nothing paid between "reached the target" and "fully
+  latched". This pays for the missing middle step -- compression on the
+  commanded pad -- and saturates at an engage-grade press (``force_scale``)
+  so grinding harder into the wall earns nothing extra.
+  """
+  gait = env.command_manager.get_term(command_name)
+  affordance = env.command_manager.get_term(affordance_command_name)
+  press = affordance.pad_press_force.gather(
+    1, gait.target_ee_index.unsqueeze(1)
+  ).squeeze(1)
+  in_seat = gait.phase == int(ClimbGaitPhase.SEAT)
+  return in_seat.float() * (press / force_scale).clamp(max=1.0)

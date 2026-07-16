@@ -383,11 +383,23 @@ def phybot_c2_climb_wall_env_cfg(
     ),
     "climb_gait_phase_timeout": RewardTermCfg(
       func=mdp.climb_gait_phase_timeout,
-      # -1.0 made ignoring the gait command a cheap fee: hang-and-stretch
-      # farmed climb_height_progress (+0.2/ep) against a -0.02/ep fine.
-      # Disobedience must dominate the stretch-farming income.
+      # Kept as an event marker; the real deterrent is the gait_phase_timeout
+      # TERMINATION (fines lost the economics twice against stretch-farming).
       weight=-5.0,
       params={"command_name": gait_command_name},
+    ),
+    "climb_seat_press_shaping": RewardTermCfg(
+      func=mdp.climb_seat_press_shaping,
+      # Partial credit for the hardest regrip step (pressing the commanded
+      # pad into the wall). Saturates at an engage-grade press
+      # (4 spheres x 3 N threshold = force_scale 12 N), so per-step income
+      # is capped and grinding into the wall earns nothing extra.
+      weight=1.0,
+      params={
+        "command_name": gait_command_name,
+        "affordance_command_name": microspine_affordance_name,
+        "force_scale": 12.0,
+      },
     ),
     "commanded_ee_target_error": RewardTermCfg(
       func=mdp.commanded_ee_target_error_l2,
@@ -449,6 +461,13 @@ def phybot_c2_climb_wall_env_cfg(
   cfg.terminations["gait_curriculum_success"] = TerminationTermCfg(
     func=mdp.gait_curriculum_success,
     time_out=True,
+    params={"command_name": gait_command_name},
+  )
+  # Disqualification, not a fine: reward-level timeout penalties lost the
+  # economics twice (fine -0.08/ep vs stretch-farmed income +0.12/ep).
+  # Failure termination also collects the -500 termination_penalty.
+  cfg.terminations["gait_phase_timeout"] = TerminationTermCfg(
+    func=mdp.gait_phase_timeout,
     params={"command_name": gait_command_name},
   )
 
@@ -681,5 +700,8 @@ def phybot_c2_climb_wall_env_cfg(
     final_stage = cfg.curriculum["climb_difficulty"].params["stages"][-1]
     cfg.curriculum["climb_difficulty"].params["stages"] = [final_stage]
     cfg.terminations.pop("gait_curriculum_success", None)
+    # Evaluation rollouts should show the full behavior, not end on the
+    # training-time disobedience disqualification.
+    cfg.terminations.pop("gait_phase_timeout", None)
 
   return cfg

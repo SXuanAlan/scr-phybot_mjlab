@@ -145,3 +145,18 @@ def bad_state(
     | _bad(jpos)
     | _bad(jvel, max_joint_velocity)
   )
+
+
+def gait_phase_timeout(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_gait",
+) -> torch.Tensor:
+  """Terminate when a commanded gait phase times out.
+
+  A per-event reward fine left hang-and-stretch net profitable (fine
+  -0.08/ep vs stretch-farmed height income +0.12/ep, 2026-07-15, two
+  escalations). Forfeiting the episode removes every future income stream
+  instead of taxing one, so disobedience cannot be priced in.
+  """
+  gait = env.command_manager.get_term(command_name)
+  return gait.phase_timeout_this_step

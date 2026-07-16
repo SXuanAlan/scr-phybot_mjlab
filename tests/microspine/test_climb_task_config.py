@@ -139,3 +139,17 @@ def test_climb_action_contract_is_bounded_in_target_space_only():
   assert action_cfg.scale == 0.25
   assert action_cfg.__class__.__name__ == "SoftJointPositionActionCfg"
   assert cfg.scene.entities["robot"].articulation.soft_joint_pos_limit_factor == 0.9
+
+
+def test_climb_disobedience_is_terminal_and_press_is_shaped():
+  cfg = phybot_c2_climb_wall_env_cfg(play=False)
+  # Disqualification, not a fine: reward-level penalties lost the economics
+  # against stretch-farming twice (2026-07-15).
+  assert "gait_phase_timeout" in cfg.terminations
+  assert cfg.terminations["gait_phase_timeout"].time_out is False
+  press = cfg.rewards["climb_seat_press_shaping"]
+  assert press.weight > 0
+  assert press.params["force_scale"] == 12.0
+
+  play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
+  assert "gait_phase_timeout" not in play_cfg.terminations
