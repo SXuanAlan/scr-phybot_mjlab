@@ -1154,3 +1154,49 @@ def climb_seat_press_shaping(
   ).squeeze(1)
   in_seat = gait.phase == int(ClimbGaitPhase.SEAT)
   return in_seat.float() * (press / force_scale).clamp(max=1.0)
+
+
+class climb_swing_progress_shaping:
+  """Pay per-step approach of the released pad toward its commanded target.
+
+  The 2026-07-17 rollout frames showed hands never leave their initial
+  anchors: nothing rewards the risky middle of a regrip (weight shift plus
+  reach), only its endpoints. This term pays the path itself: each step of
+  SWING that shrinks the target distance earns the shrinkage (in step-height
+  units, capped per step). Baselines re-arm without paying on phase or
+  target switches and on fresh episodes, so discontinuities cannot mint
+  fake progress.
+  """
+
+  def __init__(self, cfg, env):
+    del cfg, env
+    self._prev_dist: torch.Tensor | None = None
+    self._prev_key: torch.Tensor | None = None
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    *,
+    command_name: str = "climb_gait",
+    progress_cap: float = 0.5,
+  ) -> torch.Tensor:
+    gait = env.command_manager.get_term(command_name)
+    dist = gait.command[:, -3:].norm(dim=1)
+    key = gait.target_ee_index * len(ClimbGaitPhase) + gait.phase
+    if self._prev_dist is None or self._prev_dist.shape != dist.shape:
+      self._prev_dist = dist.clone()
+      self._prev_key = key.clone()
+      return torch.zeros_like(dist)
+    valid = (
+      (gait.phase == int(ClimbGaitPhase.SWING))
+      & (key == self._prev_key)
+      & (env.episode_length_buf > 1)
+    )
+    # Signed, potential-based: retreat is charged what approach earns, so
+    # waving the pad back and forth nets zero (the one-way clamp version was
+    # farmed within 80 iterations on 2026-07-17).
+    progress = (self._prev_dist - dist).clamp(min=-progress_cap, max=progress_cap)
+    reward = torch.where(valid, progress, torch.zeros_like(progress))
+    self._prev_dist = dist.clone()
+    self._prev_key = key.clone()
+    return reward

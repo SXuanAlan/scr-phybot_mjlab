@@ -388,6 +388,14 @@ def phybot_c2_climb_wall_env_cfg(
       weight=-5.0,
       params={"command_name": gait_command_name},
     ),
+    "climb_swing_progress_shaping": RewardTermCfg(
+      func=mdp.climb_swing_progress_shaping,
+      # Pays the risky middle of a regrip (weight shift + reach) that the
+      # 2026-07-17 frames showed exploration never crosses. A full approach
+      # earns ~1.0 step-unit; potential-based so retreat/oscillation nets 0+.
+      weight=2.0,
+      params={"command_name": gait_command_name, "progress_cap": 0.5},
+    ),
     "climb_seat_press_shaping": RewardTermCfg(
       func=mdp.climb_seat_press_shaping,
       # Partial credit for the hardest regrip step (pressing the commanded
@@ -556,6 +564,7 @@ def phybot_c2_climb_wall_env_cfg(
 
   all_anchors = microspine_cfg.ee_body_names
   hand_anchors = ("left_hand_spine", "right_hand_spine")
+  foot_anchors = ("left_foot_spine", "right_foot_spine")
   cfg.curriculum = {
     "climb_difficulty": CurriculumTermCfg(
       func=mdp.performance_gated_climb,
@@ -564,6 +573,15 @@ def phybot_c2_climb_wall_env_cfg(
         "affordance_command_name": microspine_affordance_name,
         "min_evaluated_episodes": 512,
         "advance_success_rate": 0.7,
+        # Skill ladder v2 (2026-07-17). Cross-round data: upward FOOT regrips
+        # emerge quickly under the plain full-cycle stages (productive rate
+        # 0.40 Hz by iter 150 on the previous run), so those stages stay as
+        # proven. The one skill that never emerged is HAND regrips — so after
+        # basic competence the ladder forces them in the safest possible
+        # setting: all four anchors engaged at reset, only hands cycle, and a
+        # tiny 2 cm commanded step. A feet-only stage was tried and removed:
+        # hands pinned forever let the body sag cycle over cycle (negative
+        # anchor advance, engagement collapse).
         "stages": [
           {
             "angle_deg": 45.0,
@@ -571,10 +589,6 @@ def phybot_c2_climb_wall_env_cfg(
             "required_productive_regrips": 1,
             "randomize_start_limb": True,
           },
-          # Regrip requirement climbs 1 -> 2 -> 3 -> 4. A direct 1 -> 4 jump
-          # flips the risk/benefit balance and the policy rationally settles
-          # into a hang-and-stretch local optimum (observed 2026-07-15:
-          # phase-timeout rate 0.98, release rate decaying, success pinned 0).
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
@@ -584,7 +598,23 @@ def phybot_c2_climb_wall_env_cfg(
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
-            "required_productive_regrips": 3,
+            "gait_ee_names": hand_anchors,
+            "step_height": 0.02,
+            "required_productive_regrips": 1,
+            "randomize_start_limb": True,
+          },
+          {
+            "angle_deg": 45.0,
+            "initial_engaged_ee_names": all_anchors,
+            "gait_ee_names": hand_anchors,
+            "step_height": 0.02,
+            "required_productive_regrips": 2,
+            "randomize_start_limb": True,
+          },
+          {
+            "angle_deg": 45.0,
+            "initial_engaged_ee_names": all_anchors,
+            "required_productive_regrips": 4,
             "randomize_start_limb": True,
           },
           {

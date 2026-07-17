@@ -75,5 +75,8 @@ def test_performance_curriculum_advances_and_applies_next_stage():
   assert gait.stage_kwargs == {
     "required_productive_regrips": 4,
     "randomize_start_limb": False,
+    # Stage omits the optional knobs -> command restores task defaults.
+    "step_height": None,
+    "gait_ee_names": None,
   }
   assert applied_gravity == [(60.0, 9.81)]

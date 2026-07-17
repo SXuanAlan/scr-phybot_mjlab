@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
 import torch
 
@@ -48,12 +48,20 @@ class WallAngleStage(TypedDict):
 
 
 class ClimbDifficultyStage(TypedDict):
-  """One performance-gated climbing stage."""
+  """One performance-gated climbing stage.
+
+  ``gait_ee_names`` restricts the regrip cycle to a limb subset (feet first:
+  compression-loaded pads are the low-risk limbs to practice release/re-latch
+  on). ``step_height`` shrinks the commanded upward step so early regrips are
+  reachable by exploration. Omitted keys fall back to the task defaults.
+  """
 
   angle_deg: float
   initial_engaged_ee_names: tuple[str, ...]
   required_productive_regrips: int
   randomize_start_limb: bool
+  gait_ee_names: NotRequired[tuple[str, ...]]
+  step_height: NotRequired[float]
 
 
 class performance_gated_climb:
@@ -124,6 +132,8 @@ class performance_gated_climb:
     gait.set_training_stage(
       required_productive_regrips=stage["required_productive_regrips"],
       randomize_start_limb=stage["randomize_start_limb"],
+      step_height=stage.get("step_height"),
+      gait_ee_names=stage.get("gait_ee_names"),
     )
     self._set_gravity(env, stage["angle_deg"], gravity_magnitude)
 

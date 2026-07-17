@@ -131,11 +131,7 @@ class ClimbGaitCommand(CommandTerm):
     super().__init__(cfg, env)
     self.robot: Entity = env.scene[cfg.entity_name]
     self._num_ee = len(cfg.ee_body_names)
-    if sorted(cfg.sequence) != list(range(self._num_ee)):
-      raise ValueError(
-        "Climb gait sequence must contain every EE index exactly once; "
-        f"got {cfg.sequence}."
-      )
+    self._validate_sequence(cfg.sequence)
 
     body_ids = []
     for body_name in cfg.ee_body_names:
@@ -143,6 +139,10 @@ class ClimbGaitCommand(CommandTerm):
       body_ids.append(ids[0])
     self._ee_body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
     self._sequence = torch.tensor(cfg.sequence, dtype=torch.long, device=self.device)
+    # Stage-independent defaults so a curriculum stage that omits an override
+    # falls back to the configured task values instead of a previous stage's.
+    self._default_sequence = tuple(cfg.sequence)
+    self._default_step_height = float(cfg.step_height)
     self._env_ids = torch.arange(self.num_envs, device=self.device)
 
     self._command = torch.zeros(
@@ -210,12 +210,51 @@ class ClimbGaitCommand(CommandTerm):
     *,
     required_productive_regrips: int,
     randomize_start_limb: bool,
+    step_height: float | None = None,
+    gait_ee_names: tuple[str, ...] | None = None,
   ) -> None:
-    """Set the per-episode success contract for subsequent resets."""
+    """Set the per-episode success contract for subsequent resets.
+
+    ``step_height`` and ``gait_ee_names`` are per-stage curriculum knobs:
+    smaller commanded steps and a limb subset (e.g. feet only) make the
+    regrip maneuver reachable by exploration before the full task is asked.
+    ``None`` restores the configured task defaults.
+    """
     if required_productive_regrips < 1:
       raise ValueError("required_productive_regrips must be at least one.")
     self.required_productive_regrips = int(required_productive_regrips)
     self.randomize_start_limb = bool(randomize_start_limb)
+
+    self.cfg.step_height = (
+      self._default_step_height if step_height is None else float(step_height)
+    )
+
+    if gait_ee_names is None:
+      sequence = self._default_sequence
+    else:
+      sequence = tuple(
+        self.cfg.ee_body_names.index(name) for name in gait_ee_names
+      )
+    self._validate_sequence(sequence)
+    new_sequence = torch.tensor(sequence, dtype=torch.long, device=self.device)
+    if len(new_sequence) != len(self._sequence) or bool(
+      (new_sequence != self._sequence).any()
+    ):
+      self._sequence = new_sequence
+      # In-flight episodes keep their current target; cursors re-align so the
+      # next regrip/reset indexes the new sequence safely.
+      self.sequence_cursor %= len(self._sequence)
+
+  def _validate_sequence(self, sequence: tuple[int, ...]) -> None:
+    if len(sequence) == 0:
+      raise ValueError("Climb gait sequence must not be empty.")
+    if len(set(sequence)) != len(sequence) or any(
+      not 0 <= idx < self._num_ee for idx in sequence
+    ):
+      raise ValueError(
+        "Climb gait sequence entries must be unique valid EE indices; "
+        f"got {sequence}."
+      )
 
   def _affordance(self):
     return self._env.command_manager.get_term(self.cfg.affordance_name)
@@ -258,7 +297,7 @@ class ClimbGaitCommand(CommandTerm):
     count = len(env_ids)
     if self.randomize_start_limb:
       self.sequence_cursor[env_ids] = torch.randint(
-        0, self._num_ee, (count,), device=self.device
+        0, len(self._sequence), (count,), device=self.device
       )
     else:
       self.sequence_cursor[env_ids] = 0
@@ -392,7 +431,7 @@ class ClimbGaitCommand(CommandTerm):
 
     self.sequence_cursor[confirmed_regrip] = (
       self.sequence_cursor[confirmed_regrip] + 1
-    ) % self._num_ee
+    ) % len(self._sequence)
     self.target_ee_index[confirmed_regrip] = self._sequence[
       self.sequence_cursor[confirmed_regrip]
     ]
