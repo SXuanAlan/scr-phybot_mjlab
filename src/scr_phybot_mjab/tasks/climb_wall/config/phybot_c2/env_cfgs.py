@@ -610,6 +610,16 @@ def phybot_c2_climb_wall_env_cfg(
             "required_productive_regrips": 2,
             "randomize_start_limb": True,
           },
+          # Graduation ramp: hand skill was learned at 2 cm (visually
+          # confirmed 2026-07-17); jumping straight to the 6 cm full cycle
+          # stalled (success 0.001 for 360 iters). Full cycle at 3 cm first.
+          {
+            "angle_deg": 45.0,
+            "initial_engaged_ee_names": all_anchors,
+            "step_height": 0.03,
+            "required_productive_regrips": 2,
+            "randomize_start_limb": True,
+          },
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
