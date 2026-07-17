@@ -583,6 +583,11 @@ def phybot_c2_climb_wall_env_cfg(
         # hands pinned forever let the body sag cycle over cycle (negative
         # anchor advance, engagement collapse).
         "stages": [
+          # The regrip cycle alternates foot -> hand -> foot -> hand, so ANY
+          # two-consecutive-regrip stage implicitly demands a hand regrip.
+          # That is why every historical run stalled exactly at the 2-regrip
+          # stage: it examined hands at full difficulty. The dedicated hand
+          # rung therefore comes BEFORE any multi-regrip stage.
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
@@ -592,22 +597,22 @@ def phybot_c2_climb_wall_env_cfg(
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
+            "gait_ee_names": hand_anchors,
+            "step_height": 0.02,
+            "required_productive_regrips": 1,
+            "randomize_start_limb": True,
+          },
+          {
+            "angle_deg": 45.0,
+            "initial_engaged_ee_names": all_anchors,
+            "gait_ee_names": hand_anchors,
+            "step_height": 0.02,
             "required_productive_regrips": 2,
             "randomize_start_limb": True,
           },
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
-            "gait_ee_names": hand_anchors,
-            "step_height": 0.02,
-            "required_productive_regrips": 1,
-            "randomize_start_limb": True,
-          },
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "gait_ee_names": hand_anchors,
-            "step_height": 0.02,
             "required_productive_regrips": 2,
             "randomize_start_limb": True,
           },

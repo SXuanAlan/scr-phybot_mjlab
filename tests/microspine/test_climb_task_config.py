@@ -111,18 +111,19 @@ def test_climb_curriculum_is_performance_gated_through_vertical_wall():
     75.0,
     90.0,
   ]
-  # Skill ladder v2 (2026-07-17): proven full-cycle stages, then a dedicated
-  # hand rung (all anchors engaged, hands-only targets, tiny 2 cm step —
-  # the one skill that never emerged), then full task.
+  # Skill ladder v3 (2026-07-17): the regrip cycle alternates foot/hand, so
+  # any 2-regrip stage implicitly demands a hand regrip — the hand rung
+  # (all anchors engaged, hands-only targets, 2 cm step) must therefore come
+  # BEFORE any multi-regrip stage.
   assert [s["required_productive_regrips"] for s in stages] == [
-    1, 2, 1, 2, 4, 4, 4, 4, 4,
+    1, 1, 2, 2, 4, 4, 4, 4, 4,
   ]
   hands = ("left_hand_spine", "right_hand_spine")
   assert "gait_ee_names" not in stages[0]
+  assert stages[1]["gait_ee_names"] == hands
+  assert stages[1]["step_height"] == 0.02
   assert stages[2]["gait_ee_names"] == hands
-  assert stages[2]["step_height"] == 0.02
-  assert stages[3]["gait_ee_names"] == hands
-  assert "gait_ee_names" not in stages[4]  # full cycle resumes
+  assert "gait_ee_names" not in stages[3]  # full cycle resumes
   assert stages[5]["initial_engaged_ee_names"] == hands
   assert term.params["advance_success_rate"] == 0.7
   assert runner_cfg.max_iterations == 12_000
