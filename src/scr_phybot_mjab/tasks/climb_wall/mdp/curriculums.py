@@ -73,6 +73,11 @@ class performance_gated_climb:
     self.evaluated_episodes = 0
     self.successful_episodes = 0
     self.last_success_rate = 0.0
+    # Episodes that BEGAN under a previous stage must not grade the current
+    # one: stale successes advanced two levels in a single iteration and
+    # skipped a designed rung outright (2026-07-17). Every env is stale until
+    # its first reset under the freshly applied stage.
+    self._stale: torch.Tensor | None = None
     stages = cfg.params.get("stages", [])
     if not stages:
       raise ValueError("performance_gated_climb requires at least one stage.")
@@ -109,10 +114,17 @@ class performance_gated_climb:
       raise ValueError("min_evaluated_episodes must be positive.")
 
     gait = env.command_manager.get_term(gait_command_name)
-    completed = env.episode_length_buf[env_ids] > 0
+    if self._stale is None or self._stale.shape[0] != env.num_envs:
+      self._stale = torch.ones(
+        env.num_envs, dtype=torch.bool, device=env.device
+      )
+    fresh = ~self._stale[env_ids]
+    completed = (env.episode_length_buf[env_ids] > 0) & fresh
     successes = gait.episode_success[env_ids] & completed
     self.evaluated_episodes += int(completed.sum().item())
     self.successful_episodes += int(successes.sum().item())
+    # These envs restart now and will run entirely under the current stage.
+    self._stale[env_ids] = False
 
     if self.evaluated_episodes >= min_evaluated_episodes:
       self.last_success_rate = (
@@ -123,6 +135,7 @@ class performance_gated_climb:
         and self.level + 1 < len(stages)
       ):
         self.level += 1
+        self._stale.fill_(True)
       self.evaluated_episodes = 0
       self.successful_episodes = 0
 

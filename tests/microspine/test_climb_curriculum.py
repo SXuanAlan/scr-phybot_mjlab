@@ -52,6 +52,7 @@ def test_performance_curriculum_advances_and_applies_next_stage():
   env = SimpleNamespace(
     command_manager=FakeCommandManager(gait, affordance),
     episode_length_buf=torch.ones(4, dtype=torch.long),
+    num_envs=4,
     device="cpu",
   )
   cfg = SimpleNamespace(params={"stages": stages})
@@ -61,14 +62,23 @@ def test_performance_curriculum_advances_and_applies_next_stage():
     (angle, magnitude)
   )
 
-  state = curriculum(
-    env,
-    torch.arange(4),
-    stages=stages,
-    min_evaluated_episodes=4,
-    advance_success_rate=0.7,
-  )
+  def evaluate():
+    return curriculum(
+      env,
+      torch.arange(4),
+      stages=stages,
+      min_evaluated_episodes=4,
+      advance_success_rate=0.7,
+    )
 
+  # First call: every episode began before this stage was applied (stale) and
+  # must not grade it — stale successes once advanced two levels in a single
+  # iteration and skipped a rung outright.
+  state = evaluate()
+  assert state["stage"].item() == 0.0
+
+  # Second call: fresh episodes grade the stage and advance it.
+  state = evaluate()
   assert state["stage"].item() == 1.0
   assert state["success_rate"].item() == 0.75
   assert affordance.initial_names == ("lh", "rh")
@@ -79,4 +89,4 @@ def test_performance_curriculum_advances_and_applies_next_stage():
     "step_height": None,
     "gait_ee_names": None,
   }
-  assert applied_gravity == [(60.0, 9.81)]
+  assert applied_gravity == [(45.0, 9.81), (60.0, 9.81)]
