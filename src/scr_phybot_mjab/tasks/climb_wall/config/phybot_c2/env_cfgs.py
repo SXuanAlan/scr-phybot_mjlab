@@ -610,13 +610,15 @@ def phybot_c2_climb_wall_env_cfg(
             "required_productive_regrips": 2,
             "randomize_start_limb": True,
           },
-          # Graduation ramp: hand skill was learned at 2 cm (visually
-          # confirmed 2026-07-17); jumping straight to the 6 cm full cycle
-          # stalled (success 0.001 for 360 iters). Full cycle at 3 cm first.
+          # Integration rung: both limb skills exist at 2 cm (hands visually
+          # confirmed 2026-07-17), so the full cycle is first assembled at
+          # that same difficulty. A 3 cm version of this rung stalled for
+          # 500+ iters — the +1 cm and the integration must not be examined
+          # together.
           {
             "angle_deg": 45.0,
             "initial_engaged_ee_names": all_anchors,
-            "step_height": 0.03,
+            "step_height": 0.02,
             "required_productive_regrips": 2,
             "randomize_start_limb": True,
           },

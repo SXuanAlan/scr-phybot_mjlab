@@ -123,8 +123,8 @@ def test_climb_curriculum_is_performance_gated_through_vertical_wall():
   assert stages[1]["gait_ee_names"] == hands
   assert stages[1]["step_height"] == 0.02
   assert stages[2]["gait_ee_names"] == hands
-  assert stages[3]["step_height"] == 0.03
-  assert "gait_ee_names" not in stages[3]  # full cycle resumes at 3 cm
+  assert stages[3]["step_height"] == 0.02
+  assert "gait_ee_names" not in stages[3]  # full cycle first assembled at 2 cm
   assert "step_height" not in stages[4]  # then the 6 cm default
   assert stages[6]["initial_engaged_ee_names"] == hands
   assert term.params["advance_success_rate"] == 0.7
