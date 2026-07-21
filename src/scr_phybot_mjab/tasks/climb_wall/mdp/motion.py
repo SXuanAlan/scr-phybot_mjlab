@@ -1,0 +1,522 @@
+"""DeepMimic-style motion reference for the wall-climbing task.
+
+Consumes the IK cycle clip written by ``scripts/gen_climb_clip.py``
+(``climb_cycle.npy``, the AMP/motion ``.npy`` dict schema plus climb keys).
+The command owns three things:
+
+  * the per-env phase index into one regrip cycle (advances every policy
+    step and wraps — the reference is a loop, not a finite take);
+  * reference-state initialization (RSI): on reset each env is placed at a
+    sampled clip frame (root pose + joint state + finite-difference
+    velocities) and the microspine latches are seeded from the frame's
+    ``ee_engaged`` flags;
+  * the reference quantities the tracking rewards compare against.
+
+Deliberately NOT provided: a global root position target. The clip's root
+trajectory is used only to place the robot at reset and to draw the ghost;
+climbing progress is driven by the height/velocity rewards, so the tracking
+terms are all root-relative (joint space, root-frame EE positions, root
+orientation).
+"""
+
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+import numpy as np
+import torch
+
+from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
+from mjlab.utils.lab_api.math import quat_apply_inverse, sample_uniform
+
+if TYPE_CHECKING:
+  from mjlab.entity import Entity
+  from mjlab.envs import ManagerBasedRlEnv
+  from mjlab.viewer.debug_visualizer import DebugVisualizer
+
+_GHOST_COLOR = (0.5, 0.7, 0.5, 0.5)
+
+# Nominal cycle climb rate (m/s) used only when the clip file is absent at
+# config-build time (fresh checkout before ``gen_climb_clip.py`` ran). Env
+# construction still fails loudly without the file — this fallback exists so
+# building the *config* (task registration, the gen script itself) does not
+# require the asset it is about to generate. 0.06 m / 4.3 s cycle.
+_FALLBACK_CLIMB_RATE = 0.06 / 4.3
+
+
+def _np_quat_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+  """Hamilton product of wxyz quaternion arrays (..., 4)."""
+  aw, ax, ay, az = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+  bw, bx, by, bz = b[..., 0], b[..., 1], b[..., 2], b[..., 3]
+  return np.stack(
+    [
+      aw * bw - ax * bx - ay * by - az * bz,
+      aw * bx + ax * bw + ay * bz - az * by,
+      aw * by - ax * bz + ay * bw + az * bx,
+      aw * bz + ax * by - ay * bx + az * bw,
+    ],
+    axis=-1,
+  )
+
+
+def _np_quat_rotate_inverse(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+  """Rotate vectors ``v`` (T, N, 3) by the inverse of wxyz quats ``q`` (T, 4)."""
+  w = q[:, None, 0:1]
+  im = -q[:, None, 1:4]  # conjugate
+  t = 2.0 * np.cross(im, v)
+  return v + w * t + np.cross(im, t)
+
+
+def _lerp_frames(arr: np.ndarray, pos: np.ndarray) -> np.ndarray:
+  """Linear interpolation of a (T, ...) array at fractional frame indices."""
+  last = arr.shape[0] - 1
+  i0 = np.clip(np.floor(pos).astype(np.int64), 0, last)
+  i1 = np.minimum(i0 + 1, last)
+  w = (pos - i0).reshape((-1,) + (1,) * (arr.ndim - 1))
+  return (1.0 - w) * arr[i0] + w * arr[i1]
+
+
+def _nearest_frames(arr: np.ndarray, pos: np.ndarray) -> np.ndarray:
+  last = arr.shape[0] - 1
+  return arr[np.clip(np.round(pos).astype(np.int64), 0, last)]
+
+
+def _cycle_frames(data: dict) -> int:
+  """Frames of one loopable cycle: cycle 0 without the ``end_hold`` tail.
+
+  ``gen_climb_clip`` appends ``end_hold`` (== next cycle's ``hold_start``
+  shifted one step height) only after the last cycle, so cycle 0 minus
+  ``end_hold`` is the loop period regardless of ``--cycles``.
+  """
+  names = list(data["segment_names"])
+  end_id = names.index("end_hold")
+  labels = np.asarray(data["phase_segment"])
+  cycles = np.asarray(data["cycle_index"])
+  return int(np.sum((cycles == 0) & (labels != end_id)))
+
+
+def clip_average_climb_rate(
+  motion_file: str | Path, fallback: float = _FALLBACK_CLIMB_RATE
+) -> float:
+  """Average upward base speed of one reference cycle (m/s).
+
+  Used at config-build time to point the climb velocity command at the rate
+  the clip actually delivers, so the height-progress normalization and the
+  commanded-velocity observation agree with the motion being imitated.
+  """
+  path = Path(motion_file)
+  if not path.exists():
+    return float(fallback)
+  data = np.load(path, allow_pickle=True).item()
+  cycle = _cycle_frames(data)
+  return float(data["step_height"]) * float(data["fps"]) / cycle
+
+
+@dataclass
+class ClimbMotionClip:
+  """One loopable regrip cycle on the policy-step time grid (torch tensors)."""
+
+  joint_names: tuple[str, ...]
+  ee_names: tuple[str, ...]
+  fps: float
+  step_height: float
+  cycle_frames: int
+  joint_pos: torch.Tensor  # (C, J)
+  joint_vel: torch.Tensor  # (C, J)
+  root_pos: torch.Tensor  # (C, 3) world, as generated (env origin added later)
+  root_quat: torch.Tensor  # (C, 4) wxyz
+  root_lin_vel: torch.Tensor  # (C, 3)
+  root_ang_vel: torch.Tensor  # (C, 3)
+  ee_pos_r: torch.Tensor  # (C, H, 3) EE body origins in the root frame
+  ee_engaged: torch.Tensor  # (C, H) bool
+
+  @classmethod
+  def from_file(
+    cls, motion_file: str | Path, step_dt: float, device: str
+  ) -> ClimbMotionClip:
+    data = np.load(Path(motion_file), allow_pickle=True).item()
+    return cls.from_dict(data, step_dt=step_dt, device=device)
+
+  @classmethod
+  def from_dict(
+    cls, data: dict, step_dt: float, device: str
+  ) -> ClimbMotionClip:
+    required = (
+      "joints_list",
+      "joint_positions",
+      "root_position",
+      "root_quaternion",
+      "fps",
+      "ee_list",
+      "ee_positions",
+      "ee_engaged",
+      "phase_segment",
+      "segment_names",
+      "cycle_index",
+      "step_height",
+    )
+    missing = [key for key in required if key not in data]
+    if missing:
+      raise KeyError(f"Climb motion clip is missing keys: {missing}")
+
+    src_fps = float(data["fps"])
+    target_fps = 1.0 / step_dt
+    joint_pos = np.asarray(data["joint_positions"], dtype=np.float64)
+    root_pos = np.asarray(data["root_position"], dtype=np.float64)
+    # The AMP/motion schema stores xyzw; mjlab is wxyz throughout.
+    root_quat = np.asarray(data["root_quaternion"], dtype=np.float64)[
+      :, [3, 0, 1, 2]
+    ]
+    ee_pos = np.asarray(data["ee_positions"], dtype=np.float64)
+    engaged = np.asarray(data["ee_engaged"]) != 0
+    labels = np.asarray(data["phase_segment"])
+    cycles = np.asarray(data["cycle_index"])
+
+    if abs(src_fps - target_fps) > 1.0e-6:
+      # Resample onto the policy-step grid. Adjacent frames are close, so
+      # lerp (+ renormalize for quats) is adequate; flags use nearest.
+      duration = (joint_pos.shape[0] - 1) / src_fps
+      n_new = int(np.floor(duration * target_fps)) + 1
+      pos = np.arange(n_new) / target_fps * src_fps
+      joint_pos = _lerp_frames(joint_pos, pos)
+      root_pos = _lerp_frames(root_pos, pos)
+      root_quat = _lerp_frames(root_quat, pos)
+      root_quat /= np.linalg.norm(root_quat, axis=-1, keepdims=True)
+      ee_pos = _lerp_frames(ee_pos, pos)
+      engaged = _nearest_frames(engaged, pos)
+      labels = _nearest_frames(labels, pos)
+      cycles = _nearest_frames(cycles, pos)
+
+    cycle = _cycle_frames(
+      {
+        "segment_names": data["segment_names"],
+        "phase_segment": labels,
+        "cycle_index": cycles,
+      }
+    )
+    total = joint_pos.shape[0]
+    if cycle < 2:
+      raise ValueError(f"Climb motion cycle has {cycle} frames; need >= 2.")
+    if cycle >= total:
+      raise ValueError(
+        f"Climb motion clip has no frame beyond the cycle ({cycle} of "
+        f"{total}); finite-difference velocities need the end_hold tail."
+      )
+
+    # Forward differences over [0, C) use frame C — present by construction
+    # (end_hold, or the next cycle), and equal to frame 0 shifted one step
+    # height, so the wrap velocity is the true loop velocity.
+    joint_vel = (joint_pos[1 : cycle + 1] - joint_pos[:cycle]) * target_fps
+    root_lin_vel = (root_pos[1 : cycle + 1] - root_pos[:cycle]) * target_fps
+    q_conj = root_quat[:cycle] * np.array([1.0, -1.0, -1.0, -1.0])
+    q_rel = _np_quat_mul(root_quat[1 : cycle + 1], q_conj)
+    q_rel *= np.where(q_rel[:, 0:1] >= 0.0, 1.0, -1.0)
+    vec_norm = np.linalg.norm(q_rel[:, 1:4], axis=-1)
+    angle = 2.0 * np.arctan2(vec_norm, q_rel[:, 0])
+    axis = q_rel[:, 1:4] / np.maximum(vec_norm, 1.0e-12)[:, None]
+    root_ang_vel = axis * (angle * target_fps)[:, None]
+
+    ee_pos_r = _np_quat_rotate_inverse(
+      root_quat[:cycle], ee_pos[:cycle] - root_pos[:cycle, None, :]
+    )
+
+    def _t(arr: np.ndarray, dtype=torch.float32) -> torch.Tensor:
+      return torch.tensor(np.ascontiguousarray(arr), dtype=dtype, device=device)
+
+    return cls(
+      joint_names=tuple(data["joints_list"]),
+      ee_names=tuple(data["ee_list"]),
+      fps=target_fps,
+      step_height=float(data["step_height"]),
+      cycle_frames=cycle,
+      joint_pos=_t(joint_pos[:cycle]),
+      joint_vel=_t(joint_vel),
+      root_pos=_t(root_pos[:cycle]),
+      root_quat=_t(root_quat[:cycle]),
+      root_lin_vel=_t(root_lin_vel),
+      root_ang_vel=_t(root_ang_vel),
+      ee_pos_r=_t(ee_pos_r),
+      ee_engaged=_t(engaged[:cycle], dtype=torch.bool),
+    )
+
+
+class ClimbMotionCommand(CommandTerm):
+  """Phase-indexed climb-cycle reference with reference-state initialization.
+
+  Reset places the robot AT a sampled clip frame and seeds the microspine
+  latches from that frame, so the reward landscape at t=0 is exactly "keep
+  doing the reference". Requires the microspine affordance command to be
+  registered BEFORE this term (its own reset would otherwise clobber the
+  seeded latch state); the ordering is asserted on first reset.
+  """
+
+  cfg: ClimbMotionCommandCfg
+
+  def __init__(self, cfg: ClimbMotionCommandCfg, env: ManagerBasedRlEnv):
+    super().__init__(cfg, env)
+    self.robot: Entity = env.scene[cfg.entity_name]
+    self.clip = ClimbMotionClip.from_file(
+      cfg.motion_file, step_dt=env.step_dt, device=str(self.device)
+    )
+    if tuple(cfg.ee_body_names) != self.clip.ee_names:
+      raise ValueError(
+        f"Clip EE order {self.clip.ee_names} does not match the configured "
+        f"microspine order {tuple(cfg.ee_body_names)}."
+      )
+
+    joint_ids, joint_names = self.robot.find_joints(
+      list(self.clip.joint_names), preserve_order=True
+    )
+    if tuple(joint_names) != self.clip.joint_names:
+      raise ValueError(
+        "Clip joints could not be mapped onto the robot in order: "
+        f"{joint_names} vs {self.clip.joint_names}."
+      )
+    self._joint_ids = torch.tensor(
+      joint_ids, dtype=torch.long, device=self.device
+    )
+    ee_body_ids = [
+      self.robot.find_bodies([name])[0][0] for name in cfg.ee_body_names
+    ]
+    self._ee_body_ids = torch.tensor(
+      ee_body_ids, dtype=torch.long, device=self.device
+    )
+
+    self.time_steps = torch.zeros(
+      self.num_envs, dtype=torch.long, device=self.device
+    )
+    # Offset from clip-frame root position to this env's reference position:
+    # env origin + reset height offset, plus one step height per completed
+    # loop. Used for RSI placement bookkeeping and the ghost only — no reward
+    # reads a global reference position.
+    self.root_offset = torch.zeros(self.num_envs, 3, device=self.device)
+    self.spawn_z = torch.zeros(self.num_envs, device=self.device)
+    self._order_checked = False
+    self._ghost_model = None
+
+    self.metrics["error_joint_pos"] = torch.zeros(
+      self.num_envs, device=self.device
+    )
+    self.metrics["error_ee_pos"] = torch.zeros(self.num_envs, device=self.device)
+    self.metrics["engage_match"] = torch.zeros(self.num_envs, device=self.device)
+
+  # -- reference (clip) side --------------------------------------------------
+
+  @property
+  def command(self) -> torch.Tensor:
+    """Phase clock + reference engage schedule, shape (E, 2 + H)."""
+    phase = (
+      self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
+    )
+    return torch.cat(
+      [
+        torch.cos(phase).unsqueeze(-1),
+        torch.sin(phase).unsqueeze(-1),
+        self.ref_engaged.float(),
+      ],
+      dim=-1,
+    )
+
+  @property
+  def ref_joint_pos(self) -> torch.Tensor:
+    return self.clip.joint_pos[self.time_steps]
+
+  @property
+  def ref_joint_vel(self) -> torch.Tensor:
+    return self.clip.joint_vel[self.time_steps]
+
+  @property
+  def ref_root_quat_w(self) -> torch.Tensor:
+    return self.clip.root_quat[self.time_steps]
+
+  @property
+  def ref_ee_pos_r(self) -> torch.Tensor:
+    return self.clip.ee_pos_r[self.time_steps]
+
+  @property
+  def ref_engaged(self) -> torch.Tensor:
+    return self.clip.ee_engaged[self.time_steps]
+
+  @property
+  def ref_root_pos_w(self) -> torch.Tensor:
+    """Ghost/RSI-only global reference position (untracked by rewards)."""
+    return self.clip.root_pos[self.time_steps] + self.root_offset
+
+  # -- robot side -------------------------------------------------------------
+
+  @property
+  def robot_joint_pos(self) -> torch.Tensor:
+    return self.robot.data.joint_pos[:, self._joint_ids]
+
+  @property
+  def robot_joint_vel(self) -> torch.Tensor:
+    return self.robot.data.joint_vel[:, self._joint_ids]
+
+  @property
+  def robot_root_quat_w(self) -> torch.Tensor:
+    return self.robot.data.root_link_quat_w
+
+  @property
+  def robot_ee_pos_r(self) -> torch.Tensor:
+    """EE body origins in the robot's root frame, (E, H, 3)."""
+    root_pos = self.robot.data.root_link_pos_w
+    root_quat = self.robot.data.root_link_quat_w
+    ee_pos = self.robot.data.body_link_pos_w[:, self._ee_body_ids]
+    delta = ee_pos - root_pos.unsqueeze(1)
+    quat = root_quat.unsqueeze(1).expand(-1, len(self.cfg.ee_body_names), -1)
+    return quat_apply_inverse(quat, delta)
+
+  @property
+  def robot_engaged(self) -> torch.Tensor:
+    return self._affordance().engaged
+
+  @property
+  def height_gained(self) -> torch.Tensor:
+    """Base rise since the episode's RSI placement, (E,). Curriculum input."""
+    return self.robot.data.root_link_pos_w[:, 2] - self.spawn_z
+
+  def _affordance(self):
+    return self._env.command_manager.get_term(self.cfg.affordance_command_name)
+
+  # -- lifecycle --------------------------------------------------------------
+
+  def _check_term_order(self) -> None:
+    """The affordance must reset before this term seeds it (dict order)."""
+    if self._order_checked:
+      return
+    names = self._env.command_manager.active_terms
+    own = next(
+      name
+      for name in names
+      if self._env.command_manager.get_term(name) is self
+    )
+    if names.index(self.cfg.affordance_command_name) > names.index(own):
+      raise RuntimeError(
+        f"Command '{self.cfg.affordance_command_name}' must be registered "
+        f"before '{own}': its reset would clobber the RSI-seeded latches."
+      )
+    self._order_checked = True
+
+  def _update_metrics(self) -> None:
+    self.metrics["error_joint_pos"] = (
+      self.ref_joint_pos - self.robot_joint_pos
+    ).abs().mean(dim=-1)
+    self.metrics["error_ee_pos"] = (
+      (self.ref_ee_pos_r - self.robot_ee_pos_r).norm(dim=-1).mean(dim=-1)
+    )
+    self.metrics["engage_match"] = (
+      (self.ref_engaged == self.robot_engaged).float().mean(dim=-1)
+    )
+
+  def _resample_command(self, env_ids: torch.Tensor) -> None:
+    self._check_term_order()
+    count = len(env_ids)
+    if self.cfg.sampling_mode == "start":
+      frames = torch.zeros(count, dtype=torch.long, device=self.device)
+    else:
+      frames = torch.randint(
+        0, self.clip.cycle_frames, (count,), device=self.device
+      )
+    self.time_steps[env_ids] = frames
+
+    # --- reference state initialization -------------------------------------
+    offset = self._env.scene.env_origins[env_ids].clone()
+    offset[:, 2] += sample_uniform(
+      self.cfg.height_offset_range[0],
+      self.cfg.height_offset_range[1],
+      (count,),
+      device=self.device,
+    )
+    self.root_offset[env_ids] = offset
+    root_pos = self.clip.root_pos[frames] + offset
+    self.spawn_z[env_ids] = root_pos[:, 2]
+
+    joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
+    joint_pos[:, self._joint_ids] = self.clip.joint_pos[frames]
+    if self.cfg.joint_pos_noise > 0.0:
+      joint_pos[:, self._joint_ids] += sample_uniform(
+        -self.cfg.joint_pos_noise,
+        self.cfg.joint_pos_noise,
+        (count, len(self._joint_ids)),
+        device=self.device,
+      )
+      limits = self.robot.data.soft_joint_pos_limits[env_ids]
+      joint_pos = torch.clip(joint_pos, limits[..., 0], limits[..., 1])
+    joint_vel = torch.zeros_like(joint_pos)
+    joint_vel[:, self._joint_ids] = self.clip.joint_vel[frames]
+
+    self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+    root_state = torch.cat(
+      [
+        root_pos,
+        self.clip.root_quat[frames],
+        self.clip.root_lin_vel[frames],
+        self.clip.root_ang_vel[frames],
+      ],
+      dim=-1,
+    )
+    self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
+    self.robot.clear_state(env_ids=env_ids)
+
+    # Seed the microspine latches from the frame's engage schedule. The pads
+    # of engaged EEs sit on the wall in every clip frame, so the constraint
+    # executor anchors them at physically consistent poses on the next step.
+    self._affordance().seed_engaged(env_ids, self.clip.ee_engaged[frames])
+
+  def _update_command(self) -> None:
+    next_steps = self.time_steps + 1
+    wrapped = next_steps >= self.clip.cycle_frames
+    self.time_steps = torch.where(
+      wrapped, torch.zeros_like(next_steps), next_steps
+    )
+    # The loop's state-5-equals-state-1 closure is one step height up; keep
+    # the ghost/RSI reference continuous across the wrap.
+    self.root_offset[wrapped, 2] += self.clip.step_height
+
+  def _debug_vis_impl(self, visualizer: DebugVisualizer) -> None:
+    env_indices = visualizer.get_env_indices(self.num_envs)
+    if not env_indices:
+      return
+    if self._ghost_model is None:
+      self._ghost_model = copy.deepcopy(self._env.sim.mj_model)
+      self._ghost_model.geom_rgba[:] = np.array(_GHOST_COLOR, dtype=np.float32)
+
+    indexing = self.robot.indexing
+    free_joint_q_adr = indexing.free_joint_q_adr.cpu().numpy()
+    joint_q_adr = indexing.joint_q_adr.cpu().numpy()
+    for batch in env_indices:
+      qpos = np.zeros(self._env.sim.mj_model.nq)
+      qpos[free_joint_q_adr[0:3]] = self.ref_root_pos_w[batch].cpu().numpy()
+      qpos[free_joint_q_adr[3:7]] = self.ref_root_quat_w[batch].cpu().numpy()
+      full_joint_pos = self.robot.data.default_joint_pos[batch].clone()
+      full_joint_pos[self._joint_ids] = self.ref_joint_pos[batch]
+      qpos[joint_q_adr] = full_joint_pos.cpu().numpy()
+      visualizer.add_ghost_mesh(
+        qpos, model=self._ghost_model, label=f"ghost_{batch}"
+      )
+
+
+@dataclass(kw_only=True)
+class ClimbMotionCommandCfg(CommandTermCfg):
+  """Configuration for :class:`ClimbMotionCommand`."""
+
+  entity_name: str = "robot"
+  motion_file: str
+  affordance_command_name: str = "microspine_affordance"
+  ee_body_names: tuple[str, ...]
+  # "uniform" = DeepMimic RSI (sample a random cycle phase per episode);
+  # "start" = always begin at frame 0 (evaluation/play).
+  sampling_mode: Literal["uniform", "start"] = "uniform"
+  # Uniform extra spawn height (m) on top of the clip's root z, decoupling
+  # absolute altitude from cycle phase.
+  height_offset_range: tuple[float, float] = (0.0, 0.0)
+  # Uniform RSI joint-angle noise (rad); clamped to soft limits.
+  joint_pos_noise: float = 0.0
+  # The reference loops; it is never resampled mid-episode.
+  resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
+
+  def build(self, env: ManagerBasedRlEnv) -> ClimbMotionCommand:
+    return ClimbMotionCommand(self, env)

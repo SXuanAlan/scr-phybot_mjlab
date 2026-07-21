@@ -1,9 +1,17 @@
 """PHYBot C2 wall-climbing environment configuration.
 
-The reward is outcome-based: it values upward body progress and confirmed
-new anchors, while static pose/contact quality is expressed only as error or
-safety cost. This prevents a motionless hanging policy from accumulating a
-positive return merely by keeping its current grips.
+DeepMimic-style layout (2026-07-21 redesign, replacing the commanded-gait
+state machine):
+
+  * A motion command (``climb_motion``) indexes the IK regrip cycle
+    ``assets/motions/climb_cycle.npy``; episode resets are reference-state
+    initialization (random cycle phase, latches seeded from the clip).
+  * ``motion_*`` tracking rewards teach the cycle SHAPE (joint space,
+    root-frame EE positions, root orientation, engage schedule). No global
+    position is tracked — the clip's world trajectory is used only for reset
+    placement and the debug ghost.
+  * Height/velocity progress rewards remain the climbing DRIVE, and the
+    microspine engage/safety battery remains the physics contract.
 
 C2-specific notes:
   * 4 grip end-effectors: left/right hand_spine + left/right foot_spine.
@@ -15,6 +23,7 @@ C2-specific notes:
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import mujoco
 
@@ -59,6 +68,10 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
 )
 
 
+_MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
+_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle.npy"
+
+
 def _policy_joint_cfg() -> SceneEntityCfg:
   return SceneEntityCfg(
     "robot",
@@ -72,7 +85,7 @@ def phybot_c2_climb_wall_env_cfg(
 ) -> ManagerBasedRlEnvCfg:
   """Create the constraint-based PHYBot C2 wall-climbing configuration."""
   velocity_command_name = "climb_velocity"
-  gait_command_name = "climb_gait"
+  motion_command_name = "climb_motion"
   microspine_affordance_name = "microspine_affordance"
   microspine_contact_sensor_name = "microspine_wall_contact"
   microspine_event_name = "microspine_grip"
@@ -86,9 +99,9 @@ def phybot_c2_climb_wall_env_cfg(
     ),
     spheres_per_ee_rows=2,
     spheres_per_ee_cols=2,
-    # The first curriculum stage starts from a stable four-anchor stance and
-    # teaches one physical release/re-grip. Later stages switch reset support
-    # to hands-only through the performance-gated curriculum.
+    # Fallback reset latches only: the motion command's RSI overwrites them
+    # per env with the sampled clip frame's engage schedule right after the
+    # affordance's own reset (see seed_engaged). All-four matches frame 0.
     initial_engaged_ee_names=(
       "left_hand_spine",
       "right_hand_spine",
@@ -115,7 +128,11 @@ def phybot_c2_climb_wall_env_cfg(
 
   cfg = make_climb_wall_env_cfg()
   cfg.scene.num_envs = 2048
-  cfg.commands[velocity_command_name].ranges.lin_vel_z = (0.02, 0.02)
+  # Command exactly the average climb rate one reference cycle delivers
+  # (step_height / cycle duration), so the height-progress normalization and
+  # the commanded-velocity observation agree with the motion being imitated.
+  clip_vz = mdp.clip_average_climb_rate(_CLIMB_MOTION_FILE)
+  cfg.commands[velocity_command_name].ranges.lin_vel_z = (clip_vz, clip_vz)
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
   terms = cfg.observations["actor"].terms
   terms["base_lin_vel"].func = mdp.builtin_sensor
@@ -124,8 +141,10 @@ def phybot_c2_climb_wall_env_cfg(
   terms["base_ang_vel"].params = {"sensor_name": "robot/baselink-gyro"}
   terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
   terms["projected_gravity"].params = {"sensor_name": "robot/baselink-quat"}
-  # Match MJLab/IsaacLab velocity tracking style: no explicit gait phase
-  # observation. Gait should emerge from velocity tracking + grip shaping.
+  # Drop the base factory's fixed-period gait clock and legacy hand-latch
+  # obs: the motion command below provides the phase clock (cos/sin, tied to
+  # the reference cycle) and the reference engage schedule, and the
+  # microspine_engaged_state term added later covers all four latches.
   cfg.observations["actor"].terms.pop("gait_clock", None)
   cfg.observations["actor"].terms.pop("hand_engaged_state", None)
 
@@ -134,17 +153,16 @@ def phybot_c2_climb_wall_env_cfg(
     contact_sensor_name=microspine_contact_sensor_name,
     physics_event_name=microspine_event_name,
   )
-  cfg.commands[gait_command_name] = mdp.ClimbGaitCommandCfg(
+  # Registered AFTER the affordance on purpose: its reset (RSI) seeds the
+  # per-env latch state and must run after the affordance's own reset (the
+  # command asserts this ordering).
+  cfg.commands[motion_command_name] = mdp.ClimbMotionCommandCfg(
     entity_name="robot",
-    affordance_name=microspine_affordance_name,
-    physics_event_name=microspine_event_name,
+    motion_file=str(_CLIMB_MOTION_FILE),
+    affordance_command_name=microspine_affordance_name,
     ee_body_names=microspine_cfg.ee_body_names,
-    sequence=(2, 1, 3, 0),  # left foot -> right hand -> right foot -> left hand
-    step_height=0.06,
-    confirmation_steps=(
-      microspine_cfg.limit_surface.hold_grace_steps
-      + microspine_cfg.limit_surface.violation_consecutive_steps
-    ),
+    sampling_mode="uniform",  # DeepMimic RSI: random cycle phase per episode.
+    joint_pos_noise=0.02,
   )
 
   robot_cfg = get_phybot_c2_robot_cfg()
@@ -159,33 +177,44 @@ def phybot_c2_climb_wall_env_cfg(
 
   # Override init state at task level (do NOT mutate the shared keyframe
   # singleton on robot_cfg.init_state — other c2 tasks reuse it).
+  # Climb-zero stance v2 (stance_search, 2026-07-21): whole-body IK with the
+  # base pinned 0.196 m from the wall (was 0.255) — CoM-to-wall 0.157 m (was
+  # 0.198), cutting the pull-off moment on the hand anchors. Pads stay flat
+  # on the wall (|gap| <= 0.03 mm, matching the v1 convention); the limbs
+  # stretched along the wall to keep reach: arms higher and straighter
+  # (elbow -0.67, hand pads z=1.74), legs longer (knee 0.51, foot pads
+  # z=0.58). Worst joint margins: shoulder_roll 5.4% / ankle_pitch 10% of
+  # range; knee-to-wall clearance 1.74 cm. A 0.176 m variant was tried and
+  # rejected: the near-straight arm (elbow -0.55) sent the hand swings
+  # through a singularity (10.9 deg pad-rot residual, 11.6 mm swing-sphere
+  # wall penetration, 9.2 rad/s shoulder-yaw whip in the generated cycle).
   robot_cfg.init_state = EntityCfg.InitialStateCfg(
-    pos=(1.245, 0.0, 1.0),
+    pos=(1.304, 0.0, 1.0),
     rot=(1.0, 0.0, 0.0, 0.0),
     joint_pos={
-      "left_hip_pitch": -0.815,
-      "left_hip_roll": 0.09,
-      "left_hip_yaw": -0.265,
-      "left_knee": 0.765,
-      "left_ankle_pitch": 1.34,
+      "left_hip_pitch": -0.5494,
+      "left_hip_roll": 0.1487,
+      "left_hip_yaw": -0.1879,
+      "left_knee": 0.506,
+      "left_ankle_pitch": 1.256,
       "left_ankle_roll": 0.0,
-      "right_hip_pitch": -0.815,
-      "right_hip_roll": -0.09,
-      "right_hip_yaw": 0.265,
-      "right_knee": 0.765,
-      "right_ankle_pitch": 1.34,
+      "right_hip_pitch": -0.5494,
+      "right_hip_roll": -0.1487,
+      "right_hip_yaw": 0.1879,
+      "right_knee": 0.506,
+      "right_ankle_pitch": 1.256,
       "right_ankle_roll": 0.0,
       "waist_yaw": 0.0,
       "neck_yaw": 0.0,
       "neck_pitch": 0.0,
-      "left_shoulder_pitch": -2.0,
-      "left_shoulder_roll": -0.17,
+      "left_shoulder_pitch": -2.4729,
+      "left_shoulder_roll": -0.1665,
       "left_shoulder_yaw": 0.0,
-      "left_elbow_pitch": -1.14,
-      "right_shoulder_pitch": -2.0,
-      "right_shoulder_roll": 0.17,
+      "left_elbow_pitch": -0.6654,
+      "right_shoulder_pitch": -2.4729,
+      "right_shoulder_roll": 0.1665,
       "right_shoulder_yaw": 0.0,
-      "right_elbow_pitch": -1.14,
+      "right_elbow_pitch": -0.6654,
     },
     joint_vel={".*": 0.0},
   )
@@ -204,9 +233,14 @@ def phybot_c2_climb_wall_env_cfg(
   }
   robot_cfg.articulation = dataclasses.replace(
     robot_cfg.articulation,
-    # Reserve 5% of the hard range at each end. The action term below clamps
-    # PD targets to these limits; the physical hard stop remains a final guard.
-    soft_joint_pos_limit_factor=0.9,
+    # Reserve 1% of the hard range at each end. The action term below clamps
+    # PD targets to these limits; the physical hard stop remains a final
+    # guard. Widened from 0.9 (2026-07-21): the reference cycle works close
+    # to some stops — shoulder_roll kinematically peaks 0.06 rad from its
+    # hard limit at state 4 (one hand high, other anchored low) — and
+    # tracking must never fight the target clamp. The clip keeps its own
+    # clearance elsewhere via the gen script's limit-avoidance springs.
+    soft_joint_pos_limit_factor=0.98,
     actuators=tuple(
       dataclasses.replace(act, stiffness=gains[0], damping=gains[1])
       if (gains := climb_upper_body_gains.get(act.target_names_expr[0]))
@@ -216,8 +250,10 @@ def phybot_c2_climb_wall_env_cfg(
     ),
   )
 
-  # Wall: keep the default WALL_OFFSET = (2.0, 0.0, 7.5) — same as tune_pose,
-  # so the spawned base position lines up with what was visualized there.
+  # Wall: keep the default WALL_OFFSET = (2.0, 0.0, 7.5). NOTE the stance-v2
+  # base x (1.304) no longer matches what scripts/tune_pose.py visualized for
+  # the v1 stance; the stance is now designed by the IK stance search
+  # (2026-07-21) with pads pinned to the wall plane.
 
   cfg.scene.entities = {
     "robot": robot_cfg,
@@ -257,16 +293,54 @@ def phybot_c2_climb_wall_env_cfg(
     microspine_cfg,
     affordance_name=microspine_affordance_name,
   )
+  # Reference-state initialization owns the robot's reset pose and velocities
+  # (the motion command writes them AFTER reset events run); the generic
+  # perturbation events would only be overwritten.
+  cfg.events.pop("reset_robot_joints", None)
+  cfg.events.pop("reset_robot_base", None)
 
   # ------------------------------------------------------------------------
-  # Rewards — progress is the only sustained positive signal. Safe posture,
-  # contact, and alignment are zero-cost constraints rather than positive
-  # income, so a motionless hang cannot become a local reward optimum.
+  # Rewards — DeepMimic split. ``motion_*`` exp kernels teach the regrip
+  # cycle (no global position tracking); height/velocity progress terms
+  # drive actual climbing; the microspine battery enforces the physics.
   # ------------------------------------------------------------------------
   robot_cfg_e = SceneEntityCfg("robot")
   cfg.rewards = {
-    # -- task progress. The first 0.5 s follows the physically settled pose;
-    # reset sag and reset-time passive engagement earn nothing.
+    # -- motion imitation (positive tracking income, BeyondMimic exp kernel).
+    "motion_joint_pos": RewardTermCfg(
+      func=mdp.motion_joint_pos_error_exp,
+      weight=2.0,
+      params={"command_name": motion_command_name, "std": 0.2},
+    ),
+    "motion_joint_vel": RewardTermCfg(
+      func=mdp.motion_joint_vel_error_exp,
+      weight=0.5,
+      params={"command_name": motion_command_name, "std": 1.5},
+    ),
+    # Root-frame EE positions: shapes reach and swing arcs without pinning
+    # the base to the clip's world trajectory.
+    "motion_ee_pos": RewardTermCfg(
+      func=mdp.motion_ee_pos_error_exp,
+      weight=1.5,
+      params={"command_name": motion_command_name, "std": 0.1},
+    ),
+    "motion_root_ori": RewardTermCfg(
+      func=mdp.motion_root_ori_error_exp,
+      weight=0.5,
+      params={"command_name": motion_command_name, "std": 0.3},
+    ),
+    # The clip's engage schedule replaces the old commanded-gait machinery:
+    # a latch state disagreeing with the reference phase costs per step.
+    "motion_engage_mismatch": RewardTermCfg(
+      func=mdp.motion_engage_mismatch,
+      weight=-0.25,
+      params={"command_name": motion_command_name},
+    ),
+    # -- task drive: pay for actual height, normalized by the commanded rate.
+    # The reference climbs in one 0.8 s burst per 4.3 s cycle (peak ~10x the
+    # average rate), so the per-step cap must clear the burst: 12 x average.
+    # The first 0.5 s follows the physically settled pose; reset sag and
+    # reset-time passive engagement earn nothing.
     "climb_height_progress": RewardTermCfg(
       func=mdp.climb_height_progress(),
       weight=2.0,
@@ -274,7 +348,7 @@ def phybot_c2_climb_wall_env_cfg(
         "asset_cfg": robot_cfg_e,
         "command_name": velocity_command_name,
         "command_threshold": 0.01,
-        "max_normalized_progress": 1.5,
+        "max_normalized_progress": 12.0,
         "settle_time_s": 0.5,
       },
     ),
@@ -285,44 +359,8 @@ def phybot_c2_climb_wall_env_cfg(
         "asset_cfg": robot_cfg_e,
         "command_name": velocity_command_name,
         "command_threshold": 0.01,
-        "max_normalized_progress": 1.0,
+        "max_normalized_progress": 12.0,
         "settle_time_s": 0.5,
-      },
-    ),
-    "confirmed_anchor_advance": RewardTermCfg(
-      func=mdp.confirmed_anchor_advance(),
-      weight=0.5,
-      params={
-        "event_term_name": microspine_event_name,
-        "settle_time_s": 0.5,
-        "confirmation_steps": (
-          microspine_cfg.limit_surface.hold_grace_steps
-          + microspine_cfg.limit_surface.violation_consecutive_steps
-        ),
-        "minimum_swing_time": 0.1,
-        "step_height": 0.06,
-        "frontier_bonus_scale": 0.5,
-      },
-    ),
-    "commanded_anchor_advance": RewardTermCfg(
-      func=mdp.commanded_anchor_advance,
-      weight=4.0,
-      params={"command_name": gait_command_name},
-    ),
-    "productive_gait_cycle": RewardTermCfg(
-      func=mdp.productive_gait_cycle,
-      weight=2.0,
-      params={"command_name": gait_command_name},
-    ),
-    # -- tracking and workspace costs. These are zero at the desired state;
-    # unlike Gaussian rewards they never pay the robot merely to stand still.
-    "climb_velocity_z_error": RewardTermCfg(
-      func=mdp.climb_velocity_z_error_l2,
-      weight=-0.5,
-      params={
-        "asset_cfg": robot_cfg_e,
-        "command_name": velocity_command_name,
-        "velocity_scale": 0.05,
       },
     ),
     "lateral_velocity_y_l2": RewardTermCfg(
@@ -335,11 +373,15 @@ def phybot_c2_climb_wall_env_cfg(
       weight=-0.2,
       params={
         "asset_cfg": robot_cfg_e,
-        "target_distance": 0.255,
+        # Base standoff of the climb-zero v2 stance (1.5 - 1.304).
+        "target_distance": 0.196,
         "tolerance": 0.08,
         "distance_scale": 0.1,
       },
     ),
+    # -- microspine physics contract. Two, three, and four anchors are all
+    # acceptable; only insufficient support is penalized. A reverse-shear
+    # unhook is free while safe; structural failures carry one-shot costs.
     "ee_face_parallel_error": RewardTermCfg(
       func=mdp.ee_face_parallel_error,
       weight=-0.5,
@@ -351,21 +393,16 @@ def phybot_c2_climb_wall_env_cfg(
         "face_local_axis": microspine_cfg.face_local_axis,
       },
     ),
-    # -- hybrid grip safety. Two, three, and four anchors are all acceptable;
-    # only insufficient support is penalized. A reverse-shear unhook is free
-    # while safe, whereas structural failure modes carry one-shot event costs.
     "microspine_support_loss": RewardTermCfg(
       func=mdp.microspine_support_loss,
-      weight=-3.0,
+      # -4.0 (was -3.0 pre-DeepMimic): the tracking terms raised the ceiling
+      # of positive income to ~4.5/s, and a one-anchor dangle still earning
+      # ~2.4-3.5/s of partial tracking must stay strictly net-negative.
+      weight=-4.0,
       params={
         "event_term_name": microspine_event_name,
         "minimum_supports": 2,
       },
-    ),
-    "climb_gait_support_shortfall": RewardTermCfg(
-      func=mdp.climb_gait_support_shortfall,
-      weight=-2.0,
-      params={"command_name": gait_command_name},
     ),
     "unsafe_microspine_release": RewardTermCfg(
       func=mdp.unsafe_microspine_release_penalty,
@@ -375,44 +412,6 @@ def phybot_c2_climb_wall_env_cfg(
         "minimum_supports": 2,
         "settle_time_s": 0.5,
       },
-    ),
-    "unscheduled_microspine_release": RewardTermCfg(
-      func=mdp.unscheduled_microspine_release,
-      weight=-2.0,
-      params={"command_name": gait_command_name},
-    ),
-    "climb_gait_phase_timeout": RewardTermCfg(
-      func=mdp.climb_gait_phase_timeout,
-      # Kept as an event marker; the real deterrent is the gait_phase_timeout
-      # TERMINATION (fines lost the economics twice against stretch-farming).
-      weight=-5.0,
-      params={"command_name": gait_command_name},
-    ),
-    "climb_swing_progress_shaping": RewardTermCfg(
-      func=mdp.climb_swing_progress_shaping,
-      # Pays the risky middle of a regrip (weight shift + reach) that the
-      # 2026-07-17 frames showed exploration never crosses. A full approach
-      # earns ~1.0 step-unit; potential-based so retreat/oscillation nets 0+.
-      weight=2.0,
-      params={"command_name": gait_command_name, "progress_cap": 0.5},
-    ),
-    "climb_seat_press_shaping": RewardTermCfg(
-      func=mdp.climb_seat_press_shaping,
-      # Partial credit for the hardest regrip step (pressing the commanded
-      # pad into the wall). Saturates at an engage-grade press
-      # (4 spheres x 3 N threshold = force_scale 12 N), so per-step income
-      # is capped and grinding into the wall earns nothing extra.
-      weight=1.0,
-      params={
-        "command_name": gait_command_name,
-        "affordance_command_name": microspine_affordance_name,
-        "force_scale": 12.0,
-      },
-    ),
-    "commanded_ee_target_error": RewardTermCfg(
-      func=mdp.commanded_ee_target_error_l2,
-      weight=-0.2,
-      params={"command_name": gait_command_name},
     ),
     "ee_slide_penalty": RewardTermCfg(
       func=mdp.ee_slide_penalty,
@@ -462,21 +461,21 @@ def phybot_c2_climb_wall_env_cfg(
       "command_name": velocity_command_name,
       "settle_time_s": 0.5,
       "stall_time_s": 5.0,
-      "minimum_progress": 0.01,
+      # 0.03 (was 0.01): the anti-hack executioner against farming partial
+      # tracking income while creeping. 1 cm / 5 s let a creeper survive on
+      # 14% of the commanded rate (and graze past curriculum stage 0); the
+      # reference's worst honest 5 s window rises 5.9 cm, so 3 cm keeps a
+      # 2x margin for sloppy-but-real cycling.
+      "minimum_progress": 0.03,
       "command_threshold": 0.01,
     },
   )
-  cfg.terminations["gait_curriculum_success"] = TerminationTermCfg(
-    func=mdp.gait_curriculum_success,
-    time_out=True,
-    params={"command_name": gait_command_name},
-  )
-  # Disqualification, not a fine: reward-level timeout penalties lost the
-  # economics twice (fine -0.08/ep vs stretch-farmed income +0.12/ep).
-  # Failure termination also collects the -500 termination_penalty.
-  cfg.terminations["gait_phase_timeout"] = TerminationTermCfg(
-    func=mdp.gait_phase_timeout,
-    params={"command_name": gait_command_name},
+  # DeepMimic early termination: end rollouts whose pose left the reference
+  # entirely (fallen/tangled). Threshold is generous — a clean hang at the
+  # wrong phase scores ~0.1-0.2 rad mean error and survives.
+  cfg.terminations["bad_tracking"] = TerminationTermCfg(
+    func=mdp.motion_tracking_divergence,
+    params={"command_name": motion_command_name, "threshold": 0.7},
   )
 
   cfg.metrics = {
@@ -524,140 +523,29 @@ def phybot_c2_climb_wall_env_cfg(
       func=mdp.joint_soft_limit_violation,
       params={"asset_name": "robot"},
     ),
-    "gait_productive_regrip_rate_hz": MetricsTermCfg(
-      func=mdp.gait_productive_regrips,
-      params={"command_name": gait_command_name},
-    ),
-    "gait_productive_cycle_rate_hz": MetricsTermCfg(
-      func=mdp.gait_productive_cycles,
-      params={"command_name": gait_command_name},
-    ),
-    "gait_release_phase_occupancy": MetricsTermCfg(
-      func=mdp.gait_phase_occupancy,
-      params={"command_name": gait_command_name, "phase": 0},
-    ),
-    "gait_swing_phase_occupancy": MetricsTermCfg(
-      func=mdp.gait_phase_occupancy,
-      params={"command_name": gait_command_name, "phase": 1},
-    ),
-    "gait_seat_phase_occupancy": MetricsTermCfg(
-      func=mdp.gait_phase_occupancy,
-      params={"command_name": gait_command_name, "phase": 2},
-    ),
-    "gait_transfer_phase_occupancy": MetricsTermCfg(
-      func=mdp.gait_phase_occupancy,
-      params={"command_name": gait_command_name, "phase": 3},
-    ),
-    "gait_target_release_rate_hz": MetricsTermCfg(
-      func=mdp.gait_target_release_rate,
-      params={"command_name": gait_command_name},
-    ),
-    "gait_target_contact_rate_hz": MetricsTermCfg(
-      func=mdp.gait_target_contact_rate,
-      params={"command_name": gait_command_name},
-    ),
-    "gait_regrip_rate_hz": MetricsTermCfg(
-      func=mdp.gait_regrip_rate,
-      params={"command_name": gait_command_name},
+    "motion_height_gained_m": MetricsTermCfg(
+      func=mdp.motion_height_gained,
+      params={"command_name": motion_command_name},
     ),
   }
 
-  all_anchors = microspine_cfg.ee_body_names
-  hand_anchors = ("left_hand_spine", "right_hand_spine")
-  foot_anchors = ("left_foot_spine", "right_foot_spine")
+  # DeepMimic curriculum: sequencing/engagement rungs are gone (the reference
+  # clip and RSI own those), leaving the one physical axis — the gravity-tilt
+  # angle — gated on whether episodes actually gain height. 0.06 m = one full
+  # reference cycle; 0.18 m = three chained cycles.
   cfg.curriculum = {
     "climb_difficulty": CurriculumTermCfg(
-      func=mdp.performance_gated_climb,
+      func=mdp.performance_gated_gravity,
       params={
-        "gait_command_name": gait_command_name,
-        "affordance_command_name": microspine_affordance_name,
+        "motion_command_name": motion_command_name,
         "min_evaluated_episodes": 512,
         "advance_success_rate": 0.7,
-        # Skill ladder v2 (2026-07-17). Cross-round data: upward FOOT regrips
-        # emerge quickly under the plain full-cycle stages (productive rate
-        # 0.40 Hz by iter 150 on the previous run), so those stages stay as
-        # proven. The one skill that never emerged is HAND regrips — so after
-        # basic competence the ladder forces them in the safest possible
-        # setting: all four anchors engaged at reset, only hands cycle, and a
-        # tiny 2 cm commanded step. A feet-only stage was tried and removed:
-        # hands pinned forever let the body sag cycle over cycle (negative
-        # anchor advance, engagement collapse).
         "stages": [
-          # The regrip cycle alternates foot -> hand -> foot -> hand, so ANY
-          # two-consecutive-regrip stage implicitly demands a hand regrip.
-          # That is why every historical run stalled exactly at the 2-regrip
-          # stage: it examined hands at full difficulty. The dedicated hand
-          # rung therefore comes BEFORE any multi-regrip stage.
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "required_productive_regrips": 1,
-            "randomize_start_limb": True,
-          },
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "gait_ee_names": hand_anchors,
-            "step_height": 0.02,
-            "required_productive_regrips": 1,
-            "randomize_start_limb": True,
-          },
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "gait_ee_names": hand_anchors,
-            "step_height": 0.02,
-            "required_productive_regrips": 2,
-            "randomize_start_limb": True,
-          },
-          # Integration rung: both limb skills exist at 2 cm (hands visually
-          # confirmed 2026-07-17), so the full cycle is first assembled at
-          # that same difficulty. A 3 cm version of this rung stalled for
-          # 500+ iters — the +1 cm and the integration must not be examined
-          # together.
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "step_height": 0.02,
-            "required_productive_regrips": 2,
-            "randomize_start_limb": True,
-          },
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "required_productive_regrips": 2,
-            "randomize_start_limb": True,
-          },
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": all_anchors,
-            "required_productive_regrips": 4,
-            "randomize_start_limb": True,
-          },
-          {
-            "angle_deg": 45.0,
-            "initial_engaged_ee_names": hand_anchors,
-            "required_productive_regrips": 4,
-            "randomize_start_limb": False,
-          },
-          {
-            "angle_deg": 60.0,
-            "initial_engaged_ee_names": hand_anchors,
-            "required_productive_regrips": 4,
-            "randomize_start_limb": False,
-          },
-          {
-            "angle_deg": 75.0,
-            "initial_engaged_ee_names": hand_anchors,
-            "required_productive_regrips": 4,
-            "randomize_start_limb": False,
-          },
-          {
-            "angle_deg": 90.0,
-            "initial_engaged_ee_names": hand_anchors,
-            "required_productive_regrips": 4,
-            "randomize_start_limb": False,
-          },
+          {"angle_deg": 45.0, "min_height_gain": 0.06},
+          {"angle_deg": 45.0, "min_height_gain": 0.18},
+          {"angle_deg": 60.0, "min_height_gain": 0.18},
+          {"angle_deg": 75.0, "min_height_gain": 0.18},
+          {"angle_deg": 90.0, "min_height_gain": 0.18},
         ],
       },
     )
@@ -698,9 +586,11 @@ def phybot_c2_climb_wall_env_cfg(
       "cooldown_steps": microspine_cfg.reengage_cooldown_steps,
     },
   )
-  actor_terms["climb_gait_command"] = ObservationTermCfg(
-    func=mdp.climb_gait_command,
-    params={"command_name": gait_command_name},
+  # Cycle phase clock (cos/sin) + the clip's per-EE engage schedule: the
+  # DeepMimic synchronization signal replacing the old gait command vector.
+  actor_terms["motion_command"] = ObservationTermCfg(
+    func=mdp.generated_commands,
+    params={"command_name": motion_command_name},
   )
 
   # Asymmetric actor-critic: the critic group is the actor group plus
@@ -742,13 +632,13 @@ def phybot_c2_climb_wall_env_cfg(
     # locally constructed config when diagnosing the state machine.
     microspine_cfg.debug = False
     cfg.events[microspine_event_name].params["microspine_cfg"].debug = False
-    # Evaluation uses the final task directly and must not truncate after a
-    # curriculum goal. CLI gravity overrides can still edit this single stage.
+    # Evaluation uses the final task directly. CLI gravity overrides can
+    # still edit this single stage.
     final_stage = cfg.curriculum["climb_difficulty"].params["stages"][-1]
     cfg.curriculum["climb_difficulty"].params["stages"] = [final_stage]
-    cfg.terminations.pop("gait_curriculum_success", None)
-    # Evaluation rollouts should show the full behavior, not end on the
-    # training-time disobedience disqualification.
-    cfg.terminations.pop("gait_phase_timeout", None)
+    # Evaluation starts at the cycle's canonical stance instead of a random
+    # RSI phase, so rollouts read as one continuous climb from frame 0.
+    cfg.commands[motion_command_name].sampling_mode = "start"
+    cfg.commands[motion_command_name].joint_pos_noise = 0.0
 
   return cfg

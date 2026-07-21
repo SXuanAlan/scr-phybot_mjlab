@@ -225,14 +225,6 @@ def microspine_cooldown_obs(
   return affordance.cooldown_steps.float() / max(1, cooldown_steps)
 
 
-def climb_gait_command(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-) -> torch.Tensor:
-  """Selected limb, event phase, and normalized target displacement."""
-  return env.command_manager.get_command(command_name)
-
-
 def ee_disengage_time_obs(
   env: ManagerBasedRlEnv,
   event_term_name: str = "microspine_grip",

@@ -202,6 +202,26 @@ class MicrospineAffordance(CommandTerm):
       tuple(name in selected for name in self._mcfg.ee_body_names)
     )
 
+  def seed_engaged(self, env_ids: torch.Tensor, engaged: torch.Tensor) -> None:
+    """Overwrite per-env latch state during a reset (motion-clip RSI).
+
+    Must run AFTER this term's own ``_resample_command`` in the same reset
+    pass (register the caller later in the command dict), or the seeded mask
+    is clobbered by the global initial mask. The latch bookkeeping is zeroed
+    here as well so correctness does not depend on that reset having run.
+    """
+    if not self._mcfg.grip_enabled:
+      return
+    if engaged.shape[-1] != self._num_ee:
+      raise ValueError(
+        f"Seed mask has {engaged.shape[-1]} EEs; expected {self._num_ee}."
+      )
+    self._engaged[env_ids] = engaged.to(device=self.device, dtype=torch.bool)
+    self._engage_count[env_ids] = 0
+    self._cooldown_steps[env_ids] = 0
+    self._violation_count[env_ids] = 0
+    self._steps_since_engage[env_ids] = 0
+
   def _update_metrics(self) -> None:
     return
 

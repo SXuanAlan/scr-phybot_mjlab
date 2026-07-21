@@ -89,56 +89,10 @@ def joint_soft_limit_violation(
   return (below | above).float().mean(dim=1)
 
 
-def gait_productive_regrips(
+def motion_height_gained(
   env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
+  command_name: str = "climb_motion",
 ) -> torch.Tensor:
-  """Productive commanded re-grip rate in events/s."""
-  gait = env.command_manager.get_term(command_name)
-  return gait.productive_regrip_this_step.float() / env.step_dt
-
-
-def gait_productive_cycles(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-) -> torch.Tensor:
-  """Productive four-limb cycle rate in events/s."""
-  gait = env.command_manager.get_term(command_name)
-  return gait.productive_cycle_this_step.float() / env.step_dt
-
-
-def gait_phase_occupancy(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-  phase: int = 0,
-) -> torch.Tensor:
-  """Fractional occupancy of one gait phase (per-env value is 0 or 1)."""
-  gait = env.command_manager.get_term(command_name)
-  return (gait.phase == phase).float()
-
-
-def gait_target_release_rate(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-) -> torch.Tensor:
-  """Commanded target-limb release rate in events/s."""
-  gait = env.command_manager.get_term(command_name)
-  return gait.target_release_this_step.float() / env.step_dt
-
-
-def gait_target_contact_rate(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-) -> torch.Tensor:
-  """First wall-contact transition of the commanded swing limb in events/s."""
-  gait = env.command_manager.get_term(command_name)
-  return gait.target_contact_this_step.float() / env.step_dt
-
-
-def gait_regrip_rate(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-) -> torch.Tensor:
-  """All confirmed commanded re-grips in events/s, productive or not."""
-  gait = env.command_manager.get_term(command_name)
-  return gait.regrip_this_step.float() / env.step_dt
+  """Base rise since RSI placement (m); the curriculum's success quantity."""
+  motion = env.command_manager.get_term(command_name)
+  return motion.height_gained

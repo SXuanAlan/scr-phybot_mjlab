@@ -8,17 +8,18 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   bounded_joint_acc_l2,
   climb_height_progress,
-  climb_gait_phase_timeout,
-  commanded_anchor_advance,
-  confirmed_anchor_advance,
   microspine_support_loss,
-  productive_gait_cycle,
+  motion_ee_pos_error_exp,
+  motion_engage_mismatch,
+  motion_joint_pos_error_exp,
   signed_climb_height_progress,
-  unscheduled_microspine_release,
   unsafe_microspine_release_penalty,
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.metrics import microspine_engage_events
-from scr_phybot_mjab.tasks.climb_wall.mdp.terminations import no_progress_stall
+from scr_phybot_mjab.tasks.climb_wall.mdp.terminations import (
+  motion_tracking_divergence,
+  no_progress_stall,
+)
 
 
 class FakeCommandManager:
@@ -176,48 +177,57 @@ def test_release_cost_distinguishes_controlled_and_failed_release():
   assert result.tolist() == pytest.approx([0.0, 12.5, 100.0])
 
 
-def test_confirmed_higher_regrip_gets_one_shot_event_reward():
-  physics = SimpleNamespace(
-    engaged=torch.ones(1, 4, dtype=torch.bool),
-    anchor_pos_w=torch.tensor(
-      [[[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.5], [0.0, 0.0, 0.5]]]
-    ),
-    engage_age=torch.full((1, 4), 20, dtype=torch.long),
+def _make_motion_env(motion):
+  return SimpleNamespace(
+    command_manager=FakeCommandManager(torch.zeros(1, 3), motion),
   )
-  env = SimpleNamespace(
-    event_manager=FakeEventManager(physics),
-    episode_length_buf=torch.zeros(1, dtype=torch.long),
-    step_dt=0.02,
+
+
+def test_motion_tracking_kernels_peak_at_reference_and_decay_with_error():
+  ref = torch.tensor([[0.1, -0.4, 0.8]])
+  motion = SimpleNamespace(
+    ref_joint_pos=ref,
+    robot_joint_pos=ref.clone(),
+    ref_ee_pos_r=torch.zeros(1, 4, 3),
+    robot_ee_pos_r=torch.zeros(1, 4, 3),
   )
-  reward = confirmed_anchor_advance()
-  assert reward(env).item() == 0.0
+  env = _make_motion_env(motion)
 
-  env.episode_length_buf[:] = 25
-  assert reward(env).item() == 0.0
+  assert motion_joint_pos_error_exp(env, std=0.2).item() == pytest.approx(1.0)
+  assert motion_ee_pos_error_exp(env, std=0.1).item() == pytest.approx(1.0)
 
-  # Six disengaged steps provide 0.12 s of genuine swing time.
-  physics.engaged[:, 0] = False
-  for step in range(26, 32):
-    env.episode_length_buf[:] = step
-    assert reward(env).item() == 0.0
+  # mean squared joint error 0.04 at std 0.2 -> exp(-1).
+  motion.robot_joint_pos = ref + 0.2
+  assert motion_joint_pos_error_exp(env, std=0.2).item() == pytest.approx(
+    torch.exp(torch.tensor(-1.0)).item(), rel=1e-5
+  )
+  # 0.1 m error on every EE at std 0.1 -> exp(-1); root-relative on both
+  # sides, so a pure base translation moves BOTH tensors and costs nothing.
+  motion.robot_ee_pos_r = torch.full((1, 4, 3), 0.1 / 3**0.5)
+  assert motion_ee_pos_error_exp(env, std=0.1).item() == pytest.approx(
+    torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
+  )
 
-  physics.engaged[:, 0] = True
-  physics.anchor_pos_w[:, 0, 2] = 1.08
-  physics.engage_age[:, 0] = 1
-  env.episode_length_buf[:] = 32
-  assert reward(env).item() == 0.0
 
-  for age in range(2, 16):
-    physics.engage_age[:, 0] = age
-    env.episode_length_buf += 1
-    assert reward(env).item() == 0.0
+def test_motion_engage_mismatch_counts_per_ee_disagreements():
+  motion = SimpleNamespace(
+    ref_engaged=torch.tensor([[True, True, False, False]]),
+    robot_engaged=torch.tensor([[True, False, True, False]]),
+  )
+  env = _make_motion_env(motion)
+  assert motion_engage_mismatch(env).item() == 2.0
 
-  physics.engage_age[:, 0] = 16
-  env.episode_length_buf += 1
-  # score=1, divided by dt so the manager's dt scaling yields a +1 event.
-  assert reward(env).item() == pytest.approx(50.0)
-  env.episode_length_buf += 1
-  assert reward(env).item() == 0.0
+
+def test_motion_tracking_divergence_fires_only_far_from_reference():
+  ref = torch.zeros(2, 21)
+  robot = torch.zeros(2, 21)
+  robot[1] += 0.8  # mean abs error 0.8 rad — off the motion entirely.
+  motion = SimpleNamespace(ref_joint_pos=ref, robot_joint_pos=robot)
+  env = _make_motion_env(motion)
+  assert motion_tracking_divergence(env, threshold=0.7).tolist() == [
+    False,
+    True,
+  ]
 
 
 def test_no_progress_stall_ignores_settling_and_resets_on_one_cm_gain():
@@ -246,24 +256,6 @@ def test_no_progress_stall_ignores_settling_and_resets_on_one_cm_gain():
   env.scene["robot"].data.root_link_pos_w[:, 2] += 0.011
   env.episode_length_buf[:] = 29
   assert not termination(env, **params).item()
-
-
-def test_gait_event_rewards_are_one_shot_values_after_dt_scaling():
-  gait = SimpleNamespace(
-    anchor_advance_this_step=torch.tensor([0.75, -0.25]),
-    productive_cycle_this_step=torch.tensor([True, False]),
-    unscheduled_release_count=torch.tensor([0.0, 2.0]),
-    phase_timeout_this_step=torch.tensor([False, True]),
-  )
-  env = SimpleNamespace(
-    command_manager=FakeCommandManager(torch.zeros(2, 3), gait),
-    step_dt=0.02,
-  )
-
-  assert commanded_anchor_advance(env).tolist() == pytest.approx([37.5, -12.5])
-  assert productive_gait_cycle(env).tolist() == pytest.approx([50.0, 0.0])
-  assert unscheduled_microspine_release(env).tolist() == pytest.approx([0.0, 100.0])
-  assert climb_gait_phase_timeout(env).tolist() == pytest.approx([0.0, 50.0])
 
 
 def test_engage_event_metric_counts_affordance_regrips_not_reset_anchors():

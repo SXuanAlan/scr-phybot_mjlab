@@ -1,62 +1,41 @@
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import (
-  performance_gated_climb,
+  performance_gated_gravity,
 )
 
 
-class FakeGait:
-  def __init__(self, successes: list[bool]):
-    self.episode_success = torch.tensor(successes)
-    self.stage_kwargs = None
-
-  def set_training_stage(self, **kwargs):
-    self.stage_kwargs = kwargs
-
-
-class FakeAffordance:
-  def __init__(self):
-    self.initial_names = None
-
-  def set_initial_engaged_ee_names(self, names):
-    self.initial_names = names
+class FakeMotion:
+  def __init__(self, height_gained: list[float]):
+    self.height_gained = torch.tensor(height_gained)
 
 
 class FakeCommandManager:
-  def __init__(self, gait, affordance):
-    self.terms = {"climb_gait": gait, "microspine_affordance": affordance}
+  def __init__(self, motion):
+    self.terms = {"climb_motion": motion}
 
   def get_term(self, name):
     return self.terms[name]
 
 
-def test_performance_curriculum_advances_and_applies_next_stage():
+def test_performance_curriculum_advances_on_height_gain_success_rate():
   stages = [
-    {
-      "angle_deg": 45.0,
-      "initial_engaged_ee_names": ("lh", "rh", "lf", "rf"),
-      "required_productive_regrips": 1,
-      "randomize_start_limb": True,
-    },
-    {
-      "angle_deg": 60.0,
-      "initial_engaged_ee_names": ("lh", "rh"),
-      "required_productive_regrips": 4,
-      "randomize_start_limb": False,
-    },
+    {"angle_deg": 45.0, "min_height_gain": 0.06},
+    {"angle_deg": 60.0, "min_height_gain": 0.18},
   ]
-  gait = FakeGait([True, True, True, False])
-  affordance = FakeAffordance()
+  # 3 of 4 episodes gained at least the stage-0 threshold of 0.06 m.
+  motion = FakeMotion([0.09, 0.30, 0.061, -0.02])
   env = SimpleNamespace(
-    command_manager=FakeCommandManager(gait, affordance),
+    command_manager=FakeCommandManager(motion),
     episode_length_buf=torch.ones(4, dtype=torch.long),
     num_envs=4,
     device="cpu",
   )
   cfg = SimpleNamespace(params={"stages": stages})
-  curriculum = performance_gated_climb(cfg, env)
+  curriculum = performance_gated_gravity(cfg, env)
   applied_gravity = []
   curriculum._set_gravity = lambda env, angle, magnitude: applied_gravity.append(
     (angle, magnitude)
@@ -81,12 +60,44 @@ def test_performance_curriculum_advances_and_applies_next_stage():
   state = evaluate()
   assert state["stage"].item() == 1.0
   assert state["success_rate"].item() == 0.75
-  assert affordance.initial_names == ("lh", "rh")
-  assert gait.stage_kwargs == {
-    "required_productive_regrips": 4,
-    "randomize_start_limb": False,
-    # Stage omits the optional knobs -> command restores task defaults.
-    "step_height": None,
-    "gait_ee_names": None,
-  }
+  assert state["angle_deg"].item() == 60.0
+  assert state["min_height_gain"].item() == pytest.approx(0.18)
   assert applied_gravity == [(45.0, 9.81), (60.0, 9.81)]
+
+  # Third call: envs went stale again on the advance, so the harder stage is
+  # not graded by episodes that started under the easier one.
+  state = evaluate()
+  assert state["stage"].item() == 1.0
+
+
+def test_success_is_judged_against_the_current_stage_threshold():
+  stages = [
+    {"angle_deg": 45.0, "min_height_gain": 0.06},
+    {"angle_deg": 90.0, "min_height_gain": 0.18},
+  ]
+  # All episodes gain 0.10 m: enough for stage 0, not for stage 1.
+  motion = FakeMotion([0.10, 0.10])
+  env = SimpleNamespace(
+    command_manager=FakeCommandManager(motion),
+    episode_length_buf=torch.ones(2, dtype=torch.long),
+    num_envs=2,
+    device="cpu",
+  )
+  cfg = SimpleNamespace(params={"stages": stages})
+  curriculum = performance_gated_gravity(cfg, env)
+  curriculum._set_gravity = lambda *args: None
+
+  def evaluate():
+    return curriculum(
+      env,
+      torch.arange(2),
+      stages=stages,
+      min_evaluated_episodes=2,
+      advance_success_rate=1.0,
+    )
+
+  evaluate()  # de-stale
+  assert evaluate()["stage"].item() == 1.0  # 0.10 >= 0.06 everywhere
+  evaluate()  # de-stale under stage 1
+  assert evaluate()["stage"].item() == 1.0  # 0.10 < 0.18 -> no advance
+  assert curriculum.last_success_rate == 0.0

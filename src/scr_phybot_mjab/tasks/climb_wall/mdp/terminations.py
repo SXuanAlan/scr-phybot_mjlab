@@ -30,13 +30,21 @@ def both_hands_unlatched(
   return engaged.sum(dim=-1) == 0
 
 
-def gait_curriculum_success(
+def motion_tracking_divergence(
   env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
+  command_name: str = "climb_motion",
+  threshold: float = 0.7,
 ) -> torch.Tensor:
-  """Truncate an episode after meeting its current productive re-grip goal."""
-  gait = env.command_manager.get_term(command_name)
-  return gait.episode_success
+  """DeepMimic-style early termination: the pose left the reference entirely.
+
+  Mean absolute clip-joint error above ``threshold`` (rad) means the robot is
+  no longer anywhere on the cycle (a clean hang scores ~0.1–0.2 even at the
+  wrong phase; a collapsed or inverted robot scores far above). Ending the
+  rollout early stops PPO from spending samples on unrecoverable states.
+  """
+  motion = env.command_manager.get_term(command_name)
+  error = (motion.ref_joint_pos - motion.robot_joint_pos).abs().mean(dim=-1)
+  return error > threshold
 
 
 def no_progress_stall():
@@ -145,18 +153,3 @@ def bad_state(
     | _bad(jpos)
     | _bad(jvel, max_joint_velocity)
   )
-
-
-def gait_phase_timeout(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_gait",
-) -> torch.Tensor:
-  """Terminate when a commanded gait phase times out.
-
-  A per-event reward fine left hang-and-stretch net profitable (fine
-  -0.08/ep vs stretch-farmed height income +0.12/ep, 2026-07-15, two
-  escalations). Forfeiting the episode removes every future income stream
-  instead of taxing one, so disobedience cannot be priced in.
-  """
-  gait = env.command_manager.get_term(command_name)
-  return gait.phase_timeout_this_step

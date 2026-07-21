@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 import torch
 
@@ -47,25 +47,26 @@ class WallAngleStage(TypedDict):
   # by tilting GRAVITY while keeping the wall geometry vertical.
 
 
-class ClimbDifficultyStage(TypedDict):
-  """One performance-gated climbing stage.
+class GravityCurriculumStage(TypedDict):
+  """One performance-gated gravity-tilt stage.
 
-  ``gait_ee_names`` restricts the regrip cycle to a limb subset (feet first:
-  compression-loaded pads are the low-risk limbs to practice release/re-latch
-  on). ``step_height`` shrinks the commanded upward step so early regrips are
-  reachable by exploration. Omitted keys fall back to the task defaults.
+  ``angle_deg`` is the effective slope from horizontal simulated by tilting
+  gravity (90 = vertical wall). ``min_height_gain`` is the base rise (m)
+  since RSI placement an episode must reach to count as a success.
   """
 
   angle_deg: float
-  initial_engaged_ee_names: tuple[str, ...]
-  required_productive_regrips: int
-  randomize_start_limb: bool
-  gait_ee_names: NotRequired[tuple[str, ...]]
-  step_height: NotRequired[float]
+  min_height_gain: float
 
 
-class performance_gated_climb:
-  """Advance grip initialization and wall angle from episode success rate."""
+class performance_gated_gravity:
+  """Advance the gravity-tilt angle from the episode height-gain success rate.
+
+  DeepMimic-redesign replacement for the commanded-gait curriculum: the
+  motion reference owns limb sequencing and RSI owns per-episode engagement,
+  so the only stage knob left is the tilt angle, and the only success
+  criterion is whether the robot actually climbed.
+  """
 
   def __init__(self, cfg, env: ManagerBasedRlEnv):
     del env
@@ -80,7 +81,7 @@ class performance_gated_climb:
     self._stale: torch.Tensor | None = None
     stages = cfg.params.get("stages", [])
     if not stages:
-      raise ValueError("performance_gated_climb requires at least one stage.")
+      raise ValueError("performance_gated_gravity requires at least one stage.")
 
   @staticmethod
   def _set_gravity(
@@ -101,9 +102,8 @@ class performance_gated_climb:
     env: ManagerBasedRlEnv,
     env_ids: torch.Tensor,
     *,
-    stages: list[ClimbDifficultyStage],
-    gait_command_name: str = "climb_gait",
-    affordance_command_name: str = "microspine_affordance",
+    stages: list[GravityCurriculumStage],
+    motion_command_name: str = "climb_motion",
     min_evaluated_episodes: int = 512,
     advance_success_rate: float = 0.7,
     gravity_magnitude: float = 9.81,
@@ -113,14 +113,19 @@ class performance_gated_climb:
     if min_evaluated_episodes < 1:
       raise ValueError("min_evaluated_episodes must be positive.")
 
-    gait = env.command_manager.get_term(gait_command_name)
+    # Curriculum compute runs first in ``_reset_idx``, before any state is
+    # rewritten, so the terminal height gain of the resetting envs is intact.
+    motion = env.command_manager.get_term(motion_command_name)
+    stage = stages[self.level]
     if self._stale is None or self._stale.shape[0] != env.num_envs:
       self._stale = torch.ones(
         env.num_envs, dtype=torch.bool, device=env.device
       )
     fresh = ~self._stale[env_ids]
     completed = (env.episode_length_buf[env_ids] > 0) & fresh
-    successes = gait.episode_success[env_ids] & completed
+    successes = (
+      motion.height_gained[env_ids] >= stage["min_height_gain"]
+    ) & completed
     self.evaluated_episodes += int(completed.sum().item())
     self.successful_episodes += int(successes.sum().item())
     # These envs restart now and will run entirely under the current stage.
@@ -140,14 +145,6 @@ class performance_gated_climb:
       self.successful_episodes = 0
 
     stage = stages[self.level]
-    affordance = env.command_manager.get_term(affordance_command_name)
-    affordance.set_initial_engaged_ee_names(stage["initial_engaged_ee_names"])
-    gait.set_training_stage(
-      required_productive_regrips=stage["required_productive_regrips"],
-      randomize_start_limb=stage["randomize_start_limb"],
-      step_height=stage.get("step_height"),
-      gait_ee_names=stage.get("gait_ee_names"),
-    )
     self._set_gravity(env, stage["angle_deg"], gravity_magnitude)
 
     device = env.device
@@ -155,8 +152,8 @@ class performance_gated_climb:
       "stage": torch.tensor(float(self.level), device=device),
       "angle_deg": torch.tensor(stage["angle_deg"], device=device),
       "success_rate": torch.tensor(self.last_success_rate, device=device),
-      "required_regrips": torch.tensor(
-        float(stage["required_productive_regrips"]), device=device
+      "min_height_gain": torch.tensor(
+        float(stage["min_height_gain"]), device=device
       ),
     }
 
