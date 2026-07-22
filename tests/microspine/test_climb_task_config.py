@@ -111,16 +111,29 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert cfg.rewards["motion_joint_vel"].weight == 0.5
   assert cfg.rewards["motion_ee_pos"].weight == 1.5
   assert cfg.rewards["motion_root_ori"].weight == 0.5
-  assert cfg.rewards["motion_engage_mismatch"].weight == -0.25
+  # -1.0: schedule adherence must be priced against the budgeted task income
+  # (motionref1 ignored the schedule at -0.25).
+  assert cfg.rewards["motion_engage_mismatch"].weight == -1.0
 
   # Height/velocity remain the climbing drive. The per-step cap must clear
-  # the reference's 0.8 s step-up burst (peak ~10x the average rate).
+  # the reference's 0.8 s step-up burst (peak ~10x the average rate); the
+  # cumulative rate budget caps sustained overspeed at 1.25x the commanded
+  # climb distance (motionref1 scrambled at 20x without it).
   assert cfg.rewards["climb_height_progress"].weight == 2.0
   assert (
     cfg.rewards["climb_height_progress"].params["max_normalized_progress"]
     == 12.0
   )
+  assert cfg.rewards["climb_height_progress"].params["rate_budget_scale"] == 1.25
   assert cfg.rewards["signed_height_progress"].weight == 0.5
+  # The signed term's cap is the reference profile itself: cumulative net
+  # income may never exceed the clip's own height gain at the current phase
+  # (replaced the flat 1.25x rate budget on 2026-07-22).
+  assert (
+    cfg.rewards["signed_height_progress"].params["reference_budget_command"]
+    == "climb_motion"
+  )
+  assert "rate_budget_scale" not in cfg.rewards["signed_height_progress"].params
 
   # The commanded-gait battery is gone with the state machine.
   for legacy in (
@@ -140,7 +153,9 @@ def test_climb_reward_contract_is_deepmimic_split():
   # Engage/physics contract: support loss outbids the ~4.5/s tracking
   # ceiling so a one-anchor dangle is strictly net-negative.
   assert cfg.rewards["microspine_support_loss"].weight == -4.0
-  assert cfg.rewards["unsafe_microspine_release"].weight == -1.0
+  # -2.5: tension/lateral/ultimate rips must bill visibly (40% of motionref1's
+  # 3.5 Hz rip storm was genuine tension pull-off at a negligible price).
+  assert cfg.rewards["unsafe_microspine_release"].weight == -2.5
   assert cfg.rewards["ee_slide_penalty"].weight == -0.1
   assert cfg.rewards["bounded_dof_acc_l2"].weight == -0.02
   assert cfg.rewards["bounded_dof_acc_l2"].params["max_cost"] == 10.0
@@ -158,34 +173,30 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert "gait_curriculum_success" not in cfg.terminations
 
 
-def test_climb_curriculum_is_gravity_only_gated_on_height_gain():
+def test_climb_curriculum_is_fixed_iteration_gravity_schedule():
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   runner_cfg = phybot_c2_ppo_runner_cfg()
 
-  term = cfg.curriculum["climb_difficulty"]
-  stages = term.params["stages"]
-  assert [stage["angle_deg"] for stage in stages] == [
-    45.0,
-    45.0,
-    60.0,
-    75.0,
-    90.0,
+  # No performance gate: graduation-by-height let a 20x-overspeed scramble
+  # promote 45->75 deg in 400 iterations (motionref1). Each angle now gets a
+  # fixed 3000-iteration residence.
+  assert "climb_difficulty" not in cfg.curriculum
+  term = cfg.curriculum["gravity_angle"]
+  stages = term.params["angle_stages"]
+  assert [(stage["iter"], stage["angle_deg"]) for stage in stages] == [
+    (0, 45.0),
+    (3000, 60.0),
+    (6000, 75.0),
+    (9000, 90.0),
   ]
-  # 0.06 m = one full reference cycle; 0.18 m = three chained cycles.
-  assert [stage["min_height_gain"] for stage in stages] == [
-    0.06,
-    0.18,
-    0.18,
-    0.18,
-    0.18,
-  ]
-  assert term.params["advance_success_rate"] == 0.7
-  assert term.params["motion_command_name"] == "climb_motion"
+  # The iteration clock derives from common_step_counter; it must match the
+  # runner's rollout length or every rung shifts.
+  assert term.params["steps_per_iter"] == runner_cfg.num_steps_per_env == 96
   assert runner_cfg.max_iterations == 12_000
 
   play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
-  play_stages = play_cfg.curriculum["climb_difficulty"].params["stages"]
-  assert play_stages == [stages[-1]]
+  play_stages = play_cfg.curriculum["gravity_angle"].params["angle_stages"]
+  assert play_stages == [{"iter": 0, "angle_deg": 90.0}]
 
 
 def test_climb_action_contract_is_bounded_in_target_space_only():

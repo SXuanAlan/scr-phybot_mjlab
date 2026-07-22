@@ -202,7 +202,11 @@ def climb_height_progress():
   mark follows the base without reward, preventing the unavoidable reset sag
   from creating a several-centimeter reward dead zone.
   """
-  state: dict[str, torch.Tensor | None] = {"best_z": None, "fresh": None}
+  state: dict[str, torch.Tensor | None] = {
+    "best_z": None,
+    "fresh": None,
+    "budget": None,
+  }
 
   def call(
     env: ManagerBasedRlEnv,
@@ -213,6 +217,7 @@ def climb_height_progress():
     command_threshold: float = 0.01,
     max_normalized_progress: float = 1.5,
     settle_time_s: float = 0.5,
+    rate_budget_scale: float | None = None,
   ) -> torch.Tensor:
     asset: Entity = env.scene[asset_cfg.name]
     z = asset.data.root_link_pos_w[:, 2]
@@ -220,6 +225,7 @@ def climb_height_progress():
     if state["best_z"] is None or state["best_z"].shape != z.shape:
       state["best_z"] = z.clone()
       state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
+      state["budget"] = torch.zeros_like(z)
       return torch.zeros_like(z)
 
     fresh = state["fresh"]
@@ -241,16 +247,35 @@ def climb_height_progress():
     active = cmd_z > command_threshold
     target_step = (cmd_z * env.step_dt).clamp_min(1.0e-6)
     progress = (progress_m / target_step).clamp(max=max_normalized_progress)
-    progress = torch.where(initialize, torch.zeros_like(progress), progress)
-    return torch.where(active, progress, torch.zeros_like(progress))
+    progress = torch.where(
+      active & ~initialize, progress, torch.zeros_like(progress)
+    )
+    if rate_budget_scale is not None:
+      # Cumulative income cap: total normalized progress paid per episode may
+      # not exceed rate_budget_scale x the commanded climb distance over the
+      # same (active, settled) time. The reference's within-cycle burst spends
+      # headroom banked during its non-climbing phases, so honest cycles pay
+      # in full while sustained overspeed scrambling is rate-limited — the
+      # per-step cap above cannot distinguish the two.
+      budget = state["budget"]
+      assert budget is not None
+      budget = budget + (active & ~initialize).float() * rate_budget_scale
+      paid = torch.minimum(progress, budget)
+      state["budget"] = budget - paid
+      progress = paid
+    return progress
 
   def reset(env_ids=None) -> dict:
     if state["fresh"] is None:
       return {}
     if env_ids is None:
       state["fresh"].fill_(True)
+      if state["budget"] is not None:
+        state["budget"].zero_()
     else:
       state["fresh"][env_ids] = True
+      if state["budget"] is not None:
+        state["budget"][env_ids] = 0.0
     return {}
 
   call.reset = reset  # type: ignore[attr-defined]
@@ -264,8 +289,20 @@ def signed_climb_height_progress():
   zero undiscounted return. Its weight should stay below the high-water term:
   it supplies a recovery gradient below the previous maximum, while genuinely
   new height remains the primary objective.
+
+  Two mutually exclusive upward-income caps: ``reference_budget_command``
+  bounds cumulative net income by the motion reference's own climb profile
+  (the cap IS the reference's value at this instant), while
+  ``rate_budget_scale`` is the legacy flat-rate budget. Descent is never
+  budgeted in either mode.
   """
-  state: dict[str, torch.Tensor | None] = {"prev_z": None, "fresh": None}
+  state: dict[str, torch.Tensor | None] = {
+    "prev_z": None,
+    "fresh": None,
+    "budget": None,
+    "ref_base": None,
+    "net": None,
+  }
 
   def call(
     env: ManagerBasedRlEnv,
@@ -276,6 +313,8 @@ def signed_climb_height_progress():
     command_threshold: float = 0.01,
     max_normalized_progress: float = 1.0,
     settle_time_s: float = 0.5,
+    rate_budget_scale: float | None = None,
+    reference_budget_command: str | None = None,
   ) -> torch.Tensor:
     asset: Entity = env.scene[asset_cfg.name]
     z = asset.data.root_link_pos_w[:, 2]
@@ -283,6 +322,9 @@ def signed_climb_height_progress():
     if state["prev_z"] is None or state["prev_z"].shape != z.shape:
       state["prev_z"] = z.clone()
       state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
+      state["budget"] = torch.zeros_like(z)
+      state["ref_base"] = torch.zeros_like(z)
+      state["net"] = torch.zeros_like(z)
       return torch.zeros_like(z)
 
     prev_z = state["prev_z"]
@@ -305,13 +347,47 @@ def signed_climb_height_progress():
     settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
     initialize = fresh | settling
     fresh.zero_()
-    return torch.where(active & ~initialize, progress, torch.zeros_like(progress))
+    out = torch.where(active & ~initialize, progress, torch.zeros_like(progress))
+    if reference_budget_command is not None:
+      # Upper cap = the reference's own value: cumulative net income may not
+      # exceed the height the motion reference itself has gained since this
+      # episode settled (``ref_root_pos_w`` accrues one step height per loop,
+      # so the cap keeps climbing with the schedule). Climbing ahead of the
+      # schedule earns nothing until the reference catches up; descent bills
+      # in full and restores the same headroom, so a sag-and-recover loop
+      # nets zero instead of bleeding.
+      motion = env.command_manager.get_term(reference_budget_command)
+      ref_z = motion.ref_root_pos_w[:, 2]
+      ref_base = state["ref_base"]
+      net = state["net"]
+      assert ref_base is not None and net is not None
+      ref_base = torch.where(initialize, ref_z, ref_base)
+      net = torch.where(initialize, torch.zeros_like(net), net)
+      state["ref_base"] = ref_base
+      allowance = ((ref_z - ref_base) / target_step - net).clamp_min(0.0)
+      paid = torch.minimum(out.clamp_min(0.0), allowance)
+      out = paid + out.clamp_max(0.0)
+      state["net"] = net + out
+    elif rate_budget_scale is not None:
+      # Same cumulative cap as climb_height_progress, applied to the upward
+      # side only: descent keeps its full recovery gradient.
+      budget = state["budget"]
+      assert budget is not None
+      budget = budget + (active & ~initialize).float() * rate_budget_scale
+      paid = torch.minimum(out.clamp_min(0.0), budget)
+      state["budget"] = budget - paid
+      out = paid + out.clamp_max(0.0)
+    return out
 
   def reset(env_ids=None) -> dict:
     if state["fresh"] is None:
       return {}
     ids = slice(None) if env_ids is None else env_ids
     state["fresh"][ids] = True
+    if state["budget"] is not None:
+      state["budget"][ids] = 0.0
+    if state["net"] is not None:
+      state["net"][ids] = 0.0
     return {}
 
   call.reset = reset  # type: ignore[attr-defined]

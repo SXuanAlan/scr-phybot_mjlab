@@ -45,7 +45,7 @@ class FakeEventManager:
     return SimpleNamespace(func=self.physics)
 
 
-def make_progress_env(z: float = 1.0):
+def make_progress_env(z: float = 1.0, motion=None):
   robot = SimpleNamespace(
     data=SimpleNamespace(
       root_link_pos_w=torch.tensor([[0.0, 0.0, z]]),
@@ -54,7 +54,7 @@ def make_progress_env(z: float = 1.0):
   )
   return SimpleNamespace(
     scene={"robot": robot},
-    command_manager=FakeCommandManager(torch.tensor([[0.0, 0.0, 0.08]])),
+    command_manager=FakeCommandManager(torch.tensor([[0.0, 0.0, 0.08]]), motion),
     episode_length_buf=torch.zeros(1, dtype=torch.long),
     step_dt=0.02,
     num_envs=1,
@@ -100,6 +100,119 @@ def test_signed_progress_is_positive_up_and_negative_down():
   env.episode_length_buf[:] = 27
   env.scene["robot"].data.root_link_pos_w[:, 2] -= 0.0016
   assert reward(env, asset_cfg=asset_cfg, command_name="climb").item() == pytest.approx(-1.0)
+
+
+def test_highwater_progress_budget_caps_sustained_overspeed():
+  env = make_progress_env()
+  reward = climb_height_progress()
+  asset_cfg = SceneEntityCfg("robot")
+  kw = dict(
+    asset_cfg=asset_cfg,
+    command_name="climb",
+    max_normalized_progress=12.0,
+    rate_budget_scale=1.25,
+  )
+
+  reward(env, **kw)
+  env.episode_length_buf[:] = 25
+  reward(env, **kw)
+
+  # Climbing at 3x the commanded rate: each step wants 3.0 but the budget
+  # accrues 1.25/step, so sustained overspeed income is rate-limited.
+  for step in (26, 27, 28):
+    env.episode_length_buf[:] = step
+    env.scene["robot"].data.root_link_pos_w[:, 2] += 0.0048
+    assert reward(env, **kw).item() == pytest.approx(1.25)
+
+
+def test_highwater_progress_budget_pays_burst_from_banked_headroom():
+  env = make_progress_env()
+  reward = climb_height_progress()
+  asset_cfg = SceneEntityCfg("robot")
+  kw = dict(
+    asset_cfg=asset_cfg,
+    command_name="climb",
+    max_normalized_progress=12.0,
+    rate_budget_scale=1.25,
+  )
+
+  reward(env, **kw)
+  env.episode_length_buf[:] = 25
+  reward(env, **kw)
+
+  # Ten stationary (non-climbing) steps bank 12.5 units of headroom — the
+  # reference cycle's own idle phases do exactly this before its 10x burst.
+  for step in range(26, 36):
+    env.episode_length_buf[:] = step
+    assert reward(env, **kw).item() == 0.0
+
+  env.episode_length_buf[:] = 36
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.016
+  assert reward(env, **kw).item() == pytest.approx(10.0, abs=1.0e-4)
+
+
+def test_signed_progress_budget_caps_up_but_not_down():
+  env = make_progress_env()
+  reward = signed_climb_height_progress()
+  asset_cfg = SceneEntityCfg("robot")
+  kw = dict(
+    asset_cfg=asset_cfg,
+    command_name="climb",
+    max_normalized_progress=12.0,
+    rate_budget_scale=1.25,
+  )
+
+  reward(env, **kw)
+  env.episode_length_buf[:] = 25
+  reward(env, **kw)
+
+  env.episode_length_buf[:] = 26
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.0048
+  assert reward(env, **kw).item() == pytest.approx(1.25)
+
+  # Descent is not budgeted: the recovery gradient stays at full strength.
+  env.episode_length_buf[:] = 27
+  env.scene["robot"].data.root_link_pos_w[:, 2] -= 0.0048
+  assert reward(env, **kw).item() == pytest.approx(-3.0, abs=1.0e-4)
+
+
+def test_signed_progress_reference_budget_tracks_the_clip_profile():
+  motion = SimpleNamespace(ref_root_pos_w=torch.tensor([[0.0, 0.0, 5.0]]))
+  env = make_progress_env(motion=motion)
+  reward = signed_climb_height_progress()
+  kw = dict(
+    asset_cfg=SceneEntityCfg("robot"),
+    command_name="climb",
+    max_normalized_progress=12.0,
+    reference_budget_command="climb_motion",
+  )
+
+  reward(env, **kw)
+  env.episode_length_buf[:] = 25
+  reward(env, **kw)
+
+  # The reference is idle: climbing ahead of the schedule earns nothing.
+  env.episode_length_buf[:] = 26
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.0032
+  assert reward(env, **kw).item() == 0.0
+
+  # Reference gains 2 units; a 4-unit climb is paid exactly the reference's
+  # value — cumulative income can never exceed the clip's own profile.
+  env.episode_length_buf[:] = 27
+  motion.ref_root_pos_w[:, 2] += 0.0032
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.0064
+  assert reward(env, **kw).item() == pytest.approx(2.0, abs=1.0e-4)
+
+  # Descent bills in full and restores the same headroom...
+  env.episode_length_buf[:] = 28
+  env.scene["robot"].data.root_link_pos_w[:, 2] -= 0.0032
+  assert reward(env, **kw).item() == pytest.approx(-2.0, abs=1.0e-4)
+
+  # ...so recovering back to the profile is paid back in full: the
+  # sag-and-recover loop nets zero rather than bleeding.
+  env.episode_length_buf[:] = 29
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.0032
+  assert reward(env, **kw).item() == pytest.approx(2.0, abs=1.0e-4)
 
 
 def test_support_loss_penalizes_only_fewer_than_two_anchors():

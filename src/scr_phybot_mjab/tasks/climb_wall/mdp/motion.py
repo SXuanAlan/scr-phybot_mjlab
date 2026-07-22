@@ -84,6 +84,34 @@ def _nearest_frames(arr: np.ndarray, pos: np.ndarray) -> np.ndarray:
   return arr[np.clip(np.round(pos).astype(np.int64), 0, last)]
 
 
+def _edge_countdowns(engaged: np.ndarray) -> np.ndarray:
+  """Per-frame normalized countdowns to each EE's next schedule edges.
+
+  For frame ``c`` and EE ``h``, entry ``[c, h, 0]`` counts the frames until
+  the schedule next turns that EE OFF (its next release) and ``[c, h, 1]``
+  until it next turns ON (its next regrip), both wrapping around the cycle
+  and normalized by the cycle length into ``(0, 1]``. Together with the
+  current engage bit these two edges reconstruct the EE's entire periodic
+  schedule row — the whole raster chart ahead, not point samples of it. A
+  row with no edge (an EE the clip never releases) reads 1.0 for both:
+  "a full cycle away", forever.
+  """
+  cycle, num_ee = engaged.shape
+  out = np.ones((cycle, num_ee, 2), dtype=np.float32)
+  frames = np.arange(cycle)
+  for h in range(num_ee):
+    now = engaged[:, h]
+    nxt = np.roll(now, -1)
+    for k, edge in enumerate((now & ~nxt, ~now & nxt)):  # falling, rising
+      event_frames = (np.flatnonzero(edge) + 1) % cycle
+      if event_frames.size == 0:
+        continue
+      dist = (event_frames[None, :] - frames[:, None]) % cycle
+      dist[dist == 0] = cycle
+      out[:, h, k] = dist.min(axis=1) / cycle
+  return out
+
+
 def _cycle_frames(data: dict) -> int:
   """Frames of one loopable cycle: cycle 0 without the ``end_hold`` tail.
 
@@ -132,6 +160,7 @@ class ClimbMotionClip:
   root_ang_vel: torch.Tensor  # (C, 3)
   ee_pos_r: torch.Tensor  # (C, H, 3) EE body origins in the root frame
   ee_engaged: torch.Tensor  # (C, H) bool
+  ee_edge_times: torch.Tensor  # (C, H, 2) countdown to next release/regrip
 
   @classmethod
   def from_file(
@@ -240,6 +269,7 @@ class ClimbMotionClip:
       root_ang_vel=_t(root_ang_vel),
       ee_pos_r=_t(ee_pos_r),
       ee_engaged=_t(engaged[:cycle], dtype=torch.bool),
+      ee_edge_times=_t(_edge_countdowns(engaged[:cycle])),
     )
 
 
@@ -307,15 +337,24 @@ class ClimbMotionCommand(CommandTerm):
 
   @property
   def command(self) -> torch.Tensor:
-    """Phase clock + reference engage schedule, shape (E, 2 + H)."""
+    """Phase clock + engage schedule chart, shape (E, 2 + 3H).
+
+    Layout: ``[cos, sin, engaged(H), (t_release, t_regrip) x H]``. The
+    countdown pairs are the schedule's upcoming edges per EE (normalized by
+    the cycle, sliding linearly with the clock), so the policy reads each
+    raster row's whole future — when this pad must let go and when it must
+    re-latch — instead of only the bar under the playhead.
+    """
     phase = (
       self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
     )
+    edges = self.clip.ee_edge_times[self.time_steps]
     return torch.cat(
       [
         torch.cos(phase).unsqueeze(-1),
         torch.sin(phase).unsqueeze(-1),
         self.ref_engaged.float(),
+        edges.flatten(1, 2),
       ],
       dim=-1,
     )

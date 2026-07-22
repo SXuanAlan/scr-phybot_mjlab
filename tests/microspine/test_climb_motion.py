@@ -77,6 +77,26 @@ def test_loader_slices_one_cycle_and_derives_velocities():
   assert clip.ee_engaged[1].tolist() == [True, True, False, False]
 
 
+def test_loader_derives_schedule_edge_countdowns():
+  clip = ClimbMotionClip.from_dict(_synthetic_clip(), step_dt=0.02, device="cpu")
+
+  assert clip.ee_edge_times.shape == (4, 4, 2)
+  # Hands never release in the synthetic cycle: both edges read "a full
+  # cycle away" at every frame.
+  assert torch.allclose(clip.ee_edge_times[:, 0], torch.ones(4, 2))
+  assert torch.allclose(clip.ee_edge_times[:, 1], torch.ones(4, 2))
+  # Feet are off at frames 1-2. Normalized by the 4-frame cycle: from frame 0
+  # the release is 1 frame away (0.25) and the regrip 3 (0.75); from frame 1
+  # (just released) the NEXT release is a full cycle out (1.0), etc.
+  for foot in (2, 3):
+    assert torch.allclose(
+      clip.ee_edge_times[:, foot, 0], torch.tensor([0.25, 1.0, 0.75, 0.5])
+    )
+    assert torch.allclose(
+      clip.ee_edge_times[:, foot, 1], torch.tensor([0.75, 0.5, 0.25, 1.0])
+    )
+
+
 def test_loader_resamples_other_fps_onto_the_policy_grid():
   clip = ClimbMotionClip.from_dict(
     _synthetic_clip(fps=25.0), step_dt=0.02, device="cpu"

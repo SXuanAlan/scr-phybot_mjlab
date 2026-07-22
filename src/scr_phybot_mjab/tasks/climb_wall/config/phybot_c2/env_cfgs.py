@@ -331,9 +331,14 @@ def phybot_c2_climb_wall_env_cfg(
     ),
     # The clip's engage schedule replaces the old commanded-gait machinery:
     # a latch state disagreeing with the reference phase costs per step.
+    # -1.0 (was -0.25, raised 2026-07-21): the motionref1 audit showed the
+    # policy ignoring the schedule wholesale (match 0.44, LF parked at 0.03
+    # occupancy) because a wrong latch state cost pocket change next to the
+    # height income. ~2 mismatched pads must read as -2/s against a budgeted
+    # ~3.1/s task income, not -0.5/s against 22/s.
     "motion_engage_mismatch": RewardTermCfg(
       func=mdp.motion_engage_mismatch,
-      weight=-0.25,
+      weight=-1.0,
       params={"command_name": motion_command_name},
     ),
     # -- task drive: pay for actual height, normalized by the commanded rate.
@@ -341,6 +346,12 @@ def phybot_c2_climb_wall_env_cfg(
     # average rate), so the per-step cap must clear the burst: 12 x average.
     # The first 0.5 s follows the physically settled pose; reset sag and
     # reset-time passive engagement earn nothing.
+    # rate_budget_scale 1.25 (added 2026-07-21): the per-step cap alone let a
+    # scramble gait bank 12x continuously — motionref1 climbed at 20x the
+    # commanded rate and height income (21.9/s) buried the whole imitation
+    # battery (1.4/s). The cumulative budget pays honest bursts from headroom
+    # banked in the cycle's non-climbing phases but rate-limits sustained
+    # overspeed to 1.25x the commanded climb distance.
     "climb_height_progress": RewardTermCfg(
       func=mdp.climb_height_progress(),
       weight=2.0,
@@ -350,8 +361,12 @@ def phybot_c2_climb_wall_env_cfg(
         "command_threshold": 0.01,
         "max_normalized_progress": 12.0,
         "settle_time_s": 0.5,
+        "rate_budget_scale": 1.25,
       },
     ),
+    # The signed term's upper cap is the reference itself (2026-07-22): net
+    # upward income may never exceed the height the clip has gained at this
+    # phase, so income tracks the schedule exactly — no flat-rate slack.
     "signed_height_progress": RewardTermCfg(
       func=mdp.signed_climb_height_progress(),
       weight=0.5,
@@ -361,6 +376,7 @@ def phybot_c2_climb_wall_env_cfg(
         "command_threshold": 0.01,
         "max_normalized_progress": 12.0,
         "settle_time_s": 0.5,
+        "reference_budget_command": motion_command_name,
       },
     ),
     "lateral_velocity_y_l2": RewardTermCfg(
@@ -404,9 +420,13 @@ def phybot_c2_climb_wall_env_cfg(
         "minimum_supports": 2,
       },
     ),
+    # -2.5 (was -1.0, raised 2026-07-21): motionref1's scramble gait ripped
+    # anchors at 3.5 Hz, 40% of them genuine tension pull-offs, and the
+    # per-event bill (~-0.4/s) never registered. Reverse-shear unhooks stay
+    # free by design — this prices only the failure modes.
     "unsafe_microspine_release": RewardTermCfg(
       func=mdp.unsafe_microspine_release_penalty,
-      weight=-1.0,
+      weight=-2.5,
       params={
         "command_name": microspine_affordance_name,
         "minimum_supports": 2,
@@ -529,24 +549,24 @@ def phybot_c2_climb_wall_env_cfg(
     ),
   }
 
-  # DeepMimic curriculum: sequencing/engagement rungs are gone (the reference
-  # clip and RSI own those), leaving the one physical axis — the gravity-tilt
-  # angle — gated on whether episodes actually gain height. 0.06 m = one full
-  # reference cycle; 0.18 m = three chained cycles.
+  # Fixed-iteration gravity schedule (2026-07-21, replacing the performance
+  # gate): graduation-by-height let a 20x-overspeed scramble gait promote
+  # 45->75 deg inside 400 iterations while ignoring the engage schedule
+  # entirely. Angle is now a function of training time alone — each rung gets
+  # a guaranteed 3000-iteration residence for the imitation terms to shape
+  # HOW the robot climbs before gravity gets harder. steps_per_iter must
+  # match rl_cfg num_steps_per_env.
   cfg.curriculum = {
-    "climb_difficulty": CurriculumTermCfg(
-      func=mdp.performance_gated_gravity,
+    "gravity_angle": CurriculumTermCfg(
+      func=mdp.gravity_angle,
       params={
-        "motion_command_name": motion_command_name,
-        "min_evaluated_episodes": 512,
-        "advance_success_rate": 0.7,
-        "stages": [
-          {"angle_deg": 45.0, "min_height_gain": 0.06},
-          {"angle_deg": 45.0, "min_height_gain": 0.18},
-          {"angle_deg": 60.0, "min_height_gain": 0.18},
-          {"angle_deg": 75.0, "min_height_gain": 0.18},
-          {"angle_deg": 90.0, "min_height_gain": 0.18},
+        "angle_stages": [
+          {"iter": 0, "angle_deg": 45.0},
+          {"iter": 3000, "angle_deg": 60.0},
+          {"iter": 6000, "angle_deg": 75.0},
+          {"iter": 9000, "angle_deg": 90.0},
         ],
+        "steps_per_iter": 96,
       },
     )
   }
@@ -586,8 +606,11 @@ def phybot_c2_climb_wall_env_cfg(
       "cooldown_steps": microspine_cfg.reengage_cooldown_steps,
     },
   )
-  # Cycle phase clock (cos/sin) + the clip's per-EE engage schedule: the
-  # DeepMimic synchronization signal replacing the old gait command vector.
+  # Cycle phase clock (cos/sin) + the clip's engage schedule chart: current
+  # per-EE engage bits plus each EE's countdown to its next release and next
+  # regrip (2026-07-22). The countdowns are the raster rows' upcoming edges
+  # fused with the phase, so "prepare to let go / to re-latch" is visible in
+  # advance instead of memorized from the clock. 14 dims total.
   actor_terms["motion_command"] = ObservationTermCfg(
     func=mdp.generated_commands,
     params={"command_name": motion_command_name},
@@ -632,10 +655,13 @@ def phybot_c2_climb_wall_env_cfg(
     # locally constructed config when diagnosing the state machine.
     microspine_cfg.debug = False
     cfg.events[microspine_event_name].params["microspine_cfg"].debug = False
-    # Evaluation uses the final task directly. CLI gravity overrides can
-    # still edit this single stage.
-    final_stage = cfg.curriculum["climb_difficulty"].params["stages"][-1]
-    cfg.curriculum["climb_difficulty"].params["stages"] = [final_stage]
+    # Evaluation uses the final task directly. play.py's gravity resolver
+    # (CLI override or checkpoint-iteration lookup) can still replace this
+    # single stage.
+    final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
+    cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+      {"iter": 0, "angle_deg": final_angle["angle_deg"]}
+    ]
     # Evaluation starts at the cycle's canonical stance instead of a random
     # RSI phase, so rollouts read as one continuous climb from frame 0.
     cfg.commands[motion_command_name].sampling_mode = "start"
