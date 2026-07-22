@@ -84,20 +84,19 @@ def _nearest_frames(arr: np.ndarray, pos: np.ndarray) -> np.ndarray:
   return arr[np.clip(np.round(pos).astype(np.int64), 0, last)]
 
 
-def _edge_countdowns(engaged: np.ndarray) -> np.ndarray:
-  """Per-frame normalized countdowns to each EE's next schedule edges.
+def _edge_frame_countdowns(engaged: np.ndarray) -> np.ndarray:
+  """Per-frame countdowns (in frames) to each EE's next schedule edges.
 
   For frame ``c`` and EE ``h``, entry ``[c, h, 0]`` counts the frames until
   the schedule next turns that EE OFF (its next release) and ``[c, h, 1]``
-  until it next turns ON (its next regrip), both wrapping around the cycle
-  and normalized by the cycle length into ``(0, 1]``. Together with the
-  current engage bit these two edges reconstruct the EE's entire periodic
-  schedule row — the whole raster chart ahead, not point samples of it. A
-  row with no edge (an EE the clip never releases) reads 1.0 for both:
-  "a full cycle away", forever.
+  until it next turns ON (its next regrip), both wrapping around the cycle.
+  Together with the current engage bit these two edges reconstruct the EE's
+  entire periodic schedule row — the whole raster chart ahead, not point
+  samples of it. A row with no edge (an EE the clip never releases) reads
+  the full cycle length: "a whole cycle away", forever.
   """
   cycle, num_ee = engaged.shape
-  out = np.ones((cycle, num_ee, 2), dtype=np.float32)
+  out = np.full((cycle, num_ee, 2), cycle, dtype=np.int64)
   frames = np.arange(cycle)
   for h in range(num_ee):
     now = engaged[:, h]
@@ -108,7 +107,7 @@ def _edge_countdowns(engaged: np.ndarray) -> np.ndarray:
         continue
       dist = (event_frames[None, :] - frames[:, None]) % cycle
       dist[dist == 0] = cycle
-      out[:, h, k] = dist.min(axis=1) / cycle
+      out[:, h, k] = dist.min(axis=1)
   return out
 
 
@@ -161,6 +160,7 @@ class ClimbMotionClip:
   ee_pos_r: torch.Tensor  # (C, H, 3) EE body origins in the root frame
   ee_engaged: torch.Tensor  # (C, H) bool
   ee_edge_times: torch.Tensor  # (C, H, 2) countdown to next release/regrip
+  ee_edge_distance: torch.Tensor  # (C, H) |time| to the NEAREST edge
 
   @classmethod
   def from_file(
@@ -252,6 +252,20 @@ class ClimbMotionClip:
       root_quat[:cycle], ee_pos[:cycle] - root_pos[:cycle, None, :]
     )
 
+    # Countdown to the next release/regrip edge (normalized: the obs chart)
+    # plus the symmetric distance to the NEAREST edge, past or future (the
+    # graded-mismatch bill). The backward pass is the same countdown on the
+    # time-reversed schedule, minus one because "0 frames ago" reads as 1 in
+    # countdown form. EEs the clip never flips read 1.0 everywhere: no edge
+    # is ever near, so their mismatch always bills full price.
+    engaged_cycle = engaged[:cycle]
+    future = _edge_frame_countdowns(engaged_cycle)
+    past = _edge_frame_countdowns(engaged_cycle[::-1])[::-1]
+    edge_distance = (
+      np.minimum(future.min(axis=-1), past.min(axis=-1) - 1) / cycle
+    ).astype(np.float32)
+    edge_distance[:, future.min(axis=(0, -1)) >= cycle] = 1.0
+
     def _t(arr: np.ndarray, dtype=torch.float32) -> torch.Tensor:
       return torch.tensor(np.ascontiguousarray(arr), dtype=dtype, device=device)
 
@@ -268,9 +282,11 @@ class ClimbMotionClip:
       root_lin_vel=_t(root_lin_vel),
       root_ang_vel=_t(root_ang_vel),
       ee_pos_r=_t(ee_pos_r),
-      ee_engaged=_t(engaged[:cycle], dtype=torch.bool),
-      ee_edge_times=_t(_edge_countdowns(engaged[:cycle])),
+      ee_engaged=_t(engaged_cycle, dtype=torch.bool),
+      ee_edge_times=_t(future.astype(np.float32) / cycle),
+      ee_edge_distance=_t(edge_distance),
     )
+
 
 
 class ClimbMotionCommand(CommandTerm):
@@ -378,6 +394,20 @@ class ClimbMotionCommand(CommandTerm):
   @property
   def ref_engaged(self) -> torch.Tensor:
     return self.clip.ee_engaged[self.time_steps]
+
+  @property
+  def ref_edge_distance(self) -> torch.Tensor:
+    """Normalized time to the NEAREST schedule edge per EE, (E, H).
+
+    Consumed by the edge-graced engage mismatch bill, which thereby stays a
+    piecewise-linear function of the countdown channels the policy observes.
+    """
+    return self.clip.ee_edge_distance[self.time_steps]
+
+  @property
+  def cycle_time_s(self) -> float:
+    """Duration of one reference cycle in seconds."""
+    return self.clip.cycle_frames / self.clip.fps
 
   @property
   def ref_root_pos_w(self) -> torch.Tensor:

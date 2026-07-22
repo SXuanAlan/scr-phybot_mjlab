@@ -1,16 +1,20 @@
-"""Roll out a climb checkpoint; plot the microspine engage raster + video.
+"""Roll out a climb checkpoint; produce the standard visualization trio.
 
-One deterministic rollout produces, exactly aligned:
-  <out_prefix>.png  — engage raster: policy latches (green) vs the reference
-                      clip schedule (blue), forced releases as red ticks,
-                      episode resets as dashed lines.
-  <out_prefix>.mp4  — 720p side tracking-camera video of the SAME rollout
-                      (50 fps sim time, timestamp burned in so video seconds
-                      map 1:1 onto the raster time axis).
+One deterministic rollout produces, exactly aligned on the same time axis:
+  <out_prefix>.png         — engage raster: policy latch bars heat-colored by
+                             the limit-surface hold margin (green = unloaded,
+                             red = about to fail) vs the reference schedule
+                             (blue); forced releases as ticks colored by
+                             failure type; episode resets as dashed lines.
+  <out_prefix>_torque.png  — per-actuator |torque|/limit heatmap over time
+                             plus the worst-joint margin-to-limit curve.
+  <out_prefix>.mp4         — 720p side tracking-camera video of the SAME
+                             rollout (timestamp burned in so video seconds
+                             map 1:1 onto both plots).
 
-Also prints occupancy / match / release stats and the limit-surface release
+Also prints occupancy / match / release stats, the limit-surface release
 reason histogram (1=reverse shear [free by design], 2=tension, 3=lateral,
-4=ultimate).
+4=ultimate), per-EE engaged hold-margin stats and the torque-margin table.
 
 Usage:
   python scripts/engage_raster.py <ckpt.pt> [angle_deg] [steps] [out_prefix]
@@ -38,7 +42,7 @@ from mjlab.viewer import ViewerConfig
 
 TASK = "Mjlab-Climb-Wall-Phybot-C2"
 CKPT = Path(sys.argv[1]).resolve()
-ANGLE = float(sys.argv[2]) if len(sys.argv) > 2 else 75.0
+ANGLE = float(sys.argv[2]) if len(sys.argv) > 2 else 90.0
 STEPS = int(sys.argv[3]) if len(sys.argv) > 3 else 1500
 PREFIX = Path(sys.argv[4]) if len(sys.argv) > 4 else Path("engage_raster")
 REASON_NAMES = {1: "reverse-shear(free)", 2: "tension", 3: "lateral", 4: "ultimate"}
@@ -47,7 +51,7 @@ device = "cuda:0"
 env_cfg = load_env_cfg(TASK, play=True)
 agent_cfg = load_rl_cfg(TASK)
 # Pin the play gravity stage to the requested angle, whichever curriculum
-# flavor the config carries.
+# flavor the config carries. (Play configs already disable the angle jitter.)
 if "climb_difficulty" in env_cfg.curriculum:
   env_cfg.curriculum["climb_difficulty"].params["stages"] = [
     {"angle_deg": ANGLE, "min_height_gain": 0.18}
@@ -84,7 +88,19 @@ policy = runner.get_inference_policy(device=device)
 u = env.unwrapped
 motion = u.command_manager.get_term("climb_motion")
 aff = u.command_manager.get_term("microspine_affordance")
+robot = u.scene["robot"]
 dt = float(u.step_dt)
+
+act_names = list(robot.actuator_names)
+n_act = len(act_names)
+# Model-level force ranges, sliced to this robot's actuators (ctrl_ids); the
+# bridge returns (nu, 2) or a per-world (nworld, nu, 2).
+ctrl_ids = robot.indexing.ctrl_ids
+fr = torch.as_tensor(u.sim.model.actuator_forcerange)
+if fr.ndim == 3:
+  fr = fr[0]
+tau_limit = fr[ctrl_ids].abs().amax(dim=-1).cpu().numpy()
+tau_limit = np.where(tau_limit > 0, tau_limit, np.inf)
 
 ret = env.get_observations()
 obs = ret[0] if isinstance(ret, (tuple, list)) else ret
@@ -93,6 +109,8 @@ pol = np.zeros((STEPS, 4), dtype=bool)
 ref = np.zeros((STEPS, 4), dtype=bool)
 forced = np.zeros((STEPS, 4), dtype=bool)
 reason = np.zeros((STEPS, 4), dtype=np.int8)
+margin = np.ones((STEPS, 4), dtype=np.float32)
+tau = np.zeros((STEPS, n_act), dtype=np.float32)
 gain = np.zeros(STEPS, dtype=np.float32)
 resets = []
 with torch.no_grad():
@@ -103,6 +121,8 @@ with torch.no_grad():
     ref[t] = motion.ref_engaged[0].bool().cpu().numpy()
     forced[t] = aff.forced_release_this_step[0].bool().cpu().numpy()
     reason[t] = aff.release_reason[0].cpu().numpy()
+    margin[t] = aff.hold_margin[0].float().cpu().numpy()
+    tau[t] = robot.data.actuator_force[0].float().cpu().numpy()
     gain[t] = float(motion.height_gained[0].item())
     if bool(dones[0]):
       resets.append(t)
@@ -111,6 +131,7 @@ env.close()
 names = ["LH", "RH", "LF", "RF"]
 match = float((pol == ref).mean())
 occ_p, occ_r = pol.mean(0), ref.mean(0)
+util = np.abs(tau) / tau_limit  # (STEPS, n_act) torque utilization
 
 
 def _events(mask_col):
@@ -123,18 +144,30 @@ print(f"match(step x EE agreement)={match:.3f}")
 rel_tot, forc_tot = 0, 0
 for i, n in enumerate(names):
   rel = len(_events(pol[:, i]))
-  fr = int(forced[:, i].sum())
+  fr_n = int(forced[:, i].sum())
   rel_tot += rel
-  forc_tot += fr
+  forc_tot += fr_n
   print(
     f"  {n}: occ pol={occ_p[i]:.2f} ref={occ_r[i]:.2f} | releases={rel} "
-    f"(forced={fr}) | ref releases={len(_events(ref[:, i]))}"
+    f"(forced={fr_n}) | ref releases={len(_events(ref[:, i]))}"
   )
 print(f"total releases={rel_tot} forced={forc_tot}")
 hist = {
   REASON_NAMES[rid]: int((forced & (reason == rid)).sum()) for rid in (1, 2, 3, 4)
 }
 print(f"forced-release reasons: {hist}")
+for i, n in enumerate(names):
+  m = margin[pol[:, i], i]
+  if len(m):
+    print(
+      f"  {n}: engaged hold margin min={m.min():.2f} "
+      f"p5={np.percentile(m, 5):.2f} mean={m.mean():.2f}"
+    )
+peak = util.max(axis=0)
+order = np.argsort(-peak)
+print("torque peak |τ|/limit  top5: " + ", ".join(
+  f"{act_names[i]}={peak[i]:.2f}" for i in order[:5]
+))
 print(
   f"height gained (last)={gain[-1]:.3f} m; "
   f"resets at {[round(r * dt, 1) for r in resets]} s"
@@ -144,23 +177,55 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.colors import Normalize
+from matplotlib.lines import Line2D
 
+time_s = np.arange(STEPS) * dt
+
+# ---------------------------------------------------------------- raster ----
 fig, axes = plt.subplots(2, 1, figsize=(16, 6.5), sharex=True, constrained_layout=True)
-panels = [
-  (axes[0], pol, f"policy  {CKPT.name} @ {ANGLE:.0f}°   (▾ = forced release, colored by type)", "#2f9e44"),
-  (axes[1], ref, "reference clip engage schedule (phase-aligned)", "#3b6fd4"),
-]
-for ax, data, title, color in panels:
-  for i in range(4):
-    e = data[:, i].astype(int)
-    d = np.diff(np.r_[0, e, 0])
-    for s0, e0 in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
-      ax.fill_between([s0 * dt, e0 * dt], i - 0.38, i + 0.38, color=color, lw=0, alpha=0.9)
+margin_cmap = plt.get_cmap("RdYlGn")
+margin_norm = Normalize(vmin=0.0, vmax=1.0)
+# Policy panel: latch bars heat-colored by the hold margin — the closer an
+# anchor sits to the limit surface (margin -> 0), the redder its bar.
+for i in range(4):
+  rgba = margin_cmap(margin_norm(np.clip(margin[:, i], 0.0, 1.0)))
+  rgba[:, 3] = np.where(pol[:, i], 0.95, 0.0)
+  axes[0].imshow(
+    rgba[None, :, :],
+    aspect="auto",
+    interpolation="nearest",
+    extent=(0.0, STEPS * dt, i + 0.38, i - 0.38),
+    zorder=1,
+  )
+axes[0].set_title(
+  f"policy  {CKPT.name} @ {ANGLE:.0f}°   (bar color = hold margin, "
+  "red = near failure; ▾ = forced release, colored by type)",
+  loc="left",
+  fontsize=11,
+)
+for i in range(4):
+  e = ref[:, i].astype(int)
+  d = np.diff(np.r_[0, e, 0])
+  for s0, e0 in zip(np.where(d == 1)[0], np.where(d == -1)[0]):
+    axes[1].fill_between(
+      [s0 * dt, e0 * dt], i - 0.38, i + 0.38, color="#3b6fd4", lw=0, alpha=0.9
+    )
+axes[1].set_title(
+  "reference clip engage schedule (phase-aligned)", loc="left", fontsize=11
+)
+for ax in axes:
   ax.set_yticks(range(4), names)
-  ax.set_ylim(-0.6, 3.6)
-  ax.invert_yaxis()
-  ax.set_title(title, loc="left", fontsize=11)
+  ax.set_ylim(3.6, -0.6)
+  ax.set_xlim(0.0, STEPS * dt)
   ax.grid(axis="x", alpha=0.3)
+fig.colorbar(
+  cm.ScalarMappable(norm=margin_norm, cmap=margin_cmap),
+  ax=list(axes),
+  pad=0.01,
+  label="hold margin (1 unloaded → 0 release boundary)",
+)
 # Forced releases split by limit-surface failure type. Reverse shear is the
 # pad's intended unhook direction (free while supported); the warm colors are
 # genuine overload failures.
@@ -177,8 +242,6 @@ for rid, (color, _label) in REASON_STYLE.items():
       axes[0].plot(
         ts * dt, np.full(len(ts), i - 0.45), "v", color=color, ms=4, ls="none"
       )
-from matplotlib.lines import Line2D
-
 legend_handles = [
   Line2D(
     [], [], marker="v", color=color, ls="none", ms=5,
@@ -203,6 +266,52 @@ png_path = PREFIX.with_suffix(".png")
 fig.savefig(png_path, dpi=130)
 print(f"wrote {png_path}")
 
+# ------------------------------------------------------- torque margin ------
+fig2, (axh, axm) = plt.subplots(
+  2,
+  1,
+  figsize=(16, 9),
+  sharex=True,
+  constrained_layout=True,
+  gridspec_kw={"height_ratios": [3, 1]},
+)
+im = axh.imshow(
+  util.T,
+  aspect="auto",
+  interpolation="nearest",
+  cmap="RdYlGn_r",
+  vmin=0.0,
+  vmax=1.0,
+  extent=(0.0, STEPS * dt, n_act - 0.5, -0.5),
+)
+axh.set_yticks(range(n_act), act_names, fontsize=7)
+axh.set_title(
+  f"|torque| / limit per actuator — peak {act_names[order[0]]} "
+  f"{peak[order[0]]:.2f}",
+  loc="left",
+  fontsize=11,
+)
+fig2.colorbar(im, ax=[axh, axm], pad=0.01, label="|torque| / limit")
+worst_margin = 1.0 - util.max(axis=1)
+axm.plot(time_s, worst_margin, color="#1f77b4", lw=1.2)
+axm.axhline(0.0, color="#e03131", ls="--", lw=1.0)
+axm.set_ylabel("worst-joint margin")
+axm.set_ylim(min(-0.05, float(worst_margin.min()) - 0.05), 1.0)
+axm.set_xlabel("time (s)")
+axm.set_title(
+  "margin to torque limit, min over joints (0 = saturated)",
+  loc="left",
+  fontsize=11,
+)
+axm.grid(axis="both", alpha=0.3)
+for r in resets:
+  for ax in (axh, axm):
+    ax.axvline(r * dt, color="k", ls="--", lw=0.9)
+torque_path = Path(str(PREFIX) + "_torque.png")
+fig2.savefig(torque_path, dpi=130)
+print(f"wrote {torque_path}")
+
+# ---------------------------------------------------------------- video -----
 vids = sorted(video_dir.glob("*.mp4"))
 if vids:
   import shutil

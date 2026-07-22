@@ -95,6 +95,15 @@ def test_loader_derives_schedule_edge_countdowns():
     assert torch.allclose(
       clip.ee_edge_times[:, foot, 1], torch.tensor([0.75, 0.5, 0.25, 1.0])
     )
+  # Symmetric nearest-edge distance (for the graded mismatch bill): frames 1
+  # and 3 ARE edges (distance 0); frames 0 and 2 sit one frame from one.
+  # Edge-free hand rows read 1.0 — their mismatch always bills full price.
+  assert torch.allclose(clip.ee_edge_distance[:, 0], torch.ones(4))
+  assert torch.allclose(clip.ee_edge_distance[:, 1], torch.ones(4))
+  for foot in (2, 3):
+    assert torch.allclose(
+      clip.ee_edge_distance[:, foot], torch.tensor([0.25, 0.0, 0.25, 0.0])
+    )
 
 
 def test_loader_resamples_other_fps_onto_the_policy_grid():

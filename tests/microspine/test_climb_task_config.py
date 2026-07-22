@@ -112,8 +112,13 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert cfg.rewards["motion_ee_pos"].weight == 1.5
   assert cfg.rewards["motion_root_ori"].weight == 0.5
   # -1.0: schedule adherence must be priced against the budgeted task income
-  # (motionref1 ignored the schedule at -0.25).
+  # (motionref1 ignored the schedule at -0.25). The bill ramps in over the
+  # 0.25 s around a scheduled flip — the countdown signal the policy sees —
+  # because debounce + cooldown make instant compliance impossible.
   assert cfg.rewards["motion_engage_mismatch"].weight == -1.0
+  assert (
+    cfg.rewards["motion_engage_mismatch"].params["grace_time_s"] == 0.25
+  )
 
   # Height/velocity remain the climbing drive. The per-step cap must clear
   # the reference's 0.8 s step-up burst (peak ~10x the average rate); the
@@ -179,24 +184,28 @@ def test_climb_curriculum_is_fixed_iteration_gravity_schedule():
 
   # No performance gate: graduation-by-height let a 20x-overspeed scramble
   # promote 45->75 deg in 400 iterations (motionref1). Each angle now gets a
-  # fixed 3000-iteration residence.
+  # fixed 3000-iteration residence. Three rungs with +-5 deg per-episode
+  # randomization (2026-07-22) replace the dedicated 75 rung; the vertical
+  # stage runs exactly 90 (jitter above 90 would mean overhangs).
   assert "climb_difficulty" not in cfg.curriculum
   term = cfg.curriculum["gravity_angle"]
   stages = term.params["angle_stages"]
   assert [(stage["iter"], stage["angle_deg"]) for stage in stages] == [
     (0, 45.0),
     (3000, 60.0),
-    (6000, 75.0),
-    (9000, 90.0),
+    (6000, 90.0),
   ]
+  assert term.params["angle_jitter_deg"] == 5.0
   # The iteration clock derives from common_step_counter; it must match the
   # runner's rollout length or every rung shifts.
   assert term.params["steps_per_iter"] == runner_cfg.num_steps_per_env == 96
   assert runner_cfg.max_iterations == 12_000
 
   play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
-  play_stages = play_cfg.curriculum["gravity_angle"].params["angle_stages"]
-  assert play_stages == [{"iter": 0, "angle_deg": 90.0}]
+  play_term = play_cfg.curriculum["gravity_angle"]
+  assert play_term.params["angle_stages"] == [{"iter": 0, "angle_deg": 90.0}]
+  # Evaluation/diagnostic rollouts must be deterministic at the pinned angle.
+  assert play_term.params["angle_jitter_deg"] == 0.0
 
 
 def test_climb_action_contract_is_bounded_in_target_space_only():

@@ -173,17 +173,31 @@ def motion_root_ori_error_exp(
 def motion_engage_mismatch(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
+  grace_time_s: float | None = None,
 ) -> torch.Tensor:
-  """Count of EEs whose latch state disagrees with the clip's schedule.
+  """Per-EE bill for a latch state disagreeing with the clip's schedule.
 
   Pair with a negative weight. This is the DeepMimic-style replacement for
   the old commanded-gait machinery: the clip says which pads are anchored at
   each phase; the policy must physically release/press to match it (the
-  affordance still owns the latch — debounce transients cost a few steps of
-  mismatch and nothing more).
+  affordance still owns the latch).
+
+  With ``grace_time_s`` the bill scales linearly with the time to the
+  NEAREST schedule edge, saturating at full price ``grace_time_s`` away from
+  it. A latch transition can never be instantaneous (0.06 s engage debounce,
+  0.20 s re-engage cooldown), so full price right at a scheduled flip bills
+  the physically impossible. The graded bill is a piecewise-linear function
+  of the same countdown channels the policy observes in ``motion_command``,
+  so the schedule -> action mapping is learnable from the chart itself —
+  and transfers to a different clip — rather than memorized against the
+  phase clock.
   """
   motion = _motion(env, command_name)
-  return (motion.ref_engaged != motion.robot_engaged).float().sum(dim=-1)
+  mismatch = (motion.ref_engaged != motion.robot_engaged).float()
+  if grace_time_s is not None and grace_time_s > 0.0:
+    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
+    mismatch = mismatch * (edge_seconds / grace_time_s).clamp(max=1.0)
+  return mismatch.sum(dim=-1)
 
 
 # ---------------------------------------------------------------------------

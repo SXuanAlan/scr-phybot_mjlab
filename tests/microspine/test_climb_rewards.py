@@ -331,6 +331,22 @@ def test_motion_engage_mismatch_counts_per_ee_disagreements():
   assert motion_engage_mismatch(env).item() == 2.0
 
 
+def test_motion_engage_mismatch_grace_discounts_near_schedule_edges():
+  motion = SimpleNamespace(
+    ref_engaged=torch.tensor([[True, True, True, True]]),
+    robot_engaged=torch.tensor([[False, False, False, True]]),
+    # Nearest-edge distances: 2.5 s, 0.25 s, and 0 s out on a 5 s cycle.
+    ref_edge_distance=torch.tensor([[0.5, 0.05, 0.0, 0.0]]),
+    cycle_time_s=5.0,
+  )
+  env = _make_motion_env(motion)
+  # Full price deep in a segment, half price at half the grace window, free
+  # at the flip itself; the matched EE bills nothing regardless of distance.
+  assert motion_engage_mismatch(env, grace_time_s=0.5).item() == pytest.approx(
+    1.5
+  )
+
+
 def test_motion_tracking_divergence_fires_only_far_from_reference():
   ref = torch.zeros(2, 21)
   robot = torch.zeros(2, 21)

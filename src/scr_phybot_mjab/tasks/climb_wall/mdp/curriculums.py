@@ -226,12 +226,60 @@ def _apply_climb_velocity_range_stage(
     cfg.ranges.lin_vel_z = value
 
 
+def sample_gravity_angles(
+  base_deg: float,
+  jitter_deg: float,
+  jitter_below_deg: float,
+  count: int,
+  device: torch.device | str = "cpu",
+) -> torch.Tensor:
+  """Per-episode angle draws for the gravity-tilt domain randomization.
+
+  Uniform in ``base ± jitter`` while the stage base sits below
+  ``jitter_below_deg``; at or above it (the vertical-wall stage) every draw
+  is exactly the base — randomizing around 90° would mix in overhangs, which
+  are a different task, not a harder version of this one.
+  """
+  if jitter_deg <= 0.0 or base_deg >= jitter_below_deg:
+    return torch.full((count,), base_deg, device=device)
+  return torch.empty(count, device=device).uniform_(
+    base_deg - jitter_deg, base_deg + jitter_deg
+  )
+
+
+def _ensure_per_world_gravity(env: ManagerBasedRlEnv) -> torch.Tensor:
+  """Torch view of a PER-WORLD gravity array, expanding it on first use.
+
+  mjwarp physics kernels read ``opt_gravity[worldid % shape[0]]``, so a
+  (num_envs,) gravity array is honored per environment — but mjlab allocates
+  it shared (shape 1) and its ``expand_model_fields`` only handles top-level
+  model fields, not the nested ``opt.gravity``. Expansion replaces the warp
+  array, and the captured CUDA graphs still hold the OLD array's pointer, so
+  the graphs must be re-captured afterwards (``create_graph``) — the exact
+  procedure mjlab documents for replaced arrays. One-time cost at first use.
+  """
+  import warp as wp
+
+  grav = env.sim.wp_model.opt.gravity
+  if grav.shape[0] != env.num_envs:
+    tiled = wp.zeros(env.num_envs, dtype=wp.vec3, device=grav.device)
+    wp.to_torch(tiled)[:] = wp.to_torch(grav)[0]
+    env.sim.wp_model.opt.gravity = tiled
+    bridge = getattr(env.sim, "_model_bridge", None)
+    if bridge is not None:
+      bridge.clear_cache()
+    env.sim.create_graph()
+  return wp.to_torch(env.sim.wp_model.opt.gravity)
+
+
 def gravity_angle(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,
   angle_stages: list[WallAngleStage],
   gravity_magnitude: float = 9.81,
   steps_per_iter: int = 24,
+  angle_jitter_deg: float = 0.0,
+  jitter_below_deg: float = 90.0,
 ) -> torch.Tensor:
   """Curriculum that varies gravity direction to simulate climbing on a slope
   of angle ``angle_deg`` from horizontal, while keeping the wall geometry
@@ -243,6 +291,14 @@ def gravity_angle(
   along the wall's up direction. This is physically equivalent to the robot
   sitting on a gentle 30° slope.
 
+  With ``angle_jitter_deg`` > 0, stages below ``jitter_below_deg`` run
+  per-episode domain randomization: each env resetting NOW draws its own
+  angle uniformly in ``base ± jitter`` and keeps it for the whole episode
+  (mid-episode gravity never moves). The shared gravity array is expanded to
+  per-world on first use (see ``_ensure_per_world_gravity``); jitter-free
+  stages write every row to the base, so the 90° rung is exactly vertical
+  for everyone the moment it starts.
+
   Writes gravity in-place on ``env.sim.wp_model.opt.gravity`` via a torch
   view — never reallocates the warp array (CUDA graphs would otherwise still
   read from the old array). ``gravity_vec_w`` on each entity is deliberately
@@ -251,19 +307,35 @@ def gravity_angle(
   "up-the-wall" reference for climbing. Observation terms that need the
   physical gravity direction should read ``env.sim.wp_model.opt.gravity``.
   """
-  del env_ids  # Unused.
   import warp as wp
 
   current_iter = env.common_step_counter // steps_per_iter
   angle_deg = resolve_gravity_angle(current_iter, angle_stages)
-  rad = math.radians(angle_deg)
-  gx = gravity_magnitude * math.cos(rad)
-  gz = -gravity_magnitude * math.sin(rad)
 
-  grav_view = wp.to_torch(env.sim.wp_model.opt.gravity)  # (N, 3) view, N ∈ {1, num_envs}
-  grav_view[:, 0] = gx
-  grav_view[:, 1] = 0.0
-  grav_view[:, 2] = gz
+  jitter_wanted = angle_jitter_deg > 0.0 and angle_deg < jitter_below_deg
+  if jitter_wanted:
+    grav_view = _ensure_per_world_gravity(env)  # (num_envs, 3)
+  else:
+    grav_view = wp.to_torch(env.sim.wp_model.opt.gravity)  # (N, 3)
+  jittered = jitter_wanted and grav_view.shape[0] == env.num_envs
+  if jittered:
+    if env_ids is not None and len(env_ids) > 0:
+      angles = sample_gravity_angles(
+        angle_deg,
+        angle_jitter_deg,
+        jitter_below_deg,
+        len(env_ids),
+        device=grav_view.device,
+      )
+      rad = torch.deg2rad(angles)
+      grav_view[env_ids, 0] = gravity_magnitude * torch.cos(rad)
+      grav_view[env_ids, 1] = 0.0
+      grav_view[env_ids, 2] = -gravity_magnitude * torch.sin(rad)
+  else:
+    rad = math.radians(angle_deg)
+    grav_view[:, 0] = gravity_magnitude * math.cos(rad)
+    grav_view[:, 1] = 0.0
+    grav_view[:, 2] = -gravity_magnitude * math.sin(rad)
 
   return torch.tensor([angle_deg], device=env.device)
 

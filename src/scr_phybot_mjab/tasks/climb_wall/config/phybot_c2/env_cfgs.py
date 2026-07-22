@@ -344,10 +344,15 @@ def phybot_c2_climb_wall_env_cfg(
     # occupancy) because a wrong latch state cost pocket change next to the
     # height income. ~2 mismatched pads must read as -2/s against a budgeted
     # ~3.1/s task income, not -0.5/s against 22/s.
+    # grace 0.25 s (2026-07-22): the bill ramps linearly over the last 0.25 s
+    # to a scheduled flip (debounce 0.06 s + cooldown 0.20 s make instant
+    # compliance impossible) — the same countdown signal the policy sees in
+    # motion_command, so chart -> latch timing is a learnable mapping. Deep
+    # inside a segment (>88% of the cycle) the price is unchanged.
     "motion_engage_mismatch": RewardTermCfg(
       func=mdp.motion_engage_mismatch,
       weight=-1.0,
-      params={"command_name": motion_command_name},
+      params={"command_name": motion_command_name, "grace_time_s": 0.25},
     ),
     # -- task drive: pay for actual height, normalized by the commanded rate.
     # The reference climbs in one 0.8 s burst per 4.3 s cycle (peak ~10x the
@@ -564,6 +569,11 @@ def phybot_c2_climb_wall_env_cfg(
   # a guaranteed 3000-iteration residence for the imitation terms to shape
   # HOW the robot climbs before gravity gets harder. steps_per_iter must
   # match rl_cfg num_steps_per_env.
+  # Three rungs 45/60/90 with +-5 deg per-episode randomization (2026-07-22):
+  # each env draws its own angle at reset (45 rung spans 40-50, 60 spans
+  # 55-65), which blurs the rung boundaries enough to retire the dedicated
+  # 75 rung; the final vertical stage runs exactly 90 — jitter there would
+  # mix in >90 overhangs, a different task. 90 gets the back half (6000 it).
   cfg.curriculum = {
     "gravity_angle": CurriculumTermCfg(
       func=mdp.gravity_angle,
@@ -571,10 +581,10 @@ def phybot_c2_climb_wall_env_cfg(
         "angle_stages": [
           {"iter": 0, "angle_deg": 45.0},
           {"iter": 3000, "angle_deg": 60.0},
-          {"iter": 6000, "angle_deg": 75.0},
-          {"iter": 9000, "angle_deg": 90.0},
+          {"iter": 6000, "angle_deg": 90.0},
         ],
         "steps_per_iter": 96,
+        "angle_jitter_deg": 5.0,
       },
     )
   }
@@ -665,11 +675,13 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.events[microspine_event_name].params["microspine_cfg"].debug = False
     # Evaluation uses the final task directly. play.py's gravity resolver
     # (CLI override or checkpoint-iteration lookup) can still replace this
-    # single stage.
+    # single stage. Jitter off: evaluation and diagnostic rollouts (engage
+    # raster) must be deterministic at the pinned angle.
     final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
     cfg.curriculum["gravity_angle"].params["angle_stages"] = [
       {"iter": 0, "angle_deg": final_angle["angle_deg"]}
     ]
+    cfg.curriculum["gravity_angle"].params["angle_jitter_deg"] = 0.0
     # Evaluation starts at the cycle's canonical stance instead of a random
     # RSI phase, so rollouts read as one continuous climb from frame 0.
     cfg.commands[motion_command_name].sampling_mode = "start"
