@@ -626,20 +626,26 @@ def generate_clip(
       tasks = [
         _weld_task(ik, ee, anchors[ee]) for ee in ik.ee_names if ee is not swing_ee
       ]
+      # The released hand starts at WELD-grade weights and fades to swing
+      # weights over the first 30% of the arc. An instant 100/50 -> 60/20
+      # drop released the limit-spring stress stored in the anchored arm
+      # (shoulder roll is held deep in its margin zone by the low anchor) as
+      # a one-frame whole-body pop at the segment boundary.
+      w_fade = min(s_arc / 0.3, 1.0)
       tasks.append(
         _Task(
           kind="site",
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(t, n[segment], p0, p1, p2),
           rot=rot0,  # anchor orientation held; weight ramps toward landing
-          w_pos=np.full(3, 60.0),
+          w_pos=np.full(3, 60.0 + 40.0 * (1.0 - w_fade)),
           # A near-free mid-swing orientation (old floor 2.0) let the
           # wristless arm resolve its null space by whipping shoulder_yaw
           # and tilting the pad corners through the wall (10.9 deg rot
           # residual / 11.6 mm sphere penetration on the v2 stance). Keep
           # the pad essentially flat the whole way — the feet do exactly
           # this (constant 40) and stay clean.
-          w_rot=20.0 + 30.0 * s_arc * s_arc,
+          w_rot=20.0 + 30.0 * max(1.0 - w_fade, s_arc * s_arc),
         )
       )
       base_target = (1.0 - s) * base_swing_start + s * np.array(
@@ -673,7 +679,21 @@ def generate_clip(
       # Swings use a stiffer posture anchor than the step-up (0.3): the
       # 4-DoF arm's position-only null space flips between elbow-in/out
       # branches frame to frame otherwise (8+ rad/s shoulder_yaw spikes).
-      res = ik.solve_frame(tasks, sel_all, posture_t, posture_weight=0.6)
+      # The first few frames are throttled (2 iters, 3 mrad/iter): releasing
+      # the swing hand moves the soft-task equilibrium ~0.02 rad (limit-
+      # spring stress stored in the anchored arm lets go), and an
+      # unthrottled first solve dumps that into a one-frame whole-body pop.
+      # The commanded targets barely move here (smootherstep start), so the
+      # throttle costs no tracking.
+      throttled = t < 8
+      res = ik.solve_frame(
+        tasks,
+        sel_all,
+        posture_t,
+        posture_weight=0.6,
+        iters=2 if throttled else 100,
+        max_step=0.003 if throttled else 0.12,
+      )
       seg_residual[segment].merge(res)
       push(segment, engaged)
     anchors[swing_ee] = ik.pad_pose(swing_ee)

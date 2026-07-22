@@ -177,44 +177,52 @@ def phybot_c2_climb_wall_env_cfg(
 
   # Override init state at task level (do NOT mutate the shared keyframe
   # singleton on robot_cfg.init_state — other c2 tasks reuse it).
-  # Climb-zero stance v2 (stance_search, 2026-07-21): whole-body IK with the
-  # base pinned 0.196 m from the wall (was 0.255) — CoM-to-wall 0.157 m (was
-  # 0.198), cutting the pull-off moment on the hand anchors. Pads stay flat
-  # on the wall (|gap| <= 0.03 mm, matching the v1 convention); the limbs
-  # stretched along the wall to keep reach: arms higher and straighter
-  # (elbow -0.67, hand pads z=1.74), legs longer (knee 0.51, foot pads
-  # z=0.58). Worst joint margins: shoulder_roll 5.4% / ankle_pitch 10% of
-  # range; knee-to-wall clearance 1.74 cm. A 0.176 m variant was tried and
-  # rejected: the near-straight arm (elbow -0.55) sent the hand swings
-  # through a singularity (10.9 deg pad-rot residual, 11.6 mm swing-sphere
-  # wall penetration, 9.2 rad/s shoulder-yaw whip in the generated cycle).
+  # Climb-zero stance v3 (2026-07-22): v2 with the hand pads raised 1.5 cm
+  # (pad z 1.738 -> 1.753) per the higher-reach request. On the wristless
+  # 4-DoF arm the flat-pad wall point is a function of base standoff alone,
+  # so the raise is bought by standing closer: base 0.173 m from the wall
+  # (v2 was 0.196); the legs re-solve with the foot pads 1.0 cm lower
+  # (z=0.566). Pads stay flat on the wall (|gap| <= 0.1 mm, tilt <= 0.7
+  # deg). Elbow straightens to -0.54 — the regime of v2's rejected 0.176 m
+  # variant — but the swing-singularity blowup that killed that variant
+  # predates the current gen_climb_clip.py safeguards (mid-swing pad-rot
+  # floor 20, posture anchor 0.6, frozen other-arm reference): the v3 cycle
+  # regenerates with swing pad-rot residual <= 0.2 deg and no yaw whip.
+  # Measured cycle cost vs regenerating on v2 (left-hand landing 3.1 mm,
+  # roll margin 1.8%, swing-corner wall graze +1.5 mm — the left-swing miss
+  # is inherent: the still-low right anchor drags the base): v3 lands the
+  # left hand 4.4 mm off schedule, shoulder-roll peaks 1.3% from the stop,
+  # graze +2.7 mm. Knee-to-wall clearance holds at 1.73 cm (less knee flex
+  # cancels the closer stance). A +2.0 cm / 0.166 m variant was generated
+  # and rejected: it sits exactly on the reach frontier (4.9 mm miss, roll
+  # 1.1%).
   robot_cfg.init_state = EntityCfg.InitialStateCfg(
-    pos=(1.304, 0.0, 1.0),
+    pos=(1.327, 0.0, 1.0),
     rot=(1.0, 0.0, 0.0, 0.0),
     joint_pos={
-      "left_hip_pitch": -0.5494,
-      "left_hip_roll": 0.1487,
-      "left_hip_yaw": -0.1879,
-      "left_knee": 0.506,
+      "left_hip_pitch": -0.4592,
+      "left_hip_roll": 0.1607,
+      "left_hip_yaw": -0.1584,
+      "left_knee": 0.4198,
       "left_ankle_pitch": 1.256,
       "left_ankle_roll": 0.0,
-      "right_hip_pitch": -0.5494,
-      "right_hip_roll": -0.1487,
-      "right_hip_yaw": 0.1879,
-      "right_knee": 0.506,
+      "right_hip_pitch": -0.4592,
+      "right_hip_roll": -0.1607,
+      "right_hip_yaw": 0.1584,
+      "right_knee": 0.4198,
       "right_ankle_pitch": 1.256,
       "right_ankle_roll": 0.0,
       "waist_yaw": 0.0,
       "neck_yaw": 0.0,
       "neck_pitch": 0.0,
-      "left_shoulder_pitch": -2.4729,
-      "left_shoulder_roll": -0.1665,
+      "left_shoulder_pitch": -2.5999,
+      "left_shoulder_roll": -0.166,
       "left_shoulder_yaw": 0.0,
-      "left_elbow_pitch": -0.6654,
-      "right_shoulder_pitch": -2.4729,
-      "right_shoulder_roll": 0.1665,
+      "left_elbow_pitch": -0.5386,
+      "right_shoulder_pitch": -2.5999,
+      "right_shoulder_roll": 0.166,
       "right_shoulder_yaw": 0.0,
-      "right_elbow_pitch": -0.6654,
+      "right_elbow_pitch": -0.5386,
     },
     joint_vel={".*": 0.0},
   )
@@ -389,8 +397,8 @@ def phybot_c2_climb_wall_env_cfg(
       weight=-0.2,
       params={
         "asset_cfg": robot_cfg_e,
-        # Base standoff of the climb-zero v2 stance (1.5 - 1.304).
-        "target_distance": 0.196,
+        # Base standoff of the climb-zero v3 stance (1.5 - 1.327).
+        "target_distance": 0.173,
         "tolerance": 0.08,
         "distance_scale": 0.1,
       },
