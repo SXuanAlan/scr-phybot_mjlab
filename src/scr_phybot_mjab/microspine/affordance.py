@@ -8,6 +8,10 @@ import warp as wp
 
 from mjlab.managers.command_manager import CommandTerm
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
+from scr_phybot_mjab.microspine.wang_limit_surface import (
+  build_capacity_lut,
+  capacity_ratio,
+)
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -87,6 +91,18 @@ class MicrospineAffordance(CommandTerm):
     # ranges at reset — built-in domain randomization, calibratable against
     # bench pull-off tests.
     self._ls_cfg = self._mcfg.limit_surface
+    if self._ls_cfg.model not in ("wedge", "wang2017"):
+      raise ValueError(
+        f"Unknown limit-surface model '{self._ls_cfg.model}' "
+        "(expected 'wedge' or 'wang2017')."
+      )
+    # Normalized closed capacity surface R(theta, phi), built once. None in
+    # legacy wedge mode.
+    self._wang_lut = (
+      build_capacity_lut(self._ls_cfg, self.device)
+      if self._ls_cfg.model == "wang2017"
+      else None
+    )
     self._executor = None
     self._gravity_view: torch.Tensor | None = None
     shape = (self.num_envs, self._num_ee)
@@ -299,9 +315,10 @@ class MicrospineAffordance(CommandTerm):
 
     The anchor load comes from the constraint efc rows — a smooth function of
     the pose error, unlike contact friction impulses — which is what makes
-    the release condition detectable at all. Conditions 1-3 (reverse shear,
-    tension cone, lateral cone) are debounced; condition 4 (ultimate shear)
-    releases instantly.
+    the release condition detectable at all. Wedge mode: conditions 1-3
+    (reverse shear, tension cone, lateral cone) are debounced and condition 4
+    (ultimate shear) releases instantly. wang2017 mode: every violation is
+    debounced (see _wang_envelope).
     """
     loads = self._get_executor().compute_anchor_loads()  # (E, H, 3) world
     t_hat, l_hat, n_hat = self._engage_frame()
@@ -310,6 +327,41 @@ class MicrospineAffordance(CommandTerm):
     f_n = (loads * n_hat).sum(dim=-1)
     self.anchor_load_tnl = torch.stack([f_t, f_l, f_n], dim=-1)
 
+    if self._wang_lut is not None:
+      margin, soft_cond, instant_cond, reason = self._wang_envelope(
+        f_t, f_l, f_n
+      )
+    else:
+      margin, soft_cond, instant_cond, reason = self._wedge_envelope(
+        f_t, f_l, f_n
+      )
+    self.hold_margin = torch.where(
+      self._engaged, margin, torch.ones_like(margin)
+    )
+
+    # The constraint only produces force one decimation after engaging, so
+    # give fresh engagements a few steps of grace before hold checks apply.
+    in_grace = self._steps_since_engage < self._ls_cfg.hold_grace_steps
+    active = self._engaged & ~in_grace
+    soft_violation = active & soft_cond
+    self._violation_count = torch.where(
+      soft_violation,
+      self._violation_count + 1,
+      torch.zeros_like(self._violation_count),
+    )
+    release = (active & instant_cond) | (
+      self._violation_count
+      >= max(1, self._ls_cfg.violation_consecutive_steps)
+    )
+    self.release_reason = torch.where(
+      release, reason, torch.zeros_like(reason)
+    )
+    return release
+
+  def _wedge_envelope(
+    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Legacy piecewise-linear cone: (margin, soft, instant, reason)."""
     ft_pos = f_t.clamp(min=0.0)
     cap_n = self.limit_mu_adhesion * ft_pos + self.limit_f_n0
     cap_l = self.limit_mu_lateral * ft_pos + self.limit_f_l0
@@ -327,36 +379,66 @@ class MicrospineAffordance(CommandTerm):
     margin = torch.minimum(
       torch.minimum(m_rev, m_tension), torch.minimum(m_lateral, m_ultimate)
     )
-    self.hold_margin = torch.where(
-      self._engaged, margin, torch.ones_like(margin)
-    )
-
-    # The constraint only produces force one decimation after engaging, so
-    # give fresh engagements a few steps of grace before hold checks apply.
-    in_grace = self._steps_since_engage < self._ls_cfg.hold_grace_steps
-    active = self._engaged & ~in_grace
-    soft_violation = active & ~(c_rev & c_tension & c_lateral)
-    self._violation_count = torch.where(
-      soft_violation,
-      self._violation_count + 1,
-      torch.zeros_like(self._violation_count),
-    )
-    release = (active & ~c_ultimate) | (
-      self._violation_count
-      >= max(1, self._ls_cfg.violation_consecutive_steps)
-    )
 
     # Which face fired (HUD/debug). Priority by overwrite order: lateral <
-    # reverse < tension < ultimate, masked to actual releases.
+    # reverse < tension < ultimate, masked to actual releases by the caller.
     reason = torch.zeros_like(self.release_reason)
     reason = torch.where(~c_lateral, torch.full_like(reason, 3), reason)
     reason = torch.where(~c_rev, torch.full_like(reason, 1), reason)
     reason = torch.where(~c_tension, torch.full_like(reason, 2), reason)
     reason = torch.where(~c_ultimate, torch.full_like(reason, 4), reason)
-    self.release_reason = torch.where(
-      release, reason, torch.zeros_like(reason)
+
+    soft_cond = ~(c_rev & c_tension & c_lateral)
+    instant_cond = ~c_ultimate
+    return margin, soft_cond, instant_cond, reason
+
+  def _wang_envelope(
+    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Closed Wang-2017 surface: (margin, soft, instant, reason).
+
+    Radial test: the load magnitude |(f_t, f_l, f_n+)| must stay inside the
+    direction-dependent capacity F0 * max(R(theta, phi), r_floor), F0 drawn
+    from ``f_t_max_range``. Compression rides the contacts and is clamped
+    out of the tension component.
+    """
+    ls = self._ls_cfg
+    tension = f_n.clamp_min(0.0)
+    f0 = self.limit_f_t_max
+    ratio = capacity_ratio(self._wang_lut, f_t, f_l, f_n)
+    cap = f0 * ratio.clamp_min(ls.wang_r_floor)
+    load_mag = torch.sqrt(f_t**2 + f_l**2 + tension**2)
+    # Normalized signed distance: ~1 unloaded, 0 on the surface, < 0 outside.
+    margin = (cap - load_mag) / (cap + ls.wang_margin_eps * f0)
+    violation = margin < 0.0
+
+    # Reason codes keep the wedge semantics used by rewards/HUD: 1 = reverse
+    # shear (the intended cheap unhook path), 2 = tension-dominant pull-off,
+    # 3 = lateral peel, 4 = ultimate shear along the rake.
+    in_plane = torch.sqrt(f_t**2 + f_l**2)
+    tension_dominant = tension >= in_plane  # phi >= 45 deg
+    reverse = f_t < 0.0
+    lateral_dominant = f_l.abs() > f_t
+    reason = torch.full_like(self.release_reason, 4)
+    reason = torch.where(
+      lateral_dominant, torch.full_like(reason, 3), reason
     )
-    return release
+    reason = torch.where(
+      tension_dominant, torch.full_like(reason, 2), reason
+    )
+    reason = torch.where(reverse, torch.full_like(reason, 1), reason)
+
+    # Every violation debounces — no instant tier. Pad-wall contact churn
+    # occasionally emits one-step ~700 N equality-force transients (the
+    # bilateral anchor countering a contact-penetration correction); with the
+    # wedge only the f_t > f_t_max face was instant, but on the closed
+    # surface any large spike violates, and an instant tier would convert
+    # solver noise into spurious releases (measured: sweep releases recorded
+    # at ~0.2x capacity). Two consecutive violating policy steps (40 ms)
+    # is still an order of magnitude below physical release latencies.
+    instant_cond = torch.zeros_like(violation)
+    soft_cond = violation
+    return margin, soft_cond, instant_cond, reason
 
   def _face_wall_cos(self) -> torch.Tensor:
     wall_inward = self._wall_inward_normal()

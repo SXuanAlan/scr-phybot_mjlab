@@ -14,21 +14,40 @@ class MicrospineLimitSurfaceCfg:
   """Spine limit-surface (hold envelope) parameters.
 
   The anchor load is decomposed in the engage frame (t̂ = rake/engage
-  direction down the wall, l̂ = lateral, n̂ = outward wall normal). An engaged
-  spine HOLDs iff all of:
+  direction down the wall, l̂ = lateral, n̂ = outward wall normal). Two hold
+  envelopes are available via ``model``:
+
+  ``"wedge"`` (legacy piecewise-linear cone): an engaged spine HOLDs iff
 
     1. f_t >= -f_rev_max                       (small reverse-shear tolerance)
     2. f_n <= mu_adhesion * max(f_t, 0) + f_n0 (tension grows with engaged shear)
     3. |f_l| <= mu_lateral * max(f_t, 0) + f_l0
     4. f_t <= f_t_max                          (ultimate asperity/spine strength)
 
+  ``"wang2017"`` (closed 3D surface, Wang/Jiang/Cutkosky IJRR 2017 eqs 1-4,
+  9-12; see scr_phybot_mjab/microspine/wang_limit_surface.py): HOLD iff the
+  load magnitude stays inside the direction-dependent capacity
+
+    |(f_t, f_l, max(f_n, 0))| <= F0 * max(R(theta, phi), r_floor)
+
+  where F0 is sampled from ``f_t_max_range`` (F0 = pure rake-shear capacity)
+  and R is the normalized closed surface: tension capacity exists only with
+  simultaneous engaged shear and the forward lobe closes at the origin, pure
+  lateral holds ~0.57 F0, against-rake ~0.04 F0. The other wedge ranges are
+  ignored in this mode. Compression is judged at phi = 0; pressing in rides
+  the ordinary sphere-wall contacts (the paper's Sec 3.4 friction extension).
+
   All ``*_range`` fields are per-env uniform sampling bounds drawn at reset —
-  built-in domain randomization. They map 1:1 to bench pull-off tests (see
-  docs/microspine_calibration.md and scripts/fit_limit_surface.py).
+  built-in domain randomization. Wedge ranges map 1:1 to bench pull-off tests
+  (scripts/fit_limit_surface.py); the wang2017 shape parameters are fit to
+  the paper's Fig 8 anchors (scripts/plot_wang_limit_surface.py).
   """
 
   enable: bool = True
   """Evaluate the hold envelope. False keeps engaged spines latched forever."""
+
+  model: str = "wedge"
+  """Hold-envelope model: "wedge" (legacy linear cone) or "wang2017"."""
 
   rake_mode: str = "gravity"
   """Engage direction source: "gravity" (gravity projected onto the wall) or
@@ -42,7 +61,9 @@ class MicrospineLimitSurfaceCfg:
   """EE-local rake axis used when ``rake_mode == "ee_local"``."""
 
   f_t_max_range: tuple[float, float] = (300.0, 500.0)
-  """Ultimate engaged shear capacity [N]. ~1.7-2.9x a 2-EE stance load."""
+  """Ultimate engaged shear capacity [N]. ~1.7-2.9x a 2-EE stance load.
+  In wang2017 mode this doubles as F0, the pure rake-shear capacity that
+  scales the whole closed surface (the paper's palm demonstrated ~700 N)."""
 
   f_rev_max_range: tuple[float, float] = (15.0, 25.0)
   """Reverse-shear (pushed up the wall) capacity [N]."""
@@ -58,6 +79,56 @@ class MicrospineLimitSurfaceCfg:
 
   f_l0_range: tuple[float, float] = (10.0, 20.0)
   """Lateral capacity at zero engaged shear [N]."""
+
+  # --- wang2017 shape parameters (dimensionless surface, scaled by F0) ------
+  # Defaults are fit to the paper's single-tile 3D limit surface (Fig 8):
+  # tension peak 0.12*F0 at ~15 deg elevation, pure lateral 0.57*F0, pure
+  # reverse 0.043*F0, forward lobe closing near 30 deg, smooth in azimuth.
+  # Verify any change with scripts/plot_wang_limit_surface.py.
+
+  wang_mu_tip: float = 0.42
+  """Spine-tip/asperity friction coefficient (paper Fig 5 uses ~0.4). Sets
+  the slip threshold psi_c = arctan(1/mu) and, with beta and alpha, the
+  forward-lobe closing elevation beta + 90 - alpha/2 - psi_c. Also controls
+  the against-rake residual: arctan(1/mu) must sit just below
+  -beta + 90 - alpha/2 (67.5 deg at the defaults) or reverse capacity either
+  vanishes (mu <= 0.40) or grows too strong (mu >= 0.5)."""
+
+  wang_delta_psi_deg: float = 90.0
+  """Width of the usable asperity-slope population (paper eq 9's delta-psi).
+  An effective surface-roughness parameter: larger = slower capacity falloff
+  with loading angle."""
+
+  wang_beta_deg: float = 15.0
+  """Spine inclination angle from the surface plane (paper Sec 2.3)."""
+
+  wang_alpha_deg: float = 15.0
+  """Spine tip included angle (paper Sec 2.3)."""
+
+  wang_mu_channel: float = 0.2
+  """Spine/channel friction mu_s in the channel-slip factor (paper eq 4)."""
+
+  wang_c_i: float = 50.0
+  """Tip-engaged asperity strength relative to weak side/shaft contact
+  (paper eq 2). Larger sharpens the rake anisotropy (smaller against-rake
+  and lateral capacity)."""
+
+  wang_r_floor: float = 0.02
+  """Isotropic residual capacity as a fraction of F0. Models the stochastic
+  scraps of adhesion measured where the deterministic surface predicts zero
+  (paper Fig 6/8 scatter) and keeps margins well-conditioned as R -> 0.
+  0.02 * F0(400..650) ~ 8-13 N, matching the old f_n0/f_rev bench feel."""
+
+  wang_margin_eps: float = 0.02
+  """Margin normalization softener as a fraction of F0: margin =
+  (cap - |F|) / (cap + eps * F0). Keeps the normalized margin finite and
+  smooth for loads pointed at low-capacity directions."""
+
+  wang_lut_theta_bins: int = 181
+  """Azimuth bins (0..180 deg) of the precomputed capacity table."""
+
+  wang_lut_phi_bins: int = 91
+  """Elevation bins (0..90 deg) of the precomputed capacity table."""
 
   hold_grace_steps: int = 14
   """Policy steps after an engage transition before hold checks apply. The
@@ -75,7 +146,10 @@ class MicrospineLimitSurfaceCfg:
   ratchet the reference and creep along the wall."""
 
   violation_consecutive_steps: int = 2
-  """Debounce for conditions 1-3. Condition 4 (ultimate shear) is instant."""
+  """Violation debounce. Wedge: conditions 1-3 debounce, condition 4
+  (ultimate shear) is instant. wang2017: every violation debounces —
+  one-step contact-churn equality spikes (~700 N transients) must not
+  convert into spurious releases through an instant tier."""
 
   release_mode: str = "binary"
   """"binary" releases on any violation. "slip_drag" (anchor dragging /

@@ -1,4 +1,11 @@
-"""Fit MicrospineLimitSurfaceCfg parameters from bench pull-off tests.
+"""Fit MicrospineLimitSurfaceCfg *wedge* parameters from bench pull-off tests.
+
+NOTE: this fits the legacy piecewise-linear wedge envelope
+(``limit_surface.model == "wedge"``). The climb task now defaults to the
+closed ``"wang2017"`` surface; to calibrate that model against the bench,
+fit F0 from pure-rake pulls (``f_t_max_range``) and tune the shape
+parameters against angular sweeps using scripts/plot_wang_limit_surface.py
+as the shape readout.
 
 Input: CSV per docs/microspine_calibration.md —
   plane,angle_deg,preload_N,stroke_mm,release_force_N[,f_t_N,f_n_N,f_l_N]

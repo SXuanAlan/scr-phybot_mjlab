@@ -125,6 +125,16 @@ def phybot_c2_climb_wall_env_cfg(
   # Capacity follows the pad-local rake direction.
   microspine_cfg.anchor_lock_rotation = True
   microspine_cfg.limit_surface.rake_mode = "ee_local"
+  # Closed Wang-2017 hold envelope (paper-faithful): tension capacity exists
+  # only alongside engaged shear, the forward lobe closes at the origin, and
+  # against-rake capacity collapses to the side-contact residual. F0 range
+  # raised versus the wedge's f_t_max because tension now taxes the whole
+  # surface: the 90 deg frame-0 hang loads hands at ~70 N shear + 14 N
+  # tension (~12 deg elevation, capacity ~0.6 * F0) — validated by
+  # scripts/validate_microspine_constraint.py hang. The paper's 12-tile palm
+  # demonstrated ~700 N pure shear, so 400-650 N per pad is conservative.
+  microspine_cfg.limit_surface.model = "wang2017"
+  microspine_cfg.limit_surface.f_t_max_range = (400.0, 650.0)
 
   cfg = make_climb_wall_env_cfg()
   cfg.scene.num_envs = 2048
