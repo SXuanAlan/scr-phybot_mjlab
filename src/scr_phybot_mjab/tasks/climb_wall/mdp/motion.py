@@ -405,6 +405,16 @@ class ClimbMotionCommand(CommandTerm):
     return self.clip.ee_edge_distance[self.time_steps]
 
   @property
+  def ref_edge_countdowns(self) -> torch.Tensor:
+    """Normalized countdowns to the next release/regrip edge, (E, H, 2).
+
+    The same table the ``motion_command`` observation exposes; reward terms
+    gated on it (seat-phase press shaping) therefore pay along signals the
+    policy can see.
+    """
+    return self.clip.ee_edge_times[self.time_steps]
+
+  @property
   def cycle_time_s(self) -> float:
     """Duration of one reference cycle in seconds."""
     return self.clip.cycle_frames / self.clip.fps

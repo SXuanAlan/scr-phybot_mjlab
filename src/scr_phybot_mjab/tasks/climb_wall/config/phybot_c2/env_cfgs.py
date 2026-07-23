@@ -326,10 +326,13 @@ def phybot_c2_climb_wall_env_cfg(
       params={"command_name": motion_command_name, "std": 1.5},
     ),
     # Root-frame EE positions: shapes reach and swing arcs without pinning
-    # the base to the clip's world trajectory.
+    # the base to the clip's world trajectory. 2.5 (was 1.5, motionref5):
+    # the reach toward the next hold is the first link of the regrip chain
+    # (reach -> press -> latch); it must out-earn holding a parked limb
+    # still, or the weld attractor keeps winning the swing phase.
     "motion_ee_pos": RewardTermCfg(
       func=mdp.motion_ee_pos_error_exp,
-      weight=1.5,
+      weight=2.5,
       params={"command_name": motion_command_name, "std": 0.1},
     ),
     "motion_root_ori": RewardTermCfg(
@@ -353,6 +356,19 @@ def phybot_c2_climb_wall_env_cfg(
       func=mdp.motion_engage_mismatch,
       weight=-1.0,
       params={"command_name": motion_command_name, "grace_time_s": 0.25},
+    ),
+    # Seat-phase step credit (2026-07-22 evening, motionref5): every run so
+    # far welded one limb pair because a regrip's first motions earn nothing
+    # until the latch closes (motionref4 audit: feet occ 1.00 / hands 0.04 at
+    # iter 1450 — the 7th occurrence). Pays pad press inside the scheduled
+    # regrip window only (ref_engaged, or regrip countdown <= 0.3 s — the
+    # observed channel), stops at latch (engaged anchors carry tension), and
+    # the +0.4 ceiling stays below the -1.0 mismatch bill so pressing
+    # without latching is strictly net-negative.
+    "motion_scheduled_press": RewardTermCfg(
+      func=mdp.motion_scheduled_press_shaping,
+      weight=0.4,
+      params={"command_name": motion_command_name, "regrip_lead_time_s": 0.3},
     ),
     # -- task drive: pay for actual height, normalized by the commanded rate.
     # The reference climbs in one 0.8 s burst per 4.3 s cycle (peak ~10x the

@@ -12,6 +12,7 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   motion_ee_pos_error_exp,
   motion_engage_mismatch,
   motion_joint_pos_error_exp,
+  motion_scheduled_press_shaping,
   signed_climb_height_progress,
   unsafe_microspine_release_penalty,
 )
@@ -320,6 +321,31 @@ def test_motion_tracking_kernels_peak_at_reference_and_decay_with_error():
   assert motion_ee_pos_error_exp(env, std=0.1).item() == pytest.approx(
     torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
   )
+
+
+def test_scheduled_press_pays_only_unlatched_pads_in_their_seating_window():
+  motion = SimpleNamespace(
+    # EE0: schedule says anchored, not latched -> in window (late seating).
+    # EE1: regrip due in 0.2 s (<= 0.3 s lead), not latched -> in window.
+    # EE2: regrip far out (2 s), not latched -> outside, pressing pays zero.
+    # EE3: schedule says anchored AND latched -> payment stopped at latch.
+    ref_engaged=torch.tensor([[True, False, False, True]]),
+    robot_engaged=torch.tensor([[False, False, False, True]]),
+    ref_edge_countdowns=torch.tensor(
+      [[[0.5, 0.9], [0.5, 0.05], [0.5, 0.5], [0.5, 0.9]]]
+    ),
+    cycle_time_s=4.0,
+  )
+  affordance = SimpleNamespace(
+    pad_press_force=torch.tensor([[6.0, 24.0, 24.0, 24.0]])
+  )
+  motion._affordance = lambda: affordance
+  env = _make_motion_env(motion)
+
+  # EE0 pays 6/12 = 0.5; EE1 saturates at 1.0 (24 N clamped at 12 N);
+  # EE2 and EE3 pay nothing despite full presses.
+  result = motion_scheduled_press_shaping(env, regrip_lead_time_s=0.3)
+  assert result.item() == pytest.approx(1.5)
 
 
 def test_motion_engage_mismatch_counts_per_ee_disagreements():

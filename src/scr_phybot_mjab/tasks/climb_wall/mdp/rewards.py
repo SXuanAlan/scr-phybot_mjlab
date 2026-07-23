@@ -200,6 +200,36 @@ def motion_engage_mismatch(
   return mismatch.sum(dim=-1)
 
 
+def motion_scheduled_press_shaping(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_motion",
+  press_norm_n: float = 12.0,
+  regrip_lead_time_s: float = 0.3,
+) -> torch.Tensor:
+  """Seat-phase step credit: pay pad press force inside the regrip window.
+
+  Pair with a small positive weight. Seven runs in a row parked a limb pair
+  because a regrip's first motions (reach, press, hold through debounce)
+  earn nothing until the latch closes — undirected exploration never strings
+  them together. This term pays the press itself, but ONLY per EE inside its
+  scheduled seating window: the reference says the pad should be anchored
+  (``ref_engaged``) or is about to be (regrip countdown within
+  ``regrip_lead_time_s`` — the same observed channel), AND the robot has not
+  latched yet. Payment stops the instant the latch closes: an engaged
+  microspine anchor carries tension, pressing is only the doorway. Pressing
+  outside the window pays zero, and the per-EE ceiling (press_norm_n
+  saturation x the configured weight) must stay below the mismatch bill so
+  press-and-never-latch is strictly net-negative.
+  """
+  motion = _motion(env, command_name)
+  affordance = motion._affordance()
+  lead = regrip_lead_time_s / motion.cycle_time_s
+  regrip_soon = motion.ref_edge_countdowns[..., 1] <= lead
+  window = (motion.ref_engaged | regrip_soon) & ~motion.robot_engaged
+  press = (affordance.pad_press_force / press_norm_n).clamp(max=1.0)
+  return (press * window.float()).sum(dim=-1)
+
+
 # ---------------------------------------------------------------------------
 # Task drive: height and velocity. These pay for actual climbing, independent
 # of how closely the motion is imitated.

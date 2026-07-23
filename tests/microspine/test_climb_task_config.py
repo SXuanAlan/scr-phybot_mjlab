@@ -109,8 +109,21 @@ def test_climb_reward_contract_is_deepmimic_split():
   # (joint space / root frame / orientation) — no global-pose kernel exists.
   assert cfg.rewards["motion_joint_pos"].weight == 2.0
   assert cfg.rewards["motion_joint_vel"].weight == 0.5
-  assert cfg.rewards["motion_ee_pos"].weight == 1.5
+  # 2.5: reaching along the reference arc is the first link of the regrip
+  # chain and must out-earn holding a parked limb still (motionref5).
+  assert cfg.rewards["motion_ee_pos"].weight == 2.5
   assert cfg.rewards["motion_root_ori"].weight == 0.5
+  # Seat-phase step credit: pays pad press only inside the scheduled regrip
+  # window (countdown-gated on the observed channel), stops at latch, and
+  # its ceiling must stay strictly below the mismatch bill so pressing
+  # without latching never profits.
+  assert cfg.rewards["motion_scheduled_press"].weight == 0.4
+  assert (
+    cfg.rewards["motion_scheduled_press"].params["regrip_lead_time_s"] == 0.3
+  )
+  assert cfg.rewards["motion_scheduled_press"].weight < abs(
+    cfg.rewards["motion_engage_mismatch"].weight
+  )
   # -1.0: schedule adherence must be priced against the budgeted task income
   # (motionref1 ignored the schedule at -0.25). The bill ramps in over the
   # 0.25 s around a scheduled flip — the countdown signal the policy sees —
