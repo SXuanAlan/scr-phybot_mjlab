@@ -145,11 +145,17 @@ class MicrospineLimitSurfaceCfg:
   cross-step reference until grace ends. Cyclic re-engagement can therefore
   ratchet the reference and creep along the wall."""
 
-  violation_consecutive_steps: int = 2
-  """Violation debounce. Wedge: conditions 1-3 debounce, condition 4
-  (ultimate shear) is instant. wang2017: every violation debounces —
-  one-step contact-churn equality spikes (~700 N transients) must not
-  convert into spurious releases through an instant tier."""
+  violation_consecutive_steps: int = 1
+  """Violation debounce (1 = release on the first violating step).
+
+  The 2-step debounce existed to survive one-step contact-churn equality
+  spikes (~700 N transients from the anchor-vs-contact fight). With
+  ``disable_contacts_while_latched`` the fight is gone at the source —
+  latched anchor loads are smooth (measured: zero margin sign flips over
+  held sequences) — so violations release immediately; a lingering debounce
+  would only re-open the oscillating-overload loophole it once enabled
+  (motionref6's 90-deg feet-hang). Raise above 1 only for legacy setups
+  that keep contacts active while latched."""
 
   release_mode: str = "binary"
   """"binary" releases on any violation. "slip_drag" (anchor dragging /

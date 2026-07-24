@@ -1,8 +1,8 @@
 """Production-env sequential test: random actions, per-step physics invariants.
 
   I1 latched pad -> zero sensed press force (retraction + sensor mask)
-  I2 forced release -> margin < 0 on the release step AND the previous step
-     (the 2-consecutive-step debounce contract, no flicker-through)
+  I2 forced release -> margin < 0 on the release step (and the previous
+     step too when violation_consecutive_steps >= 2)
   I3 latched pads' spheres retracted / released pads' spheres restored
   I4 margins and anchor loads finite
 Plus event counts to prove the run actually cycled latches.
@@ -44,9 +44,12 @@ for step in range(1200):
   # value; the previous step's stored margin must already be negative.
   if bool(frel.any()):
     m_now = margin[frel]
-    m_prev = prev_margin[frel]
-    was_eng = prev_engaged[frel]
-    if bool((m_now >= 0).any()) or bool(((m_prev >= 0) & was_eng).any()):
+    bad = bool((m_now >= 0).any())
+    if aff._ls_cfg.violation_consecutive_steps >= 2:
+      m_prev = prev_margin[frel]
+      was_eng = prev_engaged[frel]
+      bad |= bool(((m_prev >= 0) & was_eng).any())
+    if bad:
       viol["I2"] += 1
   if step % 25 == 0:
     pos = wp.to_torch(env.sim.wp_model.geom_pos)

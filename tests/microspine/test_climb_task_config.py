@@ -29,7 +29,10 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.engage_consecutive_steps == 3
   assert microspine.engage_normal_force_threshold == 3.0
   assert microspine.engage_min_spheres == 2
-  assert microspine.limit_surface.violation_consecutive_steps == 2
+  # 1 (was 2): latched-contact retraction killed the one-step equality
+  # transients the debounce guarded against; the first genuine violation
+  # now releases, closing the flicker-through loophole for good.
+  assert microspine.limit_surface.violation_consecutive_steps == 1
   # Latched pads hand their load path to the anchor alone: sphere contacts
   # switch off while latched (kills the anchor-vs-contact oscillation that
   # let motionref6's 90-deg feet-hang ride through the release debounce).

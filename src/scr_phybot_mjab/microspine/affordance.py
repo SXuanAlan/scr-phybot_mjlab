@@ -493,14 +493,12 @@ class MicrospineAffordance(CommandTerm):
     )
     reason = torch.where(reverse, torch.full_like(reason, 1), reason)
 
-    # Every violation debounces — no instant tier. Pad-wall contact churn
-    # occasionally emits one-step ~700 N equality-force transients (the
-    # bilateral anchor countering a contact-penetration correction); with the
-    # wedge only the f_t > f_t_max face was instant, but on the closed
-    # surface any large spike violates, and an instant tier would convert
-    # solver noise into spurious releases (measured: sweep releases recorded
-    # at ~0.2x capacity). Two consecutive violating policy steps (40 ms)
-    # is still an order of magnitude below physical release latencies.
+    # All violations go through the counted path; the count threshold is
+    # violation_consecutive_steps (1 since latched-contact retraction: the
+    # ~700 N one-step contact-churn transients that once forced a 2-step
+    # debounce cannot occur — the latched anchor is the only load path and
+    # its force is smooth — so the first genuine violation releases, and
+    # oscillating overloads can no longer flicker through a counter reset).
     instant_cond = torch.zeros_like(violation)
     soft_cond = violation
     return margin, soft_cond, instant_cond, reason
