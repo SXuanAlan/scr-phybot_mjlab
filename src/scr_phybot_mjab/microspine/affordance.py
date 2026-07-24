@@ -77,6 +77,14 @@ class MicrospineAffordance(CommandTerm):
       ids, _ = self._asset.find_bodies([bname])
       self._ee_body_ids.append(ids[0])
 
+    # Latched-contact disable (see MicrospineCfg): per-EE sphere geom indices
+    # and the compiled default geom offsets, resolved lazily on first sync
+    # because the per-world expansion re-captures CUDA graphs and must run on
+    # the live simulation.
+    self._sphere_geom_ids: torch.Tensor | None = None
+    self._sphere_pos_default: torch.Tensor | None = None
+    self._sphere_pos_retracted: torch.Tensor | None = None
+
     # ``face_local_axis`` is the end-effector direction expected to point into
     # the wall. Normalizing once keeps the per-step dot product numerically clean.
     face_axis = torch.tensor(
@@ -237,6 +245,62 @@ class MicrospineAffordance(CommandTerm):
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
+    self._sync_latched_contact_margins()
+
+  def _sync_latched_contact_margins(self) -> None:
+    """Retract latched pads' contact spheres; restore them on release.
+
+    Contacts model seating only; while latched, the bilateral anchor pins the
+    pad and the sphere contacts are a redundant second load path that fights
+    it (penetration-correction transients, near-zero-normal contact flicker —
+    the oscillating-load 'barcode'). A latched pad's sphere geoms are moved
+    ``latched_contact_retract`` meters INTO the pad along the face axis so
+    they geometrically cannot touch the wall; released pads get the compiled
+    offsets back the same step. Implemented through ``geom_pos`` because the
+    kinematics kernel reads it per world every step (runtime ``pair_*``
+    writes are not honored by this mjwarp's collision pipeline — measured).
+    First call expands ``geom_pos`` per world via the official mjlab path
+    (which re-captures the CUDA graphs).
+    """
+    if not self._mcfg.disable_contacts_while_latched:
+      return
+    import warp as wp
+
+    from scr_phybot_mjab.microspine.contact import resolve_sphere_geom_ids
+
+    if self._sphere_geom_ids is None:
+      geom_lists = resolve_sphere_geom_ids(self._env.sim.mj_model, self._mcfg)
+      self._sphere_geom_ids = torch.tensor(
+        geom_lists, dtype=torch.long, device=self.device
+      ).reshape(-1)  # (H*S,), EE-major
+      pos = wp.to_torch(self._env.sim.wp_model.geom_pos)
+      self._sphere_pos_default = pos[0, self._sphere_geom_ids].clone()
+      # Sphere child bodies share the pad's orientation, so the pad-frame
+      # face axis retracts them straight away from the wall face.
+      self._sphere_pos_retracted = (
+        self._sphere_pos_default
+        - self._face_local_axis.unsqueeze(0)
+        * self._mcfg.latched_contact_retract
+      )
+      if pos.shape[0] != self.num_envs:
+        self._env.sim.expand_model_fields(("geom_pos",))
+
+    view = wp.to_torch(self._env.sim.wp_model.geom_pos)  # (E, ngeom, 3)
+    spheres = (
+      self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
+    )
+    latched = (
+      self._engaged.unsqueeze(-1)
+      .expand(-1, self._num_ee, spheres)
+      .reshape(self.num_envs, -1, 1)
+    )
+    defaults = self._sphere_pos_default.unsqueeze(0).expand(
+      self.num_envs, -1, -1
+    )
+    retracted = self._sphere_pos_retracted.unsqueeze(0).expand(
+      self.num_envs, -1, -1
+    )
+    view[:, self._sphere_geom_ids] = torch.where(latched, retracted, defaults)
 
   def _update_metrics(self) -> None:
     return
@@ -260,6 +324,7 @@ class MicrospineAffordance(CommandTerm):
     self.engaged_this_step[env_ids] = False
     self.release_reason[env_ids] = 0
     self._sample_limit_params(env_ids)
+    self._sync_latched_contact_margins()
 
   def _wall_inward_normal(self) -> torch.Tensor:
     wall = self._env.scene[self._mcfg.wall_entity_name]
@@ -591,6 +656,24 @@ class MicrospineAffordance(CommandTerm):
 
   def _update_command(self) -> None:
     normal_forces, found_count = self._sensor_contact_features()
+    if self._mcfg.disable_contacts_while_latched:
+      # Latched pads' spheres are retracted — they physically have no wall
+      # contact. The substep-history recovery (meant to bridge sampling
+      # aliasing of real contacts) must not replay stale pre-latch forces.
+      spheres_per_ee_mask = (
+        self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
+      )
+      latched_spheres = (
+        self._engaged.unsqueeze(-1)
+        .expand(-1, self._num_ee, spheres_per_ee_mask)
+        .reshape(self.num_envs, -1)
+      )
+      normal_forces = torch.where(
+        latched_spheres, torch.zeros_like(normal_forces), normal_forces
+      )
+      found_count = torch.where(
+        self._engaged, torch.zeros_like(found_count), found_count
+      )
     self.contact_count = found_count
     spheres_per_ee = (
       self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
@@ -621,6 +704,7 @@ class MicrospineAffordance(CommandTerm):
       self.hold_margin.fill_(1.0)
       self.forced_release_this_step.zero_()
       self.release_reason.zero_()
+      self._sync_latched_contact_margins()
       return
 
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
@@ -699,6 +783,10 @@ class MicrospineAffordance(CommandTerm):
     self._engage_count = torch.where(
       self._engaged, torch.zeros_like(self._engage_count), self._engage_count
     )
+    # Contact pairs follow the (possibly just-changed) latch mask: latched
+    # pads hand their load path to the anchor, released pads get their
+    # contacts back for seating and push-off.
+    self._sync_latched_contact_margins()
 
     # Engage age drives the limit-surface grace window. Resets to 0 on the
     # engage step (covers initial_on latches too, which never see a

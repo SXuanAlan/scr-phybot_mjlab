@@ -58,6 +58,37 @@ def add_contact_pairs(
     pair.gap = cfg.contact_gap
 
 
+def resolve_sphere_geom_ids(
+  mj_model,
+  cfg: MicrospineCfg,
+  robot_prefix: str = "robot",
+) -> list[list[int]]:
+  """Map each EE to the compiled model's contact-sphere geom indices.
+
+  Returns one list of geom ids per EE (EE-major, sphere order within).
+  Consumed by the latched-contact disable path, which retracts these geoms
+  into the pad body per env while latched (runtime ``pair_*`` writes are not
+  honored by the collision pipeline in this mjwarp version — verified
+  empirically — but ``geom_pos`` feeds the kinematics kernel every step).
+  """
+  out: list[list[int]] = []
+  for ee in cfg.ee_body_names:
+    ee_ids: list[int] = []
+    for name in sphere_names(
+      ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols
+    ):
+      gid = mujoco.mj_name2id(
+        mj_model, mujoco.mjtObj.mjOBJ_GEOM, f"{robot_prefix}/{name}"
+      )
+      if gid < 0:
+        gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, name)
+      if gid < 0:
+        raise ValueError(f"Sphere geom '{name}' not found in model.")
+      ee_ids.append(gid)
+    out.append(ee_ids)
+  return out
+
+
 def add_pad_wall_contact_excludes(
   spec: mujoco.MjSpec,
   cfg: MicrospineCfg,

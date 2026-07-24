@@ -212,6 +212,26 @@ class MicrospineCfg:
   contact_gap: float = 0.01
   """MuJoCo pair gap for microspine sphere-to-wall contacts."""
 
+  disable_contacts_while_latched: bool = False
+  """Switch a latched pad's sphere-wall contacts off (per env, per EE).
+
+  While latched the bilateral anchor already pins the pad, so the sphere
+  contacts are a redundant second load path; the two fight over penetration
+  corrections and the contact set flickers at near-zero normal force, which
+  makes the measured anchor load oscillate frame-to-frame (single-step ~700 N
+  equality transients; the 90-deg margin 'barcode'). Disabling the contacts
+  while latched removes the fight at the source: compression and tension both
+  ride the anchor, and contacts return the instant the pad releases so
+  seating, press shaping and push-off are untouched. Implemented by
+  retracting the sphere geoms into the pad (``geom_pos`` per world) — the
+  collision pipeline ignores runtime ``pair_*`` writes but kinematics reads
+  ``geom_pos`` every step."""
+
+  latched_contact_retract: float = 0.05
+  """Retraction depth [m] of a latched pad's contact spheres along the face
+  axis (into the pad). Must exceed sphere radius + contact margin so no
+  sphere-wall contact can be generated while latched."""
+
   debug: bool = False
   """Print engage-state diagnostics. This causes CPU-GPU sync and is slow."""
 

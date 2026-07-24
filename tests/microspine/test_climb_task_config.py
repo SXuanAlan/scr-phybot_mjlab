@@ -30,6 +30,10 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.engage_normal_force_threshold == 3.0
   assert microspine.engage_min_spheres == 2
   assert microspine.limit_surface.violation_consecutive_steps == 2
+  # Latched pads hand their load path to the anchor alone: sphere contacts
+  # switch off while latched (kills the anchor-vs-contact oscillation that
+  # let motionref6's 90-deg feet-hang ride through the release debounce).
+  assert microspine.disable_contacts_while_latched is True
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and
   # seeds the per-env latch state AFTER the affordance's own reset ran.

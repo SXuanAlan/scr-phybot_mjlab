@@ -135,6 +135,11 @@ def phybot_c2_climb_wall_env_cfg(
   # demonstrated ~700 N pure shear, so 400-650 N per pad is conservative.
   microspine_cfg.limit_surface.model = "wang2017"
   microspine_cfg.limit_surface.f_t_max_range = (400.0, 650.0)
+  # Latched pads hand their whole load path to the bilateral anchor; the
+  # sphere contacts (a redundant second path that fights the anchor and made
+  # the measured loads oscillate — motionref6's 90-deg margin 'barcode')
+  # switch off per env while latched and return on release (2026-07-24).
+  microspine_cfg.disable_contacts_while_latched = True
 
   cfg = make_climb_wall_env_cfg()
   cfg.scene.num_envs = 2048
