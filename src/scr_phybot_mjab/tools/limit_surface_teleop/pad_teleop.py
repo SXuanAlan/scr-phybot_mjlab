@@ -67,12 +67,15 @@ class PadTeleop:
         cfg.actions["cartesian_pose"].posture_weight = 0.0
         for a in cfg.scene.entities["robot"].articulation.actuators:
             a.stiffness = 1e-6; a.damping = 0.0
-        # Restore the true envelope (f_n0/f_l0 back to the real ~15, not the
-        # bench's de-fanged 200) AND collapse every limit-surface range to its
-        # midpoint. Collapsing kills the per-env domain randomization so the
-        # env's actual release envelope is exactly `self.limit_params` below —
-        # the bench maps one deterministic true envelope, and every release
-        # lands on it (not on a per-reset random draw).
+        # Mirror the production climb physics on the bench (2026-07-24): the
+        # Wang-2017 closed envelope with a deterministic F0 (400 N — the fig8
+        # validation figure's value, inside the climb DR range 400-650), and
+        # latched-contact retraction so the anchor alone carries a latched pad
+        # (kills the anchor-vs-contact load oscillation; what the bench maps
+        # is exactly what the task enforces). Every limit-surface range is
+        # collapsed to a point so the env's actual release envelope equals
+        # `self.limit_params` below — every release lands on the drawn
+        # surface, not on a per-reset random draw.
         d = MicrospineLimitSurfaceCfg()
         m = cfg.commands["microspine_affordance"].microspine_cfg
         mid = lambda r: 0.5 * (r[0] + r[1])
@@ -81,6 +84,9 @@ class PadTeleop:
             "f_n0_range", "mu_lateral_range", "f_l0_range",
         )
         for owner in (m, cfg.events["microspine_grip"].params["microspine_cfg"]):
+            owner.limit_surface.model = "wang2017"
+            owner.limit_surface.f_t_max_range = (400.0, 400.0)
+            owner.disable_contacts_while_latched = True
             owner.limit_surface.f_n0_range = d.f_n0_range
             owner.limit_surface.f_l0_range = d.f_l0_range
             for attr in _range_attrs:
@@ -117,11 +123,23 @@ class PadTeleop:
 
         mid = lambda r: 0.5 * (r[0] + r[1])
         ls = m.limit_surface
-        self.limit_params = {
-            "f_t_max": mid(ls.f_t_max_range), "f_rev_max": mid(ls.f_rev_max_range),
-            "mu_adhesion": mid(ls.mu_adhesion_range), "f_n0": mid(ls.f_n0_range),
-            "mu_lateral": mid(ls.mu_lateral_range), "f_l0": mid(ls.f_l0_range),
-        }
+        if ls.model == "wang2017":
+            from scr_phybot_mjab.microspine.wang_limit_surface import (
+                build_capacity_lut,
+            )
+
+            self.limit_params = {
+                "model": "wang2017",
+                "f0": mid(ls.f_t_max_range),
+                "r_floor": ls.wang_r_floor,
+                "lut": build_capacity_lut(ls, "cpu").numpy(),
+            }
+        else:
+            self.limit_params = {
+                "f_t_max": mid(ls.f_t_max_range), "f_rev_max": mid(ls.f_rev_max_range),
+                "mu_adhesion": mid(ls.mu_adhesion_range), "f_n0": mid(ls.f_n0_range),
+                "mu_lateral": mid(ls.mu_lateral_range), "f_l0": mid(ls.f_l0_range),
+            }
         self.home()
 
     # --- kinematics -------------------------------------------------------

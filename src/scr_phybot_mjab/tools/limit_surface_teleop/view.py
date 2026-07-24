@@ -179,6 +179,63 @@ def _polyline_segments(polylines: list[np.ndarray]) -> np.ndarray:
     return np.concatenate(segments, axis=0) if segments else _EMPTY_POINTS.copy()
 
 
+def _wang_lut_sample(
+    lut: np.ndarray, theta_deg: np.ndarray, phi_deg: np.ndarray
+) -> np.ndarray:
+    """Bilinear sample of the normalized Wang capacity table R[theta, phi]."""
+    n_t, n_p = lut.shape
+    ti = np.clip(theta_deg / 180.0 * (n_t - 1), 0, n_t - 1)
+    pi = np.clip(phi_deg / 90.0 * (n_p - 1), 0, n_p - 1)
+    t0 = np.minimum(ti.astype(int), n_t - 2)
+    p0 = np.minimum(pi.astype(int), n_p - 2)
+    tw = ti - t0
+    pw = pi - p0
+    return (
+        lut[t0, p0] * (1 - tw) * (1 - pw)
+        + lut[t0, p0 + 1] * (1 - tw) * pw
+        + lut[t0 + 1, p0] * tw * (1 - pw)
+        + lut[t0 + 1, p0 + 1] * tw * pw
+    )
+
+
+def _wang_envelope_patch(
+    wang: Mapping[str, object], n_az: int = 97, n_el: int = 25
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Closed Wang-2017 surface as one rectangular (azimuth x elevation) grid.
+
+    Azimuth runs the full circle (the LUT covers 0-180 deg; the surface is
+    mirror-symmetric in f_l), elevation runs 0-90 deg toward tension. The
+    ``r_floor`` scrap the release check applies is baked in, so the drawn
+    surface is exactly the enforcement boundary. Compression (f_n < 0) has no
+    envelope boundary, as before.
+    """
+    lut = np.asarray(wang["lut"], dtype=float)
+    f0 = float(wang["f0"])
+    r_floor = float(wang["r_floor"])
+    u = np.linspace(0.0, 2.0 * np.pi, max(int(n_az), 25))
+    phi = np.linspace(0.0, 0.5 * np.pi, max(int(n_el), 9))
+    U, PHI = np.meshgrid(u, phi, indexing="ij")
+    theta_deg = np.degrees(np.abs(np.arctan2(np.sin(U), np.cos(U))))
+    cap = f0 * np.maximum(_wang_lut_sample(lut, theta_deg, np.degrees(PHI)), r_floor)
+    return (
+        cap * np.cos(PHI) * np.cos(U),
+        cap * np.cos(PHI) * np.sin(U),
+        cap * np.sin(PHI),
+    )
+
+
+def _wang_feature_edges(
+    patch: tuple[np.ndarray, np.ndarray, np.ndarray],
+) -> list[np.ndarray]:
+    """The f_n = 0 rim and the two symmetry meridians (u = 0 and u = pi)."""
+    X, Y, Z = patch
+    return [
+        np.column_stack((X[:, 0], Y[:, 0], Z[:, 0])),
+        np.column_stack((X[0], Y[0], Z[0])),
+        np.column_stack((X[X.shape[0] // 2], Y[X.shape[0] // 2], Z[X.shape[0] // 2])),
+    ]
+
+
 def _envelope_feature_edges(params: Mapping[str, float], z_floor: float) -> list[np.ndarray]:
     """Return the true cap intersections and the f_t=0 surface crease."""
     t = _t_samples(params)
@@ -267,7 +324,21 @@ class LimitSurfaceView:
             raise ValueError("trail_len must be positive")
 
         self.params = dict(limit_params)
-        self._plot_params = _validate_limit_params(limit_params)
+        # Two envelope flavors: the legacy wedge (scalar cone parameters) and
+        # the Wang-2017 closed surface (normalized LUT scaled by F0), matching
+        # MicrospineLimitSurfaceCfg.model on the bench being visualized.
+        if limit_params.get("model") == "wang2017":
+            self._wang = {
+                "f0": float(limit_params["f0"]),
+                "r_floor": float(limit_params.get("r_floor", 0.0)),
+                "lut": np.asarray(limit_params["lut"], dtype=float),
+            }
+            self._plot_params = None
+            self._wang_patch = _wang_envelope_patch(self._wang)
+        else:
+            self._wang = None
+            self._wang_patch = None
+            self._plot_params = _validate_limit_params(limit_params)
         self.releases: list[np.ndarray] = []
         self._trail: list[np.ndarray] = []
         self._trail_len = int(trail_len)
@@ -335,11 +406,16 @@ class LimitSurfaceView:
 
         self._gl = gl
         p = self._plot_params
-        lateral_max, normal_max = _capacities(p, p["f_t_max"])
-        lateral_max = float(lateral_max)
-        normal_max = float(normal_max)
-
-        x_scale = _axis_scale(-p["f_rev_max"], p["f_t_max"])
+        if self._wang is not None:
+            Xw, Yw, Zw = self._wang_patch
+            lateral_max = float(np.abs(Yw).max())
+            normal_max = float(Zw.max())
+            x_scale = _axis_scale(float(Xw.min()), float(Xw.max()))
+        else:
+            lateral_max, normal_max = _capacities(p, p["f_t_max"])
+            lateral_max = float(lateral_max)
+            normal_max = float(normal_max)
+            x_scale = _axis_scale(-p["f_rev_max"], p["f_t_max"])
         y_scale = _axis_scale(-lateral_max, lateral_max)
         # Compression has no physical envelope boundary.  Show a useful finite
         # portion of it and make the display truncation explicit in the HUD.
@@ -396,7 +472,11 @@ class LimitSurfaceView:
         # separate darker feature layer makes the true cap intersections crisp.
         self._surface_items = []
         self._wire_items = []
-        patches = _envelope_patches(p, self._z_floor)
+        patches = (
+            [self._wang_patch]
+            if self._wang is not None
+            else _envelope_patches(p, self._z_floor)
+        )
         face_alphas = (0.18, 0.105, 0.105, 0.085, 0.085)
         for patch_index, (patch, alpha) in enumerate(zip(patches, face_alphas, strict=True)):
             vertices, faces = _mesh_to_verts_faces(*patch)
@@ -428,7 +508,11 @@ class LimitSurfaceView:
             self._wire_items.append(wire)
 
         feature_edges = gl.GLLinePlotItem(
-            pos=_polyline_segments(_envelope_feature_edges(p, self._z_floor)),
+            pos=_polyline_segments(
+                _wang_feature_edges(self._wang_patch)
+                if self._wang is not None
+                else _envelope_feature_edges(p, self._z_floor)
+            ),
             color=(*_FEATURE_RGB, 0.92),
             width=1.8,
             mode="lines",
@@ -862,7 +946,17 @@ class LimitSurfaceView:
         self._update_hud(self._last_load, self._last_margin, released=False)
 
     def save(self, path: str):
-        """Save release points and the parameter vector used by the figure."""
+        """Save release points and the envelope description used by the figure."""
         releases = np.asarray(self.releases, dtype=float).reshape(-1, 3)
+        if self._wang is not None:
+            np.savez(
+                path,
+                releases=releases,
+                model="wang2017",
+                f0=self._wang["f0"],
+                r_floor=self._wang["r_floor"],
+                lut=self._wang["lut"],
+            )
+            return
         params = np.array([self._plot_params[key] for key in _LIMIT_KEYS], dtype=float)
         np.savez(path, releases=releases, params=params)
