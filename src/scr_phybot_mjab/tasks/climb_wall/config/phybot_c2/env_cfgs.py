@@ -488,7 +488,13 @@ def phybot_c2_climb_wall_env_cfg(
         "max_cost": 10.0,
       },
     ),
-    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.01),
+    # -0.1 (was -0.01): at -0.01 chatter was economically free — model_3000's
+    # hovering hands buzzed the policy MEAN at 3-4 Hz, +-4-5 cm, ~40 mrad
+    # target flips per step (deterministic rollout, torque duty far from
+    # limits), which also blows through the 60 ms engage debounce window.
+    # Walk prices the same term at -0.25/-0.3; climbing keeps more headroom
+    # for the legitimately fast regrip reaches.
+    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.1),
     # The target clamp is the safety guard; this term gives the policy a
     # learning signal to stay away from the guard and from physical joint stops.
     "dof_pos_limits": RewardTermCfg(

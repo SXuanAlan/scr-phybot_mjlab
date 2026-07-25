@@ -151,6 +151,14 @@ class MicrospineAffordance(CommandTerm):
     # latch state: nonzero whenever the sphere grid presses the wall, engaged
     # or not. Consumed by the seat-phase press shaping reward.
     self.pad_press_force = torch.zeros(shape, device=self.device)
+    # Virtual spine field (MicrospineCfg.virtual_spine_*): engaged fraction of
+    # a kinematic spine grid spanning the pad face — the seating judgement —
+    # and the per-latch capacity scale captured from it at the engage step.
+    self.spine_fraction = torch.zeros(shape, device=self.device)
+    self._seat_scale = torch.ones(shape, device=self.device)
+    self._spine_corner_body_ids: torch.Tensor | None = None
+    self._spine_sphere_radius: float | None = None
+    self._wall_geom_id: int | None = None
     rake_axis = torch.tensor(
       self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device
     )
@@ -245,6 +253,10 @@ class MicrospineAffordance(CommandTerm):
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
+    # Seeded (RSI) latches get full capacity: the reference stance seats the
+    # pads flat by construction, and kinematics may not have refreshed the
+    # just-written reset pose yet, so a live fraction here could be stale.
+    self._seat_scale[env_ids] = 1.0
     self._sync_latched_contact_margins()
 
   def _sync_latched_contact_margins(self) -> None:
@@ -320,6 +332,8 @@ class MicrospineAffordance(CommandTerm):
     self.face_cos[env_ids] = 0.0
     self.contact_count[env_ids] = 0.0
     self.pad_press_force[env_ids] = 0.0
+    self.spine_fraction[env_ids] = 0.0
+    self._seat_scale[env_ids] = 1.0
     self.forced_release_this_step[env_ids] = False
     self.engaged_this_step[env_ids] = False
     self.release_reason[env_ids] = 0
@@ -470,6 +484,11 @@ class MicrospineAffordance(CommandTerm):
     ls = self._ls_cfg
     tension = f_n.clamp_min(0.0)
     f0 = self.limit_f_t_max
+    if self._mcfg.seat_quality_scales_capacity:
+      # Wang 2017 Sec 2.4: pad capacity sums per-spine contributions, so a
+      # partially seated latch scales the whole closed surface down by the
+      # spine fraction captured at its engage step.
+      f0 = f0 * self._seat_scale
     ratio = capacity_ratio(self._wang_lut, f_t, f_l, f_n)
     cap = f0 * ratio.clamp_min(ls.wang_r_floor)
     load_mag = torch.sqrt(f_t**2 + f_l**2 + tension**2)
@@ -513,6 +532,104 @@ class MicrospineAffordance(CommandTerm):
       face = _quat_rotate(hquat, self._face_local_axis)
       result[:, h] = (face * wall_inward).sum(dim=-1)
     return result
+
+  def _virtual_spine_fraction(self) -> torch.Tensor:
+    """Engaged fraction of the kinematic virtual spine field, per EE (E, H).
+
+    Corner positions come from the corner sphere child BODIES — their world
+    poses are latch-invariant (retraction moves the sphere geoms within those
+    bodies, never the bodies) — and the wall surface point from the wall
+    plane geom's live world position, with the same inward normal the engage
+    frame trusts. Purely kinematic: per Wang et al. 2017 the spine normal
+    suspension is force-free over its travel, so reach is the whole question.
+    """
+    if self._spine_corner_body_ids is None:
+      import mujoco
+
+      from scr_phybot_mjab.microspine.contact import (
+        resolve_sphere_geom_ids,
+        sphere_names,
+      )
+
+      rows = self._mcfg.spheres_per_ee_rows
+      cols = self._mcfg.spheres_per_ee_cols
+      if rows < 2 or cols < 2:
+        raise ValueError(
+          "The virtual spine field needs a >=2x2 contact-sphere grid to span "
+          f"the pad face; got {rows}x{cols}."
+        )
+      corner_ids: list[int] = []
+      for ee in self._mcfg.ee_body_names:
+        names = sphere_names(ee, rows, cols)
+        for name in (
+          names[0],  # r0c0
+          names[cols - 1],  # r0c(C-1)
+          names[(rows - 1) * cols],  # r(R-1)c0
+          names[rows * cols - 1],  # r(R-1)c(C-1)
+        ):
+          ids, _ = self._asset.find_bodies([name])
+          if len(ids) != 1:
+            raise ValueError(f"Corner sphere body '{name}' not found.")
+          corner_ids.append(ids[0])
+      self._spine_corner_body_ids = torch.tensor(
+        corner_ids, dtype=torch.long, device=self.device
+      )
+      mj_model = self._env.sim.mj_model
+      geom_lists = resolve_sphere_geom_ids(mj_model, self._mcfg)
+      self._spine_sphere_radius = float(mj_model.geom_size[geom_lists[0][0]][0])
+      wall_gid = mujoco.mj_name2id(
+        mj_model, mujoco.mjtObj.mjOBJ_GEOM, self._mcfg.wall_geom_name
+      )
+      if wall_gid < 0:
+        raise ValueError(
+          f"Wall geom '{self._mcfg.wall_geom_name}' not found for the "
+          "virtual spine field."
+        )
+      self._wall_geom_id = wall_gid
+      # The climbable surface: a plane's surface passes through its frame
+      # origin; a box's is the face half-extent out along the wall normal
+      # (the teleop bench wall is a box; the climb wall is a plane). The
+      # offset is resolved once from the live rotation — the face-to-center
+      # relation is rigid.
+      gtype = int(mj_model.geom_type[wall_gid])
+      if gtype == int(mujoco.mjtGeom.mjGEOM_PLANE):
+        self._wall_surface_offset = 0.0
+      elif gtype == int(mujoco.mjtGeom.mjGEOM_BOX):
+        rot = (
+          wp.to_torch(self._env.sim.wp_data.geom_xmat)[0, wall_gid]
+          .reshape(3, 3)
+        )
+        n0 = -self._wall_inward_normal()[0]
+        local = rot.T @ n0
+        axis = int(torch.argmax(torch.abs(local)).item())
+        self._wall_surface_offset = float(mj_model.geom_size[wall_gid][axis])
+      else:
+        raise ValueError(
+          f"Wall geom '{self._mcfg.wall_geom_name}' has unsupported type "
+          f"{gtype} for the virtual spine field (plane or box)."
+        )
+
+    from scr_phybot_mjab.microspine.contact import virtual_spine_fraction
+
+    corners = self._asset.data.body_link_pos_w[
+      :, self._spine_corner_body_ids
+    ].reshape(self.num_envs, self._num_ee, 4, 3)
+    # Off-surface direction toward the robot is the engage frame's n_out; the
+    # surface point is the wall geom's origin pushed out by the type-resolved
+    # face offset (0 for a plane, the half-extent for a box).
+    n_out = -self._wall_inward_normal()
+    wall_point = (
+      wp.to_torch(self._env.sim.wp_data.geom_xpos)[:, self._wall_geom_id]
+      + self._wall_surface_offset * n_out
+    )
+    return virtual_spine_fraction(
+      corners,
+      wall_point.unsqueeze(1).expand(-1, self._num_ee, -1),
+      n_out.unsqueeze(1).expand(-1, self._num_ee, -1),
+      self._spine_sphere_radius,
+      self._mcfg.virtual_spine_grid,
+      self._mcfg.virtual_spine_travel,
+    )
 
   def _normal_force_condition(self, normal_forces: torch.Tensor) -> torch.Tensor:
     # Optional compression gate. The z-force gate decides support direction;
@@ -691,6 +808,9 @@ class MicrospineAffordance(CommandTerm):
     # live value even when the alignment gate is disabled.
     face_cos = self._face_wall_cos()
     self.face_cos = face_cos
+    # Kinematic seating judgement; also an observation channel, so it stays
+    # live on every path (grip-disabled ablation included).
+    self.spine_fraction = self._virtual_spine_fraction()
 
     if not self._mcfg.grip_enabled:
       self._engaged.zero_()
@@ -702,12 +822,21 @@ class MicrospineAffordance(CommandTerm):
       self.hold_margin.fill_(1.0)
       self.forced_release_this_step.zero_()
       self.release_reason.zero_()
+      self._seat_scale.fill_(1.0)
       self._sync_latched_contact_margins()
       return
 
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
       engage_condition &= (
         face_cos >= self._mcfg.engage_parallel_cos_threshold
+      )
+    if self._mcfg.engage_min_spine_fraction > 0.0:
+      # The seating gate: enough of the virtual spine field must be able to
+      # reach the wall. Replaces the 2-rigid-sphere count as the 'actually
+      # seated' judgement (a rigid pad generically touches a flat wall with
+      # one sphere; demanding two demanded sub-degree parallelism).
+      engage_condition &= (
+        self.spine_fraction >= self._mcfg.engage_min_spine_fraction
       )
 
     was_engaged = self._engaged.clone()
@@ -760,6 +889,23 @@ class MicrospineAffordance(CommandTerm):
     )
 
     self._engaged[:] = new_engaged
+    if self._mcfg.seat_quality_scales_capacity:
+      # This latch's capacity is set by how much of the spine field could
+      # reach at the seat step (Wang 2017 Sec 2.4: pad capacity is the sum of
+      # engaged spines' contributions). Release restores full scale so the
+      # next latch is judged on its own seating. Engage and disengage are
+      # mutually exclusive per EE within a step (release runs on the
+      # pre-transition latch state).
+      self._seat_scale = torch.where(
+        engage_transition,
+        self.spine_fraction.clamp(0.0, 1.0),
+        self._seat_scale,
+      )
+      self._seat_scale = torch.where(
+        disengage_transition,
+        torch.ones_like(self._seat_scale),
+        self._seat_scale,
+      )
     self._engage_count = engage_count
     # After an engage transition, clear its counter.
     self._engage_count = torch.where(

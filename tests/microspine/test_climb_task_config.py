@@ -28,7 +28,21 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.reengage_cooldown_steps == 10
   assert microspine.engage_consecutive_steps == 3
   assert microspine.engage_normal_force_threshold == 3.0
-  assert microspine.engage_min_spheres == 2
+  # 1 (was 2): a rigid pad generically touches a flat wall with ONE sphere —
+  # the 2-sphere gate demanded sub-degree parallelism and never passed on
+  # motionref8 (78 N pressed through a single sphere, engage counter never
+  # started), making every release an irreversible loss and welding limbs.
+  # Seating is judged by the virtual spine field instead (Wang 2017: spine
+  # normal suspension is force-free over le_max = 5 mm, so seating is
+  # kinematic reach, not multi-sphere force).
+  assert microspine.engage_min_spheres == 1
+  assert microspine.virtual_spine_grid == (5, 5)
+  assert microspine.virtual_spine_travel == 0.005  # paper le_max
+  assert microspine.engage_min_spine_fraction == 0.5
+  # A half-seated latch holds half the load (paper Sec 2.4: capacity is the
+  # sum of engaged spines) — seating quality gets a continuous physical
+  # payoff, and a corner-poke latch cannot ride a full-strength anchor.
+  assert microspine.seat_quality_scales_capacity is True
   # 1 (was 2): latched-contact retraction killed the one-step equality
   # transients the debounce guarded against; the first genuine violation
   # now releases, closing the flicker-through loophole for good.
@@ -171,6 +185,10 @@ def test_climb_reward_contract_is_deepmimic_split():
   # 3.5 Hz rip storm was genuine tension pull-off at a negligible price).
   assert cfg.rewards["unsafe_microspine_release"].weight == -2.5
   assert cfg.rewards["ee_slide_penalty"].weight == -0.1
+  # -0.1 (was -0.01): policy-mean chatter (3-4 Hz, +-4-5 cm hand buzz on
+  # motionref8) was economically free and kept blowing the 60 ms engage
+  # window; walk prices the same term at -0.25/-0.3.
+  assert cfg.rewards["action_rate_l2"].weight == -0.1
   assert cfg.rewards["bounded_dof_acc_l2"].weight == -0.02
   assert cfg.rewards["bounded_dof_acc_l2"].params["max_cost"] == 10.0
   assert cfg.rewards["dof_pos_limits"].weight == -5.0

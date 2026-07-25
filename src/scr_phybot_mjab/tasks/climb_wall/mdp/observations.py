@@ -210,9 +210,18 @@ def microspine_contact_fraction(
   command_name: str = "microspine_affordance",
   spheres_per_ee: int = 4,
 ) -> torch.Tensor:
-  """Per-EE fraction of contact spheres currently touching the wall."""
+  """Per-EE engaged fraction of the virtual spine field (seating quality).
+
+  Semantics upgrade (motionref9): the raw touching-sphere count was a dead
+  channel — a rigid pad on a flat wall generically touches with exactly one
+  sphere, so the old value pinned at 0.25 whenever pressing. The virtual
+  spine fraction is the signal the engage gate and the capacity scaling
+  actually consume ('how flat is the pad'), so the policy sees the same
+  quantity it is judged and paid on. Same shape, ckpts across the change are
+  incompatible (fresh runs only, as with every obs semantic change).
+  """
   affordance = env.command_manager.get_term(command_name)
-  return (affordance.contact_count / max(1, spheres_per_ee)).clamp(0.0, 1.0)
+  return affordance.spine_fraction.clamp(0.0, 1.0)
 
 
 def microspine_cooldown_obs(

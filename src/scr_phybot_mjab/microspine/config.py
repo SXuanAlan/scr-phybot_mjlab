@@ -247,11 +247,50 @@ class MicrospineCfg:
   engage_min_fraction: float = 0.25
   """Fraction of an EE's spheres that must pass the normal-force threshold."""
 
-  engage_min_spheres: int = 2
-  """If > 0, overrides engage_min_fraction with an absolute sphere count."""
+  engage_min_spheres: int = 1
+  """If > 0, overrides engage_min_fraction with an absolute sphere count.
+
+  1 (was 2): a rigid pad on a flat wall generically touches with ONE sphere —
+  measured on motionref8, hands pressed 78 N through a single sphere for 99%
+  of touching steps and the 2-sphere gate never passed once, making every
+  release an irreversible loss (the mechanical root of four generations of
+  welded-limb policies). Seating quality is now judged by the virtual spine
+  field (``engage_min_spine_fraction``), which is the honest representation:
+  per Wang et al. 2017 the real pad's normal suspension is ~5 mN/mm per spine
+  (force-free conformity over ``le_max`` = 5 mm of travel), so which spines
+  can reach the wall is a kinematic question, not a force question."""
 
   engage_parallel_cos_threshold: float = 0.25
   """Minimum dot(face axis, wall inward normal) required to engage."""
+
+  virtual_spine_grid: tuple[int, int] = (5, 5)
+  """Virtual spine field resolution (rows, cols) across the pad face.
+
+  The four contact-sphere centers span the pad; a bilinear grid over that
+  quad stands in for the real pad's hundreds of individually-suspended
+  spines. Purely kinematic — the paper's normal suspension (kn = 5 mN/mm)
+  carries negligible force, so 'can this spine reach the wall' is geometry."""
+
+  virtual_spine_travel: float = 0.005
+  """Reach [m] of a virtual spine beyond the sphere contact surface.
+
+  Wang et al. 2017 Sec 2.3: le_max = 5 mm maximum spine extension. A virtual
+  spine within this distance of the wall counts as engaged/hooked. Over the
+  pad span this sets the seating tilt tolerance (~7 deg for a 40 mm pad)."""
+
+  engage_min_spine_fraction: float = 0.5
+  """Minimum engaged fraction of the virtual spine field required to latch.
+
+  Replaces the unpassable 2-rigid-sphere gate as the 'is the pad actually
+  seated' judgement: a corner poke reaches ~0.2, a flat seat ~1.0. 0 disables
+  the gate."""
+
+  seat_quality_scales_capacity: bool = True
+  """Scale the wang2017 hold capacity F0 by the engaged spine fraction
+  captured at the latch step. Wang et al. 2017 Sec 2.4: pad capacity is the
+  sum of per-spine contributions, so a half-seated pad holds half the load.
+  Gives seating quality a continuous physical payoff instead of a binary
+  gate. Wedge (legacy) mode ignores this."""
 
   engage_consecutive_steps: int = 5
   """Number of consecutive engage-condition steps required before enabling."""

@@ -108,3 +108,67 @@ def add_pad_wall_contact_excludes(
       bodyname1=f"{robot_prefix}/{ee_body_name}",
       bodyname2=wall_body_name,
     )
+
+
+def virtual_spine_fraction(
+  corner_pos,
+  wall_point,
+  wall_normal,
+  sphere_radius: float,
+  grid: tuple[int, int],
+  travel: float,
+):
+  """Engaged fraction of a virtual spine field spanning the pad face.
+
+  The real pad carries hundreds of spines, each on a ~force-free normal
+  suspension with ``le_max`` of reach (Wang et al. 2017, Sec 2.3: kn = 5
+  mN/mm, le_max = 5 mm) — whether a spine can hook is a purely kinematic
+  question of whether its site is within reach of the wall. A bilinear
+  ``grid`` over the four contact-sphere centers (row-major corners: r0c0,
+  r0c1, r1c0, r1c1) stands in for that field; a grid point is engaged when
+  its distance to the wall surface, less the sphere radius (the corners sit
+  at sphere-center height), is within ``travel``.
+
+  Args:
+    corner_pos: (..., 4, 3) world positions of the four corner sphere centers.
+    wall_point: (..., 3) any point on the wall surface.
+    wall_normal: (..., 3) unit wall normal pointing off the surface toward
+      the robot side.
+    sphere_radius: contact sphere radius [m].
+    grid: (rows, cols) virtual field resolution.
+    travel: spine reach beyond the sphere contact surface [m] (le_max).
+
+  Returns:
+    (...) engaged fraction in [0, 1]. Flat seated pad -> 1.0; corner poke ->
+    the small patch of the field near that corner.
+  """
+  import torch
+
+  rows, cols = grid
+  u = torch.linspace(0.0, 1.0, rows, device=corner_pos.device)
+  v = torch.linspace(0.0, 1.0, cols, device=corner_pos.device)
+  uu, vv = torch.meshgrid(u, v, indexing="ij")
+  uu = uu.reshape(-1)  # (K,)
+  vv = vv.reshape(-1)
+  p00, p01, p10, p11 = (
+    corner_pos[..., 0, :],
+    corner_pos[..., 1, :],
+    corner_pos[..., 2, :],
+    corner_pos[..., 3, :],
+  )
+  # (..., K, 3) bilinear interpolation over the sphere-corner quad.
+  w00 = ((1.0 - uu) * (1.0 - vv)).reshape(*([1] * (corner_pos.dim() - 2)), -1, 1)
+  w01 = ((1.0 - uu) * vv).reshape_as(w00)
+  w10 = (uu * (1.0 - vv)).reshape_as(w00)
+  w11 = (uu * vv).reshape_as(w00)
+  points = (
+    w00 * p00.unsqueeze(-2)
+    + w01 * p01.unsqueeze(-2)
+    + w10 * p10.unsqueeze(-2)
+    + w11 * p11.unsqueeze(-2)
+  )
+  dist = (
+    (points - wall_point.unsqueeze(-2)) * wall_normal.unsqueeze(-2)
+  ).sum(dim=-1)
+  hooked = (dist - sphere_radius) <= travel
+  return hooked.float().mean(dim=-1)
