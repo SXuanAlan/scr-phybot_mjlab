@@ -12,6 +12,7 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   motion_ee_pos_error_exp,
   motion_engage_mismatch,
   motion_joint_pos_error_exp,
+  motion_ref_height_tracking,
   motion_scheduled_press_shaping,
   signed_climb_height_progress,
   unsafe_microspine_release_penalty,
@@ -175,6 +176,38 @@ def test_signed_progress_budget_caps_up_but_not_down():
   env.episode_length_buf[:] = 27
   env.scene["robot"].data.root_link_pos_w[:, 2] -= 0.0048
   assert reward(env, **kw).item() == pytest.approx(-3.0, abs=1.0e-4)
+
+
+def test_ref_height_tracking_pays_on_profile_and_decays_both_ways():
+  motion = SimpleNamespace(ref_root_pos_w=torch.tensor([[0.0, 0.0, 5.0]]))
+  env = make_progress_env(motion=motion)
+  reward = motion_ref_height_tracking()
+  kw = dict(asset_cfg=SceneEntityCfg("robot"), std=0.05)
+
+  reward(env, **kw)
+  env.episode_length_buf[:] = 25
+  reward(env, **kw)  # last settling step re-bases robot and reference.
+
+  # Both climb one step-height together: still on profile, full pay.
+  env.episode_length_buf[:] = 26
+  motion.ref_root_pos_w[:, 2] += 0.06
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.06
+  assert reward(env, **kw).item() == pytest.approx(1.0)
+
+  # Reference climbs one std further, robot stalls: exp(-1) — behind decays.
+  env.episode_length_buf[:] = 27
+  motion.ref_root_pos_w[:, 2] += 0.05
+  assert reward(env, **kw).item() == pytest.approx(
+    torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
+  )
+
+  # Robot overshoots to one std AHEAD: same exp(-1) — scrambling past the
+  # ghost earns exactly as little as lagging it.
+  env.episode_length_buf[:] = 28
+  env.scene["robot"].data.root_link_pos_w[:, 2] += 0.10
+  assert reward(env, **kw).item() == pytest.approx(
+    torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
+  )
 
 
 def test_signed_progress_reference_budget_tracks_the_clip_profile():

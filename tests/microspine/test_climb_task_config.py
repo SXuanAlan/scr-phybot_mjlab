@@ -140,25 +140,14 @@ def test_climb_reward_contract_is_deepmimic_split():
     cfg.rewards["motion_engage_mismatch"].params["grace_time_s"] == 0.25
   )
 
-  # Height/velocity remain the climbing drive. The per-step cap must clear
-  # the reference's 0.8 s step-up burst (peak ~10x the average rate); the
-  # cumulative rate budget caps sustained overspeed at 1.25x the commanded
-  # climb distance (motionref1 scrambled at 20x without it).
-  assert cfg.rewards["climb_height_progress"].weight == 2.0
-  assert (
-    cfg.rewards["climb_height_progress"].params["max_normalized_progress"]
-    == 12.0
-  )
-  assert cfg.rewards["climb_height_progress"].params["rate_budget_scale"] == 1.25
-  assert cfg.rewards["signed_height_progress"].weight == 0.5
-  # The signed term's cap is the reference profile itself: cumulative net
-  # income may never exceed the clip's own height gain at the current phase
-  # (replaced the flat 1.25x rate budget on 2026-07-22).
-  assert (
-    cfg.rewards["signed_height_progress"].params["reference_budget_command"]
-    == "climb_motion"
-  )
-  assert "rate_budget_scale" not in cfg.rewards["signed_height_progress"].params
+  # The climbing drive IS an imitation term (motionref8): income follows the
+  # reference's own climb profile, decaying symmetrically when behind or
+  # ahead. The free-standing height rewards (and their cap/budget patches)
+  # are gone — they funded every reference-ignoring gait.
+  assert "climb_height_progress" not in cfg.rewards
+  assert "signed_height_progress" not in cfg.rewards
+  assert cfg.rewards["motion_ref_height"].weight == 2.5
+  assert cfg.rewards["motion_ref_height"].params["std"] == 0.05
 
   # The commanded-gait battery is gone with the state machine.
   for legacy in (
@@ -188,11 +177,14 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert cfg.rewards["termination_penalty"].weight == -500.0
 
   # Stall guard plus DeepMimic early termination; the gait disqualifications
-  # left with the command. minimum_progress 0.03/5s is the anti-farming
-  # executioner: partial tracking income while creeping at the old 1 cm/5 s
-  # threshold out-earned honest climbing's discovery phase.
+  # left with the command. 1.5 cm / 8 s (was 3 cm / 5 s): with the drive
+  # reference-locked there is no farmable stationary income left to execute,
+  # and the tight bar was killing the stance -> shift -> climb ladder
+  # (motionref7 learned "never truly latch" because standing properly was a
+  # death sentence).
   assert "no_progress" in cfg.terminations
-  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.03
+  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.015
+  assert cfg.terminations["no_progress"].params["stall_time_s"] == 8.0
   assert cfg.terminations["bad_tracking"].params["threshold"] == 0.7
   assert "gait_phase_timeout" not in cfg.terminations
   assert "gait_curriculum_success" not in cfg.terminations

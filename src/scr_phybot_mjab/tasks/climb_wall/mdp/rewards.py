@@ -230,6 +230,74 @@ def motion_scheduled_press_shaping(
   return (press * window.float()).sum(dim=-1)
 
 
+def motion_ref_height_tracking():
+  """Factory: exp kernel on (robot climb - reference climb) since settling.
+
+  The climbing DRIVE as an imitation term. Every free-standing height income
+  ("any rise pays, no questions asked") funded a reference-ignoring gait —
+  scramble, arms-only, legs-only — and each takeoff bought climb income with
+  falling schedule adherence. Here the money follows the ghost instead: the
+  reference's cumulative climb since this episode settled (``ref_root_pos_w``
+  accrues one step height per loop) is the target, and the payout decays as
+  the robot falls BEHIND or runs AHEAD of it symmetrically. RSI places the
+  robot exactly on the profile, so holding a proper stance and moving with
+  the ghost pays full from the first settled step — the honest path finally
+  has dense income. Bounded in (0, 1]: the per-step caps and budget
+  machinery of the free-standing terms have nothing left to guard.
+  """
+  state: dict[str, torch.Tensor | None] = {
+    "fresh": None,
+    "z_base": None,
+    "ref_base": None,
+  }
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    asset_cfg: SceneEntityCfg,
+    motion_command_name: str = "climb_motion",
+    std: float = 0.05,
+    settle_time_s: float = 0.5,
+  ) -> torch.Tensor:
+    asset: Entity = env.scene[asset_cfg.name]
+    z = asset.data.root_link_pos_w[:, 2]
+    motion = env.command_manager.get_term(motion_command_name)
+    ref_z = motion.ref_root_pos_w[:, 2]
+
+    if state["fresh"] is None or state["fresh"].shape != z.shape[:1]:
+      state["fresh"] = torch.zeros(
+        z.shape[0], dtype=torch.bool, device=z.device
+      )
+      state["z_base"] = z.clone()
+      state["ref_base"] = ref_z.clone()
+      return torch.ones_like(z)
+
+    fresh = state["fresh"]
+    z_base = state["z_base"]
+    ref_base = state["ref_base"]
+    assert z_base is not None and ref_base is not None
+    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+    initialize = fresh | settling
+    z_base = torch.where(initialize, z, z_base)
+    ref_base = torch.where(initialize, ref_z, ref_base)
+    state["z_base"] = z_base
+    state["ref_base"] = ref_base
+    fresh.zero_()
+
+    dh = (z - z_base) - (ref_z - ref_base)
+    return torch.exp(-(dh**2) / std**2)
+
+  def reset(env_ids=None) -> dict:
+    if state["fresh"] is None:
+      return {}
+    ids = slice(None) if env_ids is None else env_ids
+    state["fresh"][ids] = True
+    return {}
+
+  call.reset = reset  # type: ignore[attr-defined]
+  return call
+
+
 # ---------------------------------------------------------------------------
 # Task drive: height and velocity. These pay for actual climbing, independent
 # of how closely the motion is imitated.

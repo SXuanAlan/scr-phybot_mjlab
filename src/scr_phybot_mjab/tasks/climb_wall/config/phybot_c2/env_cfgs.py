@@ -385,42 +385,24 @@ def phybot_c2_climb_wall_env_cfg(
       weight=0.4,
       params={"command_name": motion_command_name, "regrip_lead_time_s": 0.3},
     ),
-    # -- task drive: pay for actual height, normalized by the commanded rate.
-    # The reference climbs in one 0.8 s burst per 4.3 s cycle (peak ~10x the
-    # average rate), so the per-step cap must clear the burst: 12 x average.
-    # The first 0.5 s follows the physically settled pose; reset sag and
-    # reset-time passive engagement earn nothing.
-    # rate_budget_scale 1.25 (added 2026-07-21): the per-step cap alone let a
-    # scramble gait bank 12x continuously — motionref1 climbed at 20x the
-    # commanded rate and height income (21.9/s) buried the whole imitation
-    # battery (1.4/s). The cumulative budget pays honest bursts from headroom
-    # banked in the cycle's non-climbing phases but rate-limits sustained
-    # overspeed to 1.25x the commanded climb distance.
-    "climb_height_progress": RewardTermCfg(
-      func=mdp.climb_height_progress(),
-      weight=2.0,
+    # -- task drive AS an imitation term (2026-07-24, motionref8): the climb
+    # income follows the ghost. The free-standing height rewards ("any rise
+    # pays") funded every reference-ignoring gait — scramble, arms-only,
+    # legs-only — and each takeoff bought climb income with falling schedule
+    # adherence; three rounds of caps (per-step, flat budget, ref-profile
+    # ceiling) were patches on that split incentive. Now the payout is an exp
+    # kernel on (robot climb - reference climb) since settling: full on the
+    # profile (where RSI places every episode), decaying symmetrically when
+    # falling behind OR running ahead. std 0.05 ~ one step height: a one-step
+    # lag still earns, a runaway scramble earns nothing.
+    "motion_ref_height": RewardTermCfg(
+      func=mdp.motion_ref_height_tracking(),
+      weight=2.5,
       params={
         "asset_cfg": robot_cfg_e,
-        "command_name": velocity_command_name,
-        "command_threshold": 0.01,
-        "max_normalized_progress": 12.0,
+        "motion_command_name": motion_command_name,
+        "std": 0.05,
         "settle_time_s": 0.5,
-        "rate_budget_scale": 1.25,
-      },
-    ),
-    # The signed term's upper cap is the reference itself (2026-07-22): net
-    # upward income may never exceed the height the clip has gained at this
-    # phase, so income tracks the schedule exactly — no flat-rate slack.
-    "signed_height_progress": RewardTermCfg(
-      func=mdp.signed_climb_height_progress(),
-      weight=0.5,
-      params={
-        "asset_cfg": robot_cfg_e,
-        "command_name": velocity_command_name,
-        "command_threshold": 0.01,
-        "max_normalized_progress": 12.0,
-        "settle_time_s": 0.5,
-        "reference_budget_command": motion_command_name,
       },
     ),
     "lateral_velocity_y_l2": RewardTermCfg(
@@ -524,13 +506,17 @@ def phybot_c2_climb_wall_env_cfg(
       "asset_cfg": robot_cfg_e,
       "command_name": velocity_command_name,
       "settle_time_s": 0.5,
-      "stall_time_s": 5.0,
-      # 0.03 (was 0.01): the anti-hack executioner against farming partial
-      # tracking income while creeping. 1 cm / 5 s let a creeper survive on
-      # 14% of the commanded rate (and graze past curriculum stage 0); the
-      # reference's worst honest 5 s window rises 5.9 cm, so 3 cm keeps a
-      # 2x margin for sloppy-but-real cycling.
-      "minimum_progress": 0.03,
+      # 8 s / 1.5 cm (was 5 s / 3 cm, motionref8): the tight executioner was
+      # the anti-farming backstop for the free-standing height income; with
+      # the drive now reference-locked (motion_ref_height) and the physics
+      # honest, a stationary schedule-true stance earns a decaying tracking
+      # payout instead of farmed income — but under the old bar it was a
+      # death sentence, which taught motionref7 to never truly latch ("stand
+      # properly, get executed"). The looser bar keeps culling genuinely
+      # stuck states while giving the stance -> shift -> climb ladder time
+      # to exist.
+      "stall_time_s": 8.0,
+      "minimum_progress": 0.015,
       "command_threshold": 0.01,
     },
   )
