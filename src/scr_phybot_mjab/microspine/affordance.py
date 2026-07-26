@@ -697,7 +697,15 @@ class MicrospineAffordance(CommandTerm):
     if self._sensor_row_perm is None:
       from scr_phybot_mjab.microspine.contact import get_sphere_geom_names
 
-      actual = [name.split("/")[-1] for name in sensor.primary_names]
+      names = getattr(sensor, "primary_names", None)
+      if names is None:
+        # Older ContactSensor API (this mjlab): row order lives in the
+        # slot list — one row per unique primary, in slot order
+        # (num_slots=1 for this sensor). Dedup preserves that order.
+        names = list(
+          dict.fromkeys(slot.primary_name for slot in sensor._slots)
+        )
+      actual = [name.split("/")[-1] for name in names]
       expected = list(get_sphere_geom_names(self._mcfg))
       try:
         perm = [actual.index(name) for name in expected]
