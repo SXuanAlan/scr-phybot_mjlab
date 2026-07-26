@@ -113,6 +113,14 @@ class MicrospineAffordance(CommandTerm):
     )
     self._executor = None
     self._gravity_view: torch.Tensor | None = None
+    # Sensor-row permutation: ContactSensor expands its primary pattern via
+    # find_geoms, which returns MODEL order (kinematic tree: feet before
+    # hands), NOT the pattern order this affordance's EE-major slicing
+    # assumes. Resolved by name on first read; identity when they agree.
+    # Without it the hand blocks read the FOOT sensors (retracted-to-zero
+    # while latched) and the press-force engage gate is judged on the
+    # wrong limb.
+    self._sensor_row_perm: torch.Tensor | None = None
     shape = (self.num_envs, self._num_ee)
     self.limit_f_t_max = torch.zeros(shape, device=self.device)
     self.limit_f_rev_max = torch.zeros(shape, device=self.device)
@@ -684,6 +692,26 @@ class MicrospineAffordance(CommandTerm):
         f"{tuple(force.shape)} does not match expected "
         f"({self.num_envs}, {expected_spheres}, 3)."
       )
+  def _sensor_row_permutation(self, sensor) -> torch.Tensor:
+    """Map the sensor's actual row order onto the EE-major sphere order."""
+    if self._sensor_row_perm is None:
+      from scr_phybot_mjab.microspine.contact import get_sphere_geom_names
+
+      actual = [name.split("/")[-1] for name in sensor.primary_names]
+      expected = list(get_sphere_geom_names(self._mcfg))
+      try:
+        perm = [actual.index(name) for name in expected]
+      except ValueError as exc:
+        raise ValueError(
+          f"Contact sensor '{self.cfg.contact_sensor_name}' rows "
+          f"{actual} cannot be mapped onto the expected sphere order "
+          f"{expected}."
+        ) from exc
+      self._sensor_row_perm = torch.tensor(
+        perm, dtype=torch.long, device=self.device
+      )
+    return self._sensor_row_perm
+
   def _sensor_contact_features(
     self,
   ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -695,19 +723,21 @@ class MicrospineAffordance(CommandTerm):
         "'found' and 'force' fields."
       )
 
-    found = data.found
+    perm = self._sensor_row_permutation(sensor)
+    found = data.found[:, perm]
     found_mask = found > 0
-    engage_force = data.force
+    engage_force = data.force[:, perm]
     if data.force_history is not None:
       # Average force history so one compression impulse cannot latch a spine.
-      engage_force = data.force_history.mean(dim=2)
+      force_history = data.force_history[:, perm]
+      engage_force = force_history.mean(dim=2)
       # MuJoCo 3.10 contacts can be created and resolved within a decimation
       # window. In that case the instantaneous ``found`` value is zero even
       # though the force history contains the compression that should be used
       # by the latch gate. The history length is configured to one policy step,
       # so treating any historical normal force as contact cannot leak across
       # steps.
-      found_mask |= (data.force_history[..., 0] > 0.0).any(dim=2)
+      found_mask |= (force_history[..., 0] > 0.0).any(dim=2)
 
     self._validate_sensor_shapes(found, engage_force)
 

@@ -8,8 +8,13 @@ from scr_phybot_mjab.microspine.affordance import MicrospineAffordance
 def test_resolved_substep_contact_is_recovered_from_force_history():
   term = object.__new__(MicrospineAffordance)
   term._num_ee = 1
-  term._mcfg = SimpleNamespace(spheres_per_ee_rows=1, spheres_per_ee_cols=2)
+  term._mcfg = SimpleNamespace(
+    spheres_per_ee_rows=1,
+    spheres_per_ee_cols=2,
+    ee_body_names=("paw",),
+  )
   term.cfg = SimpleNamespace(contact_sensor_name="contact")
+  term._sensor_row_perm = None
 
   force_history = torch.zeros(1, 2, 4, 3)
   force_history[0, 0, 1, 0] = 8.0
@@ -18,7 +23,8 @@ def test_resolved_substep_contact_is_recovered_from_force_history():
       found=torch.zeros(1, 2),
       force=torch.zeros(1, 2, 3),
       force_history=force_history,
-    )
+    ),
+    primary_names=["paw_c_0_0", "paw_c_0_1"],
   )
   term._env = SimpleNamespace(
     num_envs=1,
@@ -30,6 +36,43 @@ def test_resolved_substep_contact_is_recovered_from_force_history():
 
   torch.testing.assert_close(normal_force, torch.tensor([[2.0, 0.0]]))
   torch.testing.assert_close(found_count, torch.tensor([[1.0]]))
+
+
+def test_sensor_rows_permuted_to_ee_major_order():
+  """The ContactSensor expands primaries in MODEL order (find_geoms), not
+  pattern order — on the C2 that delivered [feet, hands] rows to an
+  affordance slicing [hands, feet]: the hand engage gate read the foot
+  sensors (zeroed while latched) and never fired."""
+  term = object.__new__(MicrospineAffordance)
+  term._num_ee = 2
+  term._mcfg = SimpleNamespace(
+    spheres_per_ee_rows=1,
+    spheres_per_ee_cols=1,
+    ee_body_names=("hand", "foot"),
+  )
+  term.cfg = SimpleNamespace(contact_sensor_name="contact")
+  term._sensor_row_perm = None
+
+  # Sensor rows arrive foot-first; the hand's 5 N press sits in row 1.
+  sensor = SimpleNamespace(
+    data=SimpleNamespace(
+      found=torch.tensor([[0.0, 1.0]]),
+      force=torch.tensor([[[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]]]),
+      force_history=None,
+    ),
+    primary_names=["robot/foot_c_0_0", "robot/hand_c_0_0"],
+  )
+  term._env = SimpleNamespace(
+    num_envs=1,
+    device="cpu",
+    scene={"contact": sensor},
+  )
+
+  normal_force, found_count = term._sensor_contact_features()
+
+  # EE-major order (hand, foot): the press must land on the HAND.
+  torch.testing.assert_close(normal_force, torch.tensor([[5.0, 0.0]]))
+  torch.testing.assert_close(found_count, torch.tensor([[1.0, 0.0]]))
 
 
 def test_sphere_geom_ids_resolve_per_ee_in_ee_major_order():
