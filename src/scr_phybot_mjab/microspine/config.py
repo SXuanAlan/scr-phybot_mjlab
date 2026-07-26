@@ -285,6 +285,17 @@ class MicrospineCfg:
   seated' judgement: a corner poke reaches ~0.2, a flat seat ~1.0. 0 disables
   the gate."""
 
+  engage_max_antirake_vel: float = 0.02
+  """Maximum pad velocity AGAINST the rake (m/s) allowed to latch.
+
+  Wang 2017 spines hook only under along-rake loading: a pad sliding
+  up-wall (backing off its rake) physically cannot catch. Without this
+  gate, a foot the body still stands on during a scheduled swing keeps
+  re-latching while it slides upward — and an RL policy can farm anchors
+  mid-scramble the hardware would never grant. Downward sliding and
+  stationary pads latch normally, so a falling pad still catches (the
+  microspine's whole point). ≤ 0 disables the gate."""
+
   seat_quality_scales_capacity: bool = True
   """Scale the wang2017 hold capacity F0 by the engaged spine fraction
   captured at the latch step. Wang et al. 2017 Sec 2.4: pad capacity is the

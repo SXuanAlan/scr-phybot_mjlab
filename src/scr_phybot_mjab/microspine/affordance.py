@@ -868,6 +868,16 @@ class MicrospineAffordance(CommandTerm):
       engage_condition &= (
         self.spine_fraction >= self._mcfg.engage_min_spine_fraction
       )
+    if self._mcfg.engage_max_antirake_vel > 0.0:
+      # Rake-direction gate (Wang 2017 §2): spines hook under along-rake
+      # loading only. A pad sliding against its rake (up-wall) cannot
+      # catch — pressing feet legitimately skid upward during a body
+      # pull-up, and must not farm anchors doing so. Stationary or
+      # down-sliding pads (a catch during a fall) latch normally.
+      t_hat, _, _ = self._engage_frame()
+      vel_w = self._asset.data.body_link_lin_vel_w[:, self._ee_body_ids, :]
+      v_rake = (vel_w * t_hat).sum(dim=-1)
+      engage_condition &= v_rake >= -self._mcfg.engage_max_antirake_vel
 
     was_engaged = self._engaged.clone()
     cooldown_active = self._cooldown_steps > 0
