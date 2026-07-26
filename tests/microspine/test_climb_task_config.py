@@ -134,6 +134,13 @@ def test_climb_reward_contract_is_deepmimic_split():
   # chain and must out-earn holding a parked limb still (motionref5).
   assert cfg.rewards["motion_ee_pos"].weight == 2.5
   assert cfg.rewards["motion_root_ori"].weight == 0.5
+  # 0.25 gate floor (motionref10): pose income is scaled by schedule
+  # adherence — the engagement-blind pose kernels were the welded statue's
+  # last income pillar (ref8/ref9 parked a diagonal at match~0.5 and lived
+  # off "looking right"). A quarter stays ungated so birth pose learning
+  # never starves; the gate reuses the mismatch bill's edge-grace ramp.
+  for gated in ("motion_joint_pos", "motion_ee_pos", "motion_root_ori"):
+    assert cfg.rewards[gated].params["engage_gate_floor"] == 0.25
   # Seat-phase step credit: pays pad press only inside the scheduled regrip
   # window (countdown-gated on the observed channel), stops at latch, and
   # its ceiling must stay strictly below the mismatch bill so pressing

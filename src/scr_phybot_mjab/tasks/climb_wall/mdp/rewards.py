@@ -111,15 +111,54 @@ def _motion(env: ManagerBasedRlEnv, command_name: str) -> "ClimbMotionCommand":
   return env.command_manager.get_term(command_name)
 
 
+def _engage_match_gate(
+  motion: "ClimbMotionCommand",
+  floor: float,
+  grace_time_s: float,
+) -> torch.Tensor:
+  """Schedule-adherence income gate in [floor, 1], per env.
+
+  The mirror of ``motion_engage_mismatch``: each EE's mismatch is priced by
+  the same edge-distance ramp the bill uses (near a scheduled flip it is
+  forgiven — instant compliance is physically impossible), and the gate is
+  1 - mean(billed mismatch), squeezed above ``floor``. Pose-tracking income
+  multiplied by this gate flows in full only while the latch pattern follows
+  the chart; a limb-welding statue keeps at most ``floor`` + its accidental
+  match share. The floor keeps early pose learning funded (RSI births start
+  fully matched, so the gradient toward keeping the match exists from step
+  one).
+  """
+  mismatch = (motion.ref_engaged != motion.robot_engaged).float()
+  if grace_time_s > 0.0:
+    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
+    mismatch = mismatch * (edge_seconds / grace_time_s).clamp(max=1.0)
+  match = 1.0 - mismatch.mean(dim=-1)
+  return floor + (1.0 - floor) * match
+
+
 def motion_joint_pos_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.2,
+  engage_gate_floor: float | None = None,
+  engage_gate_grace_s: float = 0.25,
 ) -> torch.Tensor:
-  """exp kernel on the mean squared clip-joint angle error (rad)."""
+  """exp kernel on the mean squared clip-joint angle error (rad).
+
+  With ``engage_gate_floor`` the payout is scaled by the schedule-adherence
+  gate (see ``_engage_match_gate``): looking right only pays in full while
+  gripping right — the statue's engagement-blind pose income was the last
+  exploit pillar (motionref9: welded diagonal tracked the near-stance cycle
+  at ~0.09 rad forever while ignoring the latch chart).
+  """
   motion = _motion(env, command_name)
   error = (motion.ref_joint_pos - motion.robot_joint_pos).square().mean(dim=-1)
-  return torch.exp(-error / std**2)
+  reward = torch.exp(-error / std**2)
+  if engage_gate_floor is not None:
+    reward = reward * _engage_match_gate(
+      motion, engage_gate_floor, engage_gate_grace_s
+    )
+  return reward
 
 
 def motion_joint_vel_error_exp(
@@ -137,29 +176,39 @@ def motion_ee_pos_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.1,
+  engage_gate_floor: float | None = None,
+  engage_gate_grace_s: float = 0.25,
 ) -> torch.Tensor:
   """exp kernel on root-frame end-effector position error (m).
 
   Root-relative on both sides, so this shapes the limb geometry of the cycle
   (reach, swing arcs) without ever pinning the base to the clip's world
-  trajectory.
+  trajectory. ``engage_gate_floor``: see ``_engage_match_gate``.
   """
   motion = _motion(env, command_name)
   error = (
     (motion.ref_ee_pos_r - motion.robot_ee_pos_r).square().sum(dim=-1).mean(dim=-1)
   )
-  return torch.exp(-error / std**2)
+  reward = torch.exp(-error / std**2)
+  if engage_gate_floor is not None:
+    reward = reward * _engage_match_gate(
+      motion, engage_gate_floor, engage_gate_grace_s
+    )
+  return reward
 
 
 def motion_root_ori_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.3,
+  engage_gate_floor: float | None = None,
+  engage_gate_grace_s: float = 0.25,
 ) -> torch.Tensor:
   """exp kernel on the root orientation geodesic error (rad).
 
   Orientation only — the reference base tilts and rights itself through the
   hand swings, and that posture is part of the motion. Position stays free.
+  ``engage_gate_floor``: see ``_engage_match_gate``.
   """
   from mjlab.utils.lab_api.math import quat_error_magnitude
 
@@ -167,7 +216,12 @@ def motion_root_ori_error_exp(
   error = quat_error_magnitude(
     motion.ref_root_quat_w, motion.robot_root_quat_w
   ).square()
-  return torch.exp(-error / std**2)
+  reward = torch.exp(-error / std**2)
+  if engage_gate_floor is not None:
+    reward = reward * _engage_match_gate(
+      motion, engage_gate_floor, engage_gate_grace_s
+    )
+  return reward
 
 
 def motion_engage_mismatch(

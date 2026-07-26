@@ -330,10 +330,22 @@ def phybot_c2_climb_wall_env_cfg(
   robot_cfg_e = SceneEntityCfg("robot")
   cfg.rewards = {
     # -- motion imitation (positive tracking income, BeyondMimic exp kernel).
+    # engage_gate_floor 0.25 (motionref10): pose income multiplied by the
+    # schedule-adherence gate — "looking right" pays in full only while
+    # "gripping right". The engagement-blind pose kernels were the welded
+    # statue's last income pillar (ref8/ref9 both parked a diagonal at
+    # match~0.5 and lived off pose tracking; the cycle's poses never leave
+    # stance far enough for the statue to lose the kernel). Floor keeps a
+    # quarter of the income ungated so birth pose learning never starves;
+    # the gate uses the same edge-distance grace ramp as the mismatch bill.
     "motion_joint_pos": RewardTermCfg(
       func=mdp.motion_joint_pos_error_exp,
       weight=2.0,
-      params={"command_name": motion_command_name, "std": 0.2},
+      params={
+        "command_name": motion_command_name,
+        "std": 0.2,
+        "engage_gate_floor": 0.25,
+      },
     ),
     "motion_joint_vel": RewardTermCfg(
       func=mdp.motion_joint_vel_error_exp,
@@ -348,12 +360,20 @@ def phybot_c2_climb_wall_env_cfg(
     "motion_ee_pos": RewardTermCfg(
       func=mdp.motion_ee_pos_error_exp,
       weight=2.5,
-      params={"command_name": motion_command_name, "std": 0.1},
+      params={
+        "command_name": motion_command_name,
+        "std": 0.1,
+        "engage_gate_floor": 0.25,
+      },
     ),
     "motion_root_ori": RewardTermCfg(
       func=mdp.motion_root_ori_error_exp,
       weight=0.5,
-      params={"command_name": motion_command_name, "std": 0.3},
+      params={
+        "command_name": motion_command_name,
+        "std": 0.3,
+        "engage_gate_floor": 0.25,
+      },
     ),
     # The clip's engage schedule replaces the old commanded-gait machinery:
     # a latch state disagreeing with the reference phase costs per step.

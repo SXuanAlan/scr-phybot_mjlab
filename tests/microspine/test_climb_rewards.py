@@ -458,3 +458,45 @@ def test_engage_event_metric_counts_affordance_regrips_not_reset_anchors():
   )
 
   assert microspine_engage_events(env).tolist() == pytest.approx([50.0, 0.0])
+
+
+def test_engage_gate_scales_pose_income_by_schedule_adherence():
+  # Zero pose error -> the kernel is 1.0 and the returned value IS the gate.
+  ref = torch.tensor([[0.1, -0.4, 0.8]])
+
+  def motion_with(match_pattern, edge_frac):
+    return SimpleNamespace(
+      ref_joint_pos=ref,
+      robot_joint_pos=ref.clone(),
+      ref_engaged=torch.tensor([[True, True, True, True]]),
+      robot_engaged=torch.tensor([match_pattern]),
+      ref_edge_distance=torch.full((1, 4), edge_frac),
+      cycle_time_s=4.0,
+    )
+
+  # Full match -> full pay.
+  env = _make_motion_env(motion_with([True, True, True, True], 0.5))
+  assert motion_joint_pos_error_exp(
+    env, engage_gate_floor=0.25
+  ).item() == pytest.approx(1.0)
+
+  # Half the limbs welded off-schedule, far from any edge: match 0.5 ->
+  # gate = 0.25 + 0.75 * 0.5 (the statue keeps 62.5%, not 100%).
+  env = _make_motion_env(motion_with([True, True, False, False], 0.5))
+  assert motion_joint_pos_error_exp(
+    env, engage_gate_floor=0.25
+  ).item() == pytest.approx(0.625)
+
+  # Same mismatch right at a scheduled flip (edge 0.125 s of a 0.25 s
+  # grace): half forgiven -> billed 0.25 -> gate 0.8125. Same ramp as the
+  # mismatch bill: physically impossible instant compliance is not taxed.
+  env = _make_motion_env(
+    motion_with([True, True, False, False], 0.125 / 4.0)
+  )
+  assert motion_joint_pos_error_exp(
+    env, engage_gate_floor=0.25, engage_gate_grace_s=0.25
+  ).item() == pytest.approx(0.25 + 0.75 * 0.75)
+
+  # Gate disabled (default None): mismatch does not touch pose income.
+  env = _make_motion_env(motion_with([False, False, False, False], 0.5))
+  assert motion_joint_pos_error_exp(env).item() == pytest.approx(1.0)
