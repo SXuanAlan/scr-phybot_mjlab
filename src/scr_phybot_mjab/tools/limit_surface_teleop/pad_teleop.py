@@ -41,6 +41,7 @@ class PadTeleop:
         Kp_task: float = 300.0,
         Dtask_hover: float = 60.0,
         hover_dist: float = 0.08,
+        cfg_hook=None,
     ):
         # OSC gains (tunable): the null-space is damping-only (Kd_null) — no
         # posture stiffness, so redundancy is free to drift but never fights the
@@ -94,6 +95,10 @@ class PadTeleop:
                 setattr(owner.limit_surface, attr, (v, v))
         cfg.scene.num_envs = 1
         cfg.episode_length_s = 1.0e9
+        # Last word on the config before the env compiles: bench studies
+        # (grace/re-seat calibration, DR sweeps) override fields here.
+        if cfg_hook is not None:
+            cfg_hook(cfg)
         self.env = ManagerBasedRlEnv(cfg=cfg, device=device)
         self.affordance = self.env.command_manager._terms["microspine_affordance"]
         self.executor = self.env.event_manager.get_term_cfg("microspine_grip").func

@@ -356,6 +356,28 @@ class MicrospineCfg:
   """Weld torquescale (eq_data[10]): scales rotational residuals into the
   constraint impedance. Used only when ``anchor_lock_rotation``."""
 
+  anchor_reseat_mode: str = "down"
+  """Grace-window re-seat behavior when ``reanchor_after_grace`` is on.
+
+  "free" (legacy): the anchor follows the settled pad in all six DOF each
+  grace step. Tuned when latched pads still had live wall contacts to fight
+  (grace 6 -> 31% engage survival, 14 -> 100%); with contacts now retracted
+  at latch that standoff is gone, and free following became a drift license
+  — the press->hang load flip dragged hand anchors 12-44 mm outward before
+  the weld froze (motionref12 probe), something real hooked spines cannot
+  do.
+
+  "down": the anchor follows only the pad's down-the-wall rake component,
+  ``anchor_reseat_step_cap`` per step, orientation frozen at the engage
+  frame. This is the honest Wang 2017 seating motion — spines seat by
+  dragging down into asperities; they never relocate outward, upward or
+  sideways. The anchor also stays in the wall plane (the rake direction is
+  in-plane), killing the hovering-pad visual."""
+
+  anchor_reseat_step_cap: float = 0.001
+  """Per-step cap [m] on the "down" re-seat follow (~real spine seating
+  travel per control step; total drift bounded by cap * grace steps)."""
+
   anchor_project_to_wall: bool = True
   """Project the engage-time anchor point onto the wall surface plane.
 

@@ -356,6 +356,28 @@ class MicrospineConstraint:
     ).sum(dim=-1, keepdim=True)
     return points - offset * inward.unsqueeze(1)
 
+  def _down_wall_dir(self) -> torch.Tensor:
+    """Down-the-wall rake direction, (E, 1, 3): gravity projected in-plane.
+
+    Mirrors the affordance's gravity-mode engage frame (t-hat), with the same
+    world -z fallback when gravity is wall-normal.
+    """
+    import warp as wp
+
+    n_in = _wall_inward_normal_w(self._env, self._mcfg.wall_entity_name)
+    g = wp.to_torch(self._env.sim.wp_model.opt.gravity)
+    if g.shape[0] != n_in.shape[0]:
+      g = g.expand(n_in.shape[0], -1)
+    t = g - (g * n_in).sum(dim=-1, keepdim=True) * n_in
+    norm = torch.linalg.norm(t, dim=-1, keepdim=True)
+    fb = torch.tensor(
+      [0.0, 0.0, -1.0], device=n_in.device
+    ).expand_as(t)
+    fb = fb - (fb * n_in).sum(dim=-1, keepdim=True) * n_in
+    fb = fb / torch.linalg.norm(fb, dim=-1, keepdim=True).clamp_min(1.0e-6)
+    t = torch.where(norm > 1.0e-6, t / norm.clamp_min(1.0e-9), fb)
+    return t.unsqueeze(1)
+
   # ---------------------------------------------------------------------
   # Anchor load readout (consumed by the affordance's limit surface).
   # ---------------------------------------------------------------------
@@ -488,10 +510,30 @@ class MicrospineConstraint:
     capture = rising
     if self._mcfg.reanchor_after_grace:
       reseat = continuing & (self._engage_age <= self._reseat_max_age)
-      self.anchor_pos_w = torch.where(
-        reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w
-      )
-      capture = capture | reseat
+      if self._mcfg.anchor_reseat_mode == "down":
+        # Spines seat by dragging DOWN the wall into asperities (Wang 2017
+        # engagement); hooks never relocate outward, upward or sideways.
+        # Follow only the pad's down-rake motion component, a capped step at
+        # a time, orientation frozen at the engage frame. There is no
+        # contact standoff left to walk out — latched pads' spheres are
+        # retracted — so the press preload simply lands as anchor
+        # compression, which the limit surface treats as free.
+        t_hat = self._down_wall_dir()
+        follow = (
+          ((pad_raw - self.anchor_pos_w) * t_hat)
+          .sum(dim=-1, keepdim=True)
+          .clamp(min=0.0, max=self._mcfg.anchor_reseat_step_cap)
+        )
+        self.anchor_pos_w = torch.where(
+          reseat.unsqueeze(-1),
+          self.anchor_pos_w + follow * t_hat,
+          self.anchor_pos_w,
+        )
+      else:  # "free" (legacy all-DOF following)
+        self.anchor_pos_w = torch.where(
+          reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w
+        )
+        capture = capture | reseat
     eq_data = self._env.sim.model.eq_data
     if self._lock_rotation:
       pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]

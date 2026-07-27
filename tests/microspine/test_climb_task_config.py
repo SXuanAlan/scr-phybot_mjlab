@@ -51,6 +51,17 @@ def test_climb_microspine_contract_and_command_ordering():
   # switch off while latched (kills the anchor-vs-contact oscillation that
   # let motionref6's 90-deg feet-hang ride through the release debounce).
   assert microspine.disable_contacts_while_latched is True
+  # "down" (was free-follow): during the grace window the anchor follows
+  # only the pad's down-rake seating motion, 1 mm/step, orientation frozen
+  # at engage — hooked spines seat by dragging down (Wang 2017), they never
+  # relocate outward (free-follow let the press->hang flip drag hand
+  # anchors 12-44 mm off the wall). Bench 9-grid (07-27): survival 8/8 in
+  # every window x mode combo (retraction killed the old contact standoff
+  # that free-follow was for), outward drift 0.0 mm in "down" vs 5 mm
+  # free, down-drag follow 3.7 mm <= cap under 60 N rake shear.
+  assert microspine.anchor_reseat_mode == "down"
+  assert microspine.anchor_reseat_step_cap == 0.001
+  assert microspine.reanchor_after_grace is True
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and
   # seeds the per-env latch state AFTER the affordance's own reset ran.
