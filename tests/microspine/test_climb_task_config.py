@@ -220,17 +220,21 @@ def test_climb_curriculum_is_fixed_iteration_gravity_schedule():
   runner_cfg = phybot_c2_ppo_runner_cfg()
 
   # No performance gate: graduation-by-height let a 20x-overspeed scramble
-  # promote 45->75 deg in 400 iterations (motionref1). Each angle now gets a
-  # fixed 3000-iteration residence. Three rungs with +-5 deg per-episode
-  # randomization (2026-07-22) replace the dedicated 75 rung; the vertical
-  # stage runs exactly 90 (jitter above 90 would mean overhangs).
+  # promote 45->75 deg in 400 iterations (motionref1). Fixed-iteration rungs
+  # stay; the ladder is compressed and regains a 75-deg rung (motionref12):
+  # post-sensor-fix the policy saturates 45 in ~550 iters and steps 45->60
+  # with zero shock, while the 60-trained policy probed at 90 ripped 65% of
+  # its releases — pre-unload must be learned on a slope, not off a cliff.
+  # The vertical stage runs exactly 90 (jitter above 90 would mean
+  # overhangs) and owns iters 3000-12000.
   assert "climb_difficulty" not in cfg.curriculum
   term = cfg.curriculum["gravity_angle"]
   stages = term.params["angle_stages"]
   assert [(stage["iter"], stage["angle_deg"]) for stage in stages] == [
     (0, 45.0),
-    (3000, 60.0),
-    (6000, 90.0),
+    (600, 60.0),
+    (1500, 75.0),
+    (3000, 90.0),
   ]
   assert term.params["angle_jitter_deg"] == 5.0
   # The iteration clock derives from common_step_counter; it must match the

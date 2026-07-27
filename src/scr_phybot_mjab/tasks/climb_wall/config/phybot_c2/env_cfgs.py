@@ -621,10 +621,20 @@ def phybot_c2_climb_wall_env_cfg(
     "gravity_angle": CurriculumTermCfg(
       func=mdp.gravity_angle,
       params={
+        # Compressed + refined ladder (motionref12). With the sensor fix the
+        # policy saturates 45 deg in ~550 iters (motionref11: refh 2.49/2.5
+        # by iter 541) and stepped 45->60 with literally zero shock, so the
+        # old 3000-iter rungs were mostly idle. The new 75-deg rung exists
+        # because the 60-trained policy probed at 90 ripped 65% of its
+        # releases (tension/lateral/ultimate) dying every ~2 s: pre-unload
+        # and hand-tension management must be learned on a slope, not off a
+        # cliff. Jitter (+-5) covers 55-65 and 70-80, leaving only a 10-deg
+        # gap into the exact-90 final stage, which now owns 9000 iters.
         "angle_stages": [
           {"iter": 0, "angle_deg": 45.0},
-          {"iter": 3000, "angle_deg": 60.0},
-          {"iter": 6000, "angle_deg": 90.0},
+          {"iter": 600, "angle_deg": 60.0},
+          {"iter": 1500, "angle_deg": 75.0},
+          {"iter": 3000, "angle_deg": 90.0},
         ],
         "steps_per_iter": 96,
         "angle_jitter_deg": 5.0,
