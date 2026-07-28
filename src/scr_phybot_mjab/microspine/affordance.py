@@ -164,6 +164,10 @@ class MicrospineAffordance(CommandTerm):
     # and the per-latch capacity scale captured from it at the engage step.
     self.spine_fraction = torch.zeros(shape, device=self.device)
     self._seat_scale = torch.ones(shape, device=self.device)
+    # Spine recruitment charge [s]: rake-shear-loaded time since this latch
+    # engaged. Capacity ramps capacity_ramp_floor -> 1 as it fills (young
+    # anchors are weak, not immune). Seeded latches start fully charged.
+    self._seat_charge = torch.zeros(shape, device=self.device)
     self._spine_corner_body_ids: torch.Tensor | None = None
     self._spine_sphere_radius: float | None = None
     self._wall_geom_id: int | None = None
@@ -265,6 +269,7 @@ class MicrospineAffordance(CommandTerm):
     # pads flat by construction, and kinematics may not have refreshed the
     # just-written reset pose yet, so a live fraction here could be stale.
     self._seat_scale[env_ids] = 1.0
+    self._seat_charge[env_ids] = self._ls_cfg.capacity_ramp_time_s
     self._sync_latched_contact_margins()
 
   def _sync_latched_contact_margins(self) -> None:
@@ -342,6 +347,13 @@ class MicrospineAffordance(CommandTerm):
     self.pad_press_force[env_ids] = 0.0
     self.spine_fraction[env_ids] = 0.0
     self._seat_scale[env_ids] = 1.0
+    # Initially-engaged (reset-mask) latches are mature grips; anything else
+    # starts uncharged.
+    self._seat_charge[env_ids] = torch.where(
+      self._engaged[env_ids],
+      torch.full_like(self._seat_charge[env_ids], self._ls_cfg.capacity_ramp_time_s),
+      torch.zeros_like(self._seat_charge[env_ids]),
+    )
     self.forced_release_this_step[env_ids] = False
     self.engaged_this_step[env_ids] = False
     self.release_reason[env_ids] = 0
@@ -427,8 +439,10 @@ class MicrospineAffordance(CommandTerm):
     )
 
     # The constraint only produces force one decimation after engaging, so
-    # give fresh engagements a few steps of grace before hold checks apply.
-    in_grace = self._steps_since_engage < self._ls_cfg.hold_grace_steps
+    # hold checks wait exactly the readout settling. There is no immunity
+    # window beyond that: young anchors are judged weak (capacity ramp), not
+    # exempt.
+    in_grace = self._steps_since_engage < self._ls_cfg.hold_judge_guard_steps
     active = self._engaged & ~in_grace
     soft_violation = active & soft_cond
     self._violation_count = torch.where(
@@ -497,6 +511,14 @@ class MicrospineAffordance(CommandTerm):
       # partially seated latch scales the whole closed surface down by the
       # spine fraction captured at its engage step.
       f0 = f0 * self._seat_scale
+    if ls.capacity_ramp_time_s > 0.0:
+      # Recruitment ramp: a fresh latch holds capacity_ramp_floor of its
+      # seated capacity and charges to 1 with shear-loaded time. Replaces
+      # the unjudged grace window — young anchors are weak, not immune.
+      ramp = ls.capacity_ramp_floor + (1.0 - ls.capacity_ramp_floor) * (
+        self._seat_charge / ls.capacity_ramp_time_s
+      ).clamp(0.0, 1.0)
+      f0 = f0 * ramp
     ratio = capacity_ratio(self._wang_lut, f_t, f_l, f_n)
     cap = f0 * ratio.clamp_min(ls.wang_r_floor)
     load_mag = torch.sqrt(f_t**2 + f_l**2 + tension**2)
@@ -953,6 +975,32 @@ class MicrospineAffordance(CommandTerm):
         disengage_transition,
         torch.ones_like(self._seat_scale),
         self._seat_scale,
+      )
+    if self._ls_cfg.capacity_ramp_time_s > 0.0:
+      # Recruitment: rake-shear-loaded time charges the young anchor toward
+      # full capacity (dragging the loaded array seats more spines). Fresh
+      # transitions restart from zero; releases clear.
+      shear_loaded = self._engaged & (
+        self.anchor_load_tnl[..., 0] >= self._ls_cfg.capacity_ramp_shear_n
+      )
+      self._seat_charge = torch.where(
+        shear_loaded,
+        self._seat_charge + self._env.step_dt,
+        self._seat_charge,
+      )
+      self._seat_charge = torch.where(
+        engage_transition | disengage_transition,
+        torch.zeros_like(self._seat_charge),
+        self._seat_charge,
+      )
+    if self._ls_cfg.redraw_f_t_max_per_latch:
+      # Every grip is a fresh asperity lottery: redraw F0 for the just-
+      # latched pads (paper Fig 6; a collapsed DR range redraws the same
+      # value, keeping the bench deterministic).
+      lo, hi = self._ls_cfg.f_t_max_range
+      draw = lo + (hi - lo) * torch.rand_like(self.limit_f_t_max)
+      self.limit_f_t_max = torch.where(
+        engage_transition, draw, self.limit_f_t_max
       )
     self._engage_count = engage_count
     # After an engage transition, clear its counter.

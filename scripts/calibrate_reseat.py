@@ -103,8 +103,51 @@ def run_combo(t, aff, ex, window: int, grace_load) -> dict:
   }
 
 
+def run_gentle_and_yank(t, aff) -> dict:
+  """Recruitment-era contracts (motionref14).
+
+  Gentle protocol: latch -> 0.3 s of 40 N rake shear (charging the young
+  anchor) -> 1 s hand load (60, 0, 15). Must survive.
+  Yank protocol: latch -> immediate 30 N pull-off tension. A young anchor
+  (floor capacity, no shear charge -> tension budget ~ r_floor) MUST rip:
+  yanking fresh grips is no longer free.
+  """
+  gentle_ok = yank_ripped = gentle_n = yank_n = 0
+  for _ in range(CYCLES):
+    if not press_until_latched(t, aff):
+      continue
+    gentle_n += 1
+    ok = True
+    for _ in range(15):
+      if t.apply((40.0, 0.0, 0.0)).released:
+        ok = False
+        break
+    if ok:
+      for _ in range(HOLD_STEPS):
+        if t.apply((60.0, 0.0, 15.0)).released:
+          ok = False
+          break
+    gentle_ok += int(ok)
+    force_release(t, aff)
+  for _ in range(CYCLES):
+    if not press_until_latched(t, aff):
+      continue
+    yank_n += 1
+    ripped = False
+    for _ in range(25):  # 0.5 s of immediate tension on the fresh anchor
+      if t.apply((0.0, 0.0, 30.0)).released:
+        ripped = True
+        break
+    yank_ripped += int(ripped)
+    force_release(t, aff)
+  return {
+    "gentle": (gentle_ok, gentle_n),
+    "yank": (yank_ripped, yank_n),
+  }
+
+
 def main():
-  print("== grid: 30 N pull-off tension during grace (the press->hang flip) ==")
+  print("== grid: 40 N rake shear during the reseat window (charging load) ==")
   print(
     f"{'win':>4} {'mode':>5} | {'eng':>5} {'srv':>5} | "
     f"{'total mm p50/max':>16} | {'outward mm p50/max':>18}"
@@ -117,7 +160,7 @@ def main():
         t.affordance,
         t.executor,
         window,
-        (0.0, 0.0, 30.0),
+        (40.0, 0.0, 0.0),
       )
       print(
         f"{window:>4} {mode:>5} | {r['engaged']:>2}/{CYCLES:<2} "
@@ -128,13 +171,22 @@ def main():
       )
       t.env.close()
 
-  print("== sanity: 60 N down-shear during grace, window 8, mode down ==")
+  print("== sanity: 60 N down-shear during reseat window, window 8, mode down ==")
   t = make_bench(8, "down")
   r = run_combo(t, t.affordance, t.executor, 8, (60.0, 0.0, 0.0))
   print(
     f"  engaged {r['engaged']}/{CYCLES} survived {r['survived']}/{CYCLES} "
     f"down-drift p50/max = {r['down'][0]:.1f}/{r['down'][1]:.1f} mm "
     f"(cap = 8 mm), outward p50 = {r['out'][0]:.1f} mm"
+  )
+  t.env.close()
+
+  print("== recruitment contracts (default config): gentle survives, yank rips ==")
+  t = make_bench(14, "down")
+  r = run_gentle_and_yank(t, t.affordance)
+  print(
+    f"  gentle-protocol survival {r['gentle'][0]}/{r['gentle'][1]} (want all)  |  "
+    f"fresh-anchor yank ripped {r['yank'][0]}/{r['yank'][1]} (want all)"
   )
   t.env.close()
 

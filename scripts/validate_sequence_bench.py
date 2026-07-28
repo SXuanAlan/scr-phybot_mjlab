@@ -17,6 +17,17 @@ t = PadTeleop(device="cuda:0")
 lut = torch.tensor(t.limit_params["lut"])
 F0 = t.limit_params["f0"]; RFLOOR = t.limit_params["r_floor"]
 
+def charge_anchor(t, steps=15, shear=40.0):
+  """Recruitment-era seating: a fresh latch holds only the ramp floor until
+  shear-loaded (motionref14). Charge it so threshold tests probe the MATURE
+  envelope, which is what the fig8/LUT predictions describe."""
+  for _ in range(steps):
+    r = t.apply((shear, 0.0, 0.0))
+    if r.released:
+      return False
+  return True
+
+
 def cap_along(d):
   r = float(capacity_ratio(lut, torch.tensor(d[0]), torch.tensor(d[1]), torch.tensor(d[2])))
   return F0 * max(r, RFLOOR)
@@ -38,6 +49,8 @@ for cyc in range(12):
     t.home(); t.press_engage()
     if not bool(t.affordance.engaged[0, 0].item()):
       engage_fail += 1; continue
+  if not charge_anchor(t):
+    engage_fail += 1; continue
   retract_ok = sphere_state() > 0.04
   margins = []
   for _ in range(30):
@@ -74,6 +87,7 @@ th = np.linspace(0, 180, 361)
 rr = np.array([cap_along((np.cos(np.radians(a)), np.sin(np.radians(a)), 0.0)) for a in th])
 pred = float(th[np.argmax(rr < 100.0)])
 t.home(); t.press_engage()
+charge_anchor(t)
 rel_az = None
 for a in np.arange(0.0, 181.0, 0.25):
   F = (100.0 * np.cos(np.radians(a)), 100.0 * np.sin(np.radians(a)), 0.0)
@@ -89,6 +103,7 @@ print(f"  -> {'OK' if b_ok else 'FAIL'}")
 
 print("== C. command jitter ==")
 t.home(); t.press_engage()
+charge_anchor(t)
 releases = 0
 for i in range(300):
   lat = 80.0 if (i // 5) % 2 == 0 else -80.0

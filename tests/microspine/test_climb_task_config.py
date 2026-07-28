@@ -62,6 +62,20 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.anchor_reseat_mode == "down"
   assert microspine.anchor_reseat_step_cap == 0.001
   assert microspine.reanchor_after_grace is True
+  # False (motionref14): hooked spines hold the pad where it gripped —
+  # projecting the anchor onto the wall plane while the pad sat compressed
+  # into it caused the 4-11 mm post-engage pop once contacts retracted.
+  assert microspine.anchor_project_to_wall is False
+  # The unjudged grace window is gone (judge guard = readout settling only);
+  # young anchors are WEAK instead of immune: capacity ramps 0.3 -> 1 over
+  # 0.25 s of rake-shear-loaded time (Wang loading-phase recruitment), and
+  # every latch redraws F0 (per-grip asperity lottery, paper Fig 6).
+  assert microspine.limit_surface.hold_judge_guard_steps == 2
+  assert microspine.limit_surface.capacity_ramp_floor == 0.3
+  assert microspine.limit_surface.capacity_ramp_time_s == 0.25
+  assert microspine.limit_surface.capacity_ramp_shear_n == 10.0
+  assert microspine.limit_surface.redraw_f_t_max_per_latch is True
+  assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and
   # seeds the per-env latch state AFTER the affordance's own reset ran.

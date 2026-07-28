@@ -130,15 +130,48 @@ class MicrospineLimitSurfaceCfg:
   wang_lut_phi_bins: int = 91
   """Elevation bins (0..90 deg) of the precomputed capacity table."""
 
+  hold_judge_guard_steps: int = 2
+  """Policy steps after an engage transition before hold checks apply — ONLY
+  the constraint-force readout settling (the equality produces force one
+  decimation late, so the load reads zero on the engage step itself).
+
+  2 (was hold_grace_steps=14 doing this job): the unjudged window is gone —
+  a young anchor is judged from its first real load reading, it is simply
+  WEAK until seated (``capacity_ramp_*`` below). The old 14-step immunity
+  let policies yank fresh anchors for free, which reality does not."""
+
+  capacity_ramp_floor: float = 0.3
+  """Fresh-anchor capacity fraction at the engage step. Spine recruitment
+  starts partial — only the spines that caught during the press are loaded;
+  a just-latched pad is real but weak (Wang 2017: capacity is the sum of
+  CAUGHT spines, and catching continues through the loading phase)."""
+
+  capacity_ramp_time_s: float = 0.25
+  """Rake-shear-loaded seconds to full capacity. Recruitment progresses only
+  while the anchor carries rake shear (>= ``capacity_ramp_shear_n``):
+  dragging the loaded array down its asperities seats more spines (the
+  paper's loading phase). An anchor never loaded in shear stays partially
+  recruited indefinitely — as it should. Seeded (RSI) latches start fully
+  charged (the reference stance is a mature grip). 0 disables the ramp."""
+
+  capacity_ramp_shear_n: float = 10.0
+  """Rake-shear threshold [N] above which recruitment time accumulates."""
+
+  redraw_f_t_max_per_latch: bool = True
+  """Resample F0 from ``f_t_max_range`` at every engage transition. Each
+  grip lands on different asperities — capacity is a per-GRIP lottery
+  (paper Fig 6), not a per-episode trait the policy can memorize. The
+  reset-time draw still seeds initial latches; a collapsed range (bench)
+  redraws the same value, keeping bench determinism."""
+
   hold_grace_steps: int = 14
-  """Policy steps after an engage transition before hold checks apply. The
-  constraint only produces force on the next decimation loop, so the load is
-  zero on the engage step itself. The window doubles as the re-grip seating
-  phase (``MicrospineCfg.reanchor_after_grace``): each grace step re-seats the
-  anchor at the settled pad, walking pose preload out to the structural
-  equilibrium. Empirically (90° spawn-pose hang) convergence needs >10
-  rounds: grace 6 → 31% engaged / mass releases, 10 → 93%, 14 → 100% with
-  hold margins 0.2-0.8. 14 steps = 0.28 s of seating, the upper end of
+  """Re-seat window length in policy steps (the judging role moved to
+  ``hold_judge_guard_steps``). During this window the anchor may follow the
+  pad per ``MicrospineCfg.anchor_reseat_mode`` ("down": rake-direction
+  seating creep only). Historical note — the free-follow era sized this by
+  engage survival (grace 6 → 31%, 10 → 93%, 14 → 100%); under retraction
+  the 9-grid recalibration (07-27) shows survival 8/8 at every window, so
+  the length now only bounds the seating creep: 14 steps = 0.28 s, the
   physical spine engagement times; a fresh engagement is unkillable for that
   window. Its equality can carry transient load inside each policy interval,
   but the next re-seat discards accumulated anchor error, so it has no fixed
@@ -378,13 +411,17 @@ class MicrospineCfg:
   """Per-step cap [m] on the "down" re-seat follow (~real spine seating
   travel per control step; total drift bounded by cap * grace steps)."""
 
-  anchor_project_to_wall: bool = True
+  anchor_project_to_wall: bool = False
   """Project the engage-time anchor point onto the wall surface plane.
 
-  Without this, anchoring a pad that slightly penetrates the wall (spawn
-  pose, or pressing in before engaging) locks the penetration in: the wall
-  contact pushes the pad out against the anchor and the constraint reads a
-  phantom pull-off tension, tripping the limit surface."""
+  False (was True): hooked spines hold the pad exactly where it gripped —
+  projection moved the anchor onto the plane while the pad sat compressed
+  a few mm INTO it, so the moment the contacts retracted the weld snapped
+  the pad outward (the 4-11 mm post-engage pop measured on motionref13).
+  The original phantom-tension rationale died with retraction: there is no
+  live contact left to push the pad against the anchor while latched. The
+  pad simply stays at its (mm-compressed) grip pose; on release the
+  restored contacts see the same latch-era compression they always did."""
 
   reanchor_after_grace: bool = True
   """Re-seat the anchor at the settled pad during the grace window ("re-grip").
