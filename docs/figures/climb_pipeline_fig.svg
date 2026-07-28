@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 622" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    text { font-family: Helvetica, Arial, sans-serif; fill: #232A31; }
+    .ttl { font-size: 24px; font-weight: 700; }
+    .sub { font-size: 15px; fill: #5C6670; }
+    .bt  { font-size: 17px; font-weight: 700; }
+    .bt2 { font-size: 16px; font-weight: 700; }
+    .bl  { font-size: 15.5px; }
+    .sm  { font-size: 14.5px; fill: #55606A; }
+    .smi { font-size: 14px; fill: #55606A; font-style: italic; }
+    .cap { font-size: 15px; font-weight: 700; fill: #1B5A66; letter-spacing: 1.5px; }
+    .amb { font-size: 14.5px; fill: #A66008; font-weight: 600; }
+    .bnum { font-size: 13px; font-weight: 700; fill: #FFFFFF; text-anchor: middle; }
+    .ctr { text-anchor: middle; }
+    .box { fill: #FFFFFF; stroke: #5B6770; stroke-width: 1.5; }
+    .simbox { fill: #E3ECEE; stroke: #22707E; stroke-width: 1.5; }
+    .forcebox { fill: #E9F2F3; stroke: #22707E; stroke-width: 1.8; }
+    .flow { stroke: #37474F; stroke-width: 2; fill: none; }
+    .priv { stroke: #7A868E; stroke-width: 1.8; fill: none; stroke-dasharray: 6 5; }
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#37474F"/>
+    </marker>
+    <marker id="ahg" markerWidth="9" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7A868E"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1800" height="622" fill="#FFFFFF"/>
+
+  <!-- ================= Panel (a): scripted expert ================= -->
+  <rect x="10" y="12" width="620" height="576" rx="10" fill="#EFF4F5" stroke="#C9CFCC"/>
+  <text x="30" y="46" class="ttl">(a)  Scripted expert — WBC + QP base</text>
+
+  <!-- control loop row -->
+  <rect x="30" y="80" width="130" height="80" rx="6" class="box"/>
+  <text x="95" y="108" class="bt2 ctr">Event-gated</text>
+  <text x="95" y="128" class="bt2 ctr">phase clock</text>
+  <text x="95" y="150" class="sm ctr" font-size="13.5">freeze on mismatch</text>
+
+  <rect x="180" y="80" width="130" height="80" rx="6" class="box"/>
+  <text x="245" y="112" class="bt2 ctr">Contact QP</text>
+  <text x="245" y="136" class="sm ctr">λ*, α*, CoM ref</text>
+
+  <rect x="330" y="80" width="132" height="80" rx="6" class="box"/>
+  <text x="396" y="112" class="bt2 ctr">Kinematic WBC</text>
+  <text x="396" y="136" class="sm ctr">weighted-LS q̇</text>
+
+  <rect x="480" y="80" width="130" height="80" rx="6" class="box"/>
+  <text x="545" y="108" class="bt2 ctr">Joint targets</text>
+  <text x="545" y="128" class="bt2 ctr">q_d</text>
+  <text x="545" y="150" class="sm ctr">→ PD servo</text>
+
+  <line x1="162" y1="120" x2="176" y2="120" class="flow" marker-end="url(#ah)"/>
+  <line x1="312" y1="120" x2="326" y2="120" class="flow" marker-end="url(#ah)"/>
+  <line x1="464" y1="120" x2="478" y2="120" class="flow" marker-end="url(#ah)"/>
+
+  <!-- into sim -->
+  <line x1="545" y1="160" x2="545" y2="192" class="flow" marker-end="url(#ah)"/>
+  <rect x="30" y="196" width="580" height="54" rx="6" class="simbox"/>
+  <text x="320" y="228" class="bl ctr">Simulation — MuJoCo · virtual microspine field (Wang limit surface)</text>
+
+  <!-- privileged feedback -->
+  <line x1="80" y1="194" x2="80" y2="164" class="priv" marker-end="url(#ahg)"/>
+  <text x="98" y="184" class="sm">privileged state: engaged · F_press · hold margin γ · wall pose</text>
+
+  <!-- force-controlled transitions -->
+  <line x1="170" y1="250" x2="170" y2="276" class="flow" marker-end="url(#ah)"/>
+  <line x1="470" y1="250" x2="470" y2="276" class="flow" marker-end="url(#ah)"/>
+  <text x="320" y="270" class="smi ctr">contact-force feedback</text>
+
+  <rect x="30" y="280" width="280" height="72" rx="6" class="forcebox"/>
+  <text x="44" y="303" class="bt2">Force-controlled seat</text>
+  <text x="44" y="325" class="sm">δ̇ = k_f (F* − F_press),  F* = 6 N</text>
+  <text x="44" y="345" class="smi">converges to a force, not a depth</text>
+
+  <rect x="330" y="280" width="280" height="72" rx="6" class="forcebox"/>
+  <text x="344" y="303" class="bt2">Force-controlled release</text>
+  <text x="344" y="325" class="sm">QP pre-unload → up-wall push ladder</text>
+  <text x="344" y="345" class="smi">envelope opens as reverse shear</text>
+
+  <line x1="170" y1="352" x2="170" y2="374" class="flow" marker-end="url(#ah)"/>
+  <line x1="470" y1="352" x2="470" y2="374" class="flow" marker-end="url(#ah)"/>
+
+  <!-- outputs -->
+  <rect x="30" y="378" width="580" height="132" rx="6" class="box"/>
+  <text x="50" y="404" class="cap">EXPERT OUTPUTS — DISTILLATION DATA</text>
+  <text x="50" y="432" class="bl">• demonstrations: state–action rollouts of full regrip cycles</text>
+  <text x="50" y="457" class="bl">• load-share reference α*(φ) from the stance QP (offline table)</text>
+  <text x="50" y="482" class="bl">• per-step commands: contact schedule c(φ) · λ* · F_press</text>
+
+  <text x="320" y="548" class="smi ctr">replaces the OSC teacher — same interface, a tenth of the machinery</text>
+
+  <!-- fat arrow a -> b -->
+  <polygon points="632,434 674,434 674,425 698,444 674,463 674,454 632,454" fill="#22707E" fill-opacity="0.33"/>
+
+  <!-- ================= Panel (b): distillation ================= -->
+  <rect x="700" y="12" width="510" height="576" rx="10" fill="#F6F4EF" stroke="#C9CFCC"/>
+  <text x="720" y="46" class="ttl">(b)  Privileged → proprio distillation</text>
+  <text x="720" y="68" class="sub">entirely in simulation — no hardware in the loop</text>
+
+  <!-- actor obs -->
+  <rect x="720" y="90" width="230" height="190" rx="6" class="box"/>
+  <text x="734" y="114" class="bt2">Actor observations</text>
+  <text x="734" y="140" class="sm">q, q̇, gravity, action history</text>
+  <text x="734" y="162" class="sm">engage state, spine fraction,</text>
+  <text x="734" y="184" class="sm">cooldown timer</text>
+  <circle cx="744" cy="208" r="10" fill="#B4690E"/>
+  <text x="744" y="213" class="bnum">1</text>
+  <text x="760" y="213" class="amb">contact command c_t</text>
+  <text x="734" y="236" class="amb">(per-limb 0/1) + time-to-edge</text>
+
+  <!-- policy -->
+  <rect x="1000" y="110" width="190" height="90" rx="6" class="box"/>
+  <text x="1095" y="148" class="bt ctr">Student policy π_θ</text>
+  <text x="1095" y="172" class="sm ctr">joint position targets</text>
+  <line x1="952" y1="155" x2="996" y2="155" class="flow" marker-end="url(#ah)"/>
+
+  <!-- rollout loop -->
+  <path d="M 1095,200 V 320 H 835 V 286" class="flow" marker-end="url(#ah)"/>
+  <text x="965" y="344" class="sm ctr">rollouts in the same simulation</text>
+  <text x="965" y="363" class="sm ctr">+ domain randomization</text>
+
+  <!-- learning signals -->
+  <rect x="720" y="375" width="470" height="140" rx="6" class="box"/>
+  <text x="740" y="399" class="cap">LEARNING SIGNALS</text>
+  <text x="740" y="426" class="bl">BC / DAgger on expert demonstrations</text>
+  <text x="740" y="450" class="bl">existing battery: imitation · hold margin · safety</text>
+  <circle cx="748" cy="470" r="10" fill="#B4690E"/>
+  <text x="748" y="475" class="bnum">2</text>
+  <text x="764" y="475" class="amb">seat: force-tracking reward on |F_press − F*|</text>
+  <text x="740" y="499" class="smi">critic-only privileged: hold margin γ · anchor loads λ</text>
+
+  <line x1="1140" y1="373" x2="1140" y2="204" class="flow" marker-end="url(#ah)"/>
+  <text x="1148" y="295" class="sm">∇θ</text>
+
+  <text x="955" y="548" class="smi ctr">no real-robot data anywhere in the loop</text>
+
+  <!-- fat arrow b -> c -->
+  <polygon points="1212,434 1254,434 1254,425 1278,444 1254,463 1254,454 1212,454" fill="#22707E" fill-opacity="0.33"/>
+
+  <!-- ================= Panel (c): curriculum & gates ================= -->
+  <rect x="1280" y="12" width="510" height="576" rx="10" fill="#F1F4F0" stroke="#C9CFCC"/>
+  <text x="1300" y="46" class="ttl">(c)  Curriculum &amp; evaluation gates</text>
+  <text x="1300" y="68" class="sub">one new mechanism per generation</text>
+
+  <rect x="1300" y="90" width="470" height="72" rx="6" class="box"/>
+  <text x="1314" y="114" class="bt2">Gen 1 — switch on the interface</text>
+  <circle cx="1322" cy="140" r="10" fill="#B4690E"/>
+  <text x="1322" y="145" class="bnum">1</text>
+  <text x="1338" y="145" class="amb">contact commands in obs</text>
+  <circle cx="1548" cy="140" r="10" fill="#B4690E"/>
+  <text x="1548" y="145" class="bnum">2</text>
+  <text x="1564" y="145" class="amb">force-based seating</text>
+
+  <line x1="1535" y1="162" x2="1535" y2="180" class="flow" marker-end="url(#ah)"/>
+  <text x="1548" y="176" class="sm" font-size="13.5">gate: fingerprints green</text>
+
+  <rect x="1300" y="184" width="470" height="108" rx="6" class="box"/>
+  <text x="1314" y="208" class="bt2">Gen 2 — make the command real</text>
+  <circle cx="1322" cy="234" r="10" fill="#B4690E"/>
+  <text x="1322" y="239" class="bnum">3</text>
+  <text x="1338" y="239" class="amb">schedule perturbation: edge-time jitter,</text>
+  <text x="1338" y="261" class="amb">forced release → commanded re-engage</text>
+  <text x="1314" y="285" class="sm">RL fine-tune: slip · re-engage · recovery</text>
+
+  <line x1="1535" y1="292" x2="1535" y2="310" class="flow" marker-end="url(#ah)"/>
+
+  <rect x="1300" y="314" width="470" height="64" rx="6" class="box"/>
+  <text x="1314" y="338" class="bt2">Gen 3 — contact quality</text>
+  <circle cx="1322" cy="360" r="10" fill="#B4690E"/>
+  <text x="1322" y="365" class="bnum">4</text>
+  <text x="1338" y="365" class="amb">touchdown impact penalty on peak F_press</text>
+
+  <line x1="1535" y1="378" x2="1535" y2="396" class="flow" marker-end="url(#ah)"/>
+
+  <rect x="1300" y="400" width="470" height="120" rx="6" fill="#E9F2F3" stroke="#22707E" stroke-width="1.8" stroke-dasharray="7 5"/>
+  <circle cx="1322" cy="426" r="10" fill="#B4690E"/>
+  <text x="1322" y="431" class="bnum">5</text>
+  <text x="1338" y="431" class="cap">EVALUATION — EVERY GENERATION</text>
+  <text x="1314" y="458" class="bl">engage precision / recall vs. commanded schedule</text>
+  <text x="1314" y="482" class="bl">touchdown peak-force distribution</text>
+  <text x="1314" y="506" class="bl">hold-margin fingerprints (engage_raster)</text>
+
+  <!-- iterate return -->
+  <path d="M 1420,520 V 604 H 957 V 592" class="priv" marker-end="url(#ahg)"/>
+  <text x="1190" y="598" class="sm ctr">next generation — fresh run</text>
+</svg>
