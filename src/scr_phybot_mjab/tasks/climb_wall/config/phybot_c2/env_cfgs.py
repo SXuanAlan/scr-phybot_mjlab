@@ -641,13 +641,14 @@ def phybot_c2_climb_wall_env_cfg(
       # stuck states while giving the stance -> shift -> climb ladder time
       # to exist.
       "stall_time_s": 8.0,
-      # 10 mm / 8 s = 18% of the fast clip's commanded rate — between
-      # ref12's relative bar (15 mm vs 13.4 mm/s command = 14%) and the old
-      # absolute bar (15 mm = 26% of 7.1 mm/s), so an early learner at a
-      # third of the ghost rate is not executed mid-ladder (the motionref7
-      # trap) while the measured cycle-in-place basin (2-4 mm / 8 s) still
-      # dies with >2x margin.
-      "minimum_progress": 0.010,
+      # 7 mm / 8 s = 12% of the fast clip's commanded rate (ref12's relative
+      # bar was 14%). Lowered from 10 mm at motionref16 iter 800: the
+      # population plateaued at ~644-step episodes — clearing one 10 mm rung
+      # then stalling into execution, unable to CHAIN rungs. 7 mm sits in
+      # the gap between the measured cycle-in-place basin (2-4 mm / 8 s,
+      # still dies with ~2x margin) and the single-rung ability the grind
+      # had already reached.
+      "minimum_progress": 0.007,
       # 0.003 (was 0.01): the activation gate compares the commanded climb
       # rate, and the moment-safe clip dropped that to 4.84 mm/s (fast clip
       # 7.1 mm/s) — both UNDER the old 10 mm/s bar, silently disarming the

@@ -248,10 +248,11 @@ def test_climb_reward_contract_is_deepmimic_split():
   # (motionref7 learned "never truly latch" because standing properly was a
   # death sentence).
   assert "no_progress" in cfg.terminations
-  # 18% of the commanded rate — see env_cfgs: strict enough to execute the
-  # measured cycle-in-place basin, loose enough not to execute early
-  # learners a third of the way up the ladder.
-  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.010
+  # 12% of the commanded rate — see env_cfgs: strict enough to execute the
+  # measured cycle-in-place basin (2-4 mm / 8 s), loose enough that the
+  # iter-800 single-rung population can chain rungs instead of dying at 644
+  # steps.
+  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.007
   assert cfg.terminations["no_progress"].params["stall_time_s"] == 8.0
   # The activation gate must sit BELOW the commanded climb rate or the
   # executioner is silently disarmed (the 10 mm/s bar vs the moment-safe
