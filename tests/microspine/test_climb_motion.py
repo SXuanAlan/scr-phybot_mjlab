@@ -41,6 +41,7 @@ def _synthetic_clip(fps: float = 50.0) -> dict:
     "fps": np.float32(fps),
     "ee_list": ["lh", "rh", "lf", "rf"],
     "ee_positions": ee_positions.astype(np.float32),
+    "ee_anchor_positions": ee_positions.astype(np.float32),
     "ee_engaged": ee_engaged,
     "phase_segment": np.array([0, 0, 0, 0, 1, 1], dtype=np.uint8),
     "segment_names": ["hold", "end_hold"],

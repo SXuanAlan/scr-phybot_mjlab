@@ -165,6 +165,8 @@ class MicrospineAffordance(CommandTerm):
     self.anchor_moment_tnl = torch.zeros_like(self.anchor_load_tnl)
     self.anchor_effective_load_tnl = torch.zeros_like(self.anchor_load_tnl)
     self.hold_margin = torch.ones(shape, device=self.device)
+    # Force-only margin (moment billing excluded); see _limit_surface_release.
+    self.hold_margin_raw = torch.ones(shape, device=self.device)
     self.forced_release_this_step = torch.zeros(
       shape, dtype=torch.bool, device=self.device
     )
@@ -371,6 +373,7 @@ class MicrospineAffordance(CommandTerm):
     self.anchor_moment_tnl[env_ids] = 0.0
     self.anchor_effective_load_tnl[env_ids] = 0.0
     self.hold_margin[env_ids] = 1.0
+    self.hold_margin_raw[env_ids] = 1.0
     self.face_cos[env_ids] = 0.0
     self.contact_count[env_ids] = 0.0
     self.pad_press_force[env_ids] = 0.0
@@ -484,12 +487,20 @@ class MicrospineAffordance(CommandTerm):
       margin, soft_cond, instant_cond, reason = self._wang_envelope(
         f_t_eff, f_l_eff, f_n_eff
       )
+      # Force-only margin (moment billing excluded): the gap to the billed
+      # margin is the moment tax, and a release with margin_raw > 0 was
+      # caused by the moment fold alone. Diagnostics (engage_raster) only.
+      margin_raw = self._wang_margin(f_t, f_l, f_n)
     else:
       margin, soft_cond, instant_cond, reason = self._wedge_envelope(
         f_t_eff, f_l_eff, f_n_eff
       )
+      margin_raw = margin
     self.hold_margin = torch.where(
       self._engaged, margin, torch.ones_like(margin)
+    )
+    self.hold_margin_raw = torch.where(
+      self._engaged, margin_raw, torch.ones_like(margin_raw)
     )
 
     # The constraint only produces force one decimation after engaging, so
@@ -547,18 +558,9 @@ class MicrospineAffordance(CommandTerm):
     instant_cond = ~c_ultimate
     return margin, soft_cond, instant_cond, reason
 
-  def _wang_envelope(
-    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
-  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Closed Wang-2017 surface: (margin, soft, instant, reason).
-
-    Radial test: the load magnitude |(f_t, f_l, f_n+)| must stay inside the
-    direction-dependent capacity F0 * max(R(theta, phi), r_floor), F0 drawn
-    from ``f_t_max_range``. Compression rides the contacts and is clamped
-    out of the tension component.
-    """
+  def _wang_capacity_f0(self) -> torch.Tensor:
+    """Per-latch F0 with seat quality and recruitment scaling applied."""
     ls = self._ls_cfg
-    tension = f_n.clamp_min(0.0)
     f0 = self.limit_f_t_max
     if self._mcfg.seat_quality_scales_capacity:
       # Wang 2017 Sec 2.4: pad capacity sums per-spine contributions, so a
@@ -573,11 +575,33 @@ class MicrospineAffordance(CommandTerm):
         self._seat_charge / ls.capacity_ramp_time_s
       ).clamp(0.0, 1.0)
       f0 = f0 * ramp
+    return f0
+
+  def _wang_margin(
+    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
+  ) -> torch.Tensor:
+    """Normalized signed envelope distance for one load triple."""
+    ls = self._ls_cfg
+    tension = f_n.clamp_min(0.0)
+    f0 = self._wang_capacity_f0()
     ratio = capacity_ratio(self._wang_lut, f_t, f_l, f_n)
     cap = f0 * ratio.clamp_min(ls.wang_r_floor)
     load_mag = torch.sqrt(f_t**2 + f_l**2 + tension**2)
     # Normalized signed distance: ~1 unloaded, 0 on the surface, < 0 outside.
-    margin = (cap - load_mag) / (cap + ls.wang_margin_eps * f0)
+    return (cap - load_mag) / (cap + ls.wang_margin_eps * f0)
+
+  def _wang_envelope(
+    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Closed Wang-2017 surface: (margin, soft, instant, reason).
+
+    Radial test: the load magnitude |(f_t, f_l, f_n+)| must stay inside the
+    direction-dependent capacity F0 * max(R(theta, phi), r_floor), F0 drawn
+    from ``f_t_max_range``. Compression rides the contacts and is clamped
+    out of the tension component.
+    """
+    tension = f_n.clamp_min(0.0)
+    margin = self._wang_margin(f_t, f_l, f_n)
     violation = margin < 0.0
 
     # Reason codes keep the wedge semantics used by rewards/HUD: 1 = reverse
@@ -936,6 +960,7 @@ class MicrospineAffordance(CommandTerm):
       self.anchor_moment_tnl.zero_()
       self.anchor_effective_load_tnl.zero_()
       self.hold_margin.fill_(1.0)
+      self.hold_margin_raw.fill_(1.0)
       self.forced_release_this_step.zero_()
       self.release_reason.zero_()
       self._seat_scale.fill_(1.0)

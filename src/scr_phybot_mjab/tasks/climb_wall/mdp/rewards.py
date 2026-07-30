@@ -306,6 +306,62 @@ def _toe_sensor_row_perm(sensor, toe_geom_names: tuple[str, ...]) -> "torch.Tens
   return perm
 
 
+def motion_anchor_landing():
+  """Factory: pay each scheduled latch by landing accuracy on the anchor ladder.
+
+  The shape rewards are deliberately root-relative and the engage gate only
+  checks latch TIMING, so a policy can execute the whole regrip cycle in
+  place — releasing and re-latching each pad at its old spot — and still
+  collect nearly every imitation term (the measured iter-1400 basin: match
+  0.98, net climb ~20% of the ghost). This term closes that hole with the
+  one channel none of them read: WHERE the pad lands. On an engage rising
+  edge inside that EE's scheduled window it pays
+  ``exp(-(|anchor - ref_anchor|/std)^2)`` once — the reference anchor ladder
+  climbs one step height per cycle, so landing at the old spot (30 mm short)
+  earns ~0.37 at std 0.03 while the scheduled rung pays 1.0.
+
+  Anti-farming: one payment per (EE, schedule window), cleared only when the
+  reference window closes — release-and-relatch inside a window collects
+  nothing extra (and still pays the mismatch/unsafe-release bills).
+  Off-schedule latches never pay.
+  """
+  state: dict[str, torch.Tensor | None] = {"paid": None}
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    command_name: str = "climb_motion",
+    std: float = 0.03,
+  ) -> torch.Tensor:
+    motion = _motion(env, command_name)
+    affordance = motion._affordance()
+    executor = affordance._get_executor()
+    ref_on = motion.ref_engaged
+    paid = state["paid"]
+    if paid is None or paid.shape != ref_on.shape:
+      paid = torch.zeros_like(ref_on)
+    # A window already open at spawn (RSI seeds the latch mid-window) is
+    # marked PAID: its honest play is "stay latched" with no landing event,
+    # so leaving it eligible would pay a release-and-relatch churn (+0.8
+    # gross vs ~0.26 of mismatch bill at these weights). Eligibility starts
+    # at each EE's first fresh window.
+    fresh = (env.episode_length_buf <= 1).unsqueeze(-1)
+    paid = torch.where(fresh, affordance._engaged & ref_on, paid)
+    paid = paid & ref_on  # window closed -> eligibility restored
+    landed = affordance.engaged_this_step & ref_on & ~paid
+    # The executor captures the weld anchor one step after the latch
+    # decision, so judge the CURRENT pad center — the exact point the
+    # capture will pin next step (anchor projection is off in this task).
+    error = (
+      executor.pad_center_world() - motion.ref_anchor_pos_w
+    ).norm(dim=-1)
+    pay = torch.exp(-(error / std) ** 2)
+    state["paid"] = paid | landed
+    return (pay * landed.float()).sum(dim=-1)
+
+  return call
+
+
 def motion_toe_brace_match(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",

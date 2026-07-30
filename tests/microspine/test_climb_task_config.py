@@ -201,7 +201,14 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert "climb_height_progress" not in cfg.rewards
   assert "signed_height_progress" not in cfg.rewards
   assert cfg.rewards["motion_ref_height"].weight == 2.5
-  assert cfg.rewards["motion_ref_height"].params["std"] == 0.05
+  # 0.83 step heights of the 30 mm clip — the ratio the term was designed at
+  # (0.05 vs the old 60 mm step). See env_cfgs for the iter-1400 basin data.
+  assert cfg.rewards["motion_ref_height"].params["std"] == 0.025
+  # Landing accuracy on the anchor ladder: the anti-dance term. Ceiling
+  # (4 landings / 4.24 s cycle x weight x dt) must stay below the tracking
+  # income scale so farmed landings can never dominate real climbing.
+  assert cfg.rewards["motion_anchor_landing"].weight == 40.0
+  assert cfg.rewards["motion_anchor_landing"].params["std"] == 0.03
 
   # The commanded-gait battery is gone with the state machine.
   for legacy in (
@@ -241,8 +248,17 @@ def test_climb_reward_contract_is_deepmimic_split():
   # (motionref7 learned "never truly latch" because standing properly was a
   # death sentence).
   assert "no_progress" in cfg.terminations
-  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.015
+  # 18% of the commanded rate — see env_cfgs: strict enough to execute the
+  # measured cycle-in-place basin, loose enough not to execute early
+  # learners a third of the way up the ladder.
+  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.010
   assert cfg.terminations["no_progress"].params["stall_time_s"] == 8.0
+  # The activation gate must sit BELOW the commanded climb rate or the
+  # executioner is silently disarmed (the 10 mm/s bar vs the moment-safe
+  # clip's 4.84 mm/s let cycling-in-place survive full episodes).
+  assert cfg.terminations["no_progress"].params["command_threshold"] == 0.003
+  clip_vz = float(cfg.commands["climb_velocity"].ranges.lin_vel_z[0])
+  assert clip_vz > cfg.terminations["no_progress"].params["command_threshold"]
   assert cfg.terminations["bad_tracking"].params["threshold"] == 0.7
   assert "gait_phase_timeout" not in cfg.terminations
   assert "gait_curriculum_success" not in cfg.terminations

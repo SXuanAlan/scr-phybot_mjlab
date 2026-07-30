@@ -44,7 +44,14 @@ TASK = "Mjlab-Climb-Wall-Phybot-C2"
 CKPT = Path(sys.argv[1]).resolve()
 ANGLE = float(sys.argv[2]) if len(sys.argv) > 2 else 90.0
 STEPS = int(sys.argv[3]) if len(sys.argv) > 3 else 1500
-PREFIX = Path(sys.argv[4]) if len(sys.argv) > 4 else Path("engage_raster")
+if len(sys.argv) > 4:
+  PREFIX = Path(sys.argv[4])
+else:
+  # Default: archive under the checkpoint's own run, e.g.
+  # logs/eval/<run_name>/raster_45deg_model_1400.
+  run_name = CKPT.parent.name
+  PREFIX = REPO / "logs" / "eval" / run_name / f"raster_{ANGLE:.0f}deg_{CKPT.stem}"
+PREFIX.parent.mkdir(parents=True, exist_ok=True)
 REASON_NAMES = {1: "reverse-shear(free)", 2: "tension", 3: "lateral", 4: "ultimate"}
 
 device = "cuda:0"
@@ -110,6 +117,7 @@ ref = np.zeros((STEPS, 4), dtype=bool)
 forced = np.zeros((STEPS, 4), dtype=bool)
 reason = np.zeros((STEPS, 4), dtype=np.int8)
 margin = np.ones((STEPS, 4), dtype=np.float32)
+margin_raw = np.ones((STEPS, 4), dtype=np.float32)
 tau = np.zeros((STEPS, n_act), dtype=np.float32)
 gain = np.zeros(STEPS, dtype=np.float32)
 resets = []
@@ -122,6 +130,7 @@ with torch.no_grad():
     forced[t] = aff.forced_release_this_step[0].bool().cpu().numpy()
     reason[t] = aff.release_reason[0].cpu().numpy()
     margin[t] = aff.hold_margin[0].float().cpu().numpy()
+    margin_raw[t] = aff.hold_margin_raw[0].float().cpu().numpy()
     tau[t] = robot.data.actuator_force[0].float().cpu().numpy()
     gain[t] = float(motion.height_gained[0].item())
     if bool(dones[0]):
@@ -156,6 +165,14 @@ hist = {
   REASON_NAMES[rid]: int((forced & (reason == rid)).sum()) for rid in (1, 2, 3, 4)
 }
 print(f"forced-release reasons: {hist}")
+# Moment attribution: the envelope judged moment-billed EFFECTIVE loads; a
+# release whose force-only margin was still positive was caused by the
+# moment fold alone (billed edge prying, not raw force overload).
+moment_caused = forced & (margin_raw > 0.0)
+print(
+  f"moment-billed releases (force-only margin still positive): "
+  f"{int(moment_caused.sum())}"
+)
 for i, n in enumerate(names):
   m = margin[pol[:, i], i]
   if len(m):
@@ -187,23 +204,34 @@ time_s = np.arange(STEPS) * dt
 fig, axes = plt.subplots(2, 1, figsize=(16, 6.5), sharex=True, constrained_layout=True)
 margin_cmap = plt.get_cmap("RdYlGn")
 margin_norm = Normalize(vmin=0.0, vmax=1.0)
-# Policy panel: latch bars heat-colored by the hold margin — the closer an
-# anchor sits to the limit surface (margin -> 0), the redder its bar.
+# Policy panel: each latch bar is split into two lanes. The top lane is the
+# FORCE-ONLY hold margin (moment billing excluded); the bottom lane is the
+# BILLED margin the release logic actually judges (forces + worst-edge
+# moment fold). A bottom lane visibly redder than its top lane means the
+# moment tax is eating that anchor's headroom — the moment margin is
+# exactly the bottom lane's remaining green.
 for i in range(4):
-  rgba = margin_cmap(margin_norm(np.clip(margin[:, i], 0.0, 1.0)))
-  rgba[:, 3] = np.where(pol[:, i], 0.95, 0.0)
-  axes[0].imshow(
-    rgba[None, :, :],
-    aspect="auto",
-    interpolation="nearest",
-    extent=(0.0, STEPS * dt, i + 0.38, i - 0.38),
-    zorder=1,
-  )
+  for lane, (values, y_hi, y_lo) in enumerate(
+    (
+      (margin_raw[:, i], i - 0.38, i - 0.02),
+      (margin[:, i], i + 0.02, i + 0.38),
+    )
+  ):
+    rgba = margin_cmap(margin_norm(np.clip(values, 0.0, 1.0)))
+    rgba[:, 3] = np.where(pol[:, i], 0.95, 0.0)
+    axes[0].imshow(
+      rgba[None, :, :],
+      aspect="auto",
+      interpolation="nearest",
+      extent=(0.0, STEPS * dt, y_lo, y_hi),
+      zorder=1,
+    )
 axes[0].set_title(
-  f"policy  {CKPT.name} @ {ANGLE:.0f}°   (bar color = hold margin, "
-  "red = near failure; ▾ = forced release, colored by type)",
+  f"policy  {CKPT.name} @ {ANGLE:.0f}°   (per row: top lane = force-only "
+  "margin, bottom lane = billed margin incl. moment fold — bottom redder "
+  "than top = moment tax; ▾ = forced release by type, ◆ = moment-billed)",
   loc="left",
-  fontsize=11,
+  fontsize=10,
 )
 for i in range(4):
   e = ref[:, i].astype(int)
@@ -242,6 +270,22 @@ for rid, (color, _label) in REASON_STYLE.items():
       axes[0].plot(
         ts * dt, np.full(len(ts), i - 0.45), "v", color=color, ms=4, ls="none"
       )
+# Moment-billed releases (force-only margin still positive at the kill step):
+# the moment fold alone pushed the anchor out — overplotted as diamonds so
+# they stand out from whatever direction code the effective load landed on.
+for i in range(4):
+  ts = np.where(moment_caused[:, i])[0]
+  if len(ts):
+    axes[0].plot(
+      ts * dt,
+      np.full(len(ts), i - 0.45),
+      "D",
+      color="#212529",
+      ms=4.5,
+      ls="none",
+      markerfacecolor="none",
+      markeredgewidth=1.4,
+    )
 legend_handles = [
   Line2D(
     [], [], marker="v", color=color, ls="none", ms=5,
@@ -249,6 +293,13 @@ legend_handles = [
   )
   for rid, (color, label) in REASON_STYLE.items()
 ]
+legend_handles.append(
+  Line2D(
+    [], [], marker="D", color="#212529", ls="none", ms=5,
+    markerfacecolor="none", markeredgewidth=1.4,
+    label=f"moment-billed  ×{int(moment_caused.sum())}",
+  )
+)
 axes[0].legend(
   handles=legend_handles, loc="upper right", fontsize=8, ncol=2, framealpha=0.9
 )

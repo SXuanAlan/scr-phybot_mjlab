@@ -162,6 +162,7 @@ class ClimbMotionClip:
   ee_edge_times: torch.Tensor  # (C, H, 2) countdown to next release/regrip
   ee_edge_distance: torch.Tensor  # (C, H) |time| to the NEAREST edge
   toe_braced: torch.Tensor  # (C, 2) bool: foot-toe wall brace schedule
+  ee_anchor_pos: torch.Tensor  # (C, H, 3) scheduled anchor, clip world frame
 
   @classmethod
   def from_file(
@@ -209,6 +210,10 @@ class ClimbMotionClip:
       if "toe_braced" in data
       else np.zeros((engaged.shape[0], 2), dtype=bool)
     )
+    # Scheduled anchor positions (clip world frame): the weld target while
+    # engaged, the upcoming landing target while swinging. Consumed by the
+    # landing-accuracy reward.
+    ee_anchor = np.asarray(data["ee_anchor_positions"], dtype=np.float64)
     labels = np.asarray(data["phase_segment"])
     cycles = np.asarray(data["cycle_index"])
 
@@ -225,6 +230,7 @@ class ClimbMotionClip:
       ee_pos = _lerp_frames(ee_pos, pos)
       engaged = _nearest_frames(engaged, pos)
       toe_braced = _nearest_frames(toe_braced, pos)
+      ee_anchor = _lerp_frames(ee_anchor, pos)
       labels = _nearest_frames(labels, pos)
       cycles = _nearest_frames(cycles, pos)
 
@@ -295,6 +301,7 @@ class ClimbMotionClip:
       ee_edge_times=_t(future.astype(np.float32) / cycle),
       ee_edge_distance=_t(edge_distance),
       toe_braced=_t(toe_braced[:cycle], dtype=torch.bool),
+      ee_anchor_pos=_t(ee_anchor[:cycle]),
     )
 
 
@@ -413,6 +420,15 @@ class ClimbMotionCommand(CommandTerm):
     """Scheduled foot-toe wall-brace flags, (E, 2) in PHYBOT_C2_FOOT_TOES
     order (left foot, right foot)."""
     return self.clip.toe_braced[self.time_steps]
+
+  @property
+  def ref_anchor_pos_w(self) -> torch.Tensor:
+    """Scheduled anchor positions in sim world coordinates, (E, H, 3).
+
+    Clip-frame anchors shifted by the per-env root offset (env origin plus
+    the accumulated per-loop step height), i.e. exactly the ghost's anchor
+    ladder. While an EE swings this is its upcoming landing target."""
+    return self.clip.ee_anchor_pos[self.time_steps] + self.root_offset.unsqueeze(1)
 
   @property
   def ref_edge_distance(self) -> torch.Tensor:

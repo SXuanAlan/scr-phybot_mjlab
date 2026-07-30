@@ -77,7 +77,10 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
 
 
 _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
-_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle_moment_safe.npy"
+# Timing-compressed toe-brace crawl (4.24 s / 30 mm cycle, 7.1 mm/s): same
+# poses as climb_cycle_moment_safe with the dwells and swings shortened;
+# static and reference-hold margins identical (2026-07-30).
+_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle_moment_safe_fast.npy"
 
 
 def _policy_joint_cfg() -> SceneEntityCfg:
@@ -499,9 +502,27 @@ def phybot_c2_climb_wall_env_cfg(
       params={
         "asset_cfg": robot_cfg_e,
         "motion_command_name": motion_command_name,
-        "std": 0.05,
+        # 0.83 step heights, the ratio the term was designed at (std 0.05
+        # against the old 60 mm step). Left at 0.05 for the 30 mm clip, one
+        # step moved the kernel only 0.6 sigma and the per-step climb
+        # gradient halved — measured iter-1400 basin: schedule match 0.98
+        # with net climb at ~5% of the ghost (ref12 hit 0.18 m/episode by
+        # iter 300 on the original ratio).
+        "std": 0.025,
         "settle_time_s": 0.5,
       },
+    ),
+    # Landing accuracy on the anchor ladder (2026-07-30): the shape terms
+    # are root-relative and the engage gate checks timing only, so cycling
+    # in place collected nearly full imitation pay. This pays each scheduled
+    # latch once by where it LANDS (the reference anchors climb one step per
+    # cycle). Ceiling ~0.75/s at perfect landings (4 per 4.24 s cycle x
+    # 40 x dt) — meaningful against the ~4.5/s tracking ceiling without
+    # dominating; in-window relatch farming pays zero (once per window).
+    "motion_anchor_landing": RewardTermCfg(
+      func=mdp.motion_anchor_landing(),
+      weight=40.0,
+      params={"command_name": motion_command_name, "std": 0.03},
     ),
     "lateral_velocity_y_l2": RewardTermCfg(
       func=mdp.climb_lateral_velocity_y_l2,
@@ -620,8 +641,20 @@ def phybot_c2_climb_wall_env_cfg(
       # stuck states while giving the stance -> shift -> climb ladder time
       # to exist.
       "stall_time_s": 8.0,
-      "minimum_progress": 0.015,
-      "command_threshold": 0.01,
+      # 10 mm / 8 s = 18% of the fast clip's commanded rate — between
+      # ref12's relative bar (15 mm vs 13.4 mm/s command = 14%) and the old
+      # absolute bar (15 mm = 26% of 7.1 mm/s), so an early learner at a
+      # third of the ghost rate is not executed mid-ladder (the motionref7
+      # trap) while the measured cycle-in-place basin (2-4 mm / 8 s) still
+      # dies with >2x margin.
+      "minimum_progress": 0.010,
+      # 0.003 (was 0.01): the activation gate compares the commanded climb
+      # rate, and the moment-safe clip dropped that to 4.84 mm/s (fast clip
+      # 7.1 mm/s) — both UNDER the old 10 mm/s bar, silently disarming the
+      # executioner. Cycling in place then survived full episodes (measured
+      # motionref15 iter 1400: +9 mm/30 s with zero terminations). Any real
+      # climb command clears 3 mm/s; zero-command hold tests still exempt.
+      "command_threshold": 0.003,
     },
   )
   # DeepMimic early termination: end rollouts whose pose left the reference
