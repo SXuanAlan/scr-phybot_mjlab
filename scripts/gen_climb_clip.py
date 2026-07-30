@@ -2,21 +2,21 @@
 
 The reference is produced directly on the robot's own kinematics (no mocap /
 retargeting), like ``gen_squat_clip.py`` / ``gen_stand_clip.py``. One cycle
-follows the hand-sketched key states (climb.jpeg, 2026-07-21), with the
-sketch's state 2 (straight-leg hang) deliberately skipped:
+uses a four-beat crawl that remains feasible with a finite pad-moment limit:
 
   state 1   climb-task reset stance ("climb zero"): all four microspine pads
             engaged on the wall, arms overhead, legs in the frog splay.
-  1 -> 3    STEP-UP: one fast continuous maneuver. Both hand pads stay
-            anchored (weld) while the arms pull the base up one step height;
-            the unloaded feet lift off, ride up with the body along a small
-            off-wall arc, and press back on exactly one step height above
-            their old anchors. The legs never straighten — their
-            configuration is identical at both ends — so the feet just "hop"
-            upward and re-engage. The whole body hangs on the two hand
-            anchors only during this segment, so its duration (default 0.8 s)
-            bounds the near-saturated arm-motor time; there is no mid-air
-            pause.
+  1 -> 2    LEFT-FOOT REGRIP: only the left foot releases and travels one
+            step upward on an off-wall arc while the TOE of the articulated
+            foot (planted against the wall during the preceding dwell)
+            braces the wall as an ordinary compression contact; both hands
+            and the right foot remain anchored. The released spine pad
+            never touches the wall mid-swing — dragging unloaded spine tips
+            across asperities damages them — so the toe supplies the
+            support the sliding pad used to.
+  2 -> 3    RIGHT-FOOT REGRIP: mirror of 1 -> 2 (the intervening four-pad
+            dwell retracts the left toe and plants the right one). The base
+            finishes rising one step.
   3 -> 4    LEFT-HAND REGRIP: the left hand releases, swings along an off-wall
             arc to one step height above its old anchor, and engages.
   4 -> 5    RIGHT-HAND REGRIP: mirror of 3 -> 4. State 5 equals state 1
@@ -25,9 +25,20 @@ sketch's state 2 (straight-leg hang) deliberately skipped:
             (``--cycles``) and the clip loops as a gait reference. All dwells
             sit on four engaged anchors; only the swings move a limb.
 
+During every free swing exactly one pad is released (the hand swings begin
+with a short all-four load-transfer dwell). The remaining three always
+include at least one hand and one foot, preserving the meter-scale
+upper-tension/lower-compression couple that balances gravity's wall-normal
+moment. The braced toe (a pair-only sphere at the ankle_roll foot tip, see
+``PHYBOT_C2_FOOT_TOES``) stays planted at one world point through its whole
+swing — the ankle absorbs the 30 mm shin rise — so it adds compression
+margin with zero sliding anywhere. The old two-foot hop removed the large
+couple and demanded that two nearly level hand pads carry the full
+49--60 N*m as local bending.
+
 Every landing ends with a pre-engage RAKE: the pad first touches the wall
-``--rake-dist`` (default 1 mm) above its scheduled anchor and then drags that
-millimeter straight down the wall surface over the last ``--rake-s`` of the
+``--rake-dist`` (default 2 mm) above its scheduled anchor and then drags that
+distance straight down the wall surface over the last ``--rake-s`` of the
 swing. Microspines need a small downward displacement under compression to
 load their tips into asperities, so the reference bakes that seating stroke in
 before the engaged flag flips at the segment boundary.
@@ -55,6 +66,9 @@ with climb-specific keys:
     ee_anchor_positions   (T, 4, 3) float32 pad-center anchor the weld holds
                                             (engaged) or the upcoming target
                                             anchor (swinging)
+    toe_braced            (T, 2)    uint8   1 inside a foot swing's full-press
+                                            toe-brace window (toe_list order)
+    toe_list              list[str]         foot EEs owning a bracing toe
     phase_segment         (T,)      uint8   index into segment_names
     segment_names         list[str]
     cycle_index           (T,)      uint16
@@ -63,7 +77,8 @@ with climb-specific keys:
     pad_touch_x           float32           wall minus contact-sphere radius
 
 Validate/preview:
-    python scripts/view_motion.py src/scr_phybot_mjab/assets/motions/climb_cycle.npy
+    python scripts/view_motion.py \
+      src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy
     python scripts/validation/check_amp_dataset.py --data-dir <output dir>
 """
 
@@ -86,6 +101,7 @@ if str(_REPO / "src") not in sys.path:
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_FOOT_SITES,
+  PHYBOT_C2_FOOT_TOES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   get_spec,
 )
@@ -93,7 +109,12 @@ from scr_phybot_mjab.assets.wall.wall_constants import (  # noqa: E402
   WALL_HALF_SIZE,
   WALL_OFFSET,
 )
-from scr_phybot_mjab.microspine.contact import sphere_names  # noqa: E402
+from scr_phybot_mjab.microspine.contact import (  # noqa: E402
+  ToeContact,
+  add_toe_geoms,
+  sphere_names,
+  toe_site_name,
+)
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (  # noqa: E402
   phybot_c2_climb_wall_env_cfg,
 )
@@ -105,13 +126,15 @@ _PAD_TOUCH_X = _WALL_SURFACE_X - _SPHERE_RADIUS
 _FOOT_SITE_NAMES = tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
 
 _SEGMENT_NAMES = (
-  "hold_start",       # state 1
-  "step_up",          # 1 -> 3: pull + foot hop in one move, feet released
-  "seat_hold",        # state 3
-  "left_hand_swing",  # 3 -> 4
-  "regrip_hold",      # state 4
-  "right_hand_swing", # 4 -> 5
-  "end_hold",         # state 5 == state 1 + step height
+  "hold_start",         # state 1
+  "left_foot_swing",    # 1 -> 2
+  "foot_transfer_hold", # state 2
+  "right_foot_swing",   # 2 -> 3
+  "seat_hold",          # state 3
+  "left_hand_swing",    # 3 -> 4
+  "regrip_hold",        # state 4
+  "right_hand_swing",   # 4 -> 5
+  "end_hold",           # state 5 == state 1 + step height
 )
 
 
@@ -209,10 +232,11 @@ class _ClimbIK:
     self.ee_names: tuple[str, ...] = tuple(microspine_cfg.ee_body_names)
     rows = microspine_cfg.spheres_per_ee_rows
     cols = microspine_cfg.spheres_per_ee_cols
-    # The clip is now the task's source of truth for the step height (the
-    # commanded-gait term that used to own it is gone); 0.06 m is the proven
-    # full-cycle rise from the curriculum era.
-    self.default_step_height = 0.06
+    # A 30 mm crawl step keeps the low, wristless support arm away from its
+    # shoulder-roll stop during the one-hand support beats.  The old 60 mm
+    # hop was kinematically possible only by spending nearly all of that
+    # joint's remaining range.
+    self.default_step_height = 0.03
 
     spec = get_spec()
     self.pad_site_names = {}
@@ -225,6 +249,19 @@ class _ClimbIK:
         name=site_name, pos=centers.mean(axis=0), size=[0.005, 0.005, 0.005]
       )
       self.pad_site_names[ee] = site_name
+
+    # Foot toes: the bracing tips a released foot presses against the wall
+    # instead of sliding its spine pad (same definition the climb env's
+    # spec_fn instantiates for the physical contact pairs).
+    self.toes = {
+      ee: ToeContact(
+        ee_body_name=ee, body_name=body, pos=pos, radius=radius
+      )
+      for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
+    }
+    add_toe_geoms(
+      spec, tuple(self.toes.values()), robot_prefix="", with_sites=True
+    )
 
     self.model = spec.compile()
     self.data = mujoco.MjData(self.model)
@@ -248,6 +285,10 @@ class _ClimbIK:
     self.pad_sid = {
       ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, s)
       for ee, s in self.pad_site_names.items()
+    }
+    self.toe_sid = {
+      ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, toe_site_name(toe))
+      for ee, toe in self.toes.items()
     }
     self.ee_bid = {
       ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, ee) for ee in self.ee_names
@@ -397,8 +438,34 @@ def _weld_task(ik: _ClimbIK, ee: str, anchor: tuple[np.ndarray, np.ndarray]) -> 
     sid=ik.pad_sid[ee],
     pos=anchor[0],
     rot=anchor[1],
-    w_pos=np.full(3, 100.0),
-    w_rot=50.0,
+    # Support welds are hard kinematic facts; posture and swing shaping must
+    # spend their error elsewhere.
+    w_pos=np.full(3, 1000.0),
+    w_rot=500.0,
+  )
+
+
+def _toe_task(
+  ik: _ClimbIK,
+  ee: str,
+  pos: np.ndarray,
+  w_pos: tuple[float, float, float] = (300.0, 30.0, 30.0),
+) -> _Task:
+  """Position-only brace target for a foot's toe tip.
+
+  The 2-DoF ankle cannot satisfy all three components exactly, so the wall
+  press (x) dominates and y/z absorb the residual; ``track=False`` keeps the
+  intentionally-unreachable components out of the convergence residual (toe
+  quality is reported separately).
+  """
+  return _Task(
+    kind="site",
+    sid=ik.toe_sid[ee],
+    pos=pos,
+    rot=None,
+    w_pos=np.asarray(w_pos, dtype=np.float64),
+    w_rot=0.0,
+    track=False,
   )
 
 
@@ -425,15 +492,19 @@ def generate_clip(
   step_height: float | None,
   cycles: int,
   fps: float,
-  step_up_s: float,
+  foot_swing_s: float,
   swing_s: float,
   hold_start_s: float,
+  foot_transfer_hold_s: float,
   seat_hold_s: float,
   regrip_hold_s: float,
   end_hold_s: float,
   swing_bulge: float,
   swing_lateral: float,
   foot_bulge: float,
+  body_press: float,
+  lateral_weight_shift: float,
+  hand_load_transfer_s: float,
   rake_s: float,
   rake_dist: float,
   limit_margin_frac: float = 0.10,
@@ -446,7 +517,9 @@ def generate_clip(
 
   n = {
     "hold_start": max(int(round(hold_start_s * fps)), 1),
-    "step_up": max(int(round(step_up_s * fps)), 2),
+    "left_foot_swing": max(int(round(foot_swing_s * fps)), 2),
+    "foot_transfer_hold": max(int(round(foot_transfer_hold_s * fps)), 1),
+    "right_foot_swing": max(int(round(foot_swing_s * fps)), 2),
     "seat_hold": max(int(round(seat_hold_s * fps)), 1),
     "left_hand_swing": max(int(round(swing_s * fps)), 2),
     "regrip_hold": max(int(round(regrip_hold_s * fps)), 1),
@@ -454,13 +527,29 @@ def generate_clip(
     "end_hold": max(int(round(end_hold_s * fps)), 1),
   }
   n_rake = max(int(round(rake_s * fps)), 1)
-  for seg_name in ("step_up", "left_hand_swing", "right_hand_swing"):
+  n_hand_load_transfer = max(int(round(hand_load_transfer_s * fps)), 0)
+  for seg_name in (
+    "left_foot_swing",
+    "right_foot_swing",
+    "left_hand_swing",
+    "right_hand_swing",
+  ):
     if n[seg_name] - n_rake < 2:
       raise ValueError(
         f"--rake-s leaves fewer than two arc frames in '{seg_name}'; "
         "shorten the rake or lengthen the segment."
       )
+  if n_hand_load_transfer >= min(
+    n["left_hand_swing"], n["right_hand_swing"]
+  ):
+    raise ValueError(
+      "--hand-load-transfer-s must be shorter than each hand swing."
+    )
   rake_vec = np.array([0.0, 0.0, float(rake_dist)])
+  # Support handoff clearance: a dwelling toe hovers this far off the wall
+  # (zero force, no fight with its own latched pad) and closes the gap only
+  # while its pad is released; it lifts back out during the landing rake.
+  toe_hover = 0.0015
   seg_id = {name: i for i, name in enumerate(_SEGMENT_NAMES)}
 
   def _arc_progress(t: int, n_seg: int) -> float:
@@ -498,10 +587,14 @@ def generate_clip(
   labels: list[int] = []
   engaged_frames: list[np.ndarray] = []
   anchor_frames: list[np.ndarray] = []
+  toe_frames: list[np.ndarray] = []
   seg_residual: dict[str, _Residual] = {name: _Residual() for name in _SEGMENT_NAMES}
 
   # The weld anchor (or upcoming target anchor) each EE currently references.
   anchor_now = {ee: anchors[ee][0].copy() for ee in ik.ee_names}
+  # Foot-toe wall-brace schedule: True only inside a swing's full-press
+  # window (hover/plant/retract frames carry no load by design).
+  toe_braced_now = {ee: False for ee in ik.toes}
 
   def push(segment: str, engaged: dict[str, bool]) -> None:
     qpos_frames.append(ik.data.qpos.copy())
@@ -510,69 +603,259 @@ def generate_clip(
       np.array([engaged[ee] for ee in ik.ee_names], dtype=np.uint8)
     )
     anchor_frames.append(np.stack([anchor_now[ee] for ee in ik.ee_names]))
+    toe_frames.append(
+      np.array([toe_braced_now[ee] for ee in ik.toes], dtype=np.uint8)
+    )
 
   def hold(segment: str, engaged: dict[str, bool]) -> None:
     for _ in range(n[segment]):
       push(segment, engaged)
 
   all_on = {ee: True for ee in ik.ee_names}
-
-  # -- state 1 hold ----------------------------------------------------------
-  hold("hold_start", all_on)
-
-  # -- 1 -> 3: one fast step: hands pull the base up one step height while the
-  # unloaded feet hop up the same amount and press back on. Foot targets ride
-  # the same smootherstep as the base, so the legs keep their state-1
-  # configuration (up to the off-wall bulge) instead of straightening — the
-  # whole body hangs on the hand anchors only for this one short segment.
-  # Posture and base references equal their start values here (the legs start
-  # AT the state-1 reference), so there is no constant soft-task tug to drift
-  # along the (base + welded-limb) self-motion manifold — the failure mode
-  # that produced a 0.74 rad first-frame ankle jump in an earlier revision.
   sel_all = ik.dof_selection(PHYBOT_C2_POLICY_JOINT_NAMES)
+
+  # Ankle joints per bracing toe ("left_ankle_roll" -> left_ankle_*): the
+  # only DOFs the toe work moves.
+  ankle_joints = {
+    ee: tuple(
+      nm
+      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
+      if nm.startswith(toe.body_name.removesuffix("_roll"))
+    )
+    for ee, toe in ik.toes.items()
+  }
+  stance_toe_clear = {
+    ee: float(
+      _WALL_SURFACE_X
+      - ik.data.site_xpos[ik.toe_sid[ee]][0]
+      - toe.radius
+    )
+    for ee, toe in ik.toes.items()
+  }
+  toe_report: dict[str, dict[str, float]] = {}
+
+  def dwell_ik(
+    segment: str,
+    engaged: dict[str, bool],
+    plant_ee: str | None = None,
+    retract_ee: str | None = None,
+  ) -> None:
+    """Four-anchor dwell that moves only ankles: plant/retract a bracing toe.
+
+    The spine pads mount on the shin and the toe on the articulated foot, so
+    ankle motion is kinematically decoupled from every support anchor — the
+    dwell replays the stance (welds + base/posture holds) while one toe
+    ramps to the wall and/or the finished one folds back to stance angles.
+    """
+    for ee in ik.ee_names:
+      anchors[ee] = ik.pad_pose(ee)
+      anchor_now[ee] = anchors[ee][0].copy()
+    base_hold = ik.data.qpos[0:3].copy()
+    base_rot_hold = np.zeros(9)
+    mujoco.mju_quat2Mat(base_rot_hold, ik.data.qpos[3:7])
+    base_rot_hold = base_rot_hold.reshape(3, 3)
+    posture_hold = {
+      nm: float(ik.data.qpos[ik._qadr[nm]])
+      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
+    }
+    overrides: dict[str, float] = {}
+    retract_from: dict[str, float] = {}
+    if retract_ee is not None:
+      # Fold the finished toe back to stance angles; the weak global posture
+      # spring alone would leave it grazing the wall while the next beats
+      # press the base in. The target BLENDS from the planted angles (an
+      # instant stance-angle reference at weight 6 snapped the free ankle
+      # 0.6 rad in one frame — a 32 rad/s spike in the clip).
+      for nm in ankle_joints[retract_ee]:
+        retract_from[nm] = posture_hold[nm]
+        overrides[nm] = 6.0
+    toe0 = goal = None
+    if plant_ee is not None:
+      toe0 = ik.data.site_xpos[ik.toe_sid[plant_ee]].copy()
+      # The reachable plant point sits on the toe's ankle-centered reach
+      # circle: HOVERING toe_hover shy of the wall, ~6 cm above the stance
+      # toe height. The toe must not press while its own pad is still
+      # latched — a PD-held planted toe reacts against the wall and loads
+      # the fresh anchor toward reverse-shear/tension (the cheap release
+      # directions); it closes the last 1.5 mm only once the pad lets go.
+      # The frog splay tilts the foot's sagittal plane ~30 deg off world x,
+      # so chasing the stance y here would demand a large ankle-roll sweep
+      # and flipped the (pitch, roll) IK branch mid-plant (a 24-26 rad/s
+      # roll spike in the clip). Let y ride (weight 3) and pin the roll to
+      # its stance angle instead — the pitch does the reaching.
+      goal = np.array(
+        [
+          _WALL_SURFACE_X - ik.toes[plant_ee].radius - toe_hover,
+          toe0[1],
+          toe0[2] + 0.06,
+        ]
+      )
+      for nm in ankle_joints[plant_ee]:
+        if nm.endswith("_roll"):
+          overrides[nm] = 3.0
+    for t in range(n[segment]):
+      s = float(_smootherstep(t / max(n[segment] - 1, 1)))
+      tasks = [_weld_task(ik, ee, anchors[ee]) for ee in ik.ee_names]
+      if plant_ee is not None:
+        tasks.append(
+          _toe_task(
+            ik,
+            plant_ee,
+            (1.0 - s) * toe0 + s * goal,
+            w_pos=(300.0, 3.0, 10.0),
+          )
+        )
+      tasks.append(
+        _base_task(
+          ik, base_hold, (30.0, 30.0, 30.0), rot=base_rot_hold, w_rot=8.0
+        )
+      )
+      for nm, start in retract_from.items():
+        posture_hold[nm] = (1.0 - s) * start + s * posture_ref[nm]
+      res = ik.solve_frame(
+        tasks,
+        sel_all,
+        posture_hold,
+        posture_weight=0.3,
+        posture_weight_overrides=overrides,
+      )
+      seg_residual[segment].merge(res)
+      push(segment, engaged)
+
+  # -- state 1 hold: all four pads dwell while the left toe plants against
+  # the wall, ready to brace the upcoming left-foot regrip.
+  dwell_ik("hold_start", all_on, plant_ee=lf)
+
+  # -- 1 -> 2 -> 3: sequential foot regrips ---------------------------------
+  # Never release both feet together. The three-pad support set always
+  # contains two hands and one foot, so the body moment closes through the
+  # large hand/foot force couple instead of local pad bending.
   base_z2 = base_z1 + height
-  engaged = {lh: True, rh: True, lf: False, rf: False}
+
   step_vec = np.array([0.0, 0.0, height])
   foot_target = {
     ee: (anchors[ee][0] + step_vec, state1_pad_rot[ee]) for ee in feet
   }
-  for ee in feet:
-    anchor_now[ee] = foot_target[ee][0].copy()
-  for t in range(n["step_up"]):
-    s = float(_smootherstep(t / (n["step_up"] - 1)))
-    tasks = [_weld_task(ik, ee, anchors[ee]) for ee in hands]
-    for ee in feet:
-      p0, rot0 = anchors[ee]
-      p1 = 0.5 * (p0 + foot_target[ee][0]) + np.array([-foot_bulge, 0.0, 0.0])
+  landing_report: dict[str, tuple[float, float]] = {}
+  for foot_index, (segment, swing_ee) in enumerate(
+    (("left_foot_swing", lf), ("right_foot_swing", rf))
+  ):
+    # Shift toward the opposite, still-anchored foot: left swing -> right
+    # (negative y), right swing -> left (positive y). This removes the yaw
+    # couple that otherwise concentrates the normal load on one hand.
+    support_side = -1.0 if swing_ee == lf else 1.0
+    engaged = {ee: ee != swing_ee for ee in ik.ee_names}
+    for ee in ik.ee_names:
+      if ee != swing_ee:
+        anchors[ee] = ik.pad_pose(ee)
+        anchor_now[ee] = anchors[ee][0].copy()
+    p0, rot0 = ik.pad_pose(swing_ee)
+    p2, rot2 = foot_target[swing_ee]
+    anchor_now[swing_ee] = p2.copy()
+    p1 = 0.5 * (p0 + p2) + np.array([-foot_bulge, 0.0, 0.0])
+    # The toe was pre-positioned toe_hover shy of the wall during the
+    # preceding dwell. The swing closes that gap over its first few frames
+    # (the pad just released — no more co-press conflict), braces through
+    # the travel, and lifts back to the hover during the landing rake while
+    # the pad face takes over. Exact point-holding is geometrically
+    # impossible for the fixed-radius toe once the pad bulges off the wall
+    # (the ankle center retreats, so the toe glides a little ALONG the
+    # surface); the wall-normal gap during the press window is the metric
+    # that must stay ~0.
+    toe_plant = ik.data.site_xpos[ik.toe_sid[swing_ee]].copy()
+    toe_press_x = _WALL_SURFACE_X - ik.toes[swing_ee].radius
+    n_press_in = max(int(round(0.06 * fps)), 2)
+    press_end = n[segment] - n_rake
+    toe_report[swing_ee] = {
+      "plant_gap": float(
+        _WALL_SURFACE_X - toe_plant[0] - ik.toes[swing_ee].radius
+      ),
+      "wall_gap": 0.0,
+      "glide": 0.0,
+    }
+    base_start = ik.data.qpos[0:3].copy()
+    # Press the body toward the wall during the transfer.  Besides keeping
+    # the released pad close enough to re-seat, this shortens gravity's
+    # wall-normal lever arm and gives the one-hand beats real tension margin.
+    base_end = np.array(
+      [
+        base_xy[0] + body_press,
+        base_xy[1] + support_side * lateral_weight_shift,
+        base_z1 + height * (foot_index + 1) / len(feet),
+      ]
+    )
+    posture_start = {
+      nm: float(ik.data.qpos[ik._qadr[nm]])
+      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
+    }
+    for t in range(n[segment]):
+      s = float(_smootherstep(t / (n[segment] - 1)))
+      tasks = [
+        _weld_task(ik, ee, anchors[ee])
+        for ee in ik.ee_names
+        if ee != swing_ee
+      ]
       tasks.append(
         _Task(
           kind="site",
-          sid=ik.pad_sid[ee],
-          pos=_swing_target(t, n["step_up"], p0, p1, foot_target[ee][0]),
-          rot=rot0,  # pad orientation held through the hop
-          w_pos=np.full(3, 80.0),
-          w_rot=40.0,
+          sid=ik.pad_sid[swing_ee],
+          pos=_swing_target(t, n[segment], p0, p1, p2),
+          rot=_slerp_mat(rot0, rot2, s),
+          w_pos=np.full(3, 1000.0),
+          # Blend toward the canonical landing orientation while retaining
+          # enough positional authority to keep the foot on its wall track.
+          w_rot=100.0,
         )
       )
-    tasks.append(
-      _base_task(ik, np.array([*base_xy, base_z1 + height * s]), (3.0, 3.0, 25.0))
+      # Press-in ramp -> full brace -> lift-out during the rake handoff.
+      if t < n_press_in:
+        press = (t + 1) / n_press_in
+      elif t >= press_end:
+        press = max(1.0 - (t - press_end + 1) / n_rake, 0.0)
+      else:
+        press = 1.0
+      toe_braced_now[swing_ee] = n_press_in <= t < press_end
+      toe_target = toe_plant.copy()
+      toe_target[0] = (1.0 - press) * toe_plant[0] + press * toe_press_x
+      tasks.append(_toe_task(ik, swing_ee, toe_target))
+      tasks.append(
+        _base_task(
+          ik,
+          (1.0 - s) * base_start + s * base_end,
+          (100.0, 30.0, 50.0),
+        )
+      )
+      posture_t = {
+        nm: (1.0 - s) * posture_start[nm] + s * posture_ref[nm]
+        for nm in PHYBOT_C2_POLICY_JOINT_NAMES
+      }
+      res = ik.solve_frame(tasks, sel_all, posture_t, posture_weight=0.3)
+      seg_residual[segment].merge(res)
+      toe_now = ik.data.site_xpos[ik.toe_sid[swing_ee]]
+      if n_press_in <= t < press_end:
+        toe_report[swing_ee]["wall_gap"] = max(
+          toe_report[swing_ee]["wall_gap"],
+          float(
+            _WALL_SURFACE_X - toe_now[0] - ik.toes[swing_ee].radius
+          ),
+        )
+      toe_report[swing_ee]["glide"] = max(
+        toe_report[swing_ee]["glide"],
+        float(np.linalg.norm(toe_now[1:] - toe_plant[1:])),
+      )
+      push(segment, engaged)
+    anchors[swing_ee] = ik.pad_pose(swing_ee)
+    anchor_now[swing_ee] = anchors[swing_ee][0].copy()
+    landing_report[swing_ee] = (
+      float(np.linalg.norm(anchors[swing_ee][0] - p2)),
+      _rot_angle(anchors[swing_ee][1], rot2),
     )
-    res = ik.solve_frame(tasks, sel_all, posture_ref, posture_weight=0.3)
-    seg_residual["step_up"].merge(res)
-    push("step_up", engaged)
+    if foot_index == 0:
+      # One four-pad dwell folds the finished left toe back and plants the
+      # right one (independent ankles, simultaneous).
+      dwell_ik("foot_transfer_hold", all_on, plant_ee=rf, retract_ee=lf)
 
-  # Feet engage: capture the achieved pad pose as the new anchors (the sim
-  # captures the anchor at engage time the same way).
-  landing_report: dict[str, tuple[float, float]] = {}
-  for ee in feet:
-    sched_pos, sched_rot = foot_target[ee]
-    anchors[ee] = ik.pad_pose(ee)
-    anchor_now[ee] = anchors[ee][0].copy()
-    landing_report[ee] = (
-      float(np.linalg.norm(anchors[ee][0] - sched_pos)),
-      _rot_angle(anchors[ee][1], sched_rot),
-    )
-  hold("seat_hold", all_on)
+  dwell_ik("seat_hold", all_on, retract_ee=rf)
 
   # -- 3 -> 4 -> 5: single-hand regrips --------------------------------------
   arm_joints = {
@@ -591,18 +874,22 @@ def generate_clip(
     ("left_hand_swing", lh, 1.0),
     ("right_hand_swing", rh, -1.0),
   ):
-    engaged = {ee: ee is not swing_ee for ee in ik.ee_names}
+    engaged_swing = {ee: ee != swing_ee for ee in ik.ee_names}
     # Re-seat every engaged weld at its current pad pose (the sim's
     # reanchor-after-grace does the same). Sub-mm weld residuals inherited
     # from the previous segment would otherwise re-balance under this
     # segment's changed spring set in the very first solve.
     for ee in ik.ee_names:
-      if ee is not swing_ee:
+      if ee != swing_ee:
         anchors[ee] = ik.pad_pose(ee)
         anchor_now[ee] = anchors[ee][0].copy()
     p0, rot0 = ik.pad_pose(swing_ee)
     p2 = anchors[swing_ee][0] + np.array([0.0, 0.0, height])
-    anchor_now[swing_ee] = p2.copy()
+    # Keep the hand latched briefly while the body/other three limbs take up
+    # the new load.  The smootherstep target is essentially stationary during
+    # these first frames; after the transfer dwell the outgoing hand releases
+    # and its recorded anchor changes from the old grip to the upcoming one.
+    anchor_now[swing_ee] = p0.copy()
     p1 = 0.5 * (p0 + p2) + np.array(
       [-swing_bulge, lateral_sign * swing_lateral, 0.0]
     )
@@ -621,14 +908,19 @@ def generate_clip(
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES
     }
     for t in range(n[segment]):
+      engaged = all_on if t < n_hand_load_transfer else engaged_swing
+      if t == n_hand_load_transfer:
+        anchor_now[swing_ee] = p2.copy()
       s = float(_smootherstep(t / (n[segment] - 1)))
       s_arc = _arc_progress(t, n[segment])
       tasks = [
-        _weld_task(ik, ee, anchors[ee]) for ee in ik.ee_names if ee is not swing_ee
+        _weld_task(ik, ee, anchors[ee])
+        for ee in ik.ee_names
+        if ee != swing_ee
       ]
-      # The released hand starts at WELD-grade weights and fades to swing
-      # weights over the first 30% of the arc. An instant 100/50 -> 60/20
-      # drop released the limit-spring stress stored in the anchored arm
+      # The released hand starts strongly constrained and fades to swing
+      # weights over the first 30% of the arc. An abrupt stiffness drop
+      # released the limit-spring stress stored in the anchored arm
       # (shoulder roll is held deep in its margin zone by the low anchor) as
       # a one-frame whole-body pop at the segment boundary.
       w_fade = min(s_arc / 0.3, 1.0)
@@ -638,28 +930,47 @@ def generate_clip(
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(t, n[segment], p0, p1, p2),
           rot=rot0,  # anchor orientation held; weight ramps toward landing
-          w_pos=np.full(3, 60.0 + 40.0 * (1.0 - w_fade)),
+          w_pos=np.full(
+            3, 500.0 + 1500.0 * max(1.0 - w_fade, s_arc * s_arc)
+          ),
           # A near-free mid-swing orientation (old floor 2.0) let the
           # wristless arm resolve its null space by whipping shoulder_yaw
           # and tilting the pad corners through the wall (10.9 deg rot
           # residual / 11.6 mm sphere penetration on the v2 stance). Keep
-          # the pad essentially flat the whole way — the feet do exactly
-          # this (constant 40) and stay clean.
-          w_rot=20.0 + 30.0 * max(1.0 - w_fade, s_arc * s_arc),
+          # the pad essentially flat the whole way, like the
+          # orientation-constrained foot swings.
+          w_rot=50.0 + 450.0 * max(1.0 - w_fade, s_arc * s_arc),
         )
       )
+      # Keep the wall press through the first hand transfer; unwind it only
+      # while the second hand returns the system to the vertically tiled
+      # cycle-closure pose.
+      base_target_x = (
+        base_xy[0] + body_press
+        if segment == "left_hand_swing"
+        else base_xy[0]
+      )
+      support_side = -1.0 if swing_ee == lh else 1.0
       base_target = (1.0 - s) * base_swing_start + s * np.array(
-        [*base_xy, base_z2]
+        [
+          base_target_x,
+          base_xy[1] + support_side * lateral_weight_shift,
+          base_z2,
+        ]
       )
       tasks.append(
         _base_task(
           ik,
           base_target,
-          (3.0, 3.0, 10.0),
-          # State 3 is already square (step_up holds the base upright), so
+          (
+            (100.0, 30.0, 50.0)
+            if segment == "right_hand_swing"
+            else (100.0, 30.0, 30.0)
+          ),
+          # State 3 is already square, so
           # this is a hold, not a mid-swing righting maneuver.
           rot=_slerp_mat(base_rot_start, np.eye(3), s),
-          w_rot=8.0,
+          w_rot=50.0 if segment == "right_hand_swing" else 8.0,
         )
       )
       posture_t = {
@@ -673,10 +984,10 @@ def generate_clip(
       # drag the anchored pad (3.2 mm weld drift). Its reference stays at
       # the segment-start angles until its own swing re-grips at stance
       # height.
-      other_ee = rh if swing_ee is lh else lh
-      for nm in arm_joints[other_ee]:
-        posture_t[nm] = posture_start[nm]
-      # Swings use a stiffer posture anchor than the step-up (0.3): the
+      if segment == "left_hand_swing":
+        for nm in arm_joints[rh]:
+          posture_t[nm] = posture_start[nm]
+      # Hand swings use a stiffer posture anchor than the foot transfers:
       # 4-DoF arm's position-only null space flips between elbow-in/out
       # branches frame to frame otherwise (8+ rad/s shoulder_yaw spikes).
       # The first few frames are throttled (2 iters, 3 mrad/iter): releasing
@@ -690,7 +1001,7 @@ def generate_clip(
         tasks,
         sel_all,
         posture_t,
-        posture_weight=0.6,
+        posture_weight=10.0 if segment == "right_hand_swing" else 0.6,
         iters=2 if throttled else 100,
         max_step=0.003 if throttled else 0.12,
       )
@@ -732,6 +1043,7 @@ def generate_clip(
   frames_label: list[int] = []
   frames_engaged: list[np.ndarray] = []
   frames_anchor: list[np.ndarray] = []
+  frames_toe: list[np.ndarray] = []
   frames_cycle: list[int] = []
   z_shift = np.zeros(len(state1_qpos))
   for k in range(cycles):
@@ -743,6 +1055,7 @@ def generate_clip(
       frames_label.append(labels[i])
       frames_engaged.append(engaged_frames[i])
       frames_anchor.append(anchor_frames[i] + np.array([0.0, 0.0, k * height]))
+      frames_toe.append(toe_frames[i])
       frames_cycle.append(k)
 
   frames = len(frames_qpos)
@@ -755,6 +1068,7 @@ def generate_clip(
   foot_positions = np.zeros((frames, 2, 3), np.float32)
   engaged_arr = np.stack(frames_engaged)
   anchor_arr = np.stack(frames_anchor).astype(np.float32)
+  toe_arr = np.stack(frames_toe)
   label_arr = np.asarray(frames_label, dtype=np.uint8)
   cycle_arr = np.asarray(frames_cycle, dtype=np.uint16)
 
@@ -802,6 +1116,8 @@ def generate_clip(
     "pad_positions": pad_positions,
     "ee_engaged": engaged_arr,
     "ee_anchor_positions": anchor_arr,
+    "toe_braced": toe_arr,
+    "toe_list": list(ik.toes.keys()),
     "phase_segment": label_arr,
     "segment_names": list(_SEGMENT_NAMES),
     "cycle_index": cycle_arr,
@@ -817,32 +1133,51 @@ def generate_clip(
     f"wrote {output} ({frames} frames, {frames / fps:.2f}s @ {fps:.1f} fps, "
     f"{cycles} cycle(s), step_height={height:.3f} m)"
   )
-  for name in ("step_up", "left_hand_swing", "right_hand_swing"):
+  for name in (
+    "left_foot_swing",
+    "right_foot_swing",
+    "left_hand_swing",
+    "right_hand_swing",
+  ):
     r = seg_residual[name]
     print(
       f"  {name:18s} IK residual: pos {r.pos * 1000.0:6.2f} mm, "
       f"rot {np.degrees(r.rot):5.2f} deg"
     )
-  # Peak speeds — the motor-load sanity check for the fast step-up: joint
-  # speed bounds actuator velocity, hand-hang time is n["step_up"] / fps.
+  # Peak speeds are an actuation sanity check; every swing retains three
+  # engaged pads.
   joint_speed = np.abs(np.diff(joint_positions, axis=0)) * fps
   peak_joint = int(np.unravel_index(np.argmax(joint_speed), joint_speed.shape)[1])
   base_speed = float(np.abs(np.diff(root_position, axis=0)).max() * fps)
   print(
     f"  peak joint speed {joint_speed.max():.2f} rad/s "
     f"({PHYBOT_C2_POLICY_JOINT_NAMES[peak_joint]}), "
-    f"peak base speed {base_speed:.3f} m/s, "
-    f"hands-only hang time {n['step_up'] / fps:.2f} s"
+    f"peak base speed {base_speed:.3f} m/s, minimum engaged pads 3"
   )
   for ee, (pos_err, rot_err) in landing_report.items():
     print(
       f"  {ee:18s} landing vs scheduled anchor: "
       f"{pos_err * 1000.0:6.2f} mm, {np.degrees(rot_err):5.2f} deg"
     )
+  # Toe-brace quality: hover gap is the swing-start toe-to-wall standoff
+  # (should be ~= the 1.5 mm handoff hover), wall gap the worst
+  # toe-surface-to-wall distance inside the press window (must stay ~0 —
+  # the brace never lifts while it is the support), glide the worst
+  # in-plane travel off the plant point (a small hard-tip glide is expected
+  # when the pad bulges off the wall; spine tips never touch), stance
+  # clearance the state-1 margin between the folded toe and the wall.
+  for ee, rep in toe_report.items():
+    print(
+      f"  toe {ee:14s} hover gap {rep['plant_gap'] * 1000.0:5.2f} mm, "
+      f"press wall gap max {rep['wall_gap'] * 1000.0:5.2f} mm, "
+      f"glide {rep['glide'] * 1000.0:5.2f} mm, "
+      f"stance clear {stance_toe_clear[ee] * 1000.0:6.1f} mm"
+    )
   # Verify the pre-engage rake actually happened: downward on-wall stroke of
   # each landing pad over the final n_rake frames of its swing segment.
   for seg_name, ee_indices in (
-    ("step_up", (2, 3)),
+    ("left_foot_swing", (2,)),
+    ("right_foot_swing", (3,)),
     ("left_hand_swing", (0,)),
     ("right_hand_swing", (1,)),
   ):
@@ -898,7 +1233,10 @@ def main() -> None:
   parser.add_argument(
     "--output",
     type=Path,
-    default=_REPO / "src/scr_phybot_mjab/assets/motions/climb_cycle.npy",
+    default=(
+      _REPO
+      / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"
+    ),
   )
   parser.add_argument(
     "--step-height",
@@ -909,16 +1247,22 @@ def main() -> None:
   parser.add_argument("--cycles", type=int, default=1, help="number of stacked cycles")
   parser.add_argument("--fps", type=float, default=50.0)
   parser.add_argument(
-    "--step-up-s",
+    "--foot-swing-s",
     type=float,
-    default=0.8,
-    help="1->3 pull + foot-hop duration; the only hands-only-support interval, "
-    "keep short so the arm motors are near saturation only briefly",
+    default=0.9,
+    help="duration of each single-foot regrip; the other three pads stay engaged",
   )
   parser.add_argument(
     "--swing-s", type=float, default=1.2, help="single hand regrip duration"
   )
   parser.add_argument("--hold-start-s", type=float, default=0.5)
+  parser.add_argument(
+    "--foot-transfer-hold-s",
+    type=float,
+    default=0.4,
+    help="four-pad dwell between the foot regrips; retracts the left toe "
+    "and plants the right one, so keep the ankle sweep under ~4 rad/s",
+  )
   parser.add_argument("--seat-hold-s", type=float, default=0.3)
   parser.add_argument("--regrip-hold-s", type=float, default=0.3)
   parser.add_argument("--end-hold-s", type=float, default=0.5)
@@ -938,8 +1282,28 @@ def main() -> None:
   parser.add_argument(
     "--foot-bulge",
     type=float,
-    default=0.04,
-    help="foot hop off-wall Bezier control offset (m); peak clearance is half",
+    default=0.03,
+    help="foot swing off-wall Bezier control offset (m; peak clearance is "
+    "half): the released spine pad must clear the wall — the planted toe, "
+    "not a sliding pad, braces the wall during foot regrips",
+  )
+  parser.add_argument(
+    "--body-press",
+    type=float,
+    default=0.03,
+    help="base shift toward the wall during the three-pad transfer beats (m)",
+  )
+  parser.add_argument(
+    "--lateral-weight-shift",
+    type=float,
+    default=0.025,
+    help="base shift toward the opposite-side support before each regrip (m)",
+  )
+  parser.add_argument(
+    "--hand-load-transfer-s",
+    type=float,
+    default=0.1,
+    help="all-four-anchor preload dwell at the start of each hand transfer (s)",
   )
   parser.add_argument(
     "--rake-s",
@@ -950,7 +1314,7 @@ def main() -> None:
   parser.add_argument(
     "--rake-dist",
     type=float,
-    default=0.001,
+    default=0.002,
     help="downward on-wall seating stroke before engage (m)",
   )
   parser.add_argument(
@@ -973,15 +1337,19 @@ def main() -> None:
     step_height=args.step_height,
     cycles=args.cycles,
     fps=args.fps,
-    step_up_s=args.step_up_s,
+    foot_swing_s=args.foot_swing_s,
     swing_s=args.swing_s,
     hold_start_s=args.hold_start_s,
+    foot_transfer_hold_s=args.foot_transfer_hold_s,
     seat_hold_s=args.seat_hold_s,
     regrip_hold_s=args.regrip_hold_s,
     end_hold_s=args.end_hold_s,
     swing_bulge=args.swing_bulge,
     swing_lateral=args.swing_lateral,
     foot_bulge=args.foot_bulge,
+    body_press=args.body_press,
+    lateral_weight_shift=args.lateral_weight_shift,
+    hand_load_transfer_s=args.hand_load_transfer_s,
     rake_s=args.rake_s,
     rake_dist=args.rake_dist,
     limit_margin_frac=args.limit_margin_frac,

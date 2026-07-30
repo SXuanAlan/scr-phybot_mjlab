@@ -76,6 +76,14 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.limit_surface.capacity_ramp_shear_n == 10.0
   assert microspine.limit_surface.redraw_f_t_max_per_latch is True
   assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
+  assert microspine.limit_surface.moment_capacity_enable is True
+  # Billing spans derive from the robot XML's sphere grid (pad_grid_spans),
+  # not from hand-maintained constants; arm = spacing / 2 (discrete 2-row
+  # aggregate fold), torquescale = reference-hold-calibrated compliance.
+  assert abs(microspine.limit_surface.pad_span_rake_m - 0.0746) < 1.0e-3
+  assert abs(microspine.limit_surface.pad_span_lateral_m - 0.096) < 1.0e-3
+  assert microspine.limit_surface.moment_arm_fraction == 0.5
+  assert microspine.anchor_torquescale == 0.01
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and
   # seeds the per-env latch state AFTER the affordance's own reset ran.

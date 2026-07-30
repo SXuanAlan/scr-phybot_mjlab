@@ -161,6 +161,7 @@ class ClimbMotionClip:
   ee_engaged: torch.Tensor  # (C, H) bool
   ee_edge_times: torch.Tensor  # (C, H, 2) countdown to next release/regrip
   ee_edge_distance: torch.Tensor  # (C, H) |time| to the NEAREST edge
+  toe_braced: torch.Tensor  # (C, 2) bool: foot-toe wall brace schedule
 
   @classmethod
   def from_file(
@@ -201,6 +202,13 @@ class ClimbMotionClip:
     ]
     ee_pos = np.asarray(data["ee_positions"], dtype=np.float64)
     engaged = np.asarray(data["ee_engaged"]) != 0
+    # Foot-toe wall-brace schedule (gen_climb_clip 2026-07-29). Older clips
+    # predate the bracing toes; they never schedule a brace.
+    toe_braced = (
+      np.asarray(data["toe_braced"]) != 0
+      if "toe_braced" in data
+      else np.zeros((engaged.shape[0], 2), dtype=bool)
+    )
     labels = np.asarray(data["phase_segment"])
     cycles = np.asarray(data["cycle_index"])
 
@@ -216,6 +224,7 @@ class ClimbMotionClip:
       root_quat /= np.linalg.norm(root_quat, axis=-1, keepdims=True)
       ee_pos = _lerp_frames(ee_pos, pos)
       engaged = _nearest_frames(engaged, pos)
+      toe_braced = _nearest_frames(toe_braced, pos)
       labels = _nearest_frames(labels, pos)
       cycles = _nearest_frames(cycles, pos)
 
@@ -285,6 +294,7 @@ class ClimbMotionClip:
       ee_engaged=_t(engaged_cycle, dtype=torch.bool),
       ee_edge_times=_t(future.astype(np.float32) / cycle),
       ee_edge_distance=_t(edge_distance),
+      toe_braced=_t(toe_braced[:cycle], dtype=torch.bool),
     )
 
 
@@ -353,13 +363,15 @@ class ClimbMotionCommand(CommandTerm):
 
   @property
   def command(self) -> torch.Tensor:
-    """Phase clock + engage schedule chart, shape (E, 2 + 3H).
+    """Phase clock + engage schedule chart, shape (E, 2 + 3H + 2).
 
-    Layout: ``[cos, sin, engaged(H), (t_release, t_regrip) x H]``. The
-    countdown pairs are the schedule's upcoming edges per EE (normalized by
-    the cycle, sliding linearly with the clock), so the policy reads each
-    raster row's whole future — when this pad must let go and when it must
-    re-latch — instead of only the bar under the playhead.
+    Layout: ``[cos, sin, engaged(H), (t_release, t_regrip) x H,
+    toe_braced(2)]``. The countdown pairs are the schedule's upcoming edges
+    per EE (normalized by the cycle, sliding linearly with the clock), so
+    the policy reads each raster row's whole future — when this pad must
+    let go and when it must re-latch — instead of only the bar under the
+    playhead. The trailing pair flags the foot-toe wall-brace windows (the
+    released foot's support during its own regrip).
     """
     phase = (
       self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
@@ -371,6 +383,7 @@ class ClimbMotionCommand(CommandTerm):
         torch.sin(phase).unsqueeze(-1),
         self.ref_engaged.float(),
         edges.flatten(1, 2),
+        self.ref_toe_braced.float(),
       ],
       dim=-1,
     )
@@ -394,6 +407,12 @@ class ClimbMotionCommand(CommandTerm):
   @property
   def ref_engaged(self) -> torch.Tensor:
     return self.clip.ee_engaged[self.time_steps]
+
+  @property
+  def ref_toe_braced(self) -> torch.Tensor:
+    """Scheduled foot-toe wall-brace flags, (E, 2) in PHYBOT_C2_FOOT_TOES
+    order (left foot, right foot)."""
+    return self.clip.toe_braced[self.time_steps]
 
   @property
   def ref_edge_distance(self) -> torch.Tensor:

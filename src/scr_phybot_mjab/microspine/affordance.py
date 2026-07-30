@@ -30,6 +30,31 @@ def _quat_rotate(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
   return torch.stack([rx, ry, rz], dim=-1)
 
 
+def moment_adjusted_loads(
+  f_t: torch.Tensor,
+  f_l: torch.Tensor,
+  f_n: torch.Tensor,
+  m_t: torch.Tensor,
+  m_l: torch.Tensor,
+  m_n: torch.Tensor,
+  *,
+  pad_span_rake_m: float,
+  pad_span_lateral_m: float,
+  moment_arm_fraction: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+  """Fold pad moments into the worst-edge force seen by the hold envelope."""
+  arm_rake = float(pad_span_rake_m) * float(moment_arm_fraction)
+  arm_lateral = float(pad_span_lateral_m) * float(moment_arm_fraction)
+  if arm_rake <= 0.0 or arm_lateral <= 0.0:
+    raise ValueError(
+      "Microspine moment arms must be positive; got "
+      f"rake={arm_rake:g} m, lateral={arm_lateral:g} m."
+    )
+  f_n_eff = f_n + m_l.abs() / arm_rake + m_t.abs() / arm_lateral
+  f_l_eff = f_l.abs() + m_n.abs() / arm_rake
+  return f_t, f_l_eff, f_n_eff
+
+
 class MicrospineAffordance(CommandTerm):
   """Stateful world affordance for per-EE microspine grip.
 
@@ -137,6 +162,8 @@ class MicrospineAffordance(CommandTerm):
     self.anchor_load_tnl = torch.zeros(
       self.num_envs, self._num_ee, 3, device=self.device
     )
+    self.anchor_moment_tnl = torch.zeros_like(self.anchor_load_tnl)
+    self.anchor_effective_load_tnl = torch.zeros_like(self.anchor_load_tnl)
     self.hold_margin = torch.ones(shape, device=self.device)
     self.forced_release_this_step = torch.zeros(
       shape, dtype=torch.bool, device=self.device
@@ -341,6 +368,8 @@ class MicrospineAffordance(CommandTerm):
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
     self.anchor_load_tnl[env_ids] = 0.0
+    self.anchor_moment_tnl[env_ids] = 0.0
+    self.anchor_effective_load_tnl[env_ids] = 0.0
     self.hold_margin[env_ids] = 1.0
     self.face_cos[env_ids] = 0.0
     self.contact_count[env_ids] = 0.0
@@ -419,20 +448,45 @@ class MicrospineAffordance(CommandTerm):
     (ultimate shear) releases instantly. wang2017 mode: every violation is
     debounced (see _wang_envelope).
     """
-    loads = self._get_executor().compute_anchor_loads()  # (E, H, 3) world
+    executor = self._get_executor()
+    loads = executor.compute_anchor_loads()  # (E, H, 3) world
     t_hat, l_hat, n_hat = self._engage_frame()
     f_t = (loads * t_hat).sum(dim=-1)
     f_l = (loads * l_hat).sum(dim=-1)
     f_n = (loads * n_hat).sum(dim=-1)
     self.anchor_load_tnl = torch.stack([f_t, f_l, f_n], dim=-1)
 
+    if self._ls_cfg.moment_capacity_enable and self._mcfg.anchor_lock_rotation:
+      moment = executor.anchor_moment_w
+      m_t = (moment * t_hat).sum(dim=-1)
+      m_l = (moment * l_hat).sum(dim=-1)
+      m_n = (moment * n_hat).sum(dim=-1)
+      f_t_eff, f_l_eff, f_n_eff = moment_adjusted_loads(
+        f_t,
+        f_l,
+        f_n,
+        m_t,
+        m_l,
+        m_n,
+        pad_span_rake_m=self._ls_cfg.pad_span_rake_m,
+        pad_span_lateral_m=self._ls_cfg.pad_span_lateral_m,
+        moment_arm_fraction=self._ls_cfg.moment_arm_fraction,
+      )
+      self.anchor_moment_tnl = torch.stack([m_t, m_l, m_n], dim=-1)
+    else:
+      f_t_eff, f_l_eff, f_n_eff = f_t, f_l, f_n
+      self.anchor_moment_tnl.zero_()
+    self.anchor_effective_load_tnl = torch.stack(
+      [f_t_eff, f_l_eff, f_n_eff], dim=-1
+    )
+
     if self._wang_lut is not None:
       margin, soft_cond, instant_cond, reason = self._wang_envelope(
-        f_t, f_l, f_n
+        f_t_eff, f_l_eff, f_n_eff
       )
     else:
       margin, soft_cond, instant_cond, reason = self._wedge_envelope(
-        f_t, f_l, f_n
+        f_t_eff, f_l_eff, f_n_eff
       )
     self.hold_margin = torch.where(
       self._engaged, margin, torch.ones_like(margin)
@@ -879,6 +933,8 @@ class MicrospineAffordance(CommandTerm):
       self._violation_count.zero_()
       self._steps_since_engage.zero_()
       self.anchor_load_tnl.zero_()
+      self.anchor_moment_tnl.zero_()
+      self.anchor_effective_load_tnl.zero_()
       self.hold_margin.fill_(1.0)
       self.forced_release_this_step.zero_()
       self.release_reason.zero_()

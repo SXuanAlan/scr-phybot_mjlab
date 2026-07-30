@@ -20,6 +20,7 @@ from pathlib import Path
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 import imageio.v2 as imageio
+import mjlab  # noqa: F401  # Initialize task entry points before PHYBot imports.
 import mujoco
 import numpy as np
 
@@ -35,7 +36,10 @@ from scr_phybot_mjab.assets.wall.wall_constants import (  # noqa: E402
   WALL_OFFSET,
 )
 
-_DEFAULT_CLIP = _REPO / "src/scr_phybot_mjab/assets/motions/climb_cycle.npy"
+_DEFAULT_CLIP = (
+  _REPO
+  / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"
+)
 
 
 def _build_model(width: int, height: int) -> mujoco.MjModel:
@@ -59,8 +63,7 @@ def _build_model(width: int, height: int) -> mujoco.MjModel:
     contype=0,
     conaffinity=0,
   )
-  # Checkered plane just off the wall face so climb progress is visible;
-  # ~6 cm squares match the clip's default step height (one step = one square).
+  # Checkered plane just off the wall face so climb progress is visible.
   spec.add_texture(
     name="viz_wall_tex",
     type=mujoco.mjtTexture.mjTEXTURE_2D,
@@ -108,6 +111,12 @@ def main() -> None:
   parser.add_argument("--elevation", type=float, default=-12.0)
   parser.add_argument("--distance", type=float, default=2.2)
   parser.add_argument(
+    "--grip-markers",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="draw green (latched) / orange (released) markers at the four pads",
+  )
+  parser.add_argument(
     "--frame",
     type=int,
     default=None,
@@ -120,10 +129,39 @@ def main() -> None:
   joint_pos = np.asarray(clip["joint_positions"], dtype=np.float64)
   root_pos = np.asarray(clip["root_position"], dtype=np.float64)
   root_quat_xyzw = np.asarray(clip["root_quaternion"], dtype=np.float64)
+  pad_positions = np.asarray(clip.get("pad_positions"), dtype=np.float64)
+  ee_engaged = np.asarray(clip.get("ee_engaged"), dtype=bool)
+  ee_names = list(clip.get("ee_list", ()))
   fps = float(np.asarray(clip["fps"]).reshape(-1)[0])
+  if args.grip_markers and (
+    pad_positions.shape[:2] != ee_engaged.shape
+    or pad_positions.shape[-1] != 3
+  ):
+    raise ValueError(
+      "--grip-markers requires pad_positions (T,H,3) and ee_engaged (T,H)"
+    )
 
   model = _build_model(args.width, args.height)
   data = mujoco.MjData(model)
+  grip_visual_geoms: list[int] = []
+  if args.grip_markers:
+    for ee_name in ee_names:
+      body_id = mujoco.mj_name2id(
+        model, mujoco.mjtObj.mjOBJ_BODY, ee_name
+      )
+      geom_ids = np.flatnonzero(model.geom_bodyid == body_id)
+      visual = [
+        int(geom_id)
+        for geom_id in geom_ids
+        if (mujoco.mj_id2name(
+          model, mujoco.mjtObj.mjOBJ_GEOM, int(geom_id)
+        ) or "").endswith("_visual")
+      ]
+      if len(visual) != 1:
+        raise ValueError(
+          f"Expected one visual geom on pad body '{ee_name}', got {visual}."
+        )
+      grip_visual_geoms.append(visual[0])
   qadr = {
     n: model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)]
     for n in joints
@@ -141,6 +179,15 @@ def main() -> None:
     data.qpos[3:7] = root_quat_xyzw[t, [3, 0, 1, 2]]  # xyzw -> wxyz
     for i, name in enumerate(joints):
       data.qpos[qadr[name]] = joint_pos[t, i]
+    if args.grip_markers:
+      for geom_id, latched in zip(
+        grip_visual_geoms, ee_engaged[t], strict=True
+      ):
+        model.geom_rgba[geom_id] = (
+          (0.1, 0.9, 0.25, 1.0)
+          if latched
+          else (1.0, 0.25, 0.05, 1.0)
+        )
     mujoco.mj_forward(model, data)
 
   renderer = mujoco.Renderer(model, height=args.height, width=args.width)
@@ -151,6 +198,32 @@ def main() -> None:
     set_frame(t)
     camera.lookat[:] = (*lookat_xy, root_pos[t, 2])
     renderer.update_scene(data, camera=camera)
+    if args.grip_markers:
+      scene = renderer.scene
+      identity = np.eye(3).reshape(-1)
+      for pad_index, (pad_pos, latched) in enumerate(
+        zip(pad_positions[t], ee_engaged[t], strict=True)
+      ):
+        if scene.ngeom >= scene.maxgeom:
+          raise RuntimeError("MuJoCo render scene has no room for grip markers.")
+        rgba = (
+          np.array([0.1, 0.9, 0.25, 0.95])
+          if latched
+          else np.array([1.0, 0.25, 0.05, 0.95])
+        )
+        # Pull the marker toward the robot/camera and just outside the limb so
+        # the pad mesh cannot hide it against the wall.
+        lateral = 0.045 if pad_index in (0, 2) else -0.045
+        marker_pos = pad_pos + np.array([-0.045, lateral, 0.0])
+        mujoco.mjv_initGeom(
+          scene.geoms[scene.ngeom],
+          mujoco.mjtGeom.mjGEOM_SPHERE,
+          np.full(3, 0.020),
+          marker_pos,
+          identity,
+          rgba,
+        )
+        scene.ngeom += 1
     return renderer.render()
 
   if args.frame is not None:

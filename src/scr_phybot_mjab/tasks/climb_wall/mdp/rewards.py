@@ -284,6 +284,69 @@ def motion_scheduled_press_shaping(
   return (press * window.float()).sum(dim=-1)
 
 
+def _toe_sensor_row_perm(sensor, toe_geom_names: tuple[str, ...]) -> "torch.Tensor":
+  """Map the toe contact sensor's row order onto PHYBOT_C2_FOOT_TOES order."""
+  perm = getattr(sensor, "_toe_brace_row_perm", None)
+  if perm is None:
+    names = getattr(sensor, "primary_names", None)
+    if names is None:
+      names = list(dict.fromkeys(slot.primary_name for slot in sensor._slots))
+    order = {name.split("/")[-1]: i for i, name in enumerate(names)}
+    missing = [g for g in toe_geom_names if g not in order]
+    if missing:
+      raise ValueError(
+        f"Toe contact sensor rows {names} are missing geoms {missing}."
+      )
+    perm = torch.tensor(
+      [order[g] for g in toe_geom_names],
+      dtype=torch.long,
+      device=sensor.data.found.device,
+    )
+    sensor._toe_brace_row_perm = perm
+  return perm
+
+
+def motion_toe_brace_match(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_motion",
+  sensor_name: str = "climb_toe_contact",
+  toe_geom_names: tuple[str, ...] = (
+    "left_ankle_roll_toe",
+    "right_ankle_roll_toe",
+  ),
+  press_norm_n: float = 8.0,
+  off_schedule_cost: float = 0.3,
+) -> torch.Tensor:
+  """Pay the scheduled foot-toe wall brace; bill unscheduled toe pressing.
+
+  The reference's foot regrips brace the articulated foot's toe against the
+  wall while the released spine pad travels clear of it (``toe_braced``
+  clip channel). Like the pad press shaping, the brace's first motions earn
+  nothing on their own — this pays normal toe force inside the scheduled
+  window, saturating at ``press_norm_n`` (the audit needs only ~16 N).
+  Pressing OUTSIDE the window costs ``off_schedule_cost`` of the same
+  saturated scale: a toe reacting against the wall while its own pad is
+  latched loads that fresh anchor toward reverse-shear/tension (the cheap
+  release directions) — the exact interaction the reference's hover handoff
+  exists to prevent.
+  """
+  motion = _motion(env, command_name)
+  scheduled = motion.ref_toe_braced
+  sensor = env.scene[sensor_name]
+  data = sensor.data
+  if data.found is None or data.force is None:
+    raise ValueError(
+      f"Contact sensor '{sensor_name}' must provide 'found' and 'force'."
+    )
+  perm = _toe_sensor_row_perm(sensor, toe_geom_names)
+  found = data.found[:, perm] > 0
+  # CONTACT sensor force is [normal, tangent1, tangent2].
+  normal = data.force[:, perm, 0].clamp(min=0.0)
+  press = (normal / press_norm_n).clamp(max=1.0) * found.float()
+  on = scheduled.float()
+  return (press * on - off_schedule_cost * press * (1.0 - on)).sum(dim=-1)
+
+
 def motion_ref_height_tracking():
   """Factory: exp kernel on (robot climb - reference climb) since settling.
 

@@ -4,8 +4,9 @@ DeepMimic-style layout (2026-07-21 redesign, replacing the commanded-gait
 state machine):
 
   * A motion command (``climb_motion``) indexes the IK regrip cycle
-    ``assets/motions/climb_cycle.npy``; episode resets are reference-state
-    initialization (random cycle phase, latches seeded from the clip).
+    ``assets/motions/climb_cycle_moment_safe.npy``; episode resets are
+    reference-state initialization (random cycle phase, latches seeded from
+    the clip).
   * ``motion_*`` tracking rewards teach the cycle SHAPE (joint space,
     root-frame EE positions, root orientation, engage schedule). No global
     position is tracked — the clip's world trajectory is used only for reset
@@ -42,10 +43,12 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  PHYBOT_C2_FOOT_TOES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   configure_phybot_c2_floor_geom,
   configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
+  get_spec,
 )
 from scr_phybot_mjab.assets.wall import get_wall_cfg
 from scr_phybot_mjab.microspine.config import (
@@ -53,9 +56,14 @@ from scr_phybot_mjab.microspine.config import (
   MicrospineCfg,
 )
 from scr_phybot_mjab.microspine.contact import (
+  ToeContact,
   add_contact_pairs,
   add_pad_wall_contact_excludes,
+  add_toe_contact_pairs,
+  add_toe_geoms,
   get_sphere_geom_names,
+  pad_grid_spans,
+  toe_geom_name,
 )
 from scr_phybot_mjab.microspine.constraint import (
   add_attachment_equalities,
@@ -69,7 +77,7 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
 
 
 _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
-_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle.npy"
+_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle_moment_safe.npy"
 
 
 def _policy_joint_cfg() -> SceneEntityCfg:
@@ -125,6 +133,28 @@ def phybot_c2_climb_wall_env_cfg(
   # Capacity follows the pad-local rake direction.
   microspine_cfg.anchor_lock_rotation = True
   microspine_cfg.limit_surface.rake_mode = "ee_local"
+  # Moment billing measures the pad from the robot XML itself: the billing
+  # spans are the contact-sphere grid extents (74.7 mm rake x 96 mm lateral
+  # on this model) and the edge-force arm is spacing / 2 — the exact
+  # aggregate fold for a discrete two-row spine patch (edge-row load
+  # f_n/2 + M/s against edge-row budget F0/2). Regenerate nothing when the
+  # XML pad changes; this derives at cfg-build time.
+  span_rake, span_lateral = pad_grid_spans(
+    get_spec(), microspine_cfg, robot_prefix=""
+  )
+  microspine_cfg.limit_surface.pad_span_rake_m = span_rake
+  microspine_cfg.limit_surface.pad_span_lateral_m = span_lateral
+  microspine_cfg.limit_surface.moment_arm_fraction = 0.5
+  # Weld rotational-residual scale, calibrated with the reference-hold
+  # stress test (validate_microspine_constraint.py reference-hold): the old
+  # 1 m default routed whole-body pitch couples through ~6 N*m of local pad
+  # moment ("four enormous flanges"); 0.04 still trapped 0.7-1.8 N*m of
+  # PD-parasitic moment in the wristless hands and force-released 65/79
+  # reference frames. At 0.01 the rotational rows are compliant enough that
+  # parasitic couples shed into force redistribution (peak |M| <= 0.07 N*m,
+  # all frames hold, margin +0.077 at the F0 = 400 N DR floor) while the
+  # honest-arm billing above still guards genuine sustained prying.
+  microspine_cfg.anchor_torquescale = 0.01
   # Closed Wang-2017 hold envelope (paper-faithful): tension capacity exists
   # only alongside engaged shear, the forward lobe closes at the origin, and
   # against-rake capacity collapses to the side-contact residual. F0 range
@@ -181,6 +211,21 @@ def phybot_c2_climb_wall_env_cfg(
   )
 
   robot_cfg = get_phybot_c2_robot_cfg()
+  # Foot toes brace the wall during foot regrips so the released spine pad
+  # never slides on the surface. The geoms live on the ROBOT entity spec
+  # (sensors resolve geom names against the entity, not the composed scene);
+  # their wall contact pairs are scene-level, added in _spec_fn below.
+  toe_contacts = tuple(
+    ToeContact(ee_body_name=ee, body_name=body, pos=pos, radius=radius)
+    for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
+  )
+
+  def _robot_spec_with_toes() -> mujoco.MjSpec:
+    spec = get_spec()
+    add_toe_geoms(spec, toe_contacts, robot_prefix="")
+    return spec
+
+  robot_cfg.spec_fn = _robot_spec_with_toes
   # One shared CollisionCfg is the source of truth for both tasks. Climb adds
   # sphere-wall pairs and grip equalities, but does not alter robot geoms.
   robot_cfg.collisions = (PHYBOT_C2_WALK_COLLISION,)
@@ -282,6 +327,10 @@ def phybot_c2_climb_wall_env_cfg(
     "robot": robot_cfg,
     "wall": wall_cfg,
   }
+  # Ordinary per-sphere contacts handle compression and pre-engage sliding;
+  # per-EE equalities provide grip.
+  toe_contact_sensor_name = "climb_toe_contact"
+
   cfg.sim.contact_sensor_maxmatch = max(cfg.sim.contact_sensor_maxmatch, 500)
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (
     ContactSensorCfg(
@@ -298,13 +347,26 @@ def phybot_c2_climb_wall_env_cfg(
       global_frame=False,
       history_length=10,
     ),
+    # Foot-toe brace force: feeds the scheduled toe-brace shaping reward.
+    ContactSensorCfg(
+      name=toe_contact_sensor_name,
+      primary=ContactMatch(
+        mode="geom",
+        pattern=tuple(toe_geom_name(toe) for toe in toe_contacts),
+        entity="robot",
+      ),
+      secondary=ContactMatch(mode="geom", pattern="wall_geom", entity="wall"),
+      fields=("found", "force"),
+      reduce="maxforce",
+      num_slots=1,
+      global_frame=False,
+    ),
   )
 
-  # Ordinary per-sphere contacts handle compression and pre-engage sliding;
-  # per-EE equalities provide grip.
   def _spec_fn(spec: mujoco.MjSpec) -> None:
     add_contact_pairs(spec, microspine_cfg)
     add_pad_wall_contact_excludes(spec, microspine_cfg)
+    add_toe_contact_pairs(spec, microspine_cfg, toe_contacts)
     add_attachment_equalities(spec, microspine_cfg)
     # Disable the aligned terrain ground plane — gravity-tilt curriculum
     # replaces the floor; this forces the robot to actually grip the wall.
@@ -404,6 +466,22 @@ def phybot_c2_climb_wall_env_cfg(
       func=mdp.motion_scheduled_press_shaping,
       weight=0.4,
       params={"command_name": motion_command_name, "regrip_lead_time_s": 0.3},
+    ),
+    # Foot-toe brace shaping (2026-07-29, toe-brace reference): the released
+    # foot's support during its regrip is the TOE pressing the wall — the
+    # spine pad now travels clear of the surface (sliding an unloaded pad
+    # destroys spine tips). Pays saturated toe normal force inside the clip's
+    # scheduled brace windows only; pressing outside the window (e.g. while
+    # this foot's own pad is latched) bills 0.3x of the same scale — that
+    # reaction loads the fresh anchor toward its cheap release directions.
+    "motion_toe_brace": RewardTermCfg(
+      func=mdp.motion_toe_brace_match,
+      weight=0.4,
+      params={
+        "command_name": motion_command_name,
+        "sensor_name": toe_contact_sensor_name,
+        "press_norm_n": 8.0,
+      },
     ),
     # -- task drive AS an imitation term (2026-07-24, motionref8): the climb
     # income follows the ghost. The free-standing height rewards ("any rise

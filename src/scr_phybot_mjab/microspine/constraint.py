@@ -71,6 +71,44 @@ def _quat_rotate_batched(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
   return v + w * t + torch.cross(q, t, dim=-1)
 
 
+def _quat_mul_batched(lhs: torch.Tensor, rhs: torch.Tensor) -> torch.Tensor:
+  """Quaternion product ``lhs * rhs`` (wxyz), with matching batch shapes."""
+  lw, lv = lhs[..., 0:1], lhs[..., 1:4]
+  rw, rv = rhs[..., 0:1], rhs[..., 1:4]
+  return torch.cat(
+    [
+      lw * rw - (lv * rv).sum(dim=-1, keepdim=True),
+      lw * rv + rw * lv + torch.cross(lv, rv, dim=-1),
+    ],
+    dim=-1,
+  )
+
+
+def weld_rotational_force_to_world_moment(
+  rotational_force: torch.Tensor,
+  body_quat_w: torch.Tensor,
+  anchor_quat_w: torch.Tensor,
+  torquescale: float,
+) -> torch.Tensor:
+  """Convert mujoco_warp weld multipliers to physical world moments.
+
+  The last three weld entries in ``efc.force`` are multipliers in
+  quaternion-vector constraint coordinates, not N*m. Physical moment is
+  ``J_rot.T @ multiplier``. The runtime kernel has
+  ``J_rot = 0.5 * torquescale * (w I - skew(v))`` for residual quaternion
+  ``(w, v)``. At a satisfied weld this reduces exactly to
+  ``0.5 * torquescale * multiplier``.
+  """
+  anchor_conj = torch.cat(
+    [anchor_quat_w[..., 0:1], -anchor_quat_w[..., 1:4]], dim=-1
+  )
+  q_err = _quat_mul_batched(body_quat_w, anchor_conj)
+  w, v = q_err[..., 0:1], q_err[..., 1:4]
+  return 0.5 * float(torquescale) * (
+    w * rotational_force + torch.cross(v, rotational_force, dim=-1)
+  )
+
+
 def _wall_inward_normal_w(
   env: ManagerBasedRlEnv, wall_entity_name: str
 ) -> torch.Tensor:
@@ -284,6 +322,8 @@ class MicrospineConstraint:
       self._num_envs, self._num_ee, 3, dtype=torch.float32, device=self._device
     )
     self.anchor_load_w = torch.zeros_like(self.anchor_pos_w)
+    # World moment the pad puts on the asperity field (weld mode only).
+    self.anchor_moment_w = torch.zeros_like(self.anchor_pos_w)
     # Engage-time pad world orientation (wxyz); weld mode locks the pad to it.
     self.anchor_quat_w = torch.zeros(
       self._num_envs, self._num_ee, 4, dtype=torch.float32, device=self._device
@@ -391,9 +431,9 @@ class MicrospineConstraint:
     force_z > 0). The limit surface constrains the reaction — the load the
     spine puts on the asperity — hence ``F_load = -efc_force``. A weld
     (anchor_lock_rotation) contributes 6 rows with the same 3 force rows
-    first, so the first-match + [0,1,2] gather is mode-independent; the
-    trailing 3 rotational rows (residual units: quat axis * torquescale) are
-    intentionally not read here.
+    first, so the first-match + [0,1,2] gather is mode-independent. Its last
+    3 quaternion-constraint multipliers are converted through J_rot.T and
+    cached as the physical world moment in ``anchor_moment_w``.
 
     Only constraint counters are zeroed each step; rows past ``ne`` are stale
     garbage and EQUALITY == 0 would happily match them, so the ``row < ne``
@@ -428,6 +468,32 @@ class MicrospineConstraint:
       found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads
     )
     loads.neg_()  # F_load = -efc_force (EE-on-anchor reaction).
+    if self._lock_rotation:
+      trows = (first.unsqueeze(-1) + self._comp_arange + 3).clamp(
+        max=njmax - 1
+      )
+      tgather = efc_force.gather(
+        1, trows.reshape(self._num_envs, -1)
+      ).reshape(self._num_envs, self._num_ee, 3)
+      body_quat_w = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
+      moment_on_ee = weld_rotational_force_to_world_moment(
+        tgather,
+        body_quat_w,
+        self.anchor_quat_w,
+        self._mcfg.anchor_torquescale,
+      )
+      torch.where(
+        found.unsqueeze(-1),
+        moment_on_ee,
+        torch.zeros_like(moment_on_ee),
+        out=self.anchor_moment_w,
+      )
+      self.anchor_moment_w.neg_()
+      torch.nan_to_num_(
+        self.anchor_moment_w, nan=0.0, posinf=1.0e6, neginf=-1.0e6
+      )
+    else:
+      self.anchor_moment_w.zero_()
     # Rare solver transients under extreme poses can emit non-finite efc
     # forces; unguarded they reach the limit-surface margins as NaN (inf
     # loads make cap - load = inf - inf) and the critic observations kill
@@ -623,6 +689,7 @@ class MicrospineConstraint:
     self.last_engage_command[ids] = False
     self.anchor_pos_w[ids] = 0.0
     self.anchor_load_w[ids] = 0.0
+    self.anchor_moment_w[ids] = 0.0
     self.anchor_quat_w[ids] = 0.0
     self.anchor_quat_w[ids, :, 0] = 1.0
     self._engage_age[ids] = 0
