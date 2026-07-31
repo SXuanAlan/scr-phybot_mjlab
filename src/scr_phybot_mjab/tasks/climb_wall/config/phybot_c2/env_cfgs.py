@@ -77,10 +77,14 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
 
 
 _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
-# Timing-compressed toe-brace crawl (4.24 s / 30 mm cycle, 7.1 mm/s): same
-# poses as climb_cycle_moment_safe with the dwells and swings shortened;
-# static and reference-hold margins identical (2026-07-30).
-_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle_moment_safe_fast.npy"
+# Recruitment-paced toe-brace crawl (4.52 s / 30 mm cycle, 6.6 mm/s): the
+# fast clip's poses with every dwell restored to >= 0.3 s and foot swings to
+# 0.75 s — the fast timing put seat/regrip holds (0.2 s) UNDER the 0.25 s
+# fresh-anchor recruitment ramp, so each transfer loaded an immature anchor
+# (motionref16's abandoned right foot). Gates 2026-07-30: static audit
+# 0.8773 worst-util PASS, schedule-timing audit PASS (worst maturity gap
+# 0.28 s >= ramp), reference-hold PASS (1/68 transients, margin +0.058).
+_CLIMB_MOTION_FILE = _MOTIONS_DIR / "climb_cycle_moment_safe_paced.npy"
 
 
 def _policy_joint_cfg() -> SceneEntityCfg:
@@ -168,6 +172,15 @@ def phybot_c2_climb_wall_env_cfg(
   # demonstrated ~700 N pure shear, so 400-650 N per pad is conservative.
   microspine_cfg.limit_surface.model = "wang2017"
   microspine_cfg.limit_surface.f_t_max_range = (400.0, 650.0)
+  # Tilt-peel calibration (2026-07-31, "4-deg" pass): the spine suspensions
+  # conform force-free over le_max = 5 mm (Wang 2017 Sec 2.3); rotating the
+  # chassis about the loaded edge row exhausts that travel at 5/74.7 mm =
+  # ~3.8 deg, after which the tension-side row is loaded structurally and
+  # pulls out — forced release, reason 5. Per-grip lottery like F0. The
+  # reference's engaged rotations measure <= 1.1 deg (3x margin at the DR
+  # floor); the pre-calibration policy rode the unlimited softness to
+  # 12-22 deg — exactly the sim2real region this closes.
+  microspine_cfg.limit_surface.tilt_peel_max_deg_range = (3.5, 4.5)
   # Latched pads hand their whole load path to the bilateral anchor; the
   # sphere contacts (a redundant second path that fights the anchor and made
   # the measured loads oscillate — motionref6's 90-deg margin 'barcode')
@@ -403,6 +416,12 @@ def phybot_c2_climb_wall_env_cfg(
     # stance far enough for the statue to lose the kernel). Floor keeps a
     # quarter of the income ungated so birth pose learning never starves;
     # the gate uses the same edge-distance grace ramp as the mismatch bill.
+    # engage_gate_grace_fraction 0.3 (2026-07-30, motionref17): the gate's
+    # edge grace is a fraction of the violated window's own length, not a
+    # fixed 0.25 s — the fixed grace silently discounted welding whenever
+    # the clip was retimed (fast clip: only the middle 0.1 s of a 0.6 s foot
+    # window billed full price). At 0.3 a weld-through always forfeits ~70%
+    # of the window's gate credit, clip timing notwithstanding.
     "motion_joint_pos": RewardTermCfg(
       func=mdp.motion_joint_pos_error_exp,
       weight=2.0,
@@ -410,6 +429,7 @@ def phybot_c2_climb_wall_env_cfg(
         "command_name": motion_command_name,
         "std": 0.2,
         "engage_gate_floor": 0.25,
+        "engage_gate_grace_fraction": 0.3,
       },
     ),
     "motion_joint_vel": RewardTermCfg(
@@ -429,6 +449,7 @@ def phybot_c2_climb_wall_env_cfg(
         "command_name": motion_command_name,
         "std": 0.1,
         "engage_gate_floor": 0.25,
+        "engage_gate_grace_fraction": 0.3,
       },
     ),
     "motion_root_ori": RewardTermCfg(
@@ -438,6 +459,7 @@ def phybot_c2_climb_wall_env_cfg(
         "command_name": motion_command_name,
         "std": 0.3,
         "engage_gate_floor": 0.25,
+        "engage_gate_grace_fraction": 0.3,
       },
     ),
     # The clip's engage schedule replaces the old commanded-gait machinery:
@@ -447,15 +469,17 @@ def phybot_c2_climb_wall_env_cfg(
     # occupancy) because a wrong latch state cost pocket change next to the
     # height income. ~2 mismatched pads must read as -2/s against a budgeted
     # ~3.1/s task income, not -0.5/s against 22/s.
-    # grace 0.25 s (2026-07-22): the bill ramps linearly over the last 0.25 s
-    # to a scheduled flip (debounce 0.06 s + cooldown 0.20 s make instant
-    # compliance impossible) — the same countdown signal the policy sees in
-    # motion_command, so chart -> latch timing is a learnable mapping. Deep
-    # inside a segment (>88% of the cycle) the price is unchanged.
+    # grace_fraction 0.3 (2026-07-30, was grace_time_s 0.25): the bill ramps
+    # linearly over the outer 30% of the violated window to a scheduled flip
+    # (debounce 0.06 s + cooldown 0.20 s make instant compliance impossible)
+    # — the same countdown signal the policy sees in motion_command. As a
+    # fraction it survives clip retiming: a weld-through always pays ~0.7 of
+    # the window at full price (the fixed 0.25 s grace had cut the fast
+    # clip's foot-window weld bill nearly in half).
     "motion_engage_mismatch": RewardTermCfg(
       func=mdp.motion_engage_mismatch,
       weight=-1.0,
-      params={"command_name": motion_command_name, "grace_time_s": 0.25},
+      params={"command_name": motion_command_name, "grace_fraction": 0.3},
     ),
     # Seat-phase step credit (2026-07-22 evening, motionref5): every run so
     # far welded one limb pair because a regrip's first motions earn nothing
@@ -524,6 +548,19 @@ def phybot_c2_climb_wall_env_cfg(
       weight=40.0,
       params={"command_name": motion_command_name, "std": 0.03},
     ),
+    # Dense approach shaping toward the landing rung (2026-07-30,
+    # motionref17): the landing bonus alone is a chicken-and-egg — reaching
+    # a rung one step UP needs the whole swing aimed there, and exploration
+    # never samples it (motionref16 landing income: 3-5% of ceiling). Pays
+    # the swing's progress toward ``ref_anchor_pos_w`` while the EE is
+    # scheduled OFF and released; ceiling 0.5/s per swinging EE, well under
+    # the mismatch bill so hovering released outside swing windows never
+    # profits.
+    "motion_swing_approach": RewardTermCfg(
+      func=mdp.motion_swing_approach,
+      weight=0.5,
+      params={"command_name": motion_command_name, "std": 0.05},
+    ),
     "lateral_velocity_y_l2": RewardTermCfg(
       func=mdp.climb_lateral_velocity_y_l2,
       weight=-0.2,
@@ -554,6 +591,19 @@ def phybot_c2_climb_wall_env_cfg(
         "face_local_axis": microspine_cfg.face_local_axis,
       },
     ),
+    # Engaged-tilt tax (recalibrated 2026-07-31, "4-deg" pass): capture-
+    # relative rotation priced from 3 deg so the tilt-peel cliff (DR
+    # 3.5-4.5 deg, reason 5) is felt as a gradient before it fires. The
+    # reference uses <= 1.1 deg — schedule-true execution pays nothing.
+    "engaged_tilt": RewardTermCfg(
+      func=mdp.engaged_tilt_penalty,
+      weight=-1.0,
+      params={
+        "command_name": microspine_affordance_name,
+        "threshold_deg": 3.0,
+        "scale_deg": 5.0,
+      },
+    ),
     "microspine_support_loss": RewardTermCfg(
       func=mdp.microspine_support_loss,
       # -4.0 (was -3.0 pre-DeepMimic): the tracking terms raised the ceiling
@@ -576,6 +626,18 @@ def phybot_c2_climb_wall_env_cfg(
         "command_name": microspine_affordance_name,
         "minimum_supports": 2,
         "settle_time_s": 0.5,
+        # Reverse-shear unhooks stay free AT scheduled releases (the edge
+        # ramp zeroes the bill there) but cost 0.3x while the clip says
+        # ENGAGED: motionref16b farmed the free direction as a release
+        # valve — 43-45 latch-jiggle-unhook cycles per 30 s on the
+        # abandoned right foot, none of them priced (2026-07-30).
+        "motion_command_name": motion_command_name,
+        "scheduled_reverse_cost": 0.3,
+        "scheduled_reverse_grace_s": 0.25,
+        # Tilt-peel (reason 5) prices between tension (0.25) and ultimate
+        # (1.0): rotating a live patch off its grip is a structural failure
+        # the policy can always avoid (the reference needs <= 1.1 deg).
+        "tilt_release_cost": 0.5,
       },
     ),
     "ee_slide_penalty": RewardTermCfg(
@@ -597,6 +659,18 @@ def phybot_c2_climb_wall_env_cfg(
       func=mdp.joint_torques_l2,
       weight=-1.0e-5,
       params={"asset_cfg": robot_cfg_e},
+    ),
+    # Spike tax above 70% of the deploy torque caps (2026-07-30,
+    # motionref17b): unpriced spike torque let the policy trade the
+    # weight-shift unhook for a near-saturation yank (0.45 -> 1.00 of the
+    # 58 Nm shoulder cap between model_2175 and model_4300, +7% climb).
+    # Threshold form leaves support duty and the gentle unhook untaxed; -8
+    # makes one saturated joint cost 8/s — a 1-2 step yank bills ~0.3-0.6,
+    # comparable to the timing income it shortcuts.
+    "torque_headroom": RewardTermCfg(
+      func=mdp.torque_headroom_penalty,
+      weight=-8.0,
+      params={"asset_cfg": robot_cfg_e, "threshold": 0.7},
     ),
     "bounded_dof_acc_l2": RewardTermCfg(
       func=mdp.bounded_joint_acc_l2,
@@ -625,39 +699,14 @@ def phybot_c2_climb_wall_env_cfg(
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-500.0),
   }
 
-  cfg.terminations["no_progress"] = TerminationTermCfg(
-    func=mdp.no_progress_stall(),
-    params={
-      "asset_cfg": robot_cfg_e,
-      "command_name": velocity_command_name,
-      "settle_time_s": 0.5,
-      # 8 s / 1.5 cm (was 5 s / 3 cm, motionref8): the tight executioner was
-      # the anti-farming backstop for the free-standing height income; with
-      # the drive now reference-locked (motion_ref_height) and the physics
-      # honest, a stationary schedule-true stance earns a decaying tracking
-      # payout instead of farmed income — but under the old bar it was a
-      # death sentence, which taught motionref7 to never truly latch ("stand
-      # properly, get executed"). The looser bar keeps culling genuinely
-      # stuck states while giving the stance -> shift -> climb ladder time
-      # to exist.
-      "stall_time_s": 8.0,
-      # 7 mm / 8 s = 12% of the fast clip's commanded rate (ref12's relative
-      # bar was 14%). Lowered from 10 mm at motionref16 iter 800: the
-      # population plateaued at ~644-step episodes — clearing one 10 mm rung
-      # then stalling into execution, unable to CHAIN rungs. 7 mm sits in
-      # the gap between the measured cycle-in-place basin (2-4 mm / 8 s,
-      # still dies with ~2x margin) and the single-rung ability the grind
-      # had already reached.
-      "minimum_progress": 0.007,
-      # 0.003 (was 0.01): the activation gate compares the commanded climb
-      # rate, and the moment-safe clip dropped that to 4.84 mm/s (fast clip
-      # 7.1 mm/s) — both UNDER the old 10 mm/s bar, silently disarming the
-      # executioner. Cycling in place then survived full episodes (measured
-      # motionref15 iter 1400: +9 mm/30 s with zero terminations). Any real
-      # climb command clears 3 mm/s; zero-command hold tests still exempt.
-      "command_threshold": 0.003,
-    },
-  )
+  # no_progress executioner REMOVED (2026-07-30, motionref17). Under the
+  # motionref16 economics it truncated every learning episode at ~8-13 s and
+  # priced failed regrip experiments at -10, which dismantled the very
+  # learning ladder motionref15 had climbed (dance -> choreography -> climb).
+  # The climb pressure is now carried by motion_ref_height +
+  # motion_anchor_landing + motion_swing_approach; if a dance-forever basin
+  # returns, reintroduce a curriculum-gated stall bar instead of a flat one
+  # (see mdp.no_progress_stall, kept for that purpose).
   # DeepMimic early termination: end rollouts whose pose left the reference
   # entirely (fallen/tangled). Threshold is generous — a clean hang at the
   # wrong phase scores ~0.1-0.2 rad mean error and survives.
@@ -733,25 +782,85 @@ def phybot_c2_climb_wall_env_cfg(
     "gravity_angle": CurriculumTermCfg(
       func=mdp.gravity_angle,
       params={
-        # Compressed + refined ladder (motionref12). With the sensor fix the
-        # policy saturates 45 deg in ~550 iters (motionref11: refh 2.49/2.5
-        # by iter 541) and stepped 45->60 with literally zero shock, so the
-        # old 3000-iter rungs were mostly idle. The new 75-deg rung exists
-        # because the 60-trained policy probed at 90 ripped 65% of its
-        # releases (tension/lateral/ultimate) dying every ~2 s: pre-unload
-        # and hand-tension management must be learned on a slope, not off a
-        # cliff. Jitter (+-5) covers 55-65 and 70-80, leaving only a 10-deg
-        # gap into the exact-90 final stage, which now owns 9000 iters.
+        # Three-rung ladder 45/75/90 (motionref17, 2026-07-30): the 60 rung
+        # is retired and its budget folded into longer 45/75 residences —
+        # motionref16b showed the choreography (schedule-true regrips, toe
+        # braces, upward landings) never fully formed before the wall got
+        # steep, so the shallow rungs now get 1500/3000 iterations (vs
+        # 600/1500 on the motionref12 ladder). The 75 rung jitters +-12
+        # (covers 63-87) to bridge most of the removed 60's range; 45 keeps
+        # the global +-5; the final stage runs exactly 90 (overhangs are a
+        # different task).
+        # 88+-2 bridge stage (motionref17d, 2026-07-31): exact-90 straight
+        # from the 75+-12 pool (max 87) welded the hands — at 90 the last
+        # gravity compression vanishes and a hand swing leaves 3 anchors on
+        # pure shear+tension (static audit's thinnest state, 12.3% margin
+        # at the F0=400 worst draw), so the policy priced hand releases as
+        # Russian roulette and sat in a weld-hands/churn-RF crawl basin for
+        # 600+ iters (model_2950 @90: hands occ 1.00, +0.036 m). The
+        # 88+-2 draw covers 86-90 CONTINUOUSLY — zero-compression becomes
+        # an in-distribution limit approached gradually, not a 3-deg
+        # cliff. The exact-90 stage gets appended only after this stage's
+        # exams pass (user-gated), so the ladder currently ends here.
+        # Exact-90 appended (motionref17e): the bridge did its job in ~375
+        # iters — model_2800's 90-deg gate exam passed with full four-limb
+        # cycling (match 0.971, +0.209 m, zero overloads) where the
+        # bridge-less 17c had welded its hands for 600+ iters.
         "angle_stages": [
           {"iter": 0, "angle_deg": 45.0},
-          {"iter": 600, "angle_deg": 60.0},
-          {"iter": 1500, "angle_deg": 75.0},
-          {"iter": 3000, "angle_deg": 90.0},
+          {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
+          {"iter": 2500, "angle_deg": 88.0, "jitter_deg": 2.0},
+          {"iter": 2900, "angle_deg": 90.0},
         ],
         "steps_per_iter": 96,
         "angle_jitter_deg": 5.0,
       },
-    )
+    ),
+    # Tilt-peel band annealing (2026-07-31): the calibrated 3.5-4.5 deg
+    # band is tighter than birth exploration — the motionref18 cold start
+    # peeled every newborn apart within ~1 s (eplen ~48 steps, fall rate
+    # ~85/step, zero learning over 300 iters). The road to the honest
+    # physics is staged; the destination (the cfg's static range, which
+    # benches and play always use) is reached at iter 1800, before the
+    # 75-deg stage, so every stage from there trains and examines on the
+    # final band.
+    "tilt_peel": CurriculumTermCfg(
+      func=mdp.tilt_peel_schedule,
+      params={
+        # Band and tax anneal TOGETHER (18b lesson: a 3-deg tax under a
+        # 12-15 deg band priced beginner closed-chain wiggle and bred a
+        # one-anchor-dangle population). Tax threshold ~0.85 x band floor;
+        # final stage equals the static calibrated values (3.0/5.0).
+        "stages": [
+          {
+            "iter": 0,
+            "deg_range": (12.0, 15.0),
+            "tax_threshold_deg": 10.0,
+            "tax_scale_deg": 8.0,
+          },
+          {
+            "iter": 600,
+            "deg_range": (8.0, 10.0),
+            "tax_threshold_deg": 6.5,
+            "tax_scale_deg": 6.0,
+          },
+          {
+            "iter": 1200,
+            "deg_range": (5.0, 7.0),
+            "tax_threshold_deg": 4.0,
+            "tax_scale_deg": 5.0,
+          },
+          {
+            "iter": 1800,
+            "deg_range": (3.5, 4.5),
+            "tax_threshold_deg": 3.0,
+            "tax_scale_deg": 5.0,
+          },
+        ],
+        "command_name": microspine_affordance_name,
+        "steps_per_iter": 96,
+      },
+    ),
   }
 
   cfg.actions["joint_pos"] = mdp.SoftJointPositionActionCfg(
@@ -847,6 +956,12 @@ def phybot_c2_climb_wall_env_cfg(
       {"iter": 0, "angle_deg": final_angle["angle_deg"]}
     ]
     cfg.curriculum["gravity_angle"].params["angle_jitter_deg"] = 0.0
+    # Evaluation always runs the CALIBRATED tilt-peel band (the annealing
+    # ladder is a training aid, not physics).
+    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
+    cfg.curriculum["tilt_peel"].params["stages"] = [
+      {"iter": 0, "deg_range": final_tilt["deg_range"]}
+    ]
     # Evaluation starts at the cycle's canonical stance instead of a random
     # RSI phase, so rollouts read as one continuous climb from frame 0.
     cfg.commands[motion_command_name].sampling_mode = "start"

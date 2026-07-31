@@ -408,6 +408,114 @@ def _solve_frame(
   )
 
 
+def timing_audit(clip: dict, args: argparse.Namespace) -> bool:
+  """Schedule-timing feasibility: pure clip+config arithmetic, no sim.
+
+  Two families of checks over the loopable cycle (cycle 0 minus end_hold,
+  circular — the exact schedule ClimbMotionClip trains on):
+
+  1. Every scheduled OFF window must fit the engage pipeline: release
+     cooldown + press debounce + a maneuver floor for the actual travel.
+  2. Fresh-anchor maturity: from each scheduled regrip to the NEXT release
+     of any other limb there must be at least ``--ramp-time-s`` of dwell —
+     a just-latched pad holds capacity_ramp_floor of its capacity and
+     recruits to full only over ramp-time under load, so a shorter gap
+     loads an immature anchor (the motionref16 failure: seat_hold 0.2 s
+     under a 0.25 s ramp, right foot immature when the left hand swung).
+     A WARN tier flags gaps shorter than ramp + the latch-lateness grace
+     (``--grace-fraction`` x the closing window), where a legally-late
+     latch still enters the next transfer partially recruited.
+  """
+  fps = float(clip["fps"])
+  engaged_all = np.asarray(clip["ee_engaged"], dtype=bool)
+  ee_names = tuple(str(name) for name in clip["ee_list"])
+  seg_names = list(str(s) for s in clip["segment_names"])
+  labels = np.asarray(clip["phase_segment"], dtype=np.int64)
+  cycles = np.asarray(clip["cycle_index"], dtype=np.int64)
+  end_id = seg_names.index("end_hold") if "end_hold" in seg_names else -1
+  cycle_mask = (cycles == cycles.min()) & (labels != end_id)
+  engaged = engaged_all[cycle_mask]
+  cycle = engaged.shape[0]
+
+  pipeline_floor = args.cooldown_s + args.debounce_s + args.maneuver_floor_s
+  print(
+    f"== schedule-timing audit: cycle {cycle} frames ({cycle / fps:.2f} s)\n"
+    f"   OFF-window floor {pipeline_floor:.2f} s (cooldown {args.cooldown_s}"
+    f" + debounce {args.debounce_s} + maneuver {args.maneuver_floor_s}); "
+    f"regrip->next-release gap floor {args.ramp_time_s:.2f} s (recruitment "
+    f"ramp), WARN under ramp + {args.grace_fraction:.2f} x window"
+  )
+  ok = True
+  falling = {}  # ee -> sorted frame indices of scheduled releases
+  rising = {}
+  for i, ee in enumerate(ee_names):
+    col = engaged[:, i]
+    nxt = np.roll(col, -1)
+    falling[i] = np.flatnonzero(col & ~nxt)  # last ON frame before OFF
+    rising[i] = np.flatnonzero(~col & nxt)  # last OFF frame before ON
+    # OFF windows (circular runs of ~col).
+    for r in rising[i]:
+      # Walk back from the rising edge to the window's start.
+      length = 0
+      f = r
+      while not col[f]:
+        length += 1
+        f = (f - 1) % cycle
+        if length > cycle:
+          break
+      window_s = length / fps
+      if window_s + 1.0e-9 < pipeline_floor:
+        print(
+          f"   FAIL {ee}: OFF window ending at frame {r} is "
+          f"{window_s:.2f} s < {pipeline_floor:.2f} s pipeline floor"
+        )
+        ok = False
+  # Regrip -> next other-limb release maturity gaps.
+  worst_gap = None
+  for i, ee in enumerate(ee_names):
+    for r in rising[i]:
+      latch = (r + 1) % cycle  # first scheduled ON frame
+      gaps = []
+      for j in range(len(ee_names)):
+        if j == i or falling[j].size == 0:
+          continue
+        rel = (falling[j] - latch) % cycle
+        gaps.append(rel.min())
+      if not gaps:
+        continue
+      gap_s = min(gaps) / fps
+      # Latch-lateness allowance: the closing OFF window's grace.
+      length = 0
+      f = r
+      while not engaged[f, i]:
+        length += 1
+        f = (f - 1) % cycle
+        if length > cycle:
+          break
+      grace_s = args.grace_fraction * (length / fps)
+      tag = "ok"
+      if gap_s + 1.0e-9 < args.ramp_time_s:
+        tag = "FAIL"
+        ok = False
+      elif gap_s + 1.0e-9 < args.ramp_time_s + grace_s:
+        tag = "WARN"
+      if worst_gap is None or gap_s < worst_gap[0]:
+        worst_gap = (gap_s, ee)
+      print(
+        f"   {tag:4s} {ee:18s} regrip@f{latch:4d}: next other-limb release "
+        f"in {gap_s:.2f} s (ramp {args.ramp_time_s:.2f}, late-latch grace "
+        f"{grace_s:.2f})"
+      )
+  if worst_gap is not None:
+    print(f"   worst maturity gap {worst_gap[0]:.2f} s ({worst_gap[1]})")
+  print(
+    "PASS: schedule timing feasible."
+    if ok
+    else "FAIL: schedule timing infeasible."
+  )
+  return ok
+
+
 def audit(args: argparse.Namespace) -> bool:
   path = args.motion_file.resolve()
   clip = np.load(path, allow_pickle=True).item()
@@ -417,6 +525,10 @@ def audit(args: argparse.Namespace) -> bool:
     raise ValueError(
       "Motion joint order does not match PHYBOT_C2_POLICY_JOINT_NAMES."
     )
+
+  timing_ok = True
+  if not args.skip_timing:
+    timing_ok = timing_audit(clip, args)
 
   model, pad_site_ids, ee_body_ids, toe_sites = _build_model(ee_names)
   data = mujoco.MjData(model)
@@ -616,7 +728,9 @@ def audit(args: argparse.Namespace) -> bool:
       f"   note: {solver_warnings} SLSQP exits reported a warning but their "
       "returned points satisfy every audited constraint."
     )
-  return True
+  if not timing_ok:
+    print("OVERALL FAIL: static audit passed but the schedule timing did not.")
+  return timing_ok
 
 
 def main() -> None:
@@ -664,6 +778,21 @@ def main() -> None:
     default=50,
     help="print progress every N solved frames; 0 disables progress output",
   )
+  # Schedule-timing audit constants. Defaults are the climb task's operating
+  # point: reengage_cooldown 10 steps / debounce 3 steps at 0.02 s task rate
+  # (env_cfgs), capacity_ramp_time_s 0.25 and the mismatch grace_fraction
+  # 0.3 (MicrospineLimitSurfaceCfg / reward config).
+  parser.add_argument("--skip-timing", action="store_true")
+  parser.add_argument("--cooldown-s", type=float, default=0.20)
+  parser.add_argument("--debounce-s", type=float, default=0.06)
+  parser.add_argument(
+    "--maneuver-floor-s",
+    type=float,
+    default=0.25,
+    help="minimum time budgeted for the actual pad travel inside a window",
+  )
+  parser.add_argument("--ramp-time-s", type=float, default=0.25)
+  parser.add_argument("--grace-fraction", type=float, default=0.3)
   args = parser.parse_args()
   if args.f0 <= 0.0:
     parser.error("--f0 must be positive")

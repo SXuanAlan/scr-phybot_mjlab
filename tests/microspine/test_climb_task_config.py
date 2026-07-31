@@ -174,6 +174,11 @@ def test_climb_reward_contract_is_deepmimic_split():
   # never starves; the gate reuses the mismatch bill's edge-grace ramp.
   for gated in ("motion_joint_pos", "motion_ee_pos", "motion_root_ori"):
     assert cfg.rewards[gated].params["engage_gate_floor"] == 0.25
+    # Window-proportional grace (motionref17): the gate's edge forgiveness
+    # scales with the violated window itself, so clip retiming cannot
+    # silently discount welding (the fixed 0.25 s grace had halved the fast
+    # clip's foot-window weld bill).
+    assert cfg.rewards[gated].params["engage_gate_grace_fraction"] == 0.3
   # Seat-phase step credit: pays pad press only inside the scheduled regrip
   # window (countdown-gated on the observed channel), stops at latch, and
   # its ceiling must stay strictly below the mismatch bill so pressing
@@ -187,12 +192,15 @@ def test_climb_reward_contract_is_deepmimic_split():
   )
   # -1.0: schedule adherence must be priced against the budgeted task income
   # (motionref1 ignored the schedule at -0.25). The bill ramps in over the
-  # 0.25 s around a scheduled flip — the countdown signal the policy sees —
-  # because debounce + cooldown make instant compliance impossible.
+  # outer 30% of the violated window around a scheduled flip — the countdown
+  # signal the policy sees — because debounce + cooldown make instant
+  # compliance impossible; as a window fraction the weld-through price
+  # survives clip retiming (motionref17).
   assert cfg.rewards["motion_engage_mismatch"].weight == -1.0
   assert (
-    cfg.rewards["motion_engage_mismatch"].params["grace_time_s"] == 0.25
+    cfg.rewards["motion_engage_mismatch"].params["grace_fraction"] == 0.3
   )
+  assert "grace_time_s" not in cfg.rewards["motion_engage_mismatch"].params
 
   # The climbing drive IS an imitation term (motionref8): income follows the
   # reference's own climb profile, decaying symmetrically when behind or
@@ -209,6 +217,16 @@ def test_climb_reward_contract_is_deepmimic_split():
   # income scale so farmed landings can never dominate real climbing.
   assert cfg.rewards["motion_anchor_landing"].weight == 40.0
   assert cfg.rewards["motion_anchor_landing"].params["std"] == 0.03
+  # Dense swing-approach shaping (motionref17): pays progress toward the
+  # upcoming landing rung during scheduled swings only, breaking the landing
+  # bonus's chicken-and-egg (measured motionref16: landing income stuck at
+  # 3-5% of ceiling). Ceiling 0.5/s per swinging EE — strictly below the
+  # mismatch bill so hovering released never profits.
+  assert cfg.rewards["motion_swing_approach"].weight == 0.5
+  assert cfg.rewards["motion_swing_approach"].params["std"] == 0.05
+  assert cfg.rewards["motion_swing_approach"].weight < abs(
+    cfg.rewards["motion_engage_mismatch"].weight
+  )
 
   # The commanded-gait battery is gone with the state machine.
   for legacy in (
@@ -231,35 +249,48 @@ def test_climb_reward_contract_is_deepmimic_split():
   # -2.5: tension/lateral/ultimate rips must bill visibly (40% of motionref1's
   # 3.5 Hz rip storm was genuine tension pull-off at a negligible price).
   assert cfg.rewards["unsafe_microspine_release"].weight == -2.5
+  # Scheduled-window reverse-shear billing (motionref17): the free unhook
+  # direction stays free AT scheduled release edges but costs 0.3x while the
+  # clip says ENGAGED — motionref16b farmed it as a release valve (43-45
+  # latch-jiggle-unhook cycles per 30 s on the abandoned right foot).
+  unsafe_params = cfg.rewards["unsafe_microspine_release"].params
+  assert unsafe_params["motion_command_name"] == "climb_motion"
+  assert unsafe_params["scheduled_reverse_cost"] == 0.3
+  assert unsafe_params["scheduled_reverse_grace_s"] == 0.25
   assert cfg.rewards["ee_slide_penalty"].weight == -0.1
   # -0.1 (was -0.01): policy-mean chatter (3-4 Hz, +-4-5 cm hand buzz on
   # motionref8) was economically free and kept blowing the 60 ms engage
   # window; walk prices the same term at -0.25/-0.3.
   assert cfg.rewards["action_rate_l2"].weight == -0.1
+  # Engaged-tilt tax ("4-deg" recalibration): capture-relative rotation
+  # priced from 3 deg — the gradient companion of the tilt-peel release
+  # (DR 3.5-4.5 deg, reason 5). Reference uses <= 1.1 deg.
+  assert cfg.rewards["engaged_tilt"].weight == -1.0
+  assert cfg.rewards["engaged_tilt"].params["threshold_deg"] == 3.0
+  assert cfg.rewards["engaged_tilt"].params["scale_deg"] == 5.0
+  assert unsafe_params["tilt_release_cost"] == 0.5
+  # Spike tax above 70% of the deploy torque caps (motionref17b): the
+  # unpriced near-saturation unhook yank (0.45 -> 1.00 of the shoulder cap
+  # between model_2175 and model_4300) must bill; support duty and the
+  # gentle weight-shift unhook stay below the threshold and free.
+  assert cfg.rewards["torque_headroom"].weight == -8.0
+  assert cfg.rewards["torque_headroom"].params["threshold"] == 0.7
+  # Tilt-peel physics ("4-deg" pass): suspension travel le_max 5 mm over
+  # the 74.7 mm rake span = ~3.8 deg of chassis rotation about the loaded
+  # edge; per-grip lottery like F0.
+  ls_cfg = cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
+  assert ls_cfg.tilt_peel_max_deg_range == (3.5, 4.5)
   assert cfg.rewards["bounded_dof_acc_l2"].weight == -0.02
   assert cfg.rewards["bounded_dof_acc_l2"].params["max_cost"] == 10.0
   assert cfg.rewards["dof_pos_limits"].weight == -5.0
   assert cfg.rewards["termination_penalty"].weight == -500.0
 
-  # Stall guard plus DeepMimic early termination; the gait disqualifications
-  # left with the command. 1.5 cm / 8 s (was 3 cm / 5 s): with the drive
-  # reference-locked there is no farmable stationary income left to execute,
-  # and the tight bar was killing the stance -> shift -> climb ladder
-  # (motionref7 learned "never truly latch" because standing properly was a
-  # death sentence).
-  assert "no_progress" in cfg.terminations
-  # 12% of the commanded rate — see env_cfgs: strict enough to execute the
-  # measured cycle-in-place basin (2-4 mm / 8 s), loose enough that the
-  # iter-800 single-rung population can chain rungs instead of dying at 644
-  # steps.
-  assert cfg.terminations["no_progress"].params["minimum_progress"] == 0.007
-  assert cfg.terminations["no_progress"].params["stall_time_s"] == 8.0
-  # The activation gate must sit BELOW the commanded climb rate or the
-  # executioner is silently disarmed (the 10 mm/s bar vs the moment-safe
-  # clip's 4.84 mm/s let cycling-in-place survive full episodes).
-  assert cfg.terminations["no_progress"].params["command_threshold"] == 0.003
-  clip_vz = float(cfg.commands["climb_velocity"].ranges.lin_vel_z[0])
-  assert clip_vz > cfg.terminations["no_progress"].params["command_threshold"]
+  # The no_progress executioner is retired (motionref17): under the
+  # motionref16 economics it truncated every learning episode at ~8-13 s and
+  # priced failed regrip experiments at -10, dismantling the dance ->
+  # choreography -> climb ladder motionref15 had climbed. Climb pressure now
+  # rides motion_ref_height + motion_anchor_landing + motion_swing_approach.
+  assert "no_progress" not in cfg.terminations
   assert cfg.terminations["bad_tracking"].params["threshold"] == 0.7
   assert "gait_phase_timeout" not in cfg.terminations
   assert "gait_curriculum_success" not in cfg.terminations
@@ -271,30 +302,58 @@ def test_climb_curriculum_is_fixed_iteration_gravity_schedule():
 
   # No performance gate: graduation-by-height let a 20x-overspeed scramble
   # promote 45->75 deg in 400 iterations (motionref1). Fixed-iteration rungs
-  # stay; the ladder is compressed and regains a 75-deg rung (motionref12):
-  # post-sensor-fix the policy saturates 45 in ~550 iters and steps 45->60
-  # with zero shock, while the 60-trained policy probed at 90 ripped 65% of
-  # its releases — pre-unload must be learned on a slope, not off a cliff.
-  # The vertical stage runs exactly 90 (jitter above 90 would mean
-  # overhangs) and owns iters 3000-12000.
+  # stay; the 60 rung is retired (motionref17) and its budget folded into
+  # longer 45/75 residences — the choreography (schedule-true regrips, toe
+  # braces, upward landings) must fully form before the wall gets steep.
+  # The 75 rung jitters +-12 to bridge most of the removed 60's range; the
+  # vertical stage runs exactly 90 (jitter above 90 would mean overhangs)
+  # and owns iters 4500-12000.
   assert "climb_difficulty" not in cfg.curriculum
   term = cfg.curriculum["gravity_angle"]
   stages = term.params["angle_stages"]
   assert [(stage["iter"], stage["angle_deg"]) for stage in stages] == [
     (0, 45.0),
-    (600, 60.0),
     (1500, 75.0),
-    (3000, 90.0),
+    (2500, 88.0),
+    (2900, 90.0),
   ]
+  assert "jitter_deg" not in stages[0]  # 45 rung uses the global +-5
+  assert stages[1]["jitter_deg"] == 12.0
+  # 88+-2 bridge: draws cover 86-90 continuously so zero-compression is
+  # approached as an in-distribution limit (exact-90 welded the hands when
+  # entered straight from the 75+-12 pool; the bridge fixed it in ~375
+  # iters — model_2800 90-deg gate exam PASS).
+  assert stages[2]["jitter_deg"] == 2.0
+  assert "jitter_deg" not in stages[3]  # 90 exact (jitter_below_deg)
   assert term.params["angle_jitter_deg"] == 5.0
   # The iteration clock derives from common_step_counter; it must match the
   # runner's rollout length or every rung shifts.
   assert term.params["steps_per_iter"] == runner_cfg.num_steps_per_env == 96
   assert runner_cfg.max_iterations == 12_000
 
+  # Tilt-peel band annealing: the road to the calibrated band is staged
+  # (birth exploration exceeds 3.5-4.5 deg and peeled every newborn), the
+  # destination is fixed and reached before the 75-deg stage.
+  tilt_term = cfg.curriculum["tilt_peel"]
+  tilt_stages = tilt_term.params["stages"]
+  assert tilt_stages[0]["deg_range"] == (12.0, 15.0)
+  # Band and tax anneal together (18b: a 3-deg tax under a 12-15 deg band
+  # bred a one-anchor-dangle population).
+  assert tilt_stages[0]["tax_threshold_deg"] == 10.0
+  assert tilt_stages[-1]["iter"] == 1800
+  assert tilt_stages[-1]["deg_range"] == (3.5, 4.5)
+  # Final stage matches the static reward params — eval physics/economics.
+  assert tilt_stages[-1]["tax_threshold_deg"] == 3.0
+  assert tilt_stages[-1]["tax_scale_deg"] == 5.0
+  assert tilt_term.params["steps_per_iter"] == 96
+
   play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
   play_term = play_cfg.curriculum["gravity_angle"]
   assert play_term.params["angle_stages"] == [{"iter": 0, "angle_deg": 90.0}]
+  # Evaluation always runs the calibrated tilt-peel band and economics.
+  play_tilt = play_cfg.curriculum["tilt_peel"].params["stages"]
+  assert len(play_tilt) == 1 and play_tilt[0]["iter"] == 0
+  assert play_tilt[0]["deg_range"] == (3.5, 4.5)
   # Evaluation/diagnostic rollouts must be deterministic at the pinned angle.
   assert play_term.params["angle_jitter_deg"] == 0.0
 

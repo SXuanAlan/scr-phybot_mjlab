@@ -105,6 +105,15 @@ def test_loader_derives_schedule_edge_countdowns():
     assert torch.allclose(
       clip.ee_edge_distance[:, foot], torch.tensor([0.25, 0.0, 0.25, 0.0])
     )
+  # Containing-run lengths (window-proportional mismatch grace): hands are
+  # one full-cycle ON run; feet split into a 2-frame OFF run (frames 1-2)
+  # and a circular 2-frame ON run (frames 3 and 0), normalized by the cycle.
+  assert torch.allclose(clip.ee_run_time[:, 0], torch.ones(4))
+  assert torch.allclose(clip.ee_run_time[:, 1], torch.ones(4))
+  for foot in (2, 3):
+    assert torch.allclose(
+      clip.ee_run_time[:, foot], torch.tensor([0.5, 0.5, 0.5, 0.5])
+    )
 
 
 def test_loader_resamples_other_fps_onto_the_policy_grid():

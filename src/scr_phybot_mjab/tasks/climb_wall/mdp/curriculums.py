@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
 import torch
 
@@ -45,6 +45,10 @@ class WallAngleStage(TypedDict):
   angle_deg: float  # effective wall angle from horizontal. 90 = vertical wall
   # (gravity straight down). 30 = gentle 30°-from-horizontal "slope" — modeled
   # by tilting GRAVITY while keeping the wall geometry vertical.
+  jitter_deg: NotRequired[float]  # per-stage override of the curriculum's
+  # global ``angle_jitter_deg`` (e.g. a wide rung bridging a removed
+  # neighbor). Still subject to ``jitter_below_deg``: the exact-90 stage
+  # never jitters.
 
 
 class GravityCurriculumStage(TypedDict):
@@ -168,18 +172,79 @@ class ClimbVelocityRangeStage(TypedDict, total=False):
   vz_range: tuple[float, float]
 
 
-def resolve_gravity_angle(current_iter: int, angle_stages: list[WallAngleStage]) -> float:
-  """Resolve the effective gravity curriculum angle by stepwise stage lookup."""
+class TiltPeelStage(TypedDict):
+  iter: int
+  deg_range: tuple[float, float]  # tilt_peel_max_deg_range for this stage
+  tax_threshold_deg: NotRequired[float]  # engaged_tilt reward threshold
+  tax_scale_deg: NotRequired[float]  # engaged_tilt reward scale
+
+
+def tilt_peel_schedule(
+  env: ManagerBasedRlEnv,
+  env_ids: torch.Tensor,
+  stages: list[TiltPeelStage],
+  command_name: str = "microspine_affordance",
+  tax_term_name: str | None = "engaged_tilt",
+  steps_per_iter: int = 24,
+) -> torch.Tensor:
+  """Anneal the tilt-peel band toward the calibrated physics by iteration.
+
+  The calibrated band (3.5-4.5 deg of engaged rotation from capture) is
+  tighter than birth exploration: an untrained policy's flailing rotates
+  pads past it before "hold on" can be learned at all (motionref18 cold
+  start: every episode peeled apart within ~1 s and 300 iterations moved
+  nothing). Like the gravity ladder, the ROAD to the honest physics is
+  staged while the destination stays fixed: the cfg's static range is the
+  final stage, benches and play builds (empty/pinned curriculum) always run
+  the calibrated band, and per-grip draws pick up the current stage at
+  their next latch (stage transitions blur naturally).
+
+  The engaged_tilt TAX anneals on the same table (``tax_threshold_deg`` /
+  ``tax_scale_deg``): taxing from the final 3 deg while the peel band sat
+  at 12-15 priced the multi-anchor closed-chain wiggle beginners need and
+  bred a one-anchor-dangle population (motionref18b iter 300: RF occupancy
+  0.97, every other limb ~0.02) — the band and its approach warning must
+  move together.
+  """
+  del env_ids  # Stage is a function of training time; draws happen per latch.
+  current_iter = env.common_step_counter // steps_per_iter
+  if not stages:
+    raise ValueError("tilt_peel_schedule requires at least one stage.")
+  current = stages[0]
+  for stage in sorted(stages, key=lambda item: item["iter"]):
+    if current_iter >= stage["iter"]:
+      current = stage
+    else:
+      break
+  affordance = env.command_manager.get_term(command_name)
+  affordance._ls_cfg.tilt_peel_max_deg_range = tuple(current["deg_range"])
+  if tax_term_name is not None and "tax_threshold_deg" in current:
+    tax_cfg = env.reward_manager.get_term_cfg(tax_term_name)
+    tax_cfg.params["threshold_deg"] = current["tax_threshold_deg"]
+    if "tax_scale_deg" in current:
+      tax_cfg.params["scale_deg"] = current["tax_scale_deg"]
+  return torch.tensor([current["deg_range"][0]], device=env.device)
+
+
+def resolve_gravity_stage(
+  current_iter: int, angle_stages: list[WallAngleStage]
+) -> WallAngleStage:
+  """Resolve the active gravity curriculum stage by stepwise lookup."""
   if not angle_stages:
     raise ValueError("angle_stages must contain at least one stage.")
 
-  current_angle = angle_stages[0]["angle_deg"]
+  current = angle_stages[0]
   for stage in sorted(angle_stages, key=lambda item: item["iter"]):
     if current_iter >= stage["iter"]:
-      current_angle = stage["angle_deg"]
+      current = stage
     else:
       break
-  return current_angle
+  return current
+
+
+def resolve_gravity_angle(current_iter: int, angle_stages: list[WallAngleStage]) -> float:
+  """Resolve the effective gravity curriculum angle by stepwise stage lookup."""
+  return resolve_gravity_stage(current_iter, angle_stages)["angle_deg"]
 
 
 def resolve_climb_velocity_ranges(
@@ -310,9 +375,13 @@ def gravity_angle(
   import warp as wp
 
   current_iter = env.common_step_counter // steps_per_iter
-  angle_deg = resolve_gravity_angle(current_iter, angle_stages)
+  stage = resolve_gravity_stage(current_iter, angle_stages)
+  angle_deg = stage["angle_deg"]
+  # Per-stage jitter override (e.g. a widened rung bridging a removed
+  # neighbor); falls back to the curriculum-wide angle_jitter_deg.
+  stage_jitter = float(stage.get("jitter_deg", angle_jitter_deg))
 
-  jitter_wanted = angle_jitter_deg > 0.0 and angle_deg < jitter_below_deg
+  jitter_wanted = stage_jitter > 0.0 and angle_deg < jitter_below_deg
   if jitter_wanted:
     grav_view = _ensure_per_world_gravity(env)  # (num_envs, 3)
   else:
@@ -322,7 +391,7 @@ def gravity_angle(
     if env_ids is not None and len(env_ids) > 0:
       angles = sample_gravity_angles(
         angle_deg,
-        angle_jitter_deg,
+        stage_jitter,
         jitter_below_deg,
         len(env_ids),
         device=grav_view.device,

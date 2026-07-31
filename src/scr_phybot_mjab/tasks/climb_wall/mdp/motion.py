@@ -111,6 +111,32 @@ def _edge_frame_countdowns(engaged: np.ndarray) -> np.ndarray:
   return out
 
 
+def _run_lengths(engaged: np.ndarray) -> np.ndarray:
+  """Per-frame length (frames) of the circular ON/OFF run containing it.
+
+  For frame ``c`` and EE ``h`` this is the length of the maximal constant
+  stretch of ``engaged[:, h]`` that frame ``c`` sits in, with wrap-around
+  (the schedule is a loop). An EE the clip never flips reads the full cycle.
+  Consumed by the window-proportional mismatch grace: a weld-through bill
+  then costs a constant fraction of the violated window regardless of how
+  the clip is timed.
+  """
+  cycle, num_ee = engaged.shape
+  out = np.full((cycle, num_ee), cycle, dtype=np.int64)
+  for h in range(num_ee):
+    col = engaged[:, h]
+    starts = np.flatnonzero(col != np.roll(col, 1))  # circular run starts
+    if starts.size == 0:
+      continue
+    for k, s in enumerate(starts):
+      e = starts[(k + 1) % starts.size]
+      length = (e - s) % cycle
+      if length == 0:
+        length = cycle
+      out[(np.arange(length) + s) % cycle, h] = length
+  return out
+
+
 def _cycle_frames(data: dict) -> int:
   """Frames of one loopable cycle: cycle 0 without the ``end_hold`` tail.
 
@@ -161,6 +187,7 @@ class ClimbMotionClip:
   ee_engaged: torch.Tensor  # (C, H) bool
   ee_edge_times: torch.Tensor  # (C, H, 2) countdown to next release/regrip
   ee_edge_distance: torch.Tensor  # (C, H) |time| to the NEAREST edge
+  ee_run_time: torch.Tensor  # (C, H) length of the containing ON/OFF run
   toe_braced: torch.Tensor  # (C, 2) bool: foot-toe wall brace schedule
   ee_anchor_pos: torch.Tensor  # (C, H, 3) scheduled anchor, clip world frame
 
@@ -280,6 +307,7 @@ class ClimbMotionClip:
       np.minimum(future.min(axis=-1), past.min(axis=-1) - 1) / cycle
     ).astype(np.float32)
     edge_distance[:, future.min(axis=(0, -1)) >= cycle] = 1.0
+    run_time = (_run_lengths(engaged_cycle) / cycle).astype(np.float32)
 
     def _t(arr: np.ndarray, dtype=torch.float32) -> torch.Tensor:
       return torch.tensor(np.ascontiguousarray(arr), dtype=dtype, device=device)
@@ -300,6 +328,7 @@ class ClimbMotionClip:
       ee_engaged=_t(engaged_cycle, dtype=torch.bool),
       ee_edge_times=_t(future.astype(np.float32) / cycle),
       ee_edge_distance=_t(edge_distance),
+      ee_run_time=_t(run_time),
       toe_braced=_t(toe_braced[:cycle], dtype=torch.bool),
       ee_anchor_pos=_t(ee_anchor[:cycle]),
     )
@@ -438,6 +467,15 @@ class ClimbMotionCommand(CommandTerm):
     piecewise-linear function of the countdown channels the policy observes.
     """
     return self.clip.ee_edge_distance[self.time_steps]
+
+  @property
+  def ref_run_time(self) -> torch.Tensor:
+    """Normalized length of each EE's CURRENT scheduled ON/OFF run, (E, H).
+
+    Multiplied by ``cycle_time_s`` this is the containing window's duration
+    in seconds — the denominator of the window-proportional mismatch grace.
+    """
+    return self.clip.ee_run_time[self.time_steps]
 
   @property
   def ref_edge_countdowns(self) -> torch.Tensor:
