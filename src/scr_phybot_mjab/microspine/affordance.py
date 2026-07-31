@@ -153,6 +153,13 @@ class MicrospineAffordance(CommandTerm):
     self.limit_f_n0 = torch.zeros(shape, device=self.device)
     self.limit_mu_lateral = torch.zeros(shape, device=self.device)
     self.limit_f_l0 = torch.zeros(shape, device=self.device)
+    # Per-grip tilt-peel threshold [rad] (0 = disabled); see
+    # MicrospineLimitSurfaceCfg.tilt_peel_max_deg_range.
+    self.limit_tilt_peel_max = torch.zeros(shape, device=self.device)
+    # Engaged-pad rotation from the engage-capture orientation [rad];
+    # 0 where not engaged. The suspension-travel usage the tilt-peel check
+    # and the engaged-tilt reward read.
+    self.tilt_from_capture = torch.zeros(shape, device=self.device)
     self._violation_count = torch.zeros(
       shape, dtype=torch.long, device=self.device
     )
@@ -224,6 +231,9 @@ class MicrospineAffordance(CommandTerm):
     self.limit_f_n0[env_ids] = sample(ls.f_n0_range)
     self.limit_mu_lateral[env_ids] = sample(ls.mu_lateral_range)
     self.limit_f_l0[env_ids] = sample(ls.f_l0_range)
+    self.limit_tilt_peel_max[env_ids] = torch.deg2rad(
+      sample(ls.tilt_peel_max_deg_range)
+    )
 
   def _get_executor(self):
     """Lazily fetch the physics executor (built after command terms)."""
@@ -522,6 +532,28 @@ class MicrospineAffordance(CommandTerm):
     self.release_reason = torch.where(
       release, reason, torch.zeros_like(reason)
     )
+
+    # Tilt-peel (reason 5): engaged-pad rotation from the engage-capture
+    # orientation beyond the per-grip suspension-travel draw. Geometric and
+    # instant — no debounce: once the tension-side row's travel is
+    # exhausted, further rotation is structural pull-out, not a load
+    # transient. Judged from the same guard window as the force envelope.
+    if self._ls_cfg.tilt_peel_max_deg_range[1] > 0.0:
+      pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids, :]
+      dot = (
+        (pad_quat * executor.anchor_quat_w).sum(dim=-1).abs().clamp(max=1.0)
+      )
+      tilt = 2.0 * torch.acos(dot)
+      self.tilt_from_capture = torch.where(
+        self._engaged, tilt, torch.zeros_like(tilt)
+      )
+      tilt_cond = active & (tilt > self.limit_tilt_peel_max)
+      release = release | tilt_cond
+      self.release_reason = torch.where(
+        tilt_cond,
+        torch.full_like(self.release_reason, 5),
+        self.release_reason,
+      )
     return release
 
   def _wedge_envelope(
@@ -1083,6 +1115,16 @@ class MicrospineAffordance(CommandTerm):
       self.limit_f_t_max = torch.where(
         engage_transition, draw, self.limit_f_t_max
       )
+      # Same lottery for the tilt-peel travel headroom: which asperities the
+      # spines caught decides how much chassis rotation the patch tolerates.
+      t_lo, t_hi = self._ls_cfg.tilt_peel_max_deg_range
+      if t_hi > 0.0:
+        t_draw = torch.deg2rad(
+          t_lo + (t_hi - t_lo) * torch.rand_like(self.limit_tilt_peel_max)
+        )
+        self.limit_tilt_peel_max = torch.where(
+          engage_transition, t_draw, self.limit_tilt_peel_max
+        )
     self._engage_count = engage_count
     # After an engage transition, clear its counter.
     self._engage_count = torch.where(

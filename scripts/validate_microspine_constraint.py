@@ -70,6 +70,7 @@ def build_env(
   anchor_lock_rotation: bool | None = None,
   grip_enabled: bool = True,
   motion_file: str | Path | None = None,
+  anchor_torquescale: float | None = None,
 ) -> ManagerBasedRlEnv:
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   cfg.scene.num_envs = num_envs
@@ -109,6 +110,8 @@ def build_env(
     owner.reanchor_after_grace = reanchor_after_grace
     if anchor_lock_rotation is not None:
       owner.anchor_lock_rotation = anchor_lock_rotation
+    if anchor_torquescale is not None:
+      owner.anchor_torquescale = anchor_torquescale
   return ManagerBasedRlEnv(cfg=cfg, device=DEVICE)
 
 

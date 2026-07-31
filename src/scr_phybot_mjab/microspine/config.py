@@ -197,6 +197,19 @@ class MicrospineLimitSurfaceCfg:
   reset-time draw still seeds initial latches; a collapsed range (bench)
   redraws the same value, keeping bench determinism."""
 
+  tilt_peel_max_deg_range: tuple[float, float] = (0.0, 0.0)
+  """Engaged-pad rotation from the engage-capture orientation [deg] at which
+  the pad peels (forced release, reason 5 "tilt-peel").
+
+  Physically: the spine suspensions conform force-free over le_max = 5 mm
+  (Wang 2017 Sec 2.3); rotating the pad chassis about its loaded edge row
+  exhausts that travel at le_max / pad_span — 5/74.7 mm = ~3.8 deg on the
+  phybot C2 rake span — after which the tension-side row is loaded
+  structurally and pulls out. Per-grip uniform draw (same lottery philosophy
+  as F0: every grip lands on different asperities with different travel
+  headroom). (0, 0) disables the check (legacy behavior: rotation soft and
+  unlimited)."""
+
   hold_grace_steps: int = 14
   """Re-seat window length in policy steps (the judging role moved to
   ``hold_judge_guard_steps``). During this window the anchor may follow the
