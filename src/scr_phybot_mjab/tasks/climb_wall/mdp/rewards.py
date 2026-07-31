@@ -111,10 +111,39 @@ def _motion(env: ManagerBasedRlEnv, command_name: str) -> "ClimbMotionCommand":
   return env.command_manager.get_term(command_name)
 
 
+def _graced_mismatch(
+  motion: "ClimbMotionCommand",
+  grace_time_s: float | None,
+  grace_fraction: float | None,
+) -> torch.Tensor:
+  """Per-EE mismatch scaled by the edge-distance grace ramp, (E, H).
+
+  ``grace_fraction`` prices the grace as a fraction of the CURRENT scheduled
+  run's length (per EE, per frame): a weld-through bill is then a constant
+  fraction of the violated window no matter how the clip is timed. The fixed
+  ``grace_time_s`` alternative silently discounted welding when the clip was
+  compressed — at 0.25 s over a 0.6 s foot window only the middle 0.1 s
+  billed full price (motionref16's weld economics). Fraction takes
+  precedence when both are given.
+  """
+  mismatch = (motion.ref_engaged != motion.robot_engaged).float()
+  if grace_fraction is not None and grace_fraction > 0.0:
+    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
+    grace_seconds = (
+      motion.ref_run_time * motion.cycle_time_s * grace_fraction
+    ).clamp(min=1.0e-6)
+    return mismatch * (edge_seconds / grace_seconds).clamp(max=1.0)
+  if grace_time_s is not None and grace_time_s > 0.0:
+    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
+    return mismatch * (edge_seconds / grace_time_s).clamp(max=1.0)
+  return mismatch
+
+
 def _engage_match_gate(
   motion: "ClimbMotionCommand",
   floor: float,
   grace_time_s: float,
+  grace_fraction: float | None = None,
 ) -> torch.Tensor:
   """Schedule-adherence income gate in [floor, 1], per env.
 
@@ -128,10 +157,7 @@ def _engage_match_gate(
   fully matched, so the gradient toward keeping the match exists from step
   one).
   """
-  mismatch = (motion.ref_engaged != motion.robot_engaged).float()
-  if grace_time_s > 0.0:
-    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
-    mismatch = mismatch * (edge_seconds / grace_time_s).clamp(max=1.0)
+  mismatch = _graced_mismatch(motion, grace_time_s, grace_fraction)
   match = 1.0 - mismatch.mean(dim=-1)
   return floor + (1.0 - floor) * match
 
@@ -142,6 +168,7 @@ def motion_joint_pos_error_exp(
   std: float = 0.2,
   engage_gate_floor: float | None = None,
   engage_gate_grace_s: float = 0.25,
+  engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
   """exp kernel on the mean squared clip-joint angle error (rad).
 
@@ -156,7 +183,7 @@ def motion_joint_pos_error_exp(
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
     reward = reward * _engage_match_gate(
-      motion, engage_gate_floor, engage_gate_grace_s
+      motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
     )
   return reward
 
@@ -178,6 +205,7 @@ def motion_ee_pos_error_exp(
   std: float = 0.1,
   engage_gate_floor: float | None = None,
   engage_gate_grace_s: float = 0.25,
+  engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
   """exp kernel on root-frame end-effector position error (m).
 
@@ -192,7 +220,7 @@ def motion_ee_pos_error_exp(
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
     reward = reward * _engage_match_gate(
-      motion, engage_gate_floor, engage_gate_grace_s
+      motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
     )
   return reward
 
@@ -203,6 +231,7 @@ def motion_root_ori_error_exp(
   std: float = 0.3,
   engage_gate_floor: float | None = None,
   engage_gate_grace_s: float = 0.25,
+  engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
   """exp kernel on the root orientation geodesic error (rad).
 
@@ -219,7 +248,7 @@ def motion_root_ori_error_exp(
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
     reward = reward * _engage_match_gate(
-      motion, engage_gate_floor, engage_gate_grace_s
+      motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
     )
   return reward
 
@@ -228,6 +257,7 @@ def motion_engage_mismatch(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   grace_time_s: float | None = None,
+  grace_fraction: float | None = None,
 ) -> torch.Tensor:
   """Per-EE bill for a latch state disagreeing with the clip's schedule.
 
@@ -245,13 +275,13 @@ def motion_engage_mismatch(
   so the schedule -> action mapping is learnable from the chart itself —
   and transfers to a different clip — rather than memorized against the
   phase clock.
+
+  ``grace_fraction`` prices the grace as a fraction of the violated window's
+  own length instead of a fixed number of seconds (see ``_graced_mismatch``)
+  — the weld-through bill then survives clip retiming unchanged.
   """
   motion = _motion(env, command_name)
-  mismatch = (motion.ref_engaged != motion.robot_engaged).float()
-  if grace_time_s is not None and grace_time_s > 0.0:
-    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
-    mismatch = mismatch * (edge_seconds / grace_time_s).clamp(max=1.0)
-  return mismatch.sum(dim=-1)
+  return _graced_mismatch(motion, grace_time_s, grace_fraction).sum(dim=-1)
 
 
 def motion_scheduled_press_shaping(
@@ -282,6 +312,153 @@ def motion_scheduled_press_shaping(
   window = (motion.ref_engaged | regrip_soon) & ~motion.robot_engaged
   press = (affordance.pad_press_force / press_norm_n).clamp(max=1.0)
   return (press * window.float()).sum(dim=-1)
+
+
+def _toe_sensor_row_perm(sensor, toe_geom_names: tuple[str, ...]) -> "torch.Tensor":
+  """Map the toe contact sensor's row order onto PHYBOT_C2_FOOT_TOES order."""
+  perm = getattr(sensor, "_toe_brace_row_perm", None)
+  if perm is None:
+    names = getattr(sensor, "primary_names", None)
+    if names is None:
+      names = list(dict.fromkeys(slot.primary_name for slot in sensor._slots))
+    order = {name.split("/")[-1]: i for i, name in enumerate(names)}
+    missing = [g for g in toe_geom_names if g not in order]
+    if missing:
+      raise ValueError(
+        f"Toe contact sensor rows {names} are missing geoms {missing}."
+      )
+    perm = torch.tensor(
+      [order[g] for g in toe_geom_names],
+      dtype=torch.long,
+      device=sensor.data.found.device,
+    )
+    sensor._toe_brace_row_perm = perm
+  return perm
+
+
+def motion_anchor_landing():
+  """Factory: pay each scheduled latch by landing accuracy on the anchor ladder.
+
+  The shape rewards are deliberately root-relative and the engage gate only
+  checks latch TIMING, so a policy can execute the whole regrip cycle in
+  place — releasing and re-latching each pad at its old spot — and still
+  collect nearly every imitation term (the measured iter-1400 basin: match
+  0.98, net climb ~20% of the ghost). This term closes that hole with the
+  one channel none of them read: WHERE the pad lands. On an engage rising
+  edge inside that EE's scheduled window it pays
+  ``exp(-(|anchor - ref_anchor|/std)^2)`` once — the reference anchor ladder
+  climbs one step height per cycle, so landing at the old spot (30 mm short)
+  earns ~0.37 at std 0.03 while the scheduled rung pays 1.0.
+
+  Anti-farming: one payment per (EE, schedule window), cleared only when the
+  reference window closes — release-and-relatch inside a window collects
+  nothing extra (and still pays the mismatch/unsafe-release bills).
+  Off-schedule latches never pay.
+  """
+  state: dict[str, torch.Tensor | None] = {"paid": None}
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    command_name: str = "climb_motion",
+    std: float = 0.03,
+  ) -> torch.Tensor:
+    motion = _motion(env, command_name)
+    affordance = motion._affordance()
+    executor = affordance._get_executor()
+    ref_on = motion.ref_engaged
+    paid = state["paid"]
+    if paid is None or paid.shape != ref_on.shape:
+      paid = torch.zeros_like(ref_on)
+    # A window already open at spawn (RSI seeds the latch mid-window) is
+    # marked PAID: its honest play is "stay latched" with no landing event,
+    # so leaving it eligible would pay a release-and-relatch churn (+0.8
+    # gross vs ~0.26 of mismatch bill at these weights). Eligibility starts
+    # at each EE's first fresh window.
+    fresh = (env.episode_length_buf <= 1).unsqueeze(-1)
+    paid = torch.where(fresh, affordance._engaged & ref_on, paid)
+    paid = paid & ref_on  # window closed -> eligibility restored
+    landed = affordance.engaged_this_step & ref_on & ~paid
+    # The executor captures the weld anchor one step after the latch
+    # decision, so judge the CURRENT pad center — the exact point the
+    # capture will pin next step (anchor projection is off in this task).
+    error = (
+      executor.pad_center_world() - motion.ref_anchor_pos_w
+    ).norm(dim=-1)
+    pay = torch.exp(-(error / std) ** 2)
+    state["paid"] = paid | landed
+    return (pay * landed.float()).sum(dim=-1)
+
+  return call
+
+
+def motion_swing_approach(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_motion",
+  std: float = 0.05,
+) -> torch.Tensor:
+  """Dense shaping toward the upcoming landing rung during scheduled swings.
+
+  The anchor-landing bonus pays once, at the latch, judged on the anchor
+  ladder — but reaching a rung one step height UP requires the whole
+  preceding swing to aim there, and none of those intermediate motions earn
+  anything on their own (measured motionref16: landing income stuck at 3-5%
+  of its ceiling because exploration never sampled a high landing). This
+  pays the approach itself: while an EE is scheduled OFF (its swing window)
+  and actually released, an exp kernel on the pad-center distance to
+  ``ref_anchor_pos_w`` — which during a swing IS the upcoming landing
+  target (see ClimbMotionCommand.ref_anchor_pos_w). Latching ends the pay
+  (the landing bonus takes over); a released pad during a scheduled ON
+  window earns nothing here — that mismatch is billed, not rewarded.
+  """
+  motion = _motion(env, command_name)
+  affordance = motion._affordance()
+  executor = affordance._get_executor()
+  active = (~motion.ref_engaged) & (~motion.robot_engaged)
+  error = (executor.pad_center_world() - motion.ref_anchor_pos_w).norm(dim=-1)
+  pay = torch.exp(-((error / std) ** 2))
+  return (pay * active.float()).sum(dim=-1)
+
+
+def motion_toe_brace_match(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_motion",
+  sensor_name: str = "climb_toe_contact",
+  toe_geom_names: tuple[str, ...] = (
+    "left_ankle_roll_toe",
+    "right_ankle_roll_toe",
+  ),
+  press_norm_n: float = 8.0,
+  off_schedule_cost: float = 0.3,
+) -> torch.Tensor:
+  """Pay the scheduled foot-toe wall brace; bill unscheduled toe pressing.
+
+  The reference's foot regrips brace the articulated foot's toe against the
+  wall while the released spine pad travels clear of it (``toe_braced``
+  clip channel). Like the pad press shaping, the brace's first motions earn
+  nothing on their own — this pays normal toe force inside the scheduled
+  window, saturating at ``press_norm_n`` (the audit needs only ~16 N).
+  Pressing OUTSIDE the window costs ``off_schedule_cost`` of the same
+  saturated scale: a toe reacting against the wall while its own pad is
+  latched loads that fresh anchor toward reverse-shear/tension (the cheap
+  release directions) — the exact interaction the reference's hover handoff
+  exists to prevent.
+  """
+  motion = _motion(env, command_name)
+  scheduled = motion.ref_toe_braced
+  sensor = env.scene[sensor_name]
+  data = sensor.data
+  if data.found is None or data.force is None:
+    raise ValueError(
+      f"Contact sensor '{sensor_name}' must provide 'found' and 'force'."
+    )
+  perm = _toe_sensor_row_perm(sensor, toe_geom_names)
+  found = data.found[:, perm] > 0
+  # CONTACT sensor force is [normal, tangent1, tangent2].
+  normal = data.force[:, perm, 0].clamp(min=0.0)
+  press = (normal / press_norm_n).clamp(max=1.0) * found.float()
+  on = scheduled.float()
+  return (press * on - off_schedule_cost * press * (1.0 - on)).sum(dim=-1)
 
 
 def motion_ref_height_tracking():
@@ -708,6 +885,30 @@ def ee_face_parallel_error(
   ).clamp_min(1.0)
 
 
+def engaged_tilt_penalty(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+  threshold_deg: float = 3.0,
+  scale_deg: float = 5.0,
+) -> torch.Tensor:
+  """Tax engaged-pad rotation from its engage capture, approaching the peel.
+
+  Companion shaping for the tilt-peel release (reason 5): the physical
+  budget is the spine-suspension travel — le_max 5 mm folded over the rake
+  span gives ~3.8 deg of chassis rotation about the loaded edge before the
+  tension-side row pulls out (tilt_peel_max_deg_range, DR 3.5-4.5). This
+  term prices the approach so the cliff is felt as a gradient, not
+  discovered by falling: capture-RELATIVE rotation (the same quantity the
+  release judges) beyond ``threshold_deg`` costs quadratically. Swing pads
+  are untaxed — reorienting mid-air is the job. The reference uses <=1.1
+  deg, so schedule-true execution pays nothing.
+  """
+  affordance = env.command_manager.get_term(command_name)
+  tilt_deg = torch.rad2deg(affordance.tilt_from_capture)
+  over = ((tilt_deg - threshold_deg).clamp(min=0.0) / scale_deg).square()
+  return (over * affordance.engaged.float()).sum(dim=-1)
+
+
 def microspine_support_loss(
   env: ManagerBasedRlEnv,
   event_term_name: str = "microspine_grip",
@@ -728,7 +929,11 @@ def unsafe_microspine_release_penalty(
   tension_release_cost: float = 0.25,
   lateral_release_cost: float = 0.25,
   ultimate_release_cost: float = 1.0,
+  tilt_release_cost: float = 0.5,
   support_loss_cost: float = 1.0,
+  motion_command_name: str | None = None,
+  scheduled_reverse_cost: float = 0.3,
+  scheduled_reverse_grace_s: float = 0.25,
 ) -> torch.Tensor:
   """Per-event cost that distinguishes controlled and failed disengagement.
 
@@ -736,6 +941,13 @@ def unsafe_microspine_release_penalty(
   is free while sufficient support remains. Pull-off, lateral, and ultimate
   failures carry increasing costs. Dividing by ``step_dt`` makes the configured
   weight an actual one-shot event cost after RewardManager's dt scaling.
+
+  With ``motion_command_name`` set, a reverse-shear unhook of an EE the clip
+  schedules ENGAGED bills ``scheduled_reverse_cost`` — scaled down to zero
+  within ``scheduled_reverse_grace_s`` of the nearest schedule edge, so the
+  on-time unhook at a scheduled release stays free. This prices the
+  latch-jiggle-unhook churn (motionref16b: 43-45 free reverse releases per
+  30 s on the abandoned right foot) without touching legitimate releases.
   """
   affordance = env.command_manager.get_term(command_name)
   released = affordance.forced_release_this_step
@@ -746,9 +958,21 @@ def unsafe_microspine_release_penalty(
     (2, tension_release_cost),
     (3, lateral_release_cost),
     (4, ultimate_release_cost),
+    (5, tilt_release_cost),  # tilt-peel: rotated the patch off its grip
   )
   for reason_id, value in reason_costs:
     cost += (released & (reason == reason_id)).float() * value
+
+  if motion_command_name is not None and scheduled_reverse_cost > 0.0:
+    motion = _motion(env, motion_command_name)
+    off_schedule = released & (reason == 1) & motion.ref_engaged
+    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
+    ramp = (
+      (edge_seconds / max(scheduled_reverse_grace_s, 1.0e-6)).clamp(max=1.0)
+      if scheduled_reverse_grace_s > 0.0
+      else torch.ones_like(edge_seconds)
+    )
+    cost += off_schedule.float() * ramp * scheduled_reverse_cost
 
   engaged_count = affordance.engaged.sum(dim=-1)
   unsafe_support = released.any(dim=-1) & (engaged_count < minimum_supports)
@@ -778,6 +1002,52 @@ def microspine_forced_release_penalty(
 # ---------------------------------------------------------------------------
 # Regularization.
 # ---------------------------------------------------------------------------
+
+
+def torque_headroom_penalty(
+  env: ManagerBasedRlEnv,
+  asset_cfg: SceneEntityCfg,
+  threshold: float = 0.7,
+) -> torch.Tensor:
+  """Price actuator torque spent above a duty threshold, per joint per step.
+
+  Normalized quadratic in the remaining headroom: an actuator at the
+  ``threshold`` costs 0, a SATURATED actuator costs 1.0 — so the configured
+  weight is the per-second price of holding one joint at its limit.
+  Torques below the threshold are free: this deliberately does not tax
+  normal support duty (~0.5 of limit at 90 deg) or the gentle
+  weight-shift-then-peel unhook (measured 0.45 peak on model_2175).
+
+  Motivation (2026-07-30, motionref17 iter ~4100): with spike torque
+  unpriced (dof_torques_l2 at -1e-5 is noise), the policy drifted from the
+  weight-shift unhook to a brute-force yank — cancelling a hand anchor's
+  ~85 N gravity share by raw shoulder torque, doubling the release-step
+  peak from 0.45 to 0.95-1.00 of the 58 Nm cap for a +7% climb gain. The
+  deploy stack clamps at these limits, so a saturated yank on hardware
+  loses its impulse mid-release.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  torque = asset.data.actuator_force
+  limits = getattr(asset, "_torque_headroom_limits", None)
+  if limits is None or limits.shape[0] != torque.shape[1]:
+    # Same model-level readout engage_raster.py uses for its torque lanes.
+    fr = torch.as_tensor(env.sim.model.actuator_forcerange)
+    if fr.ndim == 3:
+      fr = fr[0]
+    limits = (
+      fr[asset.indexing.ctrl_ids]
+      .abs()
+      .amax(dim=-1)
+      .to(device=torque.device, dtype=torque.dtype)
+    )
+    limits = torch.where(
+      limits > 0.0, limits, torch.full_like(limits, torch.inf)
+    )
+    asset._torque_headroom_limits = limits  # type: ignore[attr-defined]
+  util = torque.abs() / limits
+  span = max(1.0 - threshold, 1.0e-6)
+  over = ((util - threshold).clamp(min=0.0) / span).square()
+  return over.sum(dim=-1)
 
 
 def ang_vel_xy_l2(

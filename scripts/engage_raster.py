@@ -16,8 +16,17 @@ Also prints occupancy / match / release stats, the limit-surface release
 reason histogram (1=reverse shear [free by design], 2=tension, 3=lateral,
 4=ultimate), per-EE engaged hold-margin stats and the torque-margin table.
 
+Reference-replay mode (`reference` instead of a checkpoint) swaps the learned
+policy for a scripted actor whose PD target is the motion clip itself — a
+dynamic existence proof that the reference choreography is executable under
+the live engage pipeline (cooldown/debounce, recruitment ramp, F0 lottery,
+moment billing). Prints a PASS/FAIL verdict and writes it as JSON next to the
+plots. `worstf0` (anywhere on the command line) collapses the per-grip F0
+lottery to its worst draw.
+
 Usage:
   python scripts/engage_raster.py <ckpt.pt> [angle_deg] [steps] [out_prefix]
+  python scripts/engage_raster.py reference [angle_deg] [steps] [out_prefix] [worstf0]
 """
 
 import os
@@ -41,11 +50,57 @@ from mjlab.utils.wrappers import VideoRecorder
 from mjlab.viewer import ViewerConfig
 
 TASK = "Mjlab-Climb-Wall-Phybot-C2"
-CKPT = Path(sys.argv[1]).resolve()
-ANGLE = float(sys.argv[2]) if len(sys.argv) > 2 else 90.0
-STEPS = int(sys.argv[3]) if len(sys.argv) > 3 else 1500
-PREFIX = Path(sys.argv[4]) if len(sys.argv) > 4 else Path("engage_raster")
-REASON_NAMES = {1: "reverse-shear(free)", 2: "tension", 3: "lateral", 4: "ultimate"}
+WORST_F0 = "worstf0" in sys.argv[1:]
+SCRIPT_RELEASE = "scriptrelease" in sys.argv[1:]
+GANTRY = "gantry" in sys.argv[1:]
+LEASH_N = next(
+  (float(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("leash=")),
+  0.0,
+)
+CLIP_OVERRIDE = next(
+  (a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("clip=")), None
+)
+TILT_BAND = next(
+  (
+    tuple(float(x) for x in a.split("=", 1)[1].split(","))
+    for a in sys.argv[1:]
+    if a.startswith("tiltband=")
+  ),
+  None,
+)
+_argv = [
+  a
+  for a in sys.argv[1:]
+  if a not in ("worstf0", "scriptrelease", "gantry")
+  and not a.startswith(("clip=", "leash=", "tiltband="))
+]
+REFERENCE = bool(_argv) and _argv[0] == "reference"
+CKPT = None if REFERENCE else Path(_argv[0]).resolve()
+ANGLE = float(_argv[1]) if len(_argv) > 1 else 90.0
+STEPS = int(_argv[2]) if len(_argv) > 2 else 1500
+if len(_argv) > 3:
+  PREFIX = Path(_argv[3])
+elif REFERENCE:
+  # Existence-proof replays share one archive dir; the clip identity is
+  # whatever the task config currently trains on (recorded in the verdict).
+  _suffix = "_worstf0" if WORST_F0 else ""
+  PREFIX = (
+    REPO / "logs" / "eval" / "replay_reference" / f"replay_{ANGLE:.0f}deg{_suffix}"
+  )
+else:
+  # Default: archive under the checkpoint's own run, e.g.
+  # logs/eval/<run_name>/raster_45deg_model_1400.
+  run_name = CKPT.parent.name
+  PREFIX = REPO / "logs" / "eval" / run_name / f"raster_{ANGLE:.0f}deg_{CKPT.stem}"
+PREFIX.parent.mkdir(parents=True, exist_ok=True)
+LABEL = "reference-replay" if REFERENCE else CKPT.name
+REASON_NAMES = {
+  1: "reverse-shear(free)",
+  2: "tension",
+  3: "lateral",
+  4: "ultimate",
+  5: "tilt-peel",
+}
 
 device = "cuda:0"
 env_cfg = load_env_cfg(TASK, play=True)
@@ -60,6 +115,32 @@ else:
   env_cfg.curriculum["gravity_angle"].params["angle_stages"] = [
     {"iter": 0, "angle_deg": ANGLE}
   ]
+if WORST_F0:
+  # Pin the per-grip F0 lottery at its worst draw. A collapsed range redraws
+  # the same value at every latch (bench determinism, see
+  # MicrospineLimitSurfaceCfg.redraw_f_t_max_per_latch).
+  _ls = env_cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
+  _ls.f_t_max_range = (_ls.f_t_max_range[0], _ls.f_t_max_range[0])
+if CLIP_OVERRIDE:
+  # Audit a candidate clip without flipping the task's training default.
+  from scr_phybot_mjab.tasks.climb_wall import mdp as _mdp
+
+  _clip_path = str(Path(CLIP_OVERRIDE).resolve())
+  env_cfg.commands["climb_motion"].motion_file = _clip_path
+  _vz = _mdp.clip_average_climb_rate(_clip_path)
+  env_cfg.commands["climb_velocity"].ranges.lin_vel_z = (_vz, _vz)
+if TILT_BAND is not None:
+  # Sensitivity sweeps over the peel-band calibration: override both the
+  # static cfg AND the pinned curriculum stage (the schedule rewrites the
+  # cfg each step, so both must agree). "tiltband=0,0" disables the check.
+  _band = (TILT_BAND[0], TILT_BAND[-1])
+  env_cfg.commands[
+    "microspine_affordance"
+  ].microspine_cfg.limit_surface.tilt_peel_max_deg_range = _band
+  if "tilt_peel" in env_cfg.curriculum:
+    env_cfg.curriculum["tilt_peel"].params["stages"] = [
+      {"iter": 0, "deg_range": _band}
+    ]
 env_cfg.viewer = ViewerConfig(
   origin_type=ViewerConfig.OriginType.ASSET_ROOT,
   entity_name="robot",
@@ -80,16 +161,35 @@ env = VideoRecorder(
   disable_logger=True,
 )
 env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-runner_cls = load_runner_cls(TASK) or MjlabOnPolicyRunner
-runner = runner_cls(env, asdict(agent_cfg), device=device)
-runner.load(str(CKPT), load_cfg={"actor": True}, strict=True, map_location=device)
-policy = runner.get_inference_policy(device=device)
 
 u = env.unwrapped
 motion = u.command_manager.get_term("climb_motion")
 aff = u.command_manager.get_term("microspine_affordance")
+executor = u.event_manager.get_term_cfg("microspine_grip").func
 robot = u.scene["robot"]
 dt = float(u.step_dt)
+
+if REFERENCE:
+  # Scripted reference-tracking actor: the PD target is the clip frame being
+  # ENTERED (time_steps advances inside env.step, so +1 avoids a one-step
+  # phase lag). Inverts the SoftJointPositionAction map exactly like
+  # validate_microspine_constraint.hold_pose_actions:
+  # raw = (q_target + encoder_bias - offset) / scale. Clip joints and action
+  # columns are both PHYBOT_C2_POLICY_JOINT_NAMES in preserved order.
+  _term = u.action_manager._terms["joint_pos"]
+
+  def policy(_obs):
+    nxt = (motion.time_steps + 1) % motion.clip.cycle_frames
+    target = motion.clip.joint_pos[nxt]
+    bias = robot.data.encoder_bias[:, _term._target_ids]
+    return (target + bias - _term.offset) / _term.scale
+else:
+  runner_cls = load_runner_cls(TASK) or MjlabOnPolicyRunner
+  runner = runner_cls(env, asdict(agent_cfg), device=device)
+  runner.load(
+    str(CKPT), load_cfg={"actor": True}, strict=True, map_location=device
+  )
+  policy = runner.get_inference_policy(device=device)
 
 act_names = list(robot.actuator_names)
 n_act = len(act_names)
@@ -105,25 +205,136 @@ tau_limit = np.where(tau_limit > 0, tau_limit, np.inf)
 ret = env.get_observations()
 obs = ret[0] if isinstance(ret, (tuple, list)) else ret
 
+if LEASH_N > 0.0:
+  _leash_body = robot.find_bodies(["torso"])[0]
+  _leash_zero_torque = torch.zeros(1, 1, 3, device=device)
+leash_hist = np.zeros(STEPS, dtype=np.float32)
+
 pol = np.zeros((STEPS, 4), dtype=bool)
 ref = np.zeros((STEPS, 4), dtype=bool)
 forced = np.zeros((STEPS, 4), dtype=bool)
 reason = np.zeros((STEPS, 4), dtype=np.int8)
 margin = np.ones((STEPS, 4), dtype=np.float32)
+margin_raw = np.ones((STEPS, 4), dtype=np.float32)
 tau = np.zeros((STEPS, n_act), dtype=np.float32)
 gain = np.zeros(STEPS, dtype=np.float32)
+face_cos = np.ones((STEPS, 4), dtype=np.float32)
+tilt_cap = np.zeros((STEPS, 4), dtype=np.float32)
+# Capture-relative rotation split into PRY (about in-plane axes; the soft
+# suspension-travel regime the 4-deg peel calibrates) and YAW (about the
+# wall normal; tip-shear regime — near-rigid on hardware).
+tilt_yaw = np.zeros((STEPS, 4), dtype=np.float32)
+tilt_pry = np.zeros((STEPS, 4), dtype=np.float32)
+
+
+def _quat_mul_np(a, b):
+  aw, ax, ay, az = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+  bw, bx, by, bz = b[..., 0], b[..., 1], b[..., 2], b[..., 3]
+  return np.stack(
+    [
+      aw * bw - ax * bx - ay * by - az * bz,
+      aw * bx + ax * bw + ay * bz - az * by,
+      aw * by - ax * bz + ay * bw + az * bx,
+      aw * bz + ax * by - ay * bx + az * bw,
+    ],
+    axis=-1,
+  )
+
+
 resets = []
+prev_ref = motion.ref_engaged[0].clone()
 with torch.no_grad():
   for t in range(STEPS):
+    if LEASH_N > 0.0:
+      # Soft leash: a force-capped PD pull of the base toward the ghost,
+      # standing in for the balance/weight-shift control a policy learns
+      # (ref15 demonstrated it) but open-loop joint replay lacks. Unlike
+      # the gantry rail it cannot teleport — the cap (< body weight) keeps
+      # anchor loads physical, and the recorded leash usage shows where
+      # the choreography leans on balance control hardest.
+      pos_err = motion.ref_root_pos_w - robot.data.root_link_pos_w
+      vel_err = (
+        motion.clip.root_lin_vel[motion.time_steps]
+        - robot.data.root_link_lin_vel_w
+      )
+      f = 1200.0 * pos_err + 120.0 * vel_err
+      norm = f.norm(dim=-1, keepdim=True).clamp(min=1.0e-9)
+      f = f * (norm.clamp(max=LEASH_N) / norm)
+      leash_hist[t] = float(f.norm())
+      robot.write_external_wrench_to_sim(
+        forces=f.unsqueeze(1),
+        torques=_leash_zero_torque,
+        body_ids=_leash_body,
+      )
     step_ret = env.step(policy(obs))
     obs, dones = step_ret[0], step_ret[2]
+    if GANTRY:
+      # Timing-isolation rail: pin the base to the ghost trajectory each
+      # policy step. Open-loop joint replay cannot reproduce the clip's
+      # weight shifts (no feedback), and the resulting torso sag both
+      # spuriously unhooks pads (45-deg spawn: reverse-sheared hands) and
+      # misplaces relatch presses — control confounds, not timing ones.
+      # With the base on the ghost rail the run isolates exactly what this
+      # proof is for: window lengths vs the engage pipeline, relatch seat
+      # quality, and fresh-anchor recruitment vs the next scheduled load.
+      # Anchor-load margins recorded under the rail are indicative only
+      # (the rail carries part of the couple); the static and
+      # reference-hold audits own load-path realism.
+      root_state = torch.cat(
+        [
+          motion.ref_root_pos_w,
+          motion.ref_root_quat_w,
+          motion.clip.root_lin_vel[motion.time_steps],
+          motion.clip.root_ang_vel[motion.time_steps],
+        ],
+        dim=-1,
+      )
+      robot.write_root_state_to_sim(root_state)
+    if SCRIPT_RELEASE:
+      # Commanded release at the schedule's falling edges: physically a
+      # microspine unhook is the limb loading the pad in reverse shear,
+      # a force-control skill in its own right (ref15's policy learned it;
+      # open-loop joint replay cannot — the weight shift that unloads the
+      # pad first needs feedback). Scripting ONLY the release isolates the
+      # question this proof exists for: can the pads RE-latch and HOLD on
+      # the clip's timing under the live pipeline? Cooldown is applied
+      # exactly as a real disengage would, and contact spheres return.
+      cur_ref = motion.ref_engaged[0]
+      to_release = prev_ref & ~cur_ref & aff._engaged[0]
+      if bool(to_release.any()):
+        aff._engaged[0] = aff._engaged[0] & ~to_release
+        aff._cooldown_steps[0] = torch.where(
+          to_release,
+          torch.full_like(
+            aff._cooldown_steps[0], aff._mcfg.reengage_cooldown_steps
+          ),
+          aff._cooldown_steps[0],
+        )
+        aff._sync_latched_contact_margins()
+      prev_ref = cur_ref.clone()
     pol[t] = motion.robot_engaged[0].bool().cpu().numpy()
     ref[t] = motion.ref_engaged[0].bool().cpu().numpy()
     forced[t] = aff.forced_release_this_step[0].bool().cpu().numpy()
     reason[t] = aff.release_reason[0].cpu().numpy()
     margin[t] = aff.hold_margin[0].float().cpu().numpy()
+    margin_raw[t] = aff.hold_margin_raw[0].float().cpu().numpy()
     tau[t] = robot.data.actuator_force[0].float().cpu().numpy()
     gain[t] = float(motion.height_gained[0].item())
+    face_cos[t] = aff.face_cos[0].float().cpu().numpy()
+    tilt_cap[t] = aff.tilt_from_capture[0].float().cpu().numpy()
+    pad_q = (
+      robot.data.body_link_quat_w[0, executor._ee_body_ids].float().cpu().numpy()
+    )
+    anc_q = executor.anchor_quat_w[0].float().cpu().numpy()
+    anc_conj = anc_q * np.array([1.0, -1.0, -1.0, -1.0])
+    q_rel = _quat_mul_np(pad_q, anc_conj)
+    q_rel *= np.where(q_rel[:, 0:1] >= 0.0, 1.0, -1.0)
+    vec_n = np.linalg.norm(q_rel[:, 1:4], axis=-1)
+    ang = 2.0 * np.arctan2(vec_n, q_rel[:, 0])
+    axis = q_rel[:, 1:4] / np.maximum(vec_n, 1.0e-9)[:, None]
+    rotvec = axis * ang[:, None]
+    tilt_yaw[t] = np.abs(rotvec[:, 0])  # wall normal = world x
+    tilt_pry[t] = np.linalg.norm(rotvec[:, 1:3], axis=-1)
     if bool(dones[0]):
       resets.append(t)
 env.close()
@@ -139,7 +350,7 @@ def _events(mask_col):
   return np.where(d == -1)[0]
 
 
-print(f"steps={STEPS} ({STEPS * dt:.1f}s) angle={ANGLE:.0f} ckpt={CKPT.name}")
+print(f"steps={STEPS} ({STEPS * dt:.1f}s) angle={ANGLE:.0f} actor={LABEL}")
 print(f"match(step x EE agreement)={match:.3f}")
 rel_tot, forc_tot = 0, 0
 for i, n in enumerate(names):
@@ -153,9 +364,18 @@ for i, n in enumerate(names):
   )
 print(f"total releases={rel_tot} forced={forc_tot}")
 hist = {
-  REASON_NAMES[rid]: int((forced & (reason == rid)).sum()) for rid in (1, 2, 3, 4)
+  REASON_NAMES[rid]: int((forced & (reason == rid)).sum())
+  for rid in (1, 2, 3, 4, 5)
 }
 print(f"forced-release reasons: {hist}")
+# Moment attribution: the envelope judged moment-billed EFFECTIVE loads; a
+# release whose force-only margin was still positive was caused by the
+# moment fold alone (billed edge prying, not raw force overload).
+moment_caused = forced & (margin_raw > 0.0)
+print(
+  f"moment-billed releases (force-only margin still positive): "
+  f"{int(moment_caused.sum())}"
+)
 for i, n in enumerate(names):
   m = margin[pol[:, i], i]
   if len(m):
@@ -172,6 +392,143 @@ print(
   f"height gained (last)={gain[-1]:.3f} m; "
   f"resets at {[round(r * dt, 1) for r in resets]} s"
 )
+# Release-dip: base drop within 0.2 s after each release event. A properly
+# unloaded (weight-shift-then-peel) unhook shows ~zero dip — the visible
+# sag is the signature of releasing a still-loaded anchor (the ~85 N
+# support withdrawal, not the ~20 N threshold push, is what jolts the
+# body). Companion metric to the release-step torque spike.
+_dip_win = max(1, int(round(0.2 / dt)))
+_dips = []
+for i in range(4):
+  for t_ev in np.where(np.diff(np.r_[0, pol[:, i].astype(int)]) == -1)[0]:
+    hi = min(STEPS, t_ev + _dip_win)
+    if t_ev >= 1 and hi > t_ev:
+      _dips.append(gain[t_ev - 1] - gain[t_ev:hi].min())
+if _dips:
+  print(
+    f"release dip (0.2 s window): mean={np.mean(_dips) * 1000:.1f} mm, "
+    f"max={np.max(_dips) * 1000:.1f} mm over {len(_dips)} releases"
+  )
+# Engaged-pad tilt: angle between the pad face axis and the wall normal
+# while latched. The weld's rotation rows are deliberately soft
+# (anchor_torquescale 0.01 — a stiff lock trapped phantom PD moments), so
+# tilt is where the sim under-constrains reality: a REAL hooked patch
+# holds orientation up to edge peel. Small angles here = the policy is not
+# exploiting the softness and the sim2real rotation gap stays benign.
+_tilts = []
+for i in range(4):
+  m = pol[:, i]
+  if m.any():
+    _tilts.append(
+      np.degrees(np.arccos(np.clip(face_cos[m, i], -1.0, 1.0)))
+    )
+if _tilts:
+  _tilt_all = np.concatenate(_tilts)
+  print(
+    f"engaged-pad tilt vs wall normal: mean={_tilt_all.mean():.1f} deg, "
+    f"p95={np.percentile(_tilt_all, 95):.1f}, max={_tilt_all.max():.1f}"
+  )
+_caps = np.degrees(tilt_cap[pol])
+if _caps.size:
+  print(
+    f"engaged-pad rotation from capture: mean={_caps.mean():.1f} deg, "
+    f"p95={np.percentile(_caps, 95):.1f}, max={_caps.max():.1f} "
+    f"(tilt-peel DR band 3.5-4.5)"
+  )
+  _yaw = np.degrees(tilt_yaw[pol])
+  _pry = np.degrees(tilt_pry[pol])
+  print(
+    f"  split: PRY (suspension axes) mean={_pry.mean():.1f} "
+    f"p95={np.percentile(_pry, 95):.1f} max={_pry.max():.1f} | "
+    f"YAW (wall-normal, tip-shear axis) mean={_yaw.mean():.1f} "
+    f"p95={np.percentile(_yaw, 95):.1f} max={_yaw.max():.1f}"
+  )
+
+# Torque-spike attribution: near-limit steps classified by their distance
+# to the nearest latch-state edge (release vs engage, any EE). Locates
+# WHERE the peak effort is spent — the unhook push or the fresh-anchor
+# down-charge (recruitment needs >= 10 N down-shear; a violent charge is a
+# pull-up through the shoulder, same joints as a violent unhook).
+_spike_steps = np.where(util.max(axis=1) > 0.8)[0]
+if len(_spike_steps):
+  rel_edges, eng_edges = [], []
+  for i in range(4):
+    d = np.diff(np.r_[0, pol[:, i].astype(int)])
+    rel_edges.extend(np.where(d == -1)[0])
+    eng_edges.extend(np.where(d == 1)[0])
+  rel_edges = np.array(sorted(rel_edges)) if rel_edges else np.array([-1e9])
+  eng_edges = np.array(sorted(eng_edges)) if eng_edges else np.array([-1e9])
+  near_rel = near_eng = tied = 0
+  for t_ev in _spike_steps:
+    dr = np.abs(rel_edges - t_ev).min() * dt
+    de = np.abs(eng_edges - t_ev).min() * dt
+    if abs(dr - de) < 0.02:
+      tied += 1
+    elif dr < de:
+      near_rel += 1
+    else:
+      near_eng += 1
+  print(
+    f"torque spikes (worst util > 0.8): {len(_spike_steps)} steps — "
+    f"nearest edge: release {near_rel}, engage {near_eng}, tied {tied}"
+  )
+
+if REFERENCE:
+  import json
+
+  # Existence-proof verdict: the reference is "executable" iff the scripted
+  # replay climbs without structural failures — no falls, >= 2 rungs gained,
+  # no overload (tension/lateral/ultimate) releases, reverse-shear unhooks
+  # only near their scheduled release edges, and the latch chart followed.
+  grace_s = 0.3
+  grace_steps = int(round(grace_s / dt))
+  off_edge_reverse = 0
+  for i in range(4):
+    fall_edges = np.where(np.diff(np.r_[ref[:, i].astype(int), 0]) == -1)[0]
+    for t_ev in np.where(forced[:, i] & (reason[:, i] == 1))[0]:
+      if len(fall_edges) == 0 or np.abs(fall_edges - t_ev).min() > grace_steps:
+        off_edge_reverse += 1
+  overload = {
+    name: int((forced & (reason == rid)).sum())
+    for rid, name in ((2, "tension"), (3, "lateral"), (4, "ultimate"))
+  }
+  checks = {
+    "angle_deg": ANGLE,
+    "steps": STEPS,
+    "seconds": round(STEPS * dt, 2),
+    "worst_f0": WORST_F0,
+    "script_release": SCRIPT_RELEASE,
+    "gantry": GANTRY,
+    "leash_n_cap": LEASH_N,
+    "leash_n_mean": round(float(leash_hist.mean()), 2),
+    "leash_n_max": round(float(leash_hist.max()), 2),
+    "motion_file": str(motion.cfg.motion_file),
+    "no_resets": len(resets) == 0,
+    "height_gained_m": round(float(gain[-1]), 4),
+    # On the gantry rail the base is pinned to the ghost, so height is
+    # assumed rather than proven — the criterion drops out there.
+    "height_ok": bool(GANTRY or gain[-1] >= 0.06),
+    "overload_counts": overload,
+    "no_overload_releases": sum(overload.values()) == 0,
+    "reverse_releases_off_schedule": int(off_edge_reverse),
+    "reverse_ok": off_edge_reverse == 0,
+    "match": round(match, 4),
+    "match_ok": bool(match >= 0.9),
+  }
+  checks["verdict"] = (
+    "PASS"
+    if (
+      checks["no_resets"]
+      and checks["height_ok"]
+      and checks["no_overload_releases"]
+      and checks["reverse_ok"]
+      and checks["match_ok"]
+    )
+    else "FAIL"
+  )
+  verdict_path = Path(str(PREFIX) + ".verdict.json")
+  verdict_path.write_text(json.dumps(checks, indent=2))
+  print(f"reference replay verdict: {checks['verdict']}  -> {verdict_path}")
 
 import matplotlib
 
@@ -187,23 +544,34 @@ time_s = np.arange(STEPS) * dt
 fig, axes = plt.subplots(2, 1, figsize=(16, 6.5), sharex=True, constrained_layout=True)
 margin_cmap = plt.get_cmap("RdYlGn")
 margin_norm = Normalize(vmin=0.0, vmax=1.0)
-# Policy panel: latch bars heat-colored by the hold margin — the closer an
-# anchor sits to the limit surface (margin -> 0), the redder its bar.
+# Policy panel: each latch bar is split into two lanes. The top lane is the
+# FORCE-ONLY hold margin (moment billing excluded); the bottom lane is the
+# BILLED margin the release logic actually judges (forces + worst-edge
+# moment fold). A bottom lane visibly redder than its top lane means the
+# moment tax is eating that anchor's headroom — the moment margin is
+# exactly the bottom lane's remaining green.
 for i in range(4):
-  rgba = margin_cmap(margin_norm(np.clip(margin[:, i], 0.0, 1.0)))
-  rgba[:, 3] = np.where(pol[:, i], 0.95, 0.0)
-  axes[0].imshow(
-    rgba[None, :, :],
-    aspect="auto",
-    interpolation="nearest",
-    extent=(0.0, STEPS * dt, i + 0.38, i - 0.38),
-    zorder=1,
-  )
+  for lane, (values, y_hi, y_lo) in enumerate(
+    (
+      (margin_raw[:, i], i - 0.38, i - 0.02),
+      (margin[:, i], i + 0.02, i + 0.38),
+    )
+  ):
+    rgba = margin_cmap(margin_norm(np.clip(values, 0.0, 1.0)))
+    rgba[:, 3] = np.where(pol[:, i], 0.95, 0.0)
+    axes[0].imshow(
+      rgba[None, :, :],
+      aspect="auto",
+      interpolation="nearest",
+      extent=(0.0, STEPS * dt, y_lo, y_hi),
+      zorder=1,
+    )
 axes[0].set_title(
-  f"policy  {CKPT.name} @ {ANGLE:.0f}°   (bar color = hold margin, "
-  "red = near failure; ▾ = forced release, colored by type)",
+  f"policy  {LABEL} @ {ANGLE:.0f}°   (per row: top lane = force-only "
+  "margin, bottom lane = billed margin incl. moment fold — bottom redder "
+  "than top = moment tax; ▾ = forced release by type, ◆ = moment-billed)",
   loc="left",
-  fontsize=11,
+  fontsize=10,
 )
 for i in range(4):
   e = ref[:, i].astype(int)
@@ -234,6 +602,7 @@ REASON_STYLE = {
   2: ("#e03131", "tension pull-off"),
   3: ("#f59f00", "lateral peel"),
   4: ("#9c36b5", "ultimate overload"),
+  5: ("#0ca678", "tilt-peel (rotated off grip)"),
 }
 for rid, (color, _label) in REASON_STYLE.items():
   for i in range(4):
@@ -242,6 +611,22 @@ for rid, (color, _label) in REASON_STYLE.items():
       axes[0].plot(
         ts * dt, np.full(len(ts), i - 0.45), "v", color=color, ms=4, ls="none"
       )
+# Moment-billed releases (force-only margin still positive at the kill step):
+# the moment fold alone pushed the anchor out — overplotted as diamonds so
+# they stand out from whatever direction code the effective load landed on.
+for i in range(4):
+  ts = np.where(moment_caused[:, i])[0]
+  if len(ts):
+    axes[0].plot(
+      ts * dt,
+      np.full(len(ts), i - 0.45),
+      "D",
+      color="#212529",
+      ms=4.5,
+      ls="none",
+      markerfacecolor="none",
+      markeredgewidth=1.4,
+    )
 legend_handles = [
   Line2D(
     [], [], marker="v", color=color, ls="none", ms=5,
@@ -249,6 +634,13 @@ legend_handles = [
   )
   for rid, (color, label) in REASON_STYLE.items()
 ]
+legend_handles.append(
+  Line2D(
+    [], [], marker="D", color="#212529", ls="none", ms=5,
+    markerfacecolor="none", markeredgewidth=1.4,
+    label=f"moment-billed  ×{int(moment_caused.sum())}",
+  )
+)
 axes[0].legend(
   handles=legend_handles, loc="upper right", fontsize=8, ncol=2, framealpha=0.9
 )

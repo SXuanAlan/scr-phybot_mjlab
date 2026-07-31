@@ -157,12 +157,58 @@ class MicrospineLimitSurfaceCfg:
   capacity_ramp_shear_n: float = 10.0
   """Rake-shear threshold [N] above which recruitment time accumulates."""
 
+  moment_capacity_enable: bool = True
+  """Bill weld moments against the force envelope as worst-edge loads.
+
+  A weld has unlimited solver moment, while a finite spine patch peels when
+  its tension-side edge row exhausts the same load budget as the rest of the
+  array. The equivalent loads are
+
+    f_n_eff = f_n + |M_l|/arm_rake + |M_t|/arm_lateral
+    f_l_eff = |f_l| + |M_n|/arm_rake
+    arm_*    = moment_arm_fraction * pad_span_*
+
+  Compression (f_n < 0) therefore offsets prying before the edge goes into
+  tension. The selected Wang or wedge envelope judges the effective loads."""
+
+  pad_span_rake_m: float = 0.04
+  """Spine-patch extent along the rake direction [m].
+
+  Fallback only — the climb env derives the real value from the robot XML's
+  contact-sphere grid via ``contact.pad_grid_spans`` (74.7 mm on phybot C2)
+  so billing always matches the compiled geometry."""
+
+  pad_span_lateral_m: float = 0.04
+  """Spine-patch extent along the lateral direction [m]. Fallback only; see
+  ``pad_span_rake_m`` (96 mm on phybot C2 via ``pad_grid_spans``)."""
+
+  moment_arm_fraction: float = 0.25
+  """Effective edge-force arm as a fraction of pad span.
+
+  For a discrete two-row sphere grid the aggregate fold is exact at 1/2
+  (edge-row load f_n/2 + M/s against edge-row budget F0/2 — the climb env
+  sets this); a continuous elastic patch suggests ~1/6. Refit from pry/yaw
+  bench pulls once hardware data exists."""
+
   redraw_f_t_max_per_latch: bool = True
   """Resample F0 from ``f_t_max_range`` at every engage transition. Each
   grip lands on different asperities — capacity is a per-GRIP lottery
   (paper Fig 6), not a per-episode trait the policy can memorize. The
   reset-time draw still seeds initial latches; a collapsed range (bench)
   redraws the same value, keeping bench determinism."""
+
+  tilt_peel_max_deg_range: tuple[float, float] = (0.0, 0.0)
+  """Engaged-pad rotation from the engage-capture orientation [deg] at which
+  the pad peels (forced release, reason 5 "tilt-peel").
+
+  Physically: the spine suspensions conform force-free over le_max = 5 mm
+  (Wang 2017 Sec 2.3); rotating the pad chassis about its loaded edge row
+  exhausts that travel at le_max / pad_span — 5/74.7 mm = ~3.8 deg on the
+  phybot C2 rake span — after which the tension-side row is loaded
+  structurally and pulls out. Per-grip uniform draw (same lottery philosophy
+  as F0: every grip lands on different asperities with different travel
+  headroom). (0, 0) disables the check (legacy behavior: rotation soft and
+  unlimited)."""
 
   hold_grace_steps: int = 14
   """Re-seat window length in policy steps (the judging role moved to
@@ -387,7 +433,18 @@ class MicrospineCfg:
 
   anchor_torquescale: float = 1.0
   """Weld torquescale (eq_data[10]): scales rotational residuals into the
-  constraint impedance. Used only when ``anchor_lock_rotation``."""
+  constraint impedance. Used only when ``anchor_lock_rotation``.
+
+  Physically the pad's rotational compliance at the anchor. In a redundant
+  multi-weld stance the solver distributes conflict by relative row scale,
+  so this decides how much parasitic moment a strained pad traps versus
+  sheds into force redistribution across the other pads. The climb env sets
+  0.01, calibrated with the reference-hold stress test (1.0 trapped ~6 N*m,
+  0.04 still 0.7-1.8 N*m — enough to blow the moment-billed envelope under
+  plain PD; 0.01 leaves <= 0.07 N*m). The same value converts the weld's
+  rotational multipliers back into physical moments (see
+  ``weld_rotational_force_to_world_moment``), so measurement and solver
+  behavior stay consistent automatically."""
 
   anchor_reseat_mode: str = "down"
   """Grace-window re-seat behavior when ``reanchor_after_grace`` is on.

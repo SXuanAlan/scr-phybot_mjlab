@@ -1,0 +1,527 @@
+% climb_wall (PHYBot C2) rewards & observations — commit 76c9462, 2026-07-29
+% Build: xelatex climb_rewards_obs_formulas.tex
+\documentclass[11pt]{article}
+\usepackage[a4paper,landscape,margin=1.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{xeCJK}
+\setCJKmainfont{Noto Sans CJK SC}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{needspace}
+\pagecolor{white}
+\color{black}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newcommand{\term}[1]{\texttt{\small #1}}
+\newcommand{\w}[1]{{\color{gray}(w=#1)}}
+\renewcommand{\arraystretch}{1.25}
+
+% Reward-term header: name + weight
+\newcommand{\rterm}[2]{%
+  \Needspace*{7\baselineskip}\vspace{7pt}\noindent
+  {\bfseries\ttfamily #1}\quad{\color{gray}\bfseries $w=#2$}\par\vspace{-3pt}}
+\newcommand{\role}[1]{\noindent\textbf{作用：}#1\par}
+\newcommand{\why}[1]{\noindent\textbf{为什么这么设：}#1\par}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries 爬墙任务（\texttt{climb\_wall} / PHYBot C2）奖励与观测公式}\\[4pt]
+{\normalsize commit \texttt{76c9462}\quad 2026-07-29\quad motionref12 课表}
+\end{center}
+
+\vspace{2pt}
+
+\section*{0\quad Notation and constants}
+\begin{center}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Symbol & Meaning & Value / shape & Source \\
+\midrule
+$\Delta t$ & policy step (decimation $10\times$ physics $0.002$\,s) & $0.02$\,s & \term{env\_cfg} \\
+$J$ & policy joints & $21$ & \term{PHYBOT\_C2\_POLICY\_JOINT\_NAMES} \\
+$H$ & microspine end-effectors (2 hands + 2 feet pads) & $4$ & \term{ee\_body\_names} \\
+$C,\;T_{\mathrm{cyc}}$ & frames / duration of one reference cycle & $215$,\ $4.3$\,s & \term{climb\_cycle.npy} \\
+$h_{\mathrm{step}}$ & height gained per cycle & $0.06$\,m & idem \\
+$v_z^{\mathrm{cmd}}$ & commanded climb rate $=h_{\mathrm{step}}/T_{\mathrm{cyc}}$ & $0.01395$\,m/s & \term{clip\_average\_climb\_rate} \\
+$k$ & phase index into the clip ($k\!\leftarrow\!(k{+}1)\bmod C$ each step) & $(E,)$ & \term{ClimbMotionCommand} \\
+$\hat{(\cdot)}$ & reference quantity at frame $k$ & --- & idem \\
+$e_h\in\{0,1\}$ & actual latch state of EE $h$ & $(E,H)$ & \term{MicrospineAffordance} \\
+$\hat e_h\in\{0,1\}$ & latch state the clip schedule requires & $(E,H)$ & \term{ref\_engaged} \\
+$\bm n$ & outward normal of the wall face (points at the robot) & $(E,3)$ & tilts with the gravity curriculum \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{4pt}
+Total reward (\term{RewardManager} runs with \term{scale\_by\_dt=True}):
+\[
+R_t \;=\; \Big(\sum_i w_i\, r_i(s_t,a_t)\Big)\,\Delta t ,
+\qquad
+\text{action: }\;
+\bm q^{\mathrm{target}}
+=\mathrm{clip}\big(\bm q^{\mathrm{default}} + 0.25\,\bm a_t - \bm b_{\mathrm{enc}},\;
+\bm q_{\mathrm{soft}}^{\mathrm{lo}},\,\bm q_{\mathrm{soft}}^{\mathrm{hi}}\big),
+\quad \text{soft} = 0.98\times\text{hard limit}.
+\]
+
+一句话读法：\term{motion\_*} 教\textbf{怎么爬}（模仿参考循环），\term{motion\_ref\_height} 是\textbf{爬多快}的唯一收入，
+微针那一组是\textbf{物理契约}（不许失去支撑 / 不许把锚点拉爆 / 不许滑），其余是正则化。
+
+\newpage
+\section*{1\quad Observations (asymmetric actor--critic)}
+
+\subsection*{1.1\quad Actor group — 148 dims (only quantities a real robot can measure)}
+\begin{center}\small
+\begin{tabular}{@{}llcl@{}}
+\toprule
+Term & Formula / definition & Dim & 说明 \\
+\midrule
+\term{base\_lin\_vel} & $\bm v^{\mathrm{base}}_b$ (MuJoCo \term{velocimeter}) & 3 & 机体系线速度 \\
+\term{base\_ang\_vel} & $\bm\omega^{\mathrm{base}}_b$ (\term{gyro}) & 3 & 机体系角速度 \\
+\term{projected\_gravity} &
+  $\bm g_b = R(q^{\mathrm{root}})^{\!\top}\,\bm g_w/\lVert \bm g_w\rVert$ & 3 &
+  读实时 \term{opt.gravity}，跟随重力课程 \\
+\term{joint\_pos\_rel} & $\bm q - \bm q^{\mathrm{default}}$ & 21 & \\
+\term{joint\_vel\_rel} & $\dot{\bm q} - \dot{\bm q}^{\mathrm{default}}$ & 21 & \\
+\term{last\_action} & $\bm a_t$ (raw network output, before scaling) & 21 & \\
+\term{prev\_action} & $\bm a_{t-1}$ & 21 & 三帧动作历史 = 隐式速度/加速度线索 \\
+\term{prev\_prev\_action} & $\bm a_{t-2}$ & 21 & \\
+\term{height\_above\_spawn} & $z - 2.0\ \mathrm{m}$ & 1 & 没有它 critic 无法估计爬升价值 \\
+\term{velocity\_command} & $(v_x,v_y,v_z)^{\mathrm{cmd}} = (0,\,0,\,0.01395)$ & 3 & 世界系 \\
+\term{microspine\_engaged\_state} & $e_h$ & 4 & 实际 latch \\
+\term{microspine\_contact\_fraction} & $\phi_h=\mathrm{clip}(\text{virtual spine fraction},0,1)$ & 4 & “垫子贴得多平”，啮合门用的同一个量 \\
+\term{microspine\_disengage\_time} & $\min(t^{\mathrm{off}}_h,\,1.5\,\mathrm{s})/1.5$ & 4 & 该垫连续脱开多久 \\
+\term{microspine\_cooldown} & $n^{\mathrm{cd}}_h/10$ & 4 & 再啮合冷却剩余步数 \\
+\term{motion\_command} &
+  $\big[\cos\varphi,\ \sin\varphi,\ \hat e_{1:H},\ (t^{\mathrm{rel}}_h,\,t^{\mathrm{grip}}_h)_{h=1:H}\big],\ \varphi = 2\pi k/C$ & 14 &
+  相位时钟 + 调度表 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$t^{\mathrm{rel}}_h,\,t^{\mathrm{grip}}_h\in(0,1]$：归一化的“距下一次\textbf{松开} / 下一次\textbf{再抓}还有多久”，随相位线性滑动。
+策略因此看到整条 raster 行的未来，而不是播放头下的一格 —— “提前准备松手 / 准备落座”是可学的映射，不是对时钟的死记。
+
+\subsection*{1.2\quad Critic group — 168 dims $=$ actor 148 $+$ 20 privileged (not measurable on hardware)}
+\begin{center}
+\begin{tabular}{@{}llcl@{}}
+\toprule
+Term & Formula / definition & Dim & 说明 \\
+\midrule
+\term{microspine\_hold\_margin} & $\mu_h$: normalized distance to the Wang-2017 hold envelope & 4 &
+  $1$ 空载，$0$ 边界，$<0$ 违约（定义见 §4.2）\\
+\term{microspine\_anchor\_load} & $(f_t,f_l,f_n)_h$ in the engage frame (rake / lateral / normal) & 12 & \term{scale}$=0.01$；啮合系见 §4.0 \\
+\term{microspine\_forced\_release} & $\mathbf 1[\text{limit surface released EE }h\text{ this step}]$ & 4 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+这三项让 critic 能给“看起来一样、但一个已经在拉爆边缘”的两个状态打出不同的 $V$，从而降低优势估计的方差；actor 拿不到它们，出货时不依赖仿真专有量。\\[3pt]
+\emph{（\term{EMAObsFilter}（$o \leftarrow (1-\alpha)o^{\mathrm{raw}} + \alpha o^{\mathrm{prev}}$, $\alpha=0.35$）本配置未挂载；观测腐蚀/噪声关闭。）}
+
+\newpage
+\section*{2\quad Rewards — DeepMimic imitation block}
+
+\textbf{共用的调度依从门（schedule-adherence gate）}，被三个姿态核乘上，也是错位账单的镜像：
+\[
+m_h \;=\; \mathbf 1\!\left[\hat e_h \ne e_h\right]\cdot
+\min\!\left(\frac{d_h\,T_{\mathrm{cyc}}}{\tau_g},\,1\right),
+\qquad
+G \;=\; f + (1-f)\Big(1-\tfrac{1}{H}\textstyle\sum_{h} m_h\Big)\;\in\;[0.25,\ 1],
+\qquad \tau_g=0.25\,\mathrm{s},\ f=0.25 .
+\]
+$d_h$ = 到\textbf{最近}一条调度边沿（过去或未来）的归一化时间。\textbf{作用}：把“姿态收入”和“抓握是否按表”绑在一起 ——
+姿态对但抓握全错，收入只剩 $25\%$。\textbf{为什么}：ref8/ref9 的“焊死雕像”正是靠 engagement-blind 的姿态核活着的
+（叼着一条对角线不动，姿态误差 $\approx 0.09$\,rad 长期领全薪）。边沿附近的不符被线性赦免，因为 debounce $0.06$\,s $+$ cooldown $0.20$\,s
+让瞬时合规物理上不可能；floor $0.25$ 保证出生姿态学习不断粮。
+
+\rterm{motion\_joint\_pos}{+2.0}
+\[
+r_{\mathrm{jpos}} = \exp\!\Big(-\tfrac{1}{\sigma^2}\ \mathrm{mean}_j\big(\hat q_j - q_j\big)^2\Big)\cdot G,
+\qquad \sigma = 0.2\ \mathrm{rad}
+\]
+\role{关节空间的姿态模仿主项 —— 告诉策略“这一相位该摆成什么形状”。是整套 DeepMimic 的骨架，没有它策略会自己发明步态。}
+\why{$\sigma=0.2$\,rad 约等于一个明显但不离谱的姿态偏差；权重 2.0 让它成为最大的单项姿态收入，但仍低于“姿态 $+$ 爬升”合计，避免变成静止摆 pose 的理由。}
+
+\rterm{motion\_joint\_vel}{+0.5}
+\[
+r_{\mathrm{jvel}} = \exp\!\Big(-\tfrac{1}{\sigma^2}\ \mathrm{mean}_j\big(\hat{\dot q}_j - \dot q_j\big)^2\Big),
+\qquad \sigma = 1.5\ \mathrm{rad/s}
+\]
+\role{管\textbf{节奏}：同一串姿态可以快放慢放，速度项把时间轴钉在参考上，顺带压住高频抖动。}
+\why{唯一\textbf{不乘} $G$ 的模仿项 —— 速度跟踪与抓握调度无关，乘门只会在换抓瞬间无谓地掐断梯度。权重 0.5：位置对了速度自然接近，它是辅助。}
+
+\rterm{motion\_ee\_pos}{+2.5}
+\[
+r_{\mathrm{ee}} = \exp\!\Big(-\tfrac{1}{\sigma^2}\ \mathrm{mean}_h
+\big\lVert \hat{\bm p}^{\,r}_h - \bm p^{\,r}_h \big\rVert^2\Big)\cdot G,
+\qquad \sigma = 0.1\ \mathrm{m},
+\qquad \bm p^{\,r}_h = R(q^{\mathrm{root}})^{\!\top}\big(\bm p_h - \bm p^{\mathrm{root}}\big)
+\]
+\role{在\textbf{根系}下塑形四个垫的到达轨迹与摆动弧 —— “伸手去够下一个点”这件事本身付钱。}
+\why{两侧都相对根 $\Rightarrow$ 只管肢体几何，\textbf{绝不}把躯干钉在 clip 的世界轨迹上（全局位置留给 \term{motion\_ref\_height}）。
+权重从 1.5 提到 2.5（motionref5）：伸手是“够 $\to$ 压 $\to$ 锁”这条链的第一环，必须赢过“把肢体停在原地不动”，否则焊死吸引子总是赢摆动相。}
+
+\rterm{motion\_root\_ori}{+0.5}
+\[
+r_{\mathrm{ori}} = \exp\!\Big(-\tfrac{1}{\sigma^2}\,\theta_{\mathrm{geo}}\big(\hat q^{\mathrm{root}},\,q^{\mathrm{root}}\big)^2\Big)\cdot G,
+\qquad \sigma = 0.3\ \mathrm{rad}
+\]
+\role{躯干朝向模仿。参考动作里躯干会随手的摆动前后倾再回正，这个姿态是动作的一部分（也决定了手臂能不能够到）。}
+\why{只跟朝向、不跟位置：位置自由是这套设计的核心。$\theta_{\mathrm{geo}}$ 为四元数测地角误差，$\sigma=0.3$\,rad（$\approx 17^\circ$）容忍正常的躯干摇摆。}
+
+\rterm{motion\_engage\_mismatch}{-1.0}
+\[
+r_{\mathrm{mismatch}} = \sum_{h=1}^{H} m_h
+\qquad\text{（$m_h$ 见上，含 $\tau_g=0.25$\,s 边沿宽限）}
+\]
+\role{抓握调度的\textbf{账单}：clip 说这一相位哪几个垫该锚着，实际 latch 与之不符就按 EE 计费。它取代了旧版手写的步态状态机。}
+\why{权重从 $-0.25$ 提到 $-1.0$（2026-07-21）：motionref1 审计发现策略\textbf{整体无视}调度（match 0.44，左脚占空比 0.03），
+因为错一个 latch 相对当时的爬升收入只是零钱。现在“错 2 个垫”$=-2$/s，对着约 $8$/s 的正收入才有存在感。
+宽限窗让账单成为策略\textbf{看得见的}倒计时通道的分段线性函数 $\Rightarrow$ 换 clip 也能迁移，而不是背时钟。}
+
+\rterm{motion\_scheduled\_press}{+0.4}
+\[
+r_{\mathrm{press}} = \sum_{h}
+\min\!\Big(\frac{F^{\mathrm{pad}}_h}{12\,\mathrm{N}},\,1\Big)\cdot
+\mathbf 1\!\Big[\big(\hat e_h \;\vee\; t^{\mathrm{grip}}_h \le \tfrac{0.3\,\mathrm{s}}{T_{\mathrm{cyc}}}\big)\ \wedge\ \neg e_h\Big]
+\]
+\role{\textbf{就位相位的步进信用}。换抓的前几个动作（伸手、压墙、扛过 debounce）在 latch 闭合前一分钱都拿不到，
+无向探索几乎不可能把它们串起来 —— 这一项直接为“压墙”付钱，但只在\textbf{计划的换抓窗口内、且还没锁上}时付。}
+\why{连续七代都焊死一对肢体（motionref4 审计：iter 1450 时脚占空比 1.00 / 手 0.04）就是这个空洞造成的。
+latch 一闭合立即停付（锚点已经在扛张力，压墙只是门口）；窗口外压墙为 0；单项上限 $0.4 <$ 错位账单 $1.0$，
+所以“光压不抓”严格净负 —— 它是引路的，不是可以住下来的。$F^{\mathrm{pad}}_h$ 为该垫 4 个球的法向压力之和。}
+
+\rterm{motion\_ref\_height}{+2.5}
+\[
+r_{\mathrm{refh}} = \exp\!\Big(-\frac{\Delta h^2}{\sigma^2}\Big),
+\qquad
+\Delta h = \big(z - z_0\big) - \big(\hat z - \hat z_0\big),
+\qquad \sigma = 0.05\ \mathrm{m},
+\]
+其中 $z_0,\hat z_0$ 为本 episode 稳定（$\text{settle}=0.5$\,s）时刻的机器人 / 参考基准高度，$\hat z$ 每循环累加一个 $h_{\mathrm{step}}$。
+
+\role{\textbf{爬升驱动}，而且被写成一个模仿项：钱跟着 ghost 走。落后\textbf{或}超前都对称衰减，$\sigma\approx$ 一个 step height。}
+\why{这是全套设计里改动代价最大的一处。之前的“自由爬升收入”（任何上升都付钱，不问姿势）资助了每一种无视参考的步态 ——
+乱抓狂奔、纯手爬、纯脚爬 —— 每次起飞都在用下降的调度依从度换爬升收入；三轮封顶补丁（单步帽、平均预算帽、参考剖面上限）都只是在给这个分裂的激励打补丁。
+现在超前一步就已经明显掉收入，狂奔一分不得；同时 RSI 把每个 episode 正好放在剖面上，\textbf{老老实实按参考爬}从第一个稳定步就领全薪 —— 诚实路线终于有了稠密收入。
+函数值域 $(0,1]$，原来那些预算机器也就全部退休了。}
+
+\Needspace*{10\baselineskip}\section*{3\quad Rewards — posture guardrails}
+
+\rterm{lateral\_velocity\_y\_l2}{-0.2}
+\[
+r_{\mathrm{lat}} = \min\!\big((v_y/0.1)^2,\ 4\big)
+\]
+\role{压住沿墙面横向（$y$）漂移。爬升是 $z$ 方向的事，横移只会把肢体拖出可达范围、把锚点拉成侧向受力。}
+\why{只罚 $y$、\textbf{不罚} $x$（墙法向）：靠近/远离墙是压墙和换抓必需的动作，罚了就不敢压。上限 4 防止一次打滑主导整个 batch。}
+
+\rterm{wall\_distance\_band\_l2}{-0.2}
+\[
+r_{\mathrm{wall}} = \min\!\left(\left(\frac{\max\big(|d-d^\star| - \delta,\ 0\big)}{0.1}\right)^{2},\ 4\right),
+\qquad
+d = \big(\bm p^{\mathrm{base}} - \bm p^{\mathrm{wall}}\big)\cdot\bm n - 0.5,
+\qquad d^\star = 0.173\,\mathrm{m},\ \ \delta = 0.08\,\mathrm{m}
+\]
+\role{把躯干保持在离墙一个合理站位带内。太远则手臂够不到、锚点被拉成纯张力（最容易脱钩）；太近则膝/肘顶墙。}
+\why{$d^\star$ 就是 climb-zero v3 站姿的躯干站距（$1.5-1.327$）。用\textbf{死区}而不是二次吸引：带内完全免费，
+躯干在换抓时本来就需要前后呼吸；只有出带才开始计费。}
+
+\newpage
+\section*{4\quad Rewards — microspine physics contract}
+
+这一节的三个奖励项全部建立在同一套微针（microspine）物理上，所以先把物理和符号讲清楚，再看公式。
+
+\subsection*{4.0\quad 微针垫、啮合系、锚点载荷：符号从哪来}
+
+机器人有 $H=4$ 块\textbf{微针垫}（spine pad）：左右手 + 左右脚。每块垫上有 $2\times2=4$ 个\textbf{接触球}（普通 MuJoCo 接触，
+只负责压墙和落座前的滑动）和一个 $5\times5$ 的\textbf{虚拟微针场}（纯运动学，代表真实垫上成百根独立悬挂的针）。
+每块垫有三种状态：
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+状态 & 判据 & 力学 \\
+\midrule
+free（悬空） & 无接触，$c_h=0$ & 不受力 \\
+touching（压着但没抓住） & $c_h>0$，$e_h=0$ & 只有普通接触：法向压力 + 很小的摩擦（$\mu=0.2$）\\
+latched（锚定） & $e_h=1$ & 一个\textbf{双边 equality 约束}把垫钉在墙上；接触球此时被缩进垫内 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+所以“抓住”在仿真里不是靠摩擦，而是靠一个约束（anchor）。这个约束能提供多大的力有上限 —— 上限就是 Wang-2017 的\textbf{保持包络}
+（hold envelope，也叫 limit surface）。判断有没有超限，需要把约束力分解到一个跟墙面绑定的正交系里，这就是\textbf{啮合系}：
+
+\begin{center}
+\begin{tabular}{@{}llp{11.5cm}@{}}
+\toprule
+轴 & 定义 & 物理含义 \\
+\midrule
+$\hat{\bm n}$ & 墙的\textbf{外}法向（指向机器人） &
+  $f_n>0$ 表示垫被\textbf{往外拔}（拉脱张力 tension）；$f_n<0$ 是压向墙（压力，由接触承担，不进包络判据） \\
+$\hat{\bm t}$ & \textbf{rake（耙）方向}：垫局部 $-z$ 轴投影到墙面并归一化 &
+  微针倾斜安装，只能沿这一个方向钩住。$f_t>0$ = 沿耙向受剪（\textbf{正确}的受力方式，针越拉越紧）；
+  $f_t<0$ = 反向剪切（针被往回推，会自然脱钩） \\
+$\hat{\bm l}=\hat{\bm n}\times\hat{\bm t}$ & 墙面内、垂直于耙向 & 侧向剥离方向，微针在这个方向几乎没有承载能力 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\[
+\text{anchor load:}\quad
+f_t = \bm F_h\cdot\hat{\bm t},\qquad
+f_l = \bm F_h\cdot\hat{\bm l},\qquad
+f_n = \bm F_h\cdot\hat{\bm n},
+\qquad \bm F_h = \text{约束（equality）在垫 }h\text{ 上的反力 [N]}
+\]
+
+\subsection*{4.1\quad 什么时候锁上（engage）}
+从 free/touching 到 latched，下面五个条件必须\textbf{同时}成立并\textbf{连续 3 步}（$0.06$\,s debounce）：
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+条件 & 阈值 & 为什么 \\
+\midrule
+至少 1 个接触球的法向压力 & $\ge 3$\,N & 必须真的压在墙上 \\
+虚拟微针啮合比 $\phi_h$ & $\ge 0.5$ & 垫要贴平；一个角戳着约 $0.2$，全贴约 $1.0$ \\
+垫面朝向 $\hat{\bm f}_h\cdot(-\hat{\bm n})$ & $\ge 0.25$ & 不能背对着墙抓 \\
+逆耙向速度 & $\le 0.02$\,m/s & 针只在沿耙向加载时才钩得住：正在\textbf{往上滑}的垫物理上抓不住 \\
+再啮合冷却 $n^{\mathrm{cd}}_h$ & $=0$（$10$ 步 $=0.2$\,s） & 刚松开的垫不能立刻重新抓 \\
+\bottomrule
+\end{tabular}
+\end{center}
+锁上瞬间该垫的承载能力被抽定：$F_0 \sim \mathcal U(400,650)\,\mathrm N$（每次抓握独立抽签，模拟墙面微观起伏的运气），
+再乘落座质量 $\phi_h$，再乘一个\textbf{征召爬坡}（recruitment ramp）—— 新锚点只有 $30\%$ 能力，在承受耙向剪切 $0.25$\,s 后才充满：
+\[
+F_0^{\mathrm{eff}} \;=\; F_0\cdot \phi_h \cdot
+\Big[0.3 + 0.7\,\mathrm{clip}\big(t_{\mathrm{charge}}/0.25\,\mathrm s,\ 0,\ 1\big)\Big].
+\]
+
+\subsection*{4.2\quad 什么时候被扯开（release），以及 $\mu_h$ 和 $\rho_h$ 是什么}
+把当前载荷写成方向角形式：
+\[
+\theta = \operatorname{atan2}\big(|f_l|,\ f_t\big)\in[0^\circ,180^\circ]\ \ \text{(墙面内偏离耙向的角度)},
+\qquad
+\varphi = \operatorname{atan2}\big(f_n^{+},\ \sqrt{f_t^2+f_l^2}\big)\in[0^\circ,90^\circ]\ \ \text{(抬离墙面的仰角)},
+\]
+其中 $f_n^{+}=\max(f_n,0)$（压力不算）。Wang-2017 的包络给出该方向上的\textbf{相对承载能力} $R(\theta,\varphi)\in[0,1]$（查表，
+$\theta=0,\varphi=0$ 即纯耙向剪切时 $R=1$ 最强；反向或大仰角时 $R\to0$）。于是
+\[
+\boxed{\;
+\mu_h \;=\; \frac{F_0^{\mathrm{eff}}\max\big(R(\theta,\varphi),\,0.02\big) \;-\; \big\lVert (f_t,\ f_l,\ f_n^{+})\big\rVert}
+{F_0^{\mathrm{eff}}\max\big(R(\theta,\varphi),\,0.02\big) + \varepsilon\,F_0}\;}
+\qquad\text{（critic 观测里的 \term{hold\_margin}）}
+\]
+即“\textbf{还剩多少余量}”：$\mu_h\approx1$ 空载，$\mu_h=0$ 正好在包络面上，$\mu_h<0$ 已经超出 $\Rightarrow$ 本步强制释放。
+释放时按\textbf{哪个方向占主导}打上原因码 $\rho_h$：
+
+\begin{center}
+\begin{tabular}{@{}clll@{}}
+\toprule
+$\rho_h$ & 名称 & 判据（优先级从下往上覆盖） & 物理 \\
+\midrule
+1 & reverse shear（反向剪切） & $f_t<0$ & 针被往回推，自然脱钩 —— 这是\textbf{设计的}松手方式 \\
+2 & tension pull-off（拉脱） & $f_n^{+}\ge\sqrt{f_t^2+f_l^2}$（即 $\varphi\ge45^\circ$） & 被垂直拔离墙面 \\
+3 & lateral peel（侧向剥离） & $|f_l|>f_t$ & 沿墙面横向撬开 \\
+4 & ultimate shear（极限剪切） & 其余（沿耙向但超载） & 整片针崩掉 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$\rho=1$ 是换抓时\textbf{应该}发生的；$\rho=2,3,4$ 是失败。这正是下面 \term{unsafe\_microspine\_release} 要区别定价的东西。
+
+\vspace{4pt}
+\noindent\textbf{本节符号速查：}\quad
+$e_h\in\{0,1\}$ 实际锁定；\;
+$c_h$ 该垫接触球数（$0\ldots4$）；\;
+$\chi_h$ 计费掩码；\;
+$\phi_h$ 虚拟微针啮合比；\;
+$\hat{\bm f}_h$ 垫面法向；\;
+$s_h$ 朝墙对齐分；\;
+$\bm v_h$ 垫的世界线速度；\;
+$\mu_h$ 保持余量；\;
+$\rho_h$ 释放原因码。
+
+\newpage
+\rterm{ee\_face\_parallel\_error}{-0.5}
+\[
+r_{\mathrm{face}} = \frac{\sum_h (1-s_h)\,\chi_h}{\max\big(\sum_h \chi_h,\ 1\big)}
+\qquad\text{（对“参与计费”的垫求平均的朝向误差）}
+\]
+\[
+\underbrace{\hat{\bm f}_h = R\big(q_h\big)\,\bm u_{\mathrm{face}},\quad \bm u_{\mathrm{face}}=(0,-1,0)}_{\text{垫面法向：垫局部 }-y\text{ 轴转到世界系}}
+\qquad
+\underbrace{s_h = \tfrac{1}{2}\Big(\hat{\bm f}_h\cdot(-\hat{\bm n}) + 1\Big)\in[0,1]}_{\text{对齐分：}1=\text{正对墙},\ 0.5=\text{侧对},\ 0=\text{背对}}
+\qquad
+\underbrace{\chi_h = e_h \;\vee\; \mathbf 1[c_h>0]}_{\text{掩码：已锁定 \textbf{或} 已触墙}}
+\]
+逐项读：$s_h$ 把“垫面法向与墙内法向的夹角余弦”从 $[-1,1]$ 映到 $[0,1]$，所以 $1-s_h$ 就是\textbf{朝向误差}；
+乘掩码 $\chi_h$ 后除以掩码个数 $\Rightarrow$ 结果是“在参与计费的那些垫上的平均朝向误差”，值域 $[0,1]$。
+分母的 $\max(\cdot,1)$ 只是防止四个垫全悬空时除以零。
+
+\role{要求垫面\textbf{正对墙}。§4.0 的整条包络是在“垫贴平”的前提下测出来的：歪着压，接触落在一个角上，
+虚拟微针啮合比 $\phi_h$ 低，即使锁上了 $F_0^{\mathrm{eff}}$ 也被 $\phi_h$ 按比例砍掉 —— 等于用一个角在刮墙。
+这一项在\textbf{锁上之前}就把垫摆正，让 §4.1 的落座门更容易通过。}
+\why{掩码只含\textbf{已锁定或已触墙}的垫：空中的摆动肢必须自由转向才能完成够取，罚它的朝向会直接杀死换抓。
+写成“误差 $\times$ 负权重”而不是“对齐分 $\times$ 正权重”，是为了不给一个已经摆正、静止不动的姿势发\textbf{恒定正收入} ——
+那又会变成一个焊死不动的理由（这套设计里所有正收入都必须与动作或进度挂钩）。}
+
+\rterm{microspine\_support\_loss}{-4.0}
+\[
+r_{\mathrm{support}} = \max\!\Big(0,\ N_{\min} - \textstyle\sum_{h=1}^{H} e_h\Big),
+\qquad N_{\min}=2
+\]
+逐项读：$\sum_h e_h$ 是\textbf{当前锁住几个垫}（$0\ldots4$）。少于 2 个就按“差几个”线性计费：
+3 个锚点罚 $0$，2 个罚 $0$，1 个罚 $1$（即 $-4$/s），0 个罚 $2$（即 $-8$/s）。
+
+\role{支撑数下限。二、三、四个锚点\textbf{都合法} —— 这正是四肢轮流换抓所必需的自由度，所以不奖励“抓得多”，只罚“抓得不够”。}
+\why{权重 $-4.0$（DeepMimic 改版前 $-3.0$）：模仿项把正收入天花板抬到约 $8$/s，
+一个只吊着单锚点的机器人仍能领到 $2.4$–$3.5$/s 的部分跟踪收入，必须让它\textbf{严格净负}，否则“单手挂着不动”是一门可行生意。}
+
+\newpage
+\rterm{unsafe\_microspine\_release}{-2.5}
+\[
+r_{\mathrm{unsafe}} = \frac{1}{\Delta t}\Bigg[
+\underbrace{\sum_{h} \mathbf 1\big[\text{released}_h\big]\cdot c(\rho_h)}_{\text{(a) 按原因计价的释放事件}}
+\;+\;
+\underbrace{\mathbf 1\Big[\big(\exists h:\ \text{released}_h\big)\ \wedge\ \textstyle\sum_h e_h < N_{\min}\Big]\cdot 1.0}_{\text{(b) 这次释放直接把支撑打到 2 以下}}
+\Bigg],
+\qquad \text{仅当 } t>0.5\,\mathrm{s}
+\]
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+$\rho$ & 1 reverse shear & 2 tension pull-off & 3 lateral peel & 4 ultimate shear \\
+\midrule
+$c(\rho)$ & $0.00$ & $0.25$ & $0.25$ & $1.00$ \\
+实际到手（$\times w$） & $0$ & $-0.625$ & $-0.625$ & $-2.5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+逐项读：$\text{released}_h$ 是“垫 $h$ 本步被包络判定强制释放”（$\mu_h<0$，不是策略主动松手 —— 策略没有松手的动作接口，
+松手只能通过\textbf{改变受力方向}让 $\rho=1$ 发生）。$c(\rho_h)$ 查上表。
+$1/\Delta t$ 抵消 \term{RewardManager} 的 $\Delta t$ 缩放，所以配置权重 $\times\,c(\rho)$ \textbf{就是一次事件的价钱}，
+与仿真步长无关。(b) 项是额外的一次 $-2.5$：不只是“扯掉了一个锚点”，而是“扯掉之后人已经挂不住了”。
+
+\role{区分\textbf{受控松开}和\textbf{被扯掉}。反向剪切（$\rho=1$）是这种被动微针本来的脱钩路径 —— 换抓\textbf{必须}靠它 ——
+所以只要支撑还够就完全免费；拉脱 / 侧向 / 极限剪切是结构性失败，按事件一次性计费。
+这一项教的是“先把手上的力卸掉再走，别硬扯”。}
+\why{权重从 $-1.0$ 提到 $-2.5$（2026-07-21）：motionref1 的乱抓步态以 $3.5$\,Hz 撕锚点、其中 $40\%$ 是真的张力拉脱，
+而当时账单摊下来只有约 $-0.4$/s，根本没进策略的账本。
+settle $0.5$\,s 内不计费：RSI 把机器人直接放在参考帧上，落座瞬间的瞬态不该算在策略头上。
+$75^\circ$ 那级重力课程就是为这一项存在的 —— 只练到 $60^\circ$ 的策略直接上 $90^\circ$，$65\%$ 的释放是 $\rho\in\{2,3,4\}$。}
+
+\rterm{ee\_slide\_penalty}{-0.1}
+\[
+r_{\mathrm{slide}} = \sum_h e_h\,\big\lVert \bm v_h^{\mathrm{tan}} \big\rVert,
+\qquad
+\bm v_h^{\mathrm{tan}} = \bm v_h - \big(\bm v_h\cdot\hat{\bm n}\big)\,\hat{\bm n}
+\qquad [\mathrm{m/s}]
+\]
+逐项读：$\bm v_h$ 是垫 $h$ 的世界线速度；减掉它在墙法向上的投影，剩下的 $\bm v_h^{\mathrm{tan}}$ 就是\textbf{沿墙面滑动}的那部分。
+乘 $e_h$ 表示只对\textbf{已锁定}的垫计费，求和后单位是 m/s（不是平方，所以是线性代价）。
+
+\role{已锁定的垫\textbf{不许在墙面内滑}。按真实 latch 状态 $e_h$ 门控，而不是按“计划该接触”，
+所以罚的正是“抓住了却在打滑”这个真实条件。}
+\why{只取切向：法向运动（墙的弹性压缩、落座与脱开的冲击）是正常物理，罚了会让策略不敢压墙。
+权重小（$-0.1$）—— 它是清洁项；真正的失败已由 \term{unsafe\_microspine\_release} 和终止罚定价，
+这里只是不让策略在“技术上还锁着、实际在蹭”的灰色地带里省力。}
+
+\Needspace*{10\baselineskip}\section*{5\quad Rewards — regularization and termination}
+
+\rterm{ang\_vel\_xy\_l2}{-0.05}
+\[
+r_{\mathrm{angvel}} = \omega_{b,x}^2 + \omega_{b,y}^2
+\]
+\role{压住躯干的横滚/俯仰乱抖（Anymal 同名项的直接移植）。\textbf{不罚}偏航（$z$）：转身在换抓时是有用的。}
+
+\rterm{dof\_torques\_l2}{-1\times 10^{-5}}
+\[
+r_{\mathrm{torque}} = \sum_j \tau_j^2
+\]
+\role{能耗/力矩正则，把解推向省力的姿态（悬挂时靠骨架而不是靠死撑）。权重极小，只在等价解之间做选择，不改变策略要不要爬。}
+
+\rterm{bounded\_dof\_acc\_l2}{-0.02}
+\[
+r_{\mathrm{acc}} = \min\!\Big(\mathrm{mean}_j\big(\ddot q_j/100\big)^2,\ 10\Big)
+\]
+\role{平滑关节加速度。}
+\why{\textbf{有界}是关键：约束释放和失败 episode 会产生比正常运动高几个数量级的加速度脉冲，
+无界的平方代价会让\textbf{一个样本主宰整个 PPO batch}。这里先归一化再取均值，并只截断这个正则项的影响力 ——
+失败本身仍由终止罚和抓握安全项表达。NaN/Inf 直接按上限计。}
+
+\rterm{action\_rate\_l2}{-0.1}
+\[
+r_{\mathrm{arate}} = \sum_j \big(a_{t,j} - a_{t-1,j}\big)^2
+\]
+\role{惩罚动作抖动，作用在\textbf{原始网络输出}上。}
+\why{从 $-0.01$ 提到 $-0.1$：$-0.01$ 时抖动等于免费 —— model\_3000 的悬空手在\textbf{确定性}回放里以 $3$–$4$\,Hz、$\pm4$–$5$\,cm 抖，
+每步约 40\,mrad 的目标翻转，直接打穿 $60$\,ms 的啮合 debounce 窗口（抓不上）。walk 任务同项是 $-0.25/-0.3$；
+爬墙留更多余量给合法的快速够取。}
+
+\rterm{dof\_pos\_limits}{-5.0}
+\[
+r_{\mathrm{lim}} = \sum_j \Big[\max\big(0,\ q^{\mathrm{lo}}_j - q_j\big) + \max\big(0,\ q_j - q^{\mathrm{hi}}_j\big)\Big]
+\qquad (\text{soft limits} = 0.98\times\text{hard})
+\]
+\role{给策略一个\textbf{远离限位}的学习信号。动作端的 clamp 是安全护栏，但 clamp 本身没有梯度 ——
+顶着 clamp 跑的策略在仿真里看不出问题，实机上就是持续顶死机械限位。}
+\why{soft factor 从 0.9 放宽到 0.98：参考循环本来就贴着某些限位工作（state 4 单手高举时 shoulder\_roll 距硬限位仅 $0.06$\,rad），
+跟踪不能去和目标 clamp 打架。}
+
+\rterm{termination\_penalty}{-500}
+\[
+r_{\mathrm{term}} = \mathbf 1\big[\text{terminated} \wedge \neg\,\text{time\_out}\big]
+\qquad\Longrightarrow\qquad
+-500 \times \Delta t = -10 \ \ \text{(one-shot)}
+\]
+\role{把所有失败方式（掉墙、卡死、跟丢参考、物理发散）统一定价成一次 $-10$。}
+\why{超时不算失败（\term{time\_out=True}），否则策略会学会在 episode 末尾自杀式保守。}
+
+\subsection*{5.1\quad Terminations}
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Termination & Criterion & 作用 \\
+\midrule
+\term{time\_out} & $t > 30$\,s & 正常收尾，不触发 \term{termination\_penalty} \\
+\term{base\_height} & $z < 0.3$\,m & 掉墙（地面碰撞已关，否则会飘进虚空） \\
+\term{bad\_state} & NaN 或 $\lVert\bm v\rVert > 20$ & 物理发散护栏 \\
+\term{no\_progress} & 连续 $8$\,s 爬升 $< 1.5$\,cm（$v_z^{\mathrm{cmd}}>0.01$，settle $0.5$\,s 后） &
+  卡死处决闸；从 $5$\,s/$3$\,cm 放宽 \\
+\term{bad\_tracking} & $\mathrm{mean}_j|\hat q_j - q_j| > 0.7$\,rad & DeepMimic 早停：姿态已完全离开参考（摔了/缠住） \\
+\bottomrule
+\end{tabular}
+\end{center}
+\term{no\_progress} 放宽的理由：驱动改成参考锁定（\term{motion\_ref\_height}）之后，“站得规矩但暂时不动”已经只能拿到衰减的跟踪收入、
+不再能刷分，旧的紧闸门反而教出了 motionref7 的“永不真正落座”（站好就被处决）。
+
+\subsection*{5.2\quad Income balance（为什么这些权重能站住）}
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+& Per second & 说明 \\
+\midrule
+完美跟踪的正收入上限 & $2.0+0.5+2.5+0.5+2.5 = 8.0$ & 四个姿态核 $+$ 参考爬升，皆 $\le 1$ \\
+换抓期额外引路收入 & $\le +0.4$ per EE in window & latch 一闭合即停 \\
+姿态收入的调度下限 & $\times\,0.25$ & 抓握全错时姿态核只剩四分之一 \\
+错位账单（4 垫全错） & $-4.0$ & \\
+单锚点悬挂 & $-4.0$（支撑）$\;+\;$ 部分跟踪 $\approx +2.4\ldots3.5$ & 严格净负 \\
+一次张力拉脱 / 极限剪切 & $-0.625$ / $-2.5$ & 一次性事件 \\
+一次失败终止 & $-10$ & 一次性 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{5.3\quad Gravity curriculum（motionref12 压缩课表）}
+\[
+\theta(\text{iter}) = 45^\circ\ [0,600)\ \longrightarrow\ 60^\circ\ [600,1500)\ \longrightarrow\ 75^\circ\ [1500,3000)\ \longrightarrow\ 90^\circ\ [3000,\infty)
+\]
+每 episode 独立抽 $\pm5^\circ$ 抖动（最后一级精确 $90^\circ$、无抖动，因为 $>90^\circ$ 是倒悬、属于另一个任务）。
+$75^\circ$ 这一级是为“预卸载和手部张力管理必须在斜坡上学、不能直接跳崖”而加的：只练到 $60^\circ$ 的策略直接放到 $90^\circ$，
+$65\%$ 的释放是撕裂（张力/侧向/极限），平均约 $2$\,s 就死。
+
+\end{document}

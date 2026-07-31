@@ -14,6 +14,7 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   motion_joint_pos_error_exp,
   motion_ref_height_tracking,
   motion_scheduled_press_shaping,
+  motion_swing_approach,
   signed_climb_height_progress,
   unsafe_microspine_release_penalty,
 )
@@ -403,6 +404,99 @@ def test_motion_engage_mismatch_grace_discounts_near_schedule_edges():
   # at the flip itself; the matched EE bills nothing regardless of distance.
   assert motion_engage_mismatch(env, grace_time_s=0.5).item() == pytest.approx(
     1.5
+  )
+
+
+def test_motion_engage_mismatch_grace_fraction_scales_with_window():
+  motion = SimpleNamespace(
+    ref_engaged=torch.tensor([[True, True, True, True]]),
+    robot_engaged=torch.tensor([[False, False, False, False]]),
+    # Nearest-edge distances 2.5 / 0.3 / 0.15 / 0 s on a 5 s cycle...
+    ref_edge_distance=torch.tensor([[0.5, 0.06, 0.03, 0.0]]),
+    # ...inside windows of 2.0 / 1.0 / 1.0 / 1.0 s.
+    ref_run_time=torch.tensor([[0.4, 0.2, 0.2, 0.2]]),
+    cycle_time_s=5.0,
+  )
+  env = _make_motion_env(motion)
+  # Grace = 0.3 x own window = 0.6 / 0.3 / 0.3 / 0.3 s: full price deep
+  # inside (2.5 s out) and exactly at the grace boundary (0.3 s), half price
+  # at half the grace (0.15 s), free at the flip. Fraction takes precedence
+  # over any grace_time_s.
+  result = motion_engage_mismatch(env, grace_time_s=99.0, grace_fraction=0.3)
+  assert result.item() == pytest.approx(2.5)
+
+
+def test_unsafe_release_bills_scheduled_reverse_unhooks():
+  affordance = SimpleNamespace(
+    engaged=torch.tensor([[True, True, False, False]] * 3),
+    forced_release_this_step=torch.tensor([[True, False, False, False]] * 3),
+    release_reason=torch.tensor([[1, 0, 0, 0]] * 3),
+  )
+  motion = SimpleNamespace(
+    # env0: reverse unhook deep inside a scheduled ON window -> billed.
+    # env1: same unhook AT the scheduled release edge -> free (on time).
+    # env2: unhook while scheduled OFF -> free (reverse stays the free
+    #       direction off schedule; only the mismatch bill applies there).
+    ref_engaged=torch.tensor(
+      [
+        [True, True, True, True],
+        [True, True, True, True],
+        [False, True, True, True],
+      ]
+    ),
+    ref_edge_distance=torch.tensor(
+      [
+        [0.25, 0.25, 0.25, 0.25],
+        [0.0, 0.25, 0.25, 0.25],
+        [0.25, 0.25, 0.25, 0.25],
+      ]
+    ),
+    cycle_time_s=4.0,
+  )
+
+  class _NamedManager:
+    def __init__(self, terms):
+      self._terms = terms
+
+    def get_term(self, name):
+      return self._terms[name]
+
+  env = SimpleNamespace(
+    command_manager=_NamedManager(
+      {"microspine_affordance": affordance, "climb_motion": motion}
+    ),
+    step_dt=0.02,
+    episode_length_buf=torch.full((3,), 100, dtype=torch.long),
+  )
+  result = unsafe_microspine_release_penalty(
+    env,
+    motion_command_name="climb_motion",
+    scheduled_reverse_cost=0.3,
+    scheduled_reverse_grace_s=0.25,
+  )
+  # env0: 0.3 / dt = 15 one-shot; the on-time and off-schedule unhooks are
+  # free (two anchors remain, so no support-loss surcharge either).
+  assert result.tolist() == pytest.approx([15.0, 0.0, 0.0])
+
+
+def test_motion_swing_approach_pays_released_swings_toward_the_anchor():
+  pad = torch.zeros(1, 4, 3)
+  pad[0, 0, 2] = 0.05  # EE0 swinging 5 cm from its rung -> exp(-1).
+  # EE1 swinging exactly at the rung -> 1.0. EE2 is latched during its swing
+  # window -> no pay (the landing bonus owns that moment). EE3 is released
+  # while scheduled ON -> no pay (that mismatch is billed, not rewarded).
+  motion = SimpleNamespace(
+    ref_engaged=torch.tensor([[False, False, False, True]]),
+    robot_engaged=torch.tensor([[False, False, True, False]]),
+    ref_anchor_pos_w=torch.zeros(1, 4, 3),
+  )
+  executor = SimpleNamespace(pad_center_world=lambda: pad)
+  affordance = SimpleNamespace(_get_executor=lambda: executor)
+  motion._affordance = lambda: affordance
+  env = _make_motion_env(motion)
+  expected = 1.0 + torch.exp(torch.tensor(-1.0)).item()
+  assert motion_swing_approach(env, std=0.05).item() == pytest.approx(
+    expected, rel=1e-4
   )
 
 

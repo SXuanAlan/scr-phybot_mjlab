@@ -34,6 +34,18 @@ PHYBOT_C2_FOOT_SITES = (
   ("right_ankle_roll", "right_foot"),
 )
 
+# Bracing tips for climbing: a released spine pad must never slide along the
+# wall (dragging unloaded spine tips over asperities destroys them), so foot
+# regrips brace the articulated foot's toe instead. The sphere sits at the
+# ankle_roll foot mesh's forward tip (mesh reaches x 0.160, sole z -0.061 in
+# the body frame) protruding ~2 mm past the mesh so the wall contact lands on
+# the sphere pair, not on the pair-less mesh. Sim-only until the hardware toe
+# cap is measured; refit pos/radius from the real part then.
+PHYBOT_C2_FOOT_TOES = (
+  ("left_foot_spine", "left_ankle_roll", (0.150, 0.0, -0.049), 0.012),
+  ("right_foot_spine", "right_ankle_roll", (0.150, 0.0, -0.049), 0.012),
+)
+
 
 def _parse_xml_range(value: str) -> tuple[float, float]:
   lower, upper = (float(item) for item in value.split())

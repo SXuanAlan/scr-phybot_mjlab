@@ -41,6 +41,7 @@ def _synthetic_clip(fps: float = 50.0) -> dict:
     "fps": np.float32(fps),
     "ee_list": ["lh", "rh", "lf", "rf"],
     "ee_positions": ee_positions.astype(np.float32),
+    "ee_anchor_positions": ee_positions.astype(np.float32),
     "ee_engaged": ee_engaged,
     "phase_segment": np.array([0, 0, 0, 0, 1, 1], dtype=np.uint8),
     "segment_names": ["hold", "end_hold"],
@@ -103,6 +104,15 @@ def test_loader_derives_schedule_edge_countdowns():
   for foot in (2, 3):
     assert torch.allclose(
       clip.ee_edge_distance[:, foot], torch.tensor([0.25, 0.0, 0.25, 0.0])
+    )
+  # Containing-run lengths (window-proportional mismatch grace): hands are
+  # one full-cycle ON run; feet split into a 2-frame OFF run (frames 1-2)
+  # and a circular 2-frame ON run (frames 3 and 0), normalized by the cycle.
+  assert torch.allclose(clip.ee_run_time[:, 0], torch.ones(4))
+  assert torch.allclose(clip.ee_run_time[:, 1], torch.ones(4))
+  for foot in (2, 3):
+    assert torch.allclose(
+      clip.ee_run_time[:, foot], torch.tensor([0.5, 0.5, 0.5, 0.5])
     )
 
 

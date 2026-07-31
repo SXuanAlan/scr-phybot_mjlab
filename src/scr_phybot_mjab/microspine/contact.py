@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import mujoco
+import numpy as np
 
 from scr_phybot_mjab.microspine.config import MicrospineCfg
 
@@ -14,6 +17,150 @@ def sphere_names(ee_body_name: str, rows: int, cols: int) -> list[str]:
     for row in range(rows)
     for col in range(cols)
   ]
+
+
+def pad_grid_spans(
+  spec: mujoco.MjSpec,
+  cfg: MicrospineCfg,
+  robot_prefix: str = "robot",
+) -> tuple[float, float]:
+  """Contact-sphere grid extents (rake_span_m, lateral_span_m) from the spec.
+
+  Single source of truth for the physical pad size: the moment-billing
+  fields ``MicrospineLimitSurfaceCfg.pad_span_rake_m`` /
+  ``pad_span_lateral_m`` are derived from the robot XML through this helper
+  (see the climb env cfg) instead of being hand-maintained constants, and
+  clip-generation / analysis scripts can import the same numbers.
+
+  Spans are measured between sphere-center extremes along the pad-local rake
+  axis (``limit_surface.ee_rake_local_axis``) and the lateral axis
+  (``face_local_axis x rake``). All EEs must agree to within 1 mm — one
+  scalar pair parameterizes the billing model.
+  """
+  rake = np.asarray(cfg.limit_surface.ee_rake_local_axis, dtype=float)
+  rake = rake / max(float(np.linalg.norm(rake)), 1.0e-9)
+  face = np.asarray(cfg.face_local_axis, dtype=float)
+  face = face / max(float(np.linalg.norm(face)), 1.0e-9)
+  lateral = np.cross(face, rake)
+  lateral = lateral / max(float(np.linalg.norm(lateral)), 1.0e-9)
+
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  spans: list[tuple[float, float]] = []
+  for ee in cfg.ee_body_names:
+    centers = np.asarray(
+      [
+        spec.body(f"{prefix}{name}").pos
+        for name in sphere_names(
+          ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols
+        )
+      ],
+      dtype=float,
+    )
+    along_rake = centers @ rake
+    along_lateral = centers @ lateral
+    spans.append(
+      (
+        float(along_rake.max() - along_rake.min()),
+        float(along_lateral.max() - along_lateral.min()),
+      )
+    )
+  spans_arr = np.asarray(spans)
+  if np.ptp(spans_arr, axis=0).max() > 1.0e-3:
+    raise ValueError(
+      "Contact-sphere grids differ across EEs; a single pad-span pair "
+      f"cannot represent them: {dict(zip(cfg.ee_body_names, spans))}"
+    )
+  if spans_arr.min() <= 0.0:
+    raise ValueError(f"Degenerate sphere-grid span: {spans}")
+  return float(spans_arr[0, 0]), float(spans_arr[0, 1])
+
+
+@dataclasses.dataclass(frozen=True)
+class ToeContact:
+  """A non-spine bracing tip (e.g. the articulated foot's toe).
+
+  A released microspine pad must never slide along the wall — dragging
+  unloaded spine tips over asperities damages them. During a foot regrip the
+  robot braces this tip against the wall instead: it supplies ordinary
+  normal compression (plus mu-friction) while the spine pad travels clear of
+  the surface. The geom is collision-disabled (contype/conaffinity 0) and
+  reaches the wall exclusively through its explicit contact pair, so it is
+  inert in every non-climb task and never collides with the robot itself.
+  """
+
+  ee_body_name: str
+  """Microspine EE this tip belongs to (the pad it substitutes for)."""
+
+  body_name: str
+  """Body carrying the tip (e.g. ``left_ankle_roll``)."""
+
+  pos: tuple[float, float, float]
+  """Tip-sphere center in the body frame [m]."""
+
+  radius: float = 0.012
+  """Tip-sphere radius [m]."""
+
+
+def toe_geom_name(toe: ToeContact) -> str:
+  return f"{toe.body_name}_toe"
+
+
+def toe_site_name(toe: ToeContact) -> str:
+  return f"{toe.body_name}_toe_site"
+
+
+def add_toe_geoms(
+  spec: mujoco.MjSpec,
+  toes: tuple[ToeContact, ...],
+  robot_prefix: str = "robot",
+  with_sites: bool = False,
+) -> None:
+  """Author the bracing-tip spheres (and optionally center sites) on ``spec``.
+
+  Geoms are contype/conaffinity 0: they touch the wall only through the
+  explicit pairs from :func:`add_toe_contact_pairs`. ``with_sites`` adds a
+  site at each tip center for IK / analysis scripts.
+  """
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  for toe in toes:
+    body = spec.body(f"{prefix}{toe.body_name}")
+    body.add_geom(
+      name=f"{prefix}{toe_geom_name(toe)}",
+      type=mujoco.mjtGeom.mjGEOM_SPHERE,
+      size=[toe.radius, 0.0, 0.0],
+      pos=list(toe.pos),
+      contype=0,
+      conaffinity=0,
+      group=3,
+      rgba=[0.9, 0.4, 0.1, 0.0],
+    )
+    if with_sites:
+      body.add_site(
+        name=f"{prefix}{toe_site_name(toe)}",
+        pos=list(toe.pos),
+        size=[0.004, 0.004, 0.004],
+      )
+
+
+def add_toe_contact_pairs(
+  spec: mujoco.MjSpec,
+  cfg: MicrospineCfg,
+  toes: tuple[ToeContact, ...],
+  robot_prefix: str = "robot",
+) -> None:
+  """Explicit toe-vs-wall pairs with the ordinary wall contact parameters."""
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  for toe in toes:
+    pair = spec.add_pair()
+    pair.geomname1 = f"{prefix}{toe_geom_name(toe)}"
+    pair.geomname2 = cfg.wall_geom_name
+    pair.condim = cfg.contact_condim
+    pair.friction = list(cfg.contact_friction)
+    pair.solref = list(cfg.contact_solref)
+    pair.solimp = list(cfg.contact_solimp)
+    pair.solreffriction = list(cfg.contact_solref)
+    pair.margin = cfg.contact_margin
+    pair.gap = cfg.contact_gap
 
 
 def get_spheres_per_ee(cfg: MicrospineCfg) -> int:

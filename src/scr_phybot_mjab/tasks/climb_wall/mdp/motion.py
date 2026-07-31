@@ -111,6 +111,32 @@ def _edge_frame_countdowns(engaged: np.ndarray) -> np.ndarray:
   return out
 
 
+def _run_lengths(engaged: np.ndarray) -> np.ndarray:
+  """Per-frame length (frames) of the circular ON/OFF run containing it.
+
+  For frame ``c`` and EE ``h`` this is the length of the maximal constant
+  stretch of ``engaged[:, h]`` that frame ``c`` sits in, with wrap-around
+  (the schedule is a loop). An EE the clip never flips reads the full cycle.
+  Consumed by the window-proportional mismatch grace: a weld-through bill
+  then costs a constant fraction of the violated window regardless of how
+  the clip is timed.
+  """
+  cycle, num_ee = engaged.shape
+  out = np.full((cycle, num_ee), cycle, dtype=np.int64)
+  for h in range(num_ee):
+    col = engaged[:, h]
+    starts = np.flatnonzero(col != np.roll(col, 1))  # circular run starts
+    if starts.size == 0:
+      continue
+    for k, s in enumerate(starts):
+      e = starts[(k + 1) % starts.size]
+      length = (e - s) % cycle
+      if length == 0:
+        length = cycle
+      out[(np.arange(length) + s) % cycle, h] = length
+  return out
+
+
 def _cycle_frames(data: dict) -> int:
   """Frames of one loopable cycle: cycle 0 without the ``end_hold`` tail.
 
@@ -161,6 +187,9 @@ class ClimbMotionClip:
   ee_engaged: torch.Tensor  # (C, H) bool
   ee_edge_times: torch.Tensor  # (C, H, 2) countdown to next release/regrip
   ee_edge_distance: torch.Tensor  # (C, H) |time| to the NEAREST edge
+  ee_run_time: torch.Tensor  # (C, H) length of the containing ON/OFF run
+  toe_braced: torch.Tensor  # (C, 2) bool: foot-toe wall brace schedule
+  ee_anchor_pos: torch.Tensor  # (C, H, 3) scheduled anchor, clip world frame
 
   @classmethod
   def from_file(
@@ -201,6 +230,17 @@ class ClimbMotionClip:
     ]
     ee_pos = np.asarray(data["ee_positions"], dtype=np.float64)
     engaged = np.asarray(data["ee_engaged"]) != 0
+    # Foot-toe wall-brace schedule (gen_climb_clip 2026-07-29). Older clips
+    # predate the bracing toes; they never schedule a brace.
+    toe_braced = (
+      np.asarray(data["toe_braced"]) != 0
+      if "toe_braced" in data
+      else np.zeros((engaged.shape[0], 2), dtype=bool)
+    )
+    # Scheduled anchor positions (clip world frame): the weld target while
+    # engaged, the upcoming landing target while swinging. Consumed by the
+    # landing-accuracy reward.
+    ee_anchor = np.asarray(data["ee_anchor_positions"], dtype=np.float64)
     labels = np.asarray(data["phase_segment"])
     cycles = np.asarray(data["cycle_index"])
 
@@ -216,6 +256,8 @@ class ClimbMotionClip:
       root_quat /= np.linalg.norm(root_quat, axis=-1, keepdims=True)
       ee_pos = _lerp_frames(ee_pos, pos)
       engaged = _nearest_frames(engaged, pos)
+      toe_braced = _nearest_frames(toe_braced, pos)
+      ee_anchor = _lerp_frames(ee_anchor, pos)
       labels = _nearest_frames(labels, pos)
       cycles = _nearest_frames(cycles, pos)
 
@@ -265,6 +307,7 @@ class ClimbMotionClip:
       np.minimum(future.min(axis=-1), past.min(axis=-1) - 1) / cycle
     ).astype(np.float32)
     edge_distance[:, future.min(axis=(0, -1)) >= cycle] = 1.0
+    run_time = (_run_lengths(engaged_cycle) / cycle).astype(np.float32)
 
     def _t(arr: np.ndarray, dtype=torch.float32) -> torch.Tensor:
       return torch.tensor(np.ascontiguousarray(arr), dtype=dtype, device=device)
@@ -285,6 +328,9 @@ class ClimbMotionClip:
       ee_engaged=_t(engaged_cycle, dtype=torch.bool),
       ee_edge_times=_t(future.astype(np.float32) / cycle),
       ee_edge_distance=_t(edge_distance),
+      ee_run_time=_t(run_time),
+      toe_braced=_t(toe_braced[:cycle], dtype=torch.bool),
+      ee_anchor_pos=_t(ee_anchor[:cycle]),
     )
 
 
@@ -353,13 +399,15 @@ class ClimbMotionCommand(CommandTerm):
 
   @property
   def command(self) -> torch.Tensor:
-    """Phase clock + engage schedule chart, shape (E, 2 + 3H).
+    """Phase clock + engage schedule chart, shape (E, 2 + 3H + 2).
 
-    Layout: ``[cos, sin, engaged(H), (t_release, t_regrip) x H]``. The
-    countdown pairs are the schedule's upcoming edges per EE (normalized by
-    the cycle, sliding linearly with the clock), so the policy reads each
-    raster row's whole future — when this pad must let go and when it must
-    re-latch — instead of only the bar under the playhead.
+    Layout: ``[cos, sin, engaged(H), (t_release, t_regrip) x H,
+    toe_braced(2)]``. The countdown pairs are the schedule's upcoming edges
+    per EE (normalized by the cycle, sliding linearly with the clock), so
+    the policy reads each raster row's whole future — when this pad must
+    let go and when it must re-latch — instead of only the bar under the
+    playhead. The trailing pair flags the foot-toe wall-brace windows (the
+    released foot's support during its own regrip).
     """
     phase = (
       self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
@@ -371,6 +419,7 @@ class ClimbMotionCommand(CommandTerm):
         torch.sin(phase).unsqueeze(-1),
         self.ref_engaged.float(),
         edges.flatten(1, 2),
+        self.ref_toe_braced.float(),
       ],
       dim=-1,
     )
@@ -396,6 +445,21 @@ class ClimbMotionCommand(CommandTerm):
     return self.clip.ee_engaged[self.time_steps]
 
   @property
+  def ref_toe_braced(self) -> torch.Tensor:
+    """Scheduled foot-toe wall-brace flags, (E, 2) in PHYBOT_C2_FOOT_TOES
+    order (left foot, right foot)."""
+    return self.clip.toe_braced[self.time_steps]
+
+  @property
+  def ref_anchor_pos_w(self) -> torch.Tensor:
+    """Scheduled anchor positions in sim world coordinates, (E, H, 3).
+
+    Clip-frame anchors shifted by the per-env root offset (env origin plus
+    the accumulated per-loop step height), i.e. exactly the ghost's anchor
+    ladder. While an EE swings this is its upcoming landing target."""
+    return self.clip.ee_anchor_pos[self.time_steps] + self.root_offset.unsqueeze(1)
+
+  @property
   def ref_edge_distance(self) -> torch.Tensor:
     """Normalized time to the NEAREST schedule edge per EE, (E, H).
 
@@ -403,6 +467,15 @@ class ClimbMotionCommand(CommandTerm):
     piecewise-linear function of the countdown channels the policy observes.
     """
     return self.clip.ee_edge_distance[self.time_steps]
+
+  @property
+  def ref_run_time(self) -> torch.Tensor:
+    """Normalized length of each EE's CURRENT scheduled ON/OFF run, (E, H).
+
+    Multiplied by ``cycle_time_s`` this is the containing window's duration
+    in seconds — the denominator of the window-proportional mismatch grace.
+    """
+    return self.clip.ee_run_time[self.time_steps]
 
   @property
   def ref_edge_countdowns(self) -> torch.Tensor:
