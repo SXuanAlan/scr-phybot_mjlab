@@ -1122,7 +1122,12 @@ def phybot_c2_climb_wall_env_cfg(
       terms=student_terms,
       concatenate_terms=True,
       enable_corruption=True,
-      history_length=10,
+      # 50 frames = 1.0 s (2026-08-03, Route-B step 0 follow-up): the 10-frame
+      # window (0.2 s) cannot span the 0.6 s reengage cooldown, so latch
+      # timers were uninferable; 1 s also covers debounce + typical reseat
+      # and gives the height/slow-factor estimators a usable integration
+      # window. 89 dims/frame x 50 = 4450 — the packer contract.
+      history_length=50,
     )
 
   if play:
@@ -1179,7 +1184,14 @@ def phybot_c2_climb_wall_distill_env_cfg(
   cover the neighborhood the teacher actually graduated on (re-point this
   after the teacher's exam if it passes a wider angle set).
   """
-  cfg = phybot_c2_climb_wall_env_cfg(play=play, student_obs=True)
+  cfg = phybot_c2_climb_wall_env_cfg(
+    play=play, student_obs=True, robustness_release=False
+  )
+  # No release drills here (2026-08-03): DAgger/estimator rollouts want the
+  # undisturbed schedule — drills + the reseat freeze add label variance for
+  # the student and, in RL settings, subsidize welding (the polish-v1
+  # post-mortem). The recovery SKILL still transfers through imitation of
+  # the press-on-schedule behavior (model_250 already passed 2/2 drills).
   cfg.observations["actor"].enable_corruption = False
   if not play:
     final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
@@ -1207,7 +1219,9 @@ def phybot_c2_climb_wall_polish_env_cfg(
   acting (student) group carries its own noise regardless. The runner cfg
   points obs_groups at {"actor": ("student",), "critic": ("critic",)}.
   """
-  cfg = phybot_c2_climb_wall_env_cfg(play=play, student_obs=True)
+  cfg = phybot_c2_climb_wall_env_cfg(
+    play=play, student_obs=True, robustness_release=False
+  )
   if not play:
     final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
     cfg.curriculum["gravity_angle"].params["angle_stages"] = [

@@ -128,9 +128,9 @@ def test_student_group_contract():
     "motion_command",
     "pad_normal_force",
   ]
-  assert student.history_length == 10
+  assert student.history_length == 50  # 1.0 s: spans the 0.6 s cooldown
   assert student.enable_corruption is True
-  # 89 dims/frame x 10 frames = 890 — the C++ packer contract.
+  # 89 dims/frame x 50 frames = 4450 — the C++ packer contract.
   pad = student.terms["pad_normal_force"]
   assert pad.scale == 0.01 and pad.clip == (0.0, 200.0)
   assert (pad.delay_min_lag, pad.delay_max_lag) == (1, 2)

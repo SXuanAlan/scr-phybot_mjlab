@@ -114,6 +114,29 @@ DR_RELEASE_TIMES = next(
   ),
   [],
 )
+# ablate=term1,term2 — zero the named ACTOR observation terms (scale=0.0,
+# applied before the policy's baked normalizer, so the model sees the
+# z-scored "wrong" value). Route-B RMA step 0: measures the policy's true
+# dependence on each privileged channel — channels that survive zeroing
+# need no estimator; channels that crater define phi's regression targets.
+ABLATE_TERMS = next(
+  (
+    [t for t in a.split("=", 1)[1].split(",") if t]
+    for a in sys.argv[1:]
+    if a.startswith("ablate=")
+  ),
+  [],
+)
+# estimator=<phi.pt> — Route-B RMA in-the-loop exam: run the TEACHER actor
+# with its privileged slices fed from the phi estimator (phi_meta.json next
+# to the .pt names the slices; the droppable channels are zeroed). Use with
+# task=...-Distill so the env carries the student group phi reads; the
+# policy/agent cfg is forced to the BASE task's PPO cfg (the checkpoint is
+# a teacher actor, not a distillation student).
+ESTIMATOR_PATH = next(
+  (a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("estimator=")),
+  None,
+)
 _argv = [
   a
   for a in sys.argv[1:]
@@ -129,6 +152,8 @@ _argv = [
       "drmass=",
       "drbias=",
       "drrelease=",
+      "ablate=",
+      "estimator=",
     )
   )
 ]
@@ -247,6 +272,15 @@ if DR_FRICTION is not None or DR_MASS is not None or DR_BIAS is not None or DR_N
     f"[drbench] pinned DR: friction={DR_FRICTION} mass={DR_MASS}"
     f" bias=+-{DR_BIAS} noise={'on' if DR_NOISE else 'off'}"
   )
+if ABLATE_TERMS:
+  _grp = env_cfg.observations["actor"]
+  for _t in ABLATE_TERMS:
+    if _t not in _grp.terms:
+      raise KeyError(
+        f"ablate: '{_t}' not an actor term; have {list(_grp.terms)}"
+      )
+    _grp.terms[_t].scale = 0.0
+  print(f"[ablate] zeroed actor terms: {ABLATE_TERMS}")
 env_cfg.viewer = ViewerConfig(
   origin_type=ViewerConfig.OriginType.ASSET_ROOT,
   entity_name="robot",
@@ -290,7 +324,18 @@ if REFERENCE:
     bias = robot.data.encoder_bias[:, _term._target_ids]
     return (target + bias - _term.offset) / _term.scale
 else:
-  runner_cls = load_runner_cls(TASK) or MjlabOnPolicyRunner
+  if ESTIMATOR_PATH is not None:
+    # Teacher-with-estimator: the checkpoint is a PPO teacher actor, so the
+    # runner must be built from the BASE task's PPO cfg even when the env
+    # (and TASK token) is the -Distill/-Polish variant that carries the
+    # student group.
+    _base_task = TASK
+    for _suffix in ("-Distill", "-Polish"):
+      _base_task = _base_task.removesuffix(_suffix)
+    agent_cfg = load_rl_cfg(_base_task)
+    runner_cls = load_runner_cls(_base_task) or MjlabOnPolicyRunner
+  else:
+    runner_cls = load_runner_cls(TASK) or MjlabOnPolicyRunner
   runner = runner_cls(env, asdict(agent_cfg), device=device)
   # Distillation ckpts hold student_state_dict; {"actor": True} would be a
   # silent no-op on them (random student weights walking off the wall).
@@ -299,6 +344,30 @@ else:
     str(CKPT), load_cfg={_policy_set: True}, strict=True, map_location=device
   )
   policy = runner.get_inference_policy(device=device)
+  if ESTIMATOR_PATH is not None:
+    import json as _json
+
+    _phi = torch.jit.load(ESTIMATOR_PATH, map_location=device).eval()
+    _pm = _json.loads(Path(ESTIMATOR_PATH).with_suffix(".json").read_text())
+    _tsl = [(t["actor_start"], t["actor_end"]) for t in _pm["targets"]]
+    _zsl = [(z["actor_start"], z["actor_end"]) for z in _pm["zero_slices"]]
+    _teacher_policy = policy
+
+    def policy(_obs):  # noqa: F811 - deliberate estimator wrapper
+      with torch.no_grad():
+        _est = _phi(_obs["student"])
+      _a = _obs["actor"].clone()
+      _ofs = 0
+      for _s, _e in _tsl:
+        _a[:, _s:_e] = _est[:, _ofs : _ofs + (_e - _s)]
+        _ofs += _e - _s
+      for _s, _e in _zsl:
+        _a[:, _s:_e] = 0.0
+      _o2 = _obs.clone()
+      _o2["actor"] = _a
+      return _teacher_policy(_o2)
+
+    print(f"[estimator] privileged slices fed from {ESTIMATOR_PATH}")
 
 act_names = list(robot.actuator_names)
 n_act = len(act_names)
