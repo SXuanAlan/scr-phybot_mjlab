@@ -51,6 +51,10 @@ def _parse_args() -> argparse.Namespace:
   p.add_argument("--lr", type=float, default=3.0e-4)
   p.add_argument("--hidden", type=int, nargs="+", default=[512, 256])
   p.add_argument("--closed-loop", action="store_true")
+  p.add_argument("--no-contact", action="store_true",
+                 help="comparison arm: drop the pad_normal_force block from "
+                      "phi's input (sliced INSIDE the module, so the raster "
+                      "estimator hook keeps feeding the full student vector)")
   p.add_argument("--warmup-steps", type=int, default=500,
                  help="closed-loop only: drive with TRUE privileged obs this "
                       "long before switching to phi estimates")
@@ -95,6 +99,7 @@ def main() -> None:
     return out
 
   actor_sl = slices("actor")
+  student_sl = slices("student")
   target_sl = [actor_sl[t] for t in TARGET_TERMS]
   zero_sl = [actor_sl[t] for t in ZERO_TERMS]
   tgt_dim = sum(e - s for s, e in target_sl)
@@ -103,7 +108,17 @@ def main() -> None:
 
   obs0 = env.reset()[0] if isinstance(env.reset(), tuple) else env.reset()
   stu_dim = obs0["student"].shape[-1]
-  print(f"[phi] student in = {stu_dim}, targets = {tgt_dim} "
+  keep_dim = stu_dim
+  if args.no_contact:
+    pad_s, pad_e = student_sl["pad_normal_force"]
+    if pad_e != stu_dim:
+      raise AssertionError(
+        f"pad_normal_force must be the tail block, got [{pad_s}:{pad_e}) "
+        f"of {stu_dim}"
+      )
+    keep_dim = pad_s
+  print(f"[phi] student in = {stu_dim} (keep {keep_dim}"
+        f"{', NO CONTACT' if args.no_contact else ''}), targets = {tgt_dim} "
         f"({', '.join(TARGET_TERMS)}), mode = "
         f"{'2b closed-loop' if args.closed_loop else '2a teacher-driven'}")
 
@@ -112,9 +127,10 @@ def main() -> None:
   class Phi(nn.Module):
     def __init__(self) -> None:
       super().__init__()
-      self.norm = EmpiricalNormalization(shape=[stu_dim])
+      self.keep_dim = keep_dim
+      self.norm = EmpiricalNormalization(shape=[keep_dim])
       layers: list[nn.Module] = []
-      last = stu_dim
+      last = keep_dim
       for h in args.hidden:
         layers += [nn.Linear(last, h), nn.ELU()]
         last = h
@@ -122,7 +138,7 @@ def main() -> None:
       self.mlp = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-      return self.mlp(self.norm(x))
+      return self.mlp(self.norm(x[:, : self.keep_dim]))
 
   phi = Phi().to(device)
   if args.init_phi is not None:
@@ -160,7 +176,7 @@ def main() -> None:
     opt.zero_grad()
     loss.backward()
     opt.step()
-    phi.norm.update(obs["student"].detach())
+    phi.norm.update(obs["student"][:, :keep_dim].detach())
 
     obs, *_ = env.step(actions)
     if isinstance(obs, tuple):
@@ -185,6 +201,8 @@ def main() -> None:
   meta = {
     "input_group": "student",
     "input_dim": stu_dim,
+    "input_slice_end": keep_dim,
+    "no_contact": bool(args.no_contact),
     "targets": [
       {"term": t, "actor_start": s, "actor_end": e}
       for t, (s, e) in zip(TARGET_TERMS, target_sl)
