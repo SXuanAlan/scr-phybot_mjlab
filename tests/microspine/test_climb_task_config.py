@@ -296,66 +296,53 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert "gait_curriculum_success" not in cfg.terminations
 
 
-def test_climb_curriculum_is_fixed_iteration_gravity_schedule():
+def test_climb_curriculum_retrains_from_scratch():
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   runner_cfg = phybot_c2_ppo_runner_cfg()
 
-  # No performance gate: graduation-by-height let a 20x-overspeed scramble
-  # promote 45->75 deg in 400 iterations (motionref1). Fixed-iteration rungs
-  # stay; the 60 rung is retired (motionref17) and its budget folded into
-  # longer 45/75 residences — the choreography (schedule-true regrips, toe
-  # braces, upward landings) must fully form before the wall gets steep.
-  # The 75 rung jitters +-12 to bridge most of the removed 60's range; the
-  # vertical stage runs exactly 90 (jitter above 90 would mean overhangs)
-  # and owns iters 4500-12000.
+  # From-scratch ladder (2026-08-02 evening, user call): the config must
+  # fully retrain from iter 0. The iters transcribe the one validated
+  # trajectory — v3 ran 0->3300 on 45/75+-12 (with this exact tilt anneal)
+  # and the v4 bridge took the same lineage 3300->5050 through
+  # 85+-3/88+-2/exact-90 to the ship gate (90-deg cal exams
+  # 0.962/0.961/0.963). Every hop overlaps its neighbor's pool; rung
+  # boundaries sit >=300 iters from tilt-anneal steps; drive by mastery
+  # gates in practice (the iters are ceilings).
   assert "climb_difficulty" not in cfg.curriculum
   term = cfg.curriculum["gravity_angle"]
   stages = term.params["angle_stages"]
-  assert [(stage["iter"], stage["angle_deg"]) for stage in stages] == [
-    (0, 45.0),
-    (1500, 75.0),
-    (2500, 88.0),
-    (2900, 90.0),
+  assert [(s["iter"], s["angle_deg"], s.get("jitter_deg")) for s in stages] == [
+    (0, 45.0, None),
+    (1500, 75.0, 12.0),
+    (3550, 85.0, 3.0),
+    (4200, 88.0, 2.0),
+    (4800, 90.0, None),
   ]
-  assert "jitter_deg" not in stages[0]  # 45 rung uses the global +-5
-  assert stages[1]["jitter_deg"] == 12.0
-  # 88+-2 bridge: draws cover 86-90 continuously so zero-compression is
-  # approached as an in-distribution limit (exact-90 welded the hands when
-  # entered straight from the 75+-12 pool; the bridge fixed it in ~375
-  # iters — model_2800 90-deg gate exam PASS).
-  assert stages[2]["jitter_deg"] == 2.0
-  assert "jitter_deg" not in stages[3]  # 90 exact (jitter_below_deg)
-  assert term.params["angle_jitter_deg"] == 5.0
-  # The iteration clock derives from common_step_counter; it must match the
-  # runner's rollout length or every rung shifts.
   assert term.params["steps_per_iter"] == runner_cfg.num_steps_per_env == 96
-  assert runner_cfg.max_iterations == 12_000
 
-  # Tilt-peel band annealing: the road to the calibrated band is staged
-  # (birth exploration exceeds 3.5-4.5 deg and peeled every newborn), the
-  # destination is fixed and reached before the 75-deg stage.
+  # v3's birth-validated tilt anneal, ending on the calibrated band well
+  # before the wall gets steep (3000 < 3550).
   tilt_term = cfg.curriculum["tilt_peel"]
   tilt_stages = tilt_term.params["stages"]
-  assert tilt_stages[0]["deg_range"] == (12.0, 15.0)
-  # Band and tax anneal together (18b: a 3-deg tax under a 12-15 deg band
-  # bred a one-anchor-dangle population).
-  assert tilt_stages[0]["tax_threshold_deg"] == 10.0
-  assert tilt_stages[-1]["iter"] == 1800
-  assert tilt_stages[-1]["deg_range"] == (3.5, 4.5)
-  # Final stage matches the static reward params — eval physics/economics.
-  assert tilt_stages[-1]["tax_threshold_deg"] == 3.0
-  assert tilt_stages[-1]["tax_scale_deg"] == 5.0
+  assert [
+    (s["iter"], s["deg_range"], s["tax_threshold_deg"], s["tax_scale_deg"])
+    for s in tilt_stages
+  ] == [
+    (0, (12.0, 15.0), 10.0, 8.0),
+    (1200, (8.0, 10.0), 6.5, 6.0),
+    (2400, (5.0, 7.0), 4.0, 5.0),
+    (3000, (3.5, 4.5), 3.0, 5.0),
+  ]
+  assert tilt_stages[-1]["iter"] < stages[2]["iter"]
   assert tilt_term.params["steps_per_iter"] == 96
 
+  # Play/eval pins to the ladder's terminal values: exams always run the
+  # honest physics at the target angle regardless of training progress.
   play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
   play_term = play_cfg.curriculum["gravity_angle"]
-  assert play_term.params["angle_stages"] == [{"iter": 0, "angle_deg": 90.0}]
-  # Evaluation always runs the calibrated tilt-peel band and economics.
+  assert play_term.params["angle_stages"][-1]["angle_deg"] == 90.0
   play_tilt = play_cfg.curriculum["tilt_peel"].params["stages"]
-  assert len(play_tilt) == 1 and play_tilt[0]["iter"] == 0
-  assert play_tilt[0]["deg_range"] == (3.5, 4.5)
-  # Evaluation/diagnostic rollouts must be deterministic at the pinned angle.
-  assert play_term.params["angle_jitter_deg"] == 0.0
+  assert play_tilt[-1]["deg_range"] == (3.5, 4.5)
 
 
 def test_climb_action_contract_is_bounded_in_target_space_only():

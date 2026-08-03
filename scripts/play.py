@@ -386,8 +386,14 @@ def run_play(task_id: str, cfg: PlayConfig):
   else:
     runner_cls = load_runner_cls(task_id) or MjlabOnPolicyRunner
     runner = runner_cls(env, asdict(agent_cfg), device=device)
+    # Distillation checkpoints carry student_state_dict, not actor_state_dict;
+    # loading them with {"actor": True} is a SILENT no-op (random weights).
+    policy_set = "student" if hasattr(agent_cfg, "student") else "actor"
     runner.load(
-      str(resume_path), load_cfg={"actor": True}, strict=True, map_location=device
+      str(resume_path),
+      load_cfg={policy_set: True},
+      strict=True,
+      map_location=device,
     )
     policy = runner.get_inference_policy(device=device)
 

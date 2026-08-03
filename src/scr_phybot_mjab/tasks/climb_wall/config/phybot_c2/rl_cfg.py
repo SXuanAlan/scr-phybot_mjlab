@@ -1,9 +1,16 @@
 """RL configuration for PHYBot C2 wall-climbing task."""
 
+import dataclasses
+
 from mjlab.rl import (
   RslRlModelCfg,
   RslRlOnPolicyRunnerCfg,
   RslRlPpoAlgorithmCfg,
+)
+
+from scr_phybot_mjab.rl import (
+  RslRlDistillationAlgorithmCfg,
+  RslRlDistillationRunnerCfg,
 )
 
 
@@ -70,4 +77,49 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
     # credit across four 24-step fragments.
     num_steps_per_env=96,
     max_iterations=12_000,
+  )
+
+
+def phybot_c2_distill_runner_cfg() -> RslRlDistillationRunnerCfg:
+  """Distill the privileged DeployPd teacher into the deployable student.
+
+  The teacher model cfg must equal the teacher run's actor cfg
+  field-for-field: ``actor_state_dict`` (normalizer statistics and
+  ``distribution.std_param`` included) is loaded strict. Its init_std value
+  is irrelevant — the checkpoint overwrites it.
+  """
+  teacher = dataclasses.replace(phybot_c2_ppo_runner_cfg().actor)
+  return RslRlDistillationRunnerCfg(
+    student=RslRlModelCfg(
+      hidden_dims=(256, 128, 64),
+      activation="elu",
+      obs_normalization=True,
+      distribution_cfg={
+        # Under the MSE-on-mean distillation loss the std parameter receives
+        # no gradient and stays at init forever; its only role is DAgger
+        # rollout exploration. Match the teacher's CONVERGED std (healthy
+        # runs settle at 0.2-0.5, see the PPO cfg note above) — the PPO
+        # init 0.6 is wider than convergence and drags rollouts away from
+        # states the teacher can demonstrate on.
+        "class_name": "GaussianDistribution",
+        "init_std": 0.3,
+        "std_type": "scalar",
+      },
+    ),
+    teacher=teacher,
+    obs_groups={"student": ("student",), "teacher": ("actor",)},
+    algorithm=RslRlDistillationAlgorithmCfg(
+      num_learning_epochs=1,
+      gradient_length=15,
+      learning_rate=1.0e-3,
+      max_grad_norm=1.0,
+      loss_type="mse",
+    ),
+    experiment_name="phybot_c2_climb_wall_distill",
+    logger="wandb",
+    wandb_project="scr_phybot_mjab-climb-wall",
+    wandb_tags=("phybot_c2", "distill"),
+    save_interval=25,
+    num_steps_per_env=96,
+    max_iterations=3_000,
   )

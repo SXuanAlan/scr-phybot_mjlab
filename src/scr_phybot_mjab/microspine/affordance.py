@@ -16,6 +16,11 @@ from scr_phybot_mjab.microspine.wang_limit_surface import (
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+# release_reason code for releases commanded from outside the limit-surface
+# judgement (DR random-release event, scripted diagnostics). Physical faces
+# use 1-4, tilt-peel uses 5.
+RELEASE_REASON_DR_FORCED = 6
+
 
 def _quat_rotate(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
   """Rotate vec by quaternion (wxyz convention). Batched."""
@@ -309,6 +314,74 @@ class MicrospineAffordance(CommandTerm):
     # just-written reset pose yet, so a live fraction here could be stale.
     self._seat_scale[env_ids] = 1.0
     self._seat_charge[env_ids] = self._ls_cfg.capacity_ramp_time_s
+    self._sync_latched_contact_margins()
+
+  def force_release(
+    self,
+    env_ids: torch.Tensor,
+    ee_mask: torch.Tensor,
+    reason: int = RELEASE_REASON_DR_FORCED,
+    report: bool = True,
+  ) -> None:
+    """Release latched EEs outside the limit-surface judgement.
+
+    Serves the DR random-release event and scripted diagnostics. Callers run
+    after this step's ``_update_command``, so ``forced_release_this_step`` is
+    OR-ed (a same-step limit-surface release must survive) while the latch
+    bookkeeping mirrors a real disengage transition: cooldown starts, seat
+    scale/charge reset, and ``_sync_latched_contact_margins`` restores the
+    pad's contact spheres so it can press the wall again. The equality
+    constraint follows the cleared latch bit on the next step's constraint
+    event, same one-step lag as every latch transition.
+
+    ``report=False`` skips the ``forced_release_this_step``/``release_reason``
+    writes: a scheduled scripted release is not a fault and must not pollute
+    forced-release statistics or the reason-billed penalty.
+    """
+    if not self._mcfg.grip_enabled:
+      return
+    if ee_mask.shape[-1] != self._num_ee:
+      raise ValueError(
+        f"Release mask has {ee_mask.shape[-1]} EEs; expected {self._num_ee}."
+      )
+    mask = ee_mask.to(device=self.device, dtype=torch.bool)
+    mask = mask & self._engaged[env_ids]
+    if not bool(mask.any()):
+      return
+    self._engaged[env_ids] = self._engaged[env_ids] & ~mask
+    cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
+    self._cooldown_steps[env_ids] = torch.where(
+      mask,
+      torch.full_like(self._cooldown_steps[env_ids], cooldown_set),
+      self._cooldown_steps[env_ids],
+    )
+    self._engage_count[env_ids] = torch.where(
+      mask, torch.zeros_like(self._engage_count[env_ids]),
+      self._engage_count[env_ids],
+    )
+    self._violation_count[env_ids] = torch.where(
+      mask, torch.zeros_like(self._violation_count[env_ids]),
+      self._violation_count[env_ids],
+    )
+    self._steps_since_engage[env_ids] = torch.where(
+      mask, torch.zeros_like(self._steps_since_engage[env_ids]),
+      self._steps_since_engage[env_ids],
+    )
+    if report:
+      self.forced_release_this_step[env_ids] |= mask
+      self.release_reason[env_ids] = torch.where(
+        mask,
+        torch.full_like(self.release_reason[env_ids], reason),
+        self.release_reason[env_ids],
+      )
+    self._seat_scale[env_ids] = torch.where(
+      mask, torch.ones_like(self._seat_scale[env_ids]),
+      self._seat_scale[env_ids],
+    )
+    self._seat_charge[env_ids] = torch.where(
+      mask, torch.zeros_like(self._seat_charge[env_ids]),
+      self._seat_charge[env_ids],
+    )
     self._sync_latched_contact_margins()
 
   def _sync_latched_contact_margins(self) -> None:

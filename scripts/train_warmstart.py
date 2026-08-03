@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import os
 from dataclasses import asdict
 from datetime import datetime
@@ -35,6 +36,9 @@ def _parse_args() -> argparse.Namespace:
   parser.add_argument("--gpu-id", type=int, default=0)
   parser.add_argument("--seed", type=int, default=None)
   parser.add_argument(
+    "--logger", choices=("tensorboard", "wandb"), default="tensorboard"
+  )
+  parser.add_argument(
     "--load-mode",
     choices=("actor", "policy", "full"),
     default="actor",
@@ -63,7 +67,7 @@ def main() -> None:
   env_cfg.scene.num_envs = args.num_envs
   agent_cfg.max_iterations = args.max_iterations
   agent_cfg.run_name = args.run_name
-  agent_cfg.logger = "tensorboard"
+  agent_cfg.logger = args.logger
   agent_cfg.upload_model = False
   if args.seed is not None:
     env_cfg.seed = args.seed
@@ -90,17 +94,23 @@ def main() -> None:
   runner.add_git_repo_to_log(__file__)
   load_policy = args.load_mode in {"policy", "full"}
   load_optimizer = args.load_mode == "full"
+  load_cfg = {
+    "actor": True,
+    "critic": load_policy,
+    "optimizer": load_optimizer,
+  }
+  # The AMP runner's load() takes extra kwargs (and its algorithm knows a
+  # discriminator); the plain mjlab/PPO path accepts neither.
+  load_kwargs: dict = {}
+  if "load_optimizer" in inspect.signature(runner.load).parameters:
+    load_kwargs["load_optimizer"] = load_optimizer
+    load_cfg["discriminator"] = load_policy
   runner.load(
     str(args.warmstart_checkpoint),
-    load_optimizer=load_optimizer,
-    load_cfg={
-      "actor": True,
-      "critic": load_policy,
-      "optimizer": load_optimizer,
-      "discriminator": load_policy,
-    },
+    load_cfg=load_cfg,
     strict=True,
     map_location=device,
+    **load_kwargs,
   )
   runner.current_learning_iteration = 0
   env.unwrapped.common_step_counter = 0

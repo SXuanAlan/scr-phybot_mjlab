@@ -70,14 +70,19 @@ def run_export(task_id: str, cfg: ExportConfig):
   env_cfg = load_env_cfg(task_id, play=True)
   agent_cfg = load_rl_cfg(task_id)
   env_cfg.scene.num_envs = 1
-  env_cfg.observations["actor"].enable_corruption = False
+  # Distillation runs export the student; everything else exports the actor.
+  # Loading a distillation checkpoint with {"actor": True} would be a SILENT
+  # no-op (random student weights), hence the cfg-driven key.
+  policy_set = "student" if hasattr(agent_cfg, "student") else "actor"
+  obs_group = agent_cfg.obs_groups[policy_set][0]
+  env_cfg.observations[obs_group].enable_corruption = False
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
   wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
   runner_cls = load_runner_cls(task_id) or MjlabOnPolicyRunner
   runner = runner_cls(wrapped, asdict(agent_cfg), device=device)
-  runner.load(str(resume_path), load_cfg={"actor": True}, strict=True, map_location=device)
+  runner.load(str(resume_path), load_cfg={policy_set: True}, strict=True, map_location=device)
   policy = runner.get_inference_policy(device=device)
 
   jit_name = "policy.pt"
@@ -89,7 +94,7 @@ def run_export(task_id: str, cfg: ExportConfig):
     print(f"[INFO] ONNX policy written to {out_dir / 'policy.onnx'}")
 
   # --- Metadata sidecar -----------------------------------------------------
-  slice_table, obs_dim = _obs_slice_table(env)
+  slice_table, obs_dim = _obs_slice_table(env, group=obs_group)
   robot = env.scene["robot"]
   action_term = env.action_manager.get_term("joint_pos")
   joint_names = [n.removeprefix("robot/") for n in action_term.target_names]
@@ -105,11 +110,12 @@ def run_export(task_id: str, cfg: ExportConfig):
   scale = action_term.scale
   action_scale = scale if isinstance(scale, float) else scale[0].cpu().tolist()
 
-  history_length = env_cfg.observations["actor"].history_length
+  history_length = env_cfg.observations[obs_group].history_length
   meta = {
     "task_id": task_id,
     "checkpoint": str(resume_path),
     "control_freq_hz": 1.0 / env.step_dt,
+    "obs_group": obs_group,
     "obs_dim": obs_dim,
     "obs_history_length": history_length,
     "obs_layout": slice_table,
@@ -131,9 +137,47 @@ def run_export(task_id: str, cfg: ExportConfig):
   meta_path = out_dir / "policy_meta.json"
   meta_path.write_text(json.dumps(meta, indent=2))
   print(f"[INFO] Metadata written to {meta_path}")
-  print(f"[INFO] obs_dim={obs_dim}, action_dim={len(joint_names)}")
+  print(f"[INFO] obs_group={obs_group}, obs_dim={obs_dim}, action_dim={len(joint_names)}")
   for row in slice_table:
     print(f"       [{row['start']:4d}:{row['end']:4d})  {row['term']}")
+
+  # --- Climb motion-command table sidecar -----------------------------------
+  # The motion_command observation has no producer on the robot: it is a pure
+  # function of the 50 Hz cycle clock. Export the full cycle so the deploy
+  # side replays row[t % cycle_frames] instead of reimplementing the
+  # schedule/countdown logic.
+  if "climb_motion" in (env_cfg.commands or {}):
+    motion = env.command_manager.get_term("climb_motion")
+    saved_steps = motion.time_steps.clone()
+    rows = []
+    with torch.no_grad():
+      for frame in range(int(motion.clip.cycle_frames)):
+        motion.time_steps[:] = frame
+        rows.append(motion.command[0].detach().float().cpu().clone())
+    motion.time_steps[:] = saved_steps
+    cmd_table = torch.stack(rows)
+    cmd_path = out_dir / "motion_command_table.json"
+    cmd_path.write_text(
+      json.dumps(
+        {
+          "command_name": "climb_motion",
+          "cycle_frames": int(cmd_table.shape[0]),
+          "dim": int(cmd_table.shape[1]),
+          "rate_hz": 1.0 / env.step_dt,
+          "note": (
+            "motion_command observation row per clip frame. Deploy replays "
+            "row[t % cycle_frames] on the policy clock; layout matches the "
+            "motion_command block in obs_layout."
+          ),
+          "table": cmd_table.tolist(),
+        },
+        indent=None,
+      )
+    )
+    print(
+      f"[INFO] Motion command table ({cmd_table.shape[0]}x{cmd_table.shape[1]}) "
+      f"written to {cmd_path}"
+    )
 
   # --- Deploy-simulation self-test -------------------------------------------
   if cfg.self_test_steps > 0:
@@ -144,7 +188,7 @@ def run_export(task_id: str, cfg: ExportConfig):
     with torch.no_grad():
       for _ in range(cfg.self_test_steps):
         actions = policy(obs)
-        jit_actions = jit_policy(obs["actor"].cpu().float())
+        jit_actions = jit_policy(obs[obs_group].cpu().float())
         err = (actions.cpu() - jit_actions).abs().max().item()
         max_err = max(max_err, err)
         obs, _, _, _ = wrapped.step(actions)

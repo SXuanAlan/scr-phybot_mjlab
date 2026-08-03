@@ -49,7 +49,10 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.utils.wrappers import VideoRecorder
 from mjlab.viewer import ViewerConfig
 
-TASK = "Mjlab-Climb-Wall-Phybot-C2"
+TASK = next(
+  (a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("task=")),
+  "Mjlab-Climb-Wall-Phybot-C2",
+)
 WORST_F0 = "worstf0" in sys.argv[1:]
 SCRIPT_RELEASE = "scriptrelease" in sys.argv[1:]
 GANTRY = "gantry" in sys.argv[1:]
@@ -68,11 +71,53 @@ TILT_BAND = next(
   ),
   None,
 )
+# upperpd=kp,kd — override the upper-body actuator gains (waist_yaw,
+# shoulder p/r/y, elbow) for a PD sweep. The arm chain carries the hang, so
+# its stiffness sets both the tracking error under load and the pad rotation
+# the anchors see; this token makes that a one-line experiment.
+UPPER_PD = next(
+  (
+    tuple(float(x) for x in a.split("=", 1)[1].split(","))
+    for a in sys.argv[1:]
+    if a.startswith("upperpd=")
+  ),
+  None,
+)
+# DR-pinned bench tokens (2026-08-02): play strips all DR, so the clean exam
+# says nothing about the lottery corners. These re-arm individual pieces at
+# PINNED draws: drfriction=X (abs geom friction), drmass=Y (torso delta kg),
+# drbias=Z (encoder-bias half-range in rad; the per-joint draw inside +-Z
+# stays random, so bias cells carry draw-to-draw variance), drnoise (actor
+# obs corruption ON — the training noise cfgs are already on the terms).
+DR_FRICTION = next(
+  (float(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("drfriction=")),
+  None,
+)
+DR_MASS = next(
+  (float(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("drmass=")),
+  None,
+)
+DR_BIAS = next(
+  (float(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("drbias=")),
+  None,
+)
+DR_NOISE = "drnoise" in sys.argv[1:]
 _argv = [
   a
   for a in sys.argv[1:]
-  if a not in ("worstf0", "scriptrelease", "gantry")
-  and not a.startswith(("clip=", "leash=", "tiltband="))
+  if a not in ("worstf0", "scriptrelease", "gantry", "drnoise")
+  and not a.startswith(
+    (
+      "clip=",
+      "leash=",
+      "tiltband=",
+      "task=",
+      "upperpd=",
+      "drfriction=",
+      "drmass=",
+      "drbias=",
+    )
+  )
 ]
 REFERENCE = bool(_argv) and _argv[0] == "reference"
 CKPT = None if REFERENCE else Path(_argv[0]).resolve()
@@ -100,6 +145,7 @@ REASON_NAMES = {
   3: "lateral",
   4: "ultimate",
   5: "tilt-peel",
+  6: "dr-forced",
 }
 
 device = "cuda:0"
@@ -141,6 +187,53 @@ if TILT_BAND is not None:
     env_cfg.curriculum["tilt_peel"].params["stages"] = [
       {"iter": 0, "deg_range": _band}
     ]
+if UPPER_PD is not None:
+  # Rebuild the actuator tuple (the cfgs are shared module singletons —
+  # never mutate in place, other tasks reuse them).
+  import dataclasses as _dc
+
+  _kp, _kd = UPPER_PD[0], UPPER_PD[-1]
+  _upper = (
+    "waist_yaw",
+    ".*_shoulder_pitch",
+    ".*_shoulder_roll",
+    ".*_shoulder_yaw",
+    ".*_elbow_pitch",
+  )
+  _art = env_cfg.scene.entities["robot"].articulation
+  env_cfg.scene.entities["robot"].articulation = _dc.replace(
+    _art,
+    actuators=tuple(
+      _dc.replace(a, stiffness=_kp, damping=_kd)
+      if a.target_names_expr[0] in _upper
+      else a
+      for a in _art.actuators
+    ),
+  )
+  print(f"[upperpd] upper-body gains overridden to kp={_kp} kd={_kd}")
+if DR_FRICTION is not None or DR_MASS is not None or DR_BIAS is not None or DR_NOISE:
+  # Rebuild the pinned events from the TRAINING cfg so the bench can never
+  # drift from what training actually randomizes (same funcs, same asset
+  # regexes) — only the ranges collapse to the requested draw.
+  _train_cfg = load_env_cfg(TASK)
+  if DR_FRICTION is not None:
+    _ev = _train_cfg.events["body_friction"]
+    _ev.params["ranges"] = (DR_FRICTION, DR_FRICTION)
+    env_cfg.events["body_friction"] = _ev
+  if DR_MASS is not None:
+    _ev = _train_cfg.events["base_mass"]
+    _ev.params["ranges"] = (DR_MASS, DR_MASS)
+    env_cfg.events["base_mass"] = _ev
+  if DR_BIAS is not None:
+    _ev = _train_cfg.events["encoder_bias"]
+    _ev.params["bias_range"] = (-DR_BIAS, DR_BIAS)
+    env_cfg.events["encoder_bias"] = _ev
+  if DR_NOISE:
+    env_cfg.observations["actor"].enable_corruption = True
+  print(
+    f"[drbench] pinned DR: friction={DR_FRICTION} mass={DR_MASS}"
+    f" bias=+-{DR_BIAS} noise={'on' if DR_NOISE else 'off'}"
+  )
 env_cfg.viewer = ViewerConfig(
   origin_type=ViewerConfig.OriginType.ASSET_ROOT,
   entity_name="robot",
@@ -186,8 +279,11 @@ if REFERENCE:
 else:
   runner_cls = load_runner_cls(TASK) or MjlabOnPolicyRunner
   runner = runner_cls(env, asdict(agent_cfg), device=device)
+  # Distillation ckpts hold student_state_dict; {"actor": True} would be a
+  # silent no-op on them (random student weights walking off the wall).
+  _policy_set = "student" if hasattr(agent_cfg, "student") else "actor"
   runner.load(
-    str(CKPT), load_cfg={"actor": True}, strict=True, map_location=device
+    str(CKPT), load_cfg={_policy_set: True}, strict=True, map_location=device
   )
   policy = runner.get_inference_policy(device=device)
 
@@ -300,17 +396,15 @@ with torch.no_grad():
       # the clip's timing under the live pipeline? Cooldown is applied
       # exactly as a real disengage would, and contact spheres return.
       cur_ref = motion.ref_engaged[0]
-      to_release = prev_ref & ~cur_ref & aff._engaged[0]
+      to_release = prev_ref & ~cur_ref & aff.engaged[0]
       if bool(to_release.any()):
-        aff._engaged[0] = aff._engaged[0] & ~to_release
-        aff._cooldown_steps[0] = torch.where(
-          to_release,
-          torch.full_like(
-            aff._cooldown_steps[0], aff._mcfg.reengage_cooldown_steps
-          ),
-          aff._cooldown_steps[0],
+        # report=False: a scheduled release is not a fault and must not
+        # pollute the forced-release statistics in the verdict.
+        aff.force_release(
+          torch.tensor([0], device=aff.engaged.device),
+          to_release.unsqueeze(0),
+          report=False,
         )
-        aff._sync_latched_contact_margins()
       prev_ref = cur_ref.clone()
     pol[t] = motion.robot_engaged[0].bool().cpu().numpy()
     ref[t] = motion.ref_engaged[0].bool().cpu().numpy()

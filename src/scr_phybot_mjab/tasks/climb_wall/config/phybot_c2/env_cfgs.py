@@ -30,7 +30,9 @@ import mujoco
 
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
+from mjlab.envs.mdp import dr
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
+from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.observation_manager import (
   ObservationGroupCfg,
@@ -40,9 +42,22 @@ from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
+from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  PHYBOT_C2_ACTUATOR_ANKLE_PITCH,
+  PHYBOT_C2_ACTUATOR_ANKLE_ROLL,
+  PHYBOT_C2_ACTUATOR_ELBOW_PITCH,
+  PHYBOT_C2_ACTUATOR_HIP_PITCH,
+  PHYBOT_C2_ACTUATOR_HIP_ROLL,
+  PHYBOT_C2_ACTUATOR_HIP_YAW,
+  PHYBOT_C2_ACTUATOR_KNEE,
+  PHYBOT_C2_ACTUATOR_NECK,
+  PHYBOT_C2_ACTUATOR_SHOULDER_PITCH,
+  PHYBOT_C2_ACTUATOR_SHOULDER_ROLL,
+  PHYBOT_C2_ACTUATOR_SHOULDER_YAW,
+  PHYBOT_C2_ACTUATOR_WAIST_YAW,
   PHYBOT_C2_FOOT_TOES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   configure_phybot_c2_floor_geom,
@@ -97,8 +112,26 @@ def _policy_joint_cfg() -> SceneEntityCfg:
 
 def phybot_c2_climb_wall_env_cfg(
   play: bool = False,
+  domain_rand: bool = True,
+  student_obs: bool = False,
+  robustness_release: bool = False,
 ) -> ManagerBasedRlEnvCfg:
-  """Create the constraint-based PHYBot C2 wall-climbing configuration."""
+  """Create the constraint-based PHYBot C2 wall-climbing configuration.
+
+  The PD gains and the s2r DR package are the shipping recipe; DR stays
+  switchable for ablations.
+
+  Args:
+    play: evaluation mode (single env, pinned curriculum, no corruption).
+    domain_rand: s2r hardening — obs noise, encoder bias, friction/mass DR,
+      random forced-release events (walk/squat parity minus push_robot).
+    student_obs: add the deployable "student" observation group (distillation
+      target). Off for plain PPO variants: the extra 850-dim group costs
+      ~1.3 GB of rollout storage at 4096 envs.
+    robustness_release: inject random unscheduled latch releases. A FINAL
+      stage on a policy that already masters exact-90 — see the block that
+      installs it for why it is not part of the base DR package.
+  """
   velocity_command_name = "climb_velocity"
   motion_command_name = "climb_motion"
   microspine_affordance_name = "microspine_affordance"
@@ -303,18 +336,36 @@ def phybot_c2_climb_wall_env_cfg(
     joint_vel={".*": 0.0},
   )
 
-  # Climb-specific upper-body PD. The deploy walk gains (arms k=50, waist
-  # k=20/d=10) cannot hold the hang posture: the torso sags ~2 cm, pads peel
-  # off the wall and no episode survives past base_height termination.
-  # Effort limits stay at the deploy hardware values (static hang peaks at
-  # ~15% of the 58 Nm cap); shoulder_yaw keeps the deploy gain. Rebuild via
-  # dataclasses.replace — the actuator cfgs are shared module singletons.
-  climb_upper_body_gains = {
-    "waist_yaw": (100.0, 5.0),
-    ".*_shoulder_pitch": (100.0, 5.0),
-    ".*_shoulder_roll": (100.0, 5.0),
-    ".*_elbow_pitch": (100.0, 5.0),
-  }
+  # pd100 table (2026-08-02 user call: revive deploypd-v3 from model_3300).
+  # These are the gains v3 was trained with — byte-matched against
+  # logs/.../2026-08-01_20-45-59_deploypd-v3-pd100/params/env.yaml — and a
+  # resumed checkpoint must get the plant it learned on: full upper chain
+  # INCLUDING shoulder_yaw at 100/10 (kd=10 lifts the hanging-chain zeta
+  # 0.35 -> 0.5), legs 100/10 over the 100/5 module default, ankles 50/5,
+  # neck default. (The 18c-exact 100/5 table this replaces served the
+  # robust-ladder campaign; it lives in the jv run dirs' param dumps.)
+  # dataclasses.replace, not assignment: the actuator cfgs are shared
+  # module singletons and walk/squat use the same objects.
+  climb_actuators = (
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_HIP_PITCH, stiffness=100.0, damping=10.0),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_HIP_ROLL, stiffness=100.0, damping=10.0),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_HIP_YAW, stiffness=100.0, damping=10.0),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_KNEE, stiffness=100.0, damping=10.0),
+    PHYBOT_C2_ACTUATOR_ANKLE_PITCH,  # 50/5
+    PHYBOT_C2_ACTUATOR_ANKLE_ROLL,
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_WAIST_YAW, stiffness=100.0, damping=10.0),
+    dataclasses.replace(
+      PHYBOT_C2_ACTUATOR_SHOULDER_PITCH, stiffness=100.0, damping=10.0
+    ),
+    dataclasses.replace(
+      PHYBOT_C2_ACTUATOR_SHOULDER_ROLL, stiffness=100.0, damping=10.0
+    ),
+    dataclasses.replace(
+      PHYBOT_C2_ACTUATOR_SHOULDER_YAW, stiffness=100.0, damping=10.0
+    ),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_ELBOW_PITCH, stiffness=100.0, damping=10.0),
+    PHYBOT_C2_ACTUATOR_NECK,
+  )
   robot_cfg.articulation = dataclasses.replace(
     robot_cfg.articulation,
     # Reserve 1% of the hard range at each end. The action term below clamps
@@ -325,13 +376,7 @@ def phybot_c2_climb_wall_env_cfg(
     # tracking must never fight the target clamp. The clip keeps its own
     # clearance elsewhere via the gen script's limit-avoidance springs.
     soft_joint_pos_limit_factor=0.98,
-    actuators=tuple(
-      dataclasses.replace(act, stiffness=gains[0], damping=gains[1])
-      if (gains := climb_upper_body_gains.get(act.target_names_expr[0]))
-      is not None
-      else act
-      for act in robot_cfg.articulation.actuators
-    ),
+    actuators=climb_actuators,
   )
 
   # Wall: keep the default WALL_OFFSET = (2.0, 0.0, 7.5). NOTE the stance-v2
@@ -399,6 +444,84 @@ def phybot_c2_climb_wall_env_cfg(
   # perturbation events would only be overwritten.
   cfg.events.pop("reset_robot_joints", None)
   cfg.events.pop("reset_robot_base", None)
+
+  if domain_rand:
+    # v4 revival (2026-08-02 user call): resume deploypd-v3/model_3300 with
+    # v3's FULL walk-parity DR, byte-matched to that run's params/env.yaml.
+    # From-scratch-with-noise beats resume-then-inject: the graded R1/R2
+    # ladder (see the jv run dirs, 2026-08-02 midday) measured a permanent
+    # ~0.015 clean-exam tax injecting joint_vel noise into the noise-naive
+    # 18c line, while v3 carried this whole set from birth and examined
+    # 0.98 at 75-85 deg. The one thing that killed v3 was the gravity
+    # bridge, not the DR — see the angle_stages note below.
+    obs_noise = {
+      "base_lin_vel": Unoise(n_min=-0.5, n_max=0.5),
+      "base_ang_vel": Unoise(n_min=-0.2, n_max=0.2),
+      "projected_gravity": Unoise(n_min=-0.05, n_max=0.05),
+      "joint_pos_rel": Unoise(n_min=-0.01, n_max=0.01),
+      "joint_vel_rel": Unoise(n_min=-1.5, n_max=1.5),
+    }
+    for term_name, noise in obs_noise.items():
+      cfg.observations["actor"].terms[term_name].noise = noise
+    cfg.observations["actor"].enable_corruption = True
+    cfg.events["body_friction"] = EventTermCfg(
+      mode="startup",
+      func=dr.geom_friction,
+      params={
+        # Walk's regex: every collision geom except the feet. The spine
+        # plates match too but their contype is 0 (walk CollisionCfg), so
+        # randomizing them is inert. Spine-sphere and toe-wall contacts are
+        # pair-driven — geom friction does not reach them (pair friction
+        # overrides), so the microspine calibration stays untouched.
+        "asset_cfg": SceneEntityCfg(
+          "robot",
+          geom_names=(r"^(?!(left|right)_ankle_roll_collision$).*_collision$",),
+        ),
+        "operation": "abs",
+        "ranges": (0.6, 1.0),
+      },
+    )
+    cfg.events["base_mass"] = EventTermCfg(
+      mode="startup",
+      func=dr.body_mass,
+      params={
+        "asset_cfg": SceneEntityCfg("robot", body_names=("torso",)),
+        # +-2 kg, not walk's +-5: the static climb audit's thinnest hold
+        # margin is 12.3%, and a +5 kg draw pushes the worst F0 lottery out
+        # of the Wang envelope — no-fault forced releases would pollute the
+        # training signal. Revisit after a hang-bench pass at +2 kg.
+        "ranges": (-2.0, 2.0),
+        "operation": "add",
+      },
+    )
+    cfg.events["encoder_bias"] = EventTermCfg(
+      mode="startup",
+      func=dr.encoder_bias,
+      params={
+        # v3-exact: +-0.01 rad on every joint, drawn once per episode-world.
+        # At 0.4 m reach this is a 4-8 mm unobservable EE offset against the
+        # ~5 mm seating travel — the single suspect for real-pad reseat
+        # misses, which is why it ships in the base DR set.
+        "asset_cfg": SceneEntityCfg("robot"),
+        "bias_range": (-0.01, 0.01),
+      },
+    )
+  if robustness_release:
+    # Unscheduled-release recovery drill, deliberately NOT part of the base
+    # DR package (2026-08-01 night, user call). Rationale: an unplanned
+    # detach every ~5.5 s teaches "losing a latch mid-cycle is survivable",
+    # which is exactly the experience that makes weld-to-survive cheap once
+    # the wall gets steep — the engage-mismatch bill drifted monotonically
+    # through the 75-deg rung while it was on. The recovery skill it trains
+    # is still wanted for the distilled student (which cannot observe latch
+    # state), so it comes back as a FINAL stage once exact-90 is mastered,
+    # on top of a policy whose schedule discipline is already fixed.
+    cfg.events["random_release"] = EventTermCfg(
+      mode="interval",
+      interval_range_s=(3.0, 8.0),
+      func=mdp.random_microspine_release,
+      params={"command_name": microspine_affordance_name},
+    )
 
   # ------------------------------------------------------------------------
   # Rewards — DeepMimic split. ``motion_*`` exp kernels teach the regrip
@@ -766,97 +889,83 @@ def phybot_c2_climb_wall_env_cfg(
     ),
   }
 
-  # Fixed-iteration gravity schedule (2026-07-21, replacing the performance
-  # gate): graduation-by-height let a 20x-overspeed scramble gait promote
-  # 45->75 deg inside 400 iterations while ignoring the engage schedule
-  # entirely. Angle is now a function of training time alone — each rung gets
-  # a guaranteed 3000-iteration residence for the imitation terms to shape
-  # HOW the robot climbs before gravity gets harder. steps_per_iter must
-  # match rl_cfg num_steps_per_env.
-  # Three rungs 45/60/90 with +-5 deg per-episode randomization (2026-07-22):
-  # each env draws its own angle at reset (45 rung spans 40-50, 60 spans
-  # 55-65), which blurs the rung boundaries enough to retire the dedicated
-  # 75 rung; the final vertical stage runs exactly 90 — jitter there would
-  # mix in >90 overhangs, a different task. 90 gets the back half (6000 it).
+  # ------------------------------------------------------------------------
+  # Training schedule — gravity ladder x tilt-peel anneal, one timeline
+  # (from-scratch rewrite 2026-08-02 evening, user call: the config must
+  # fully retrain from iter 0; the resume-era pinned variants live in the
+  # deploypd-v4-* run dirs and git history).
+  #
+  #    iter | gravity pool      | tilt-peel band (tax thresh/scale)
+  #   ------+-------------------+----------------------------------
+  #       0 | 45 (global +-5)   | 12-15 deg (10/8)  wide birth band
+  #    1200 |                   | 8-10 deg  (6.5/6)
+  #    1500 | 75 +-12 (63-87)   |
+  #    2400 |                   | 5-7 deg   (4/5)
+  #    3000 |                   | 3.5-4.5   (3/5)   calibrated, final
+  #    3550 | 85 +-3  (82-88)   |
+  #    4200 | 88 +-2  (86-90)   |
+  #    4800 | 90 exact          |
+  #
+  # The iters transcribe the ONE validated trajectory: v3 ran 0->3300 on
+  # exactly this 45/75/tilt prefix (from birth, full DR + pd100), and the
+  # v4 bridge campaign took the same lineage 3300->5050 through
+  # 85/88/exact-90 to the ship gate (90-deg cal-band exams
+  # 0.962/0.961/0.963 across three consecutive panels, zero falls).
+  # Design rules baked into the numbers:
+  #   - gravity is a function of training time alone (2026-07-21:
+  #     graduation-by-height once promoted a 20x-overspeed scramble), and
+  #     every hop overlaps its neighbor's pool (63-87 / 82-88 / 86-90 /
+  #     90) so zero-compression arrives in-distribution — v3 died on the
+  #     unbridged 75+-12 -> 88+-2 cliff (weld-hands basin: at 90 a hand
+  #     swing leaves 3 anchors on pure shear+tension, 12.3% margin at the
+  #     F0=400 worst draw). The final stage runs exactly 90; jitter there
+  #     would mix in >90 overhangs, a different task.
+  #   - the tilt anneal reaches the honest physics (3000) before the wall
+  #     gets steep (3550): every steep rung trains AND examines on the
+  #     calibrated band. Birth needs the wide band — cold starts on
+  #     3.5-4.5 peel apart within ~1 s (motionref18: zero learning).
+  #   - anneal steps and rung boundaries stay >=300 iters apart (fresh2b:
+  #     never stack two shocks inside a consolidation window).
+  #   - the iters are CEILINGS: drive by mastery gates (precise-angle exam
+  #     >=0.95 x2 zero falls; per-EE occ_pol-occ_ref < +0.04 is the weld
+  #     early warning) via kill/edit/resume, and when pulling a rung IN,
+  #     push the later rungs OUT (the 88 rung auto-fired at 4200 mid-soak
+  #     once; it survived only by luck of near-readiness).
+  #   - examine ALL rungs every cycle (periodic_eval.sh probes
+  #     75/85/88/90): steep-only pools erode shallow angles — accepted
+  #     under the ckpt-portfolio doctrine (bank each rung's graduate),
+  #     but the erosion must stay measured, never silent.
+  # steps_per_iter must match rl_cfg num_steps_per_env.
+  gravity_stages = [
+    {"iter": 0, "angle_deg": 45.0},
+    {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
+    {"iter": 3550, "angle_deg": 85.0, "jitter_deg": 3.0},
+    {"iter": 4200, "angle_deg": 88.0, "jitter_deg": 2.0},
+    {"iter": 4800, "angle_deg": 90.0},
+  ]
+  tilt_peel_stages = [
+    {"iter": 0, "deg_range": (12.0, 15.0),
+     "tax_threshold_deg": 10.0, "tax_scale_deg": 8.0},
+    {"iter": 1200, "deg_range": (8.0, 10.0),
+     "tax_threshold_deg": 6.5, "tax_scale_deg": 6.0},
+    {"iter": 2400, "deg_range": (5.0, 7.0),
+     "tax_threshold_deg": 4.0, "tax_scale_deg": 5.0},
+    {"iter": 3000, "deg_range": (3.5, 4.5),
+     "tax_threshold_deg": 3.0, "tax_scale_deg": 5.0},
+  ]
   cfg.curriculum = {
     "gravity_angle": CurriculumTermCfg(
       func=mdp.gravity_angle,
       params={
-        # Three-rung ladder 45/75/90 (motionref17, 2026-07-30): the 60 rung
-        # is retired and its budget folded into longer 45/75 residences —
-        # motionref16b showed the choreography (schedule-true regrips, toe
-        # braces, upward landings) never fully formed before the wall got
-        # steep, so the shallow rungs now get 1500/3000 iterations (vs
-        # 600/1500 on the motionref12 ladder). The 75 rung jitters +-12
-        # (covers 63-87) to bridge most of the removed 60's range; 45 keeps
-        # the global +-5; the final stage runs exactly 90 (overhangs are a
-        # different task).
-        # 88+-2 bridge stage (motionref17d, 2026-07-31): exact-90 straight
-        # from the 75+-12 pool (max 87) welded the hands — at 90 the last
-        # gravity compression vanishes and a hand swing leaves 3 anchors on
-        # pure shear+tension (static audit's thinnest state, 12.3% margin
-        # at the F0=400 worst draw), so the policy priced hand releases as
-        # Russian roulette and sat in a weld-hands/churn-RF crawl basin for
-        # 600+ iters (model_2950 @90: hands occ 1.00, +0.036 m). The
-        # 88+-2 draw covers 86-90 CONTINUOUSLY — zero-compression becomes
-        # an in-distribution limit approached gradually, not a 3-deg
-        # cliff. The exact-90 stage gets appended only after this stage's
-        # exams pass (user-gated), so the ladder currently ends here.
-        # Exact-90 appended (motionref17e): the bridge did its job in ~375
-        # iters — model_2800's 90-deg gate exam passed with full four-limb
-        # cycling (match 0.971, +0.209 m, zero overloads) where the
-        # bridge-less 17c had welded its hands for 600+ iters.
-        "angle_stages": [
-          {"iter": 0, "angle_deg": 45.0},
-          {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
-          {"iter": 2500, "angle_deg": 88.0, "jitter_deg": 2.0},
-          {"iter": 2900, "angle_deg": 90.0},
-        ],
+        "angle_stages": gravity_stages,
         "steps_per_iter": 96,
         "angle_jitter_deg": 5.0,
       },
     ),
-    # Tilt-peel band annealing (2026-07-31): the calibrated 3.5-4.5 deg
-    # band is tighter than birth exploration — the motionref18 cold start
-    # peeled every newborn apart within ~1 s (eplen ~48 steps, fall rate
-    # ~85/step, zero learning over 300 iters). The road to the honest
-    # physics is staged; the destination (the cfg's static range, which
-    # benches and play always use) is reached at iter 1800, before the
-    # 75-deg stage, so every stage from there trains and examines on the
-    # final band.
     "tilt_peel": CurriculumTermCfg(
       func=mdp.tilt_peel_schedule,
       params={
-        # Band and tax anneal TOGETHER (18b lesson: a 3-deg tax under a
-        # 12-15 deg band priced beginner closed-chain wiggle and bred a
-        # one-anchor-dangle population). Tax threshold ~0.85 x band floor;
-        # final stage equals the static calibrated values (3.0/5.0).
-        "stages": [
-          {
-            "iter": 0,
-            "deg_range": (12.0, 15.0),
-            "tax_threshold_deg": 10.0,
-            "tax_scale_deg": 8.0,
-          },
-          {
-            "iter": 600,
-            "deg_range": (8.0, 10.0),
-            "tax_threshold_deg": 6.5,
-            "tax_scale_deg": 6.0,
-          },
-          {
-            "iter": 1200,
-            "deg_range": (5.0, 7.0),
-            "tax_threshold_deg": 4.0,
-            "tax_scale_deg": 5.0,
-          },
-          {
-            "iter": 1800,
-            "deg_range": (3.5, 4.5),
-            "tax_threshold_deg": 3.0,
-            "tax_scale_deg": 5.0,
-          },
-        ],
+        "stages": tilt_peel_stages,
         "command_name": microspine_affordance_name,
         "steps_per_iter": 96,
       },
@@ -900,9 +1009,8 @@ def phybot_c2_climb_wall_env_cfg(
   )
   # Cycle phase clock (cos/sin) + the clip's engage schedule chart: current
   # per-EE engage bits plus each EE's countdown to its next release and next
-  # regrip (2026-07-22). The countdowns are the raster rows' upcoming edges
-  # fused with the phase, so "prepare to let go / to re-latch" is visible in
-  # advance instead of memorized from the clock. 14 dims total.
+  # regrip (2026-07-22), plus the per-foot toe-brace flags (2026-07-29).
+  # 16 dims total.
   actor_terms["motion_command"] = ObservationTermCfg(
     func=mdp.generated_commands,
     params={"command_name": motion_command_name},
@@ -935,6 +1043,51 @@ def phybot_c2_climb_wall_env_cfg(
     enable_corruption=False,
   )
 
+  if student_obs:
+    # Deployable observation contract for the distilled student. Every term
+    # is hardware-measurable: IMU gyro + gravity, joint encoders, the
+    # policy's own action, and the motion command — a pure 50 Hz clock
+    # lookup exported alongside the policy. Deliberately absent: base_lin_vel
+    # and height_above_spawn (no estimator on the robot), the microspine
+    # latch state (no engagement sensing; the reference schedule inside
+    # motion_command plus proprioceptive history carries it), the constant
+    # velocity_command, and prev/prev_prev_action (the history covers them).
+    # 85 dims per frame x history 10 = 850; layout is term-major with frames
+    # oldest->newest (the export sidecar documents the C++ contract).
+    student_terms = {
+      "base_ang_vel": ObservationTermCfg(
+        func=mdp.builtin_sensor,
+        params={"sensor_name": "robot/baselink-gyro"},
+        noise=Unoise(n_min=-0.2, n_max=0.2),
+      ),
+      "projected_gravity": ObservationTermCfg(
+        func=mdp.projected_gravity_from_framequat_sensor,
+        params={"sensor_name": "robot/baselink-quat"},
+        noise=Unoise(n_min=-0.05, n_max=0.05),
+      ),
+      "joint_pos_rel": ObservationTermCfg(
+        func=mdp.joint_pos_rel,
+        params={"asset_cfg": _policy_joint_cfg()},
+        noise=Unoise(n_min=-0.01, n_max=0.01),
+      ),
+      "joint_vel_rel": ObservationTermCfg(
+        func=mdp.joint_vel_rel,
+        params={"asset_cfg": _policy_joint_cfg()},
+        noise=Unoise(n_min=-1.5, n_max=1.5),
+      ),
+      "last_action": ObservationTermCfg(func=mdp.last_action),
+      "motion_command": ObservationTermCfg(
+        func=mdp.generated_commands,
+        params={"command_name": motion_command_name},
+      ),
+    }
+    cfg.observations["student"] = ObservationGroupCfg(
+      terms=student_terms,
+      concatenate_terms=True,
+      enable_corruption=True,
+      history_length=10,
+    )
+
   if play:
     # The viewer shows one world. Keeping the training batch of 4096 here
     # simulates thousands of invisible robots and is the main cause of
@@ -942,6 +1095,13 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.scene.num_envs = 1
     cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
+    if "student" in cfg.observations:
+      cfg.observations["student"].enable_corruption = False
+    # Evaluation and diagnostic rollouts are deterministic physics probes:
+    # drop the DR events entirely (neutral ranges would still overwrite XML
+    # frictions under operation="abs").
+    for dr_event in ("encoder_bias", "body_friction", "base_mass", "random_release"):
+      cfg.events.pop(dr_event, None)
     # Debug transition logging forces CPU-GPU synchronization in the physics
     # step. Keep normal play fast; it can still be enabled explicitly on a
     # locally constructed config when diagnosing the state machine.
@@ -967,4 +1127,30 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.commands[motion_command_name].sampling_mode = "start"
     cfg.commands[motion_command_name].joint_pos_noise = 0.0
 
+  return cfg
+
+
+def phybot_c2_climb_wall_distill_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Distillation variant: the climb task plus the student observation group.
+
+  The teacher (loaded from a climb PPO checkpoint) reads the actor group, so
+  its corruption is switched off — labels come from clean privileged state;
+  the student group keeps noise + history. The gravity curriculum is pinned
+  to the ladder's final angle while KEEPING the training jitter, so rollouts
+  cover the neighborhood the teacher actually graduated on (re-point this
+  after the teacher's exam if it passes a wider angle set).
+  """
+  cfg = phybot_c2_climb_wall_env_cfg(play=play, student_obs=True)
+  cfg.observations["actor"].enable_corruption = False
+  if not play:
+    final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
+    cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+      {"iter": 0, "angle_deg": final_angle["angle_deg"]}
+    ]
+    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
+    cfg.curriculum["tilt_peel"].params["stages"] = [
+      {"iter": 0, "deg_range": final_tilt["deg_range"]}
+    ]
   return cfg
