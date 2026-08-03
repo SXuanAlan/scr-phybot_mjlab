@@ -114,7 +114,7 @@ def phybot_c2_climb_wall_env_cfg(
   play: bool = False,
   domain_rand: bool = True,
   student_obs: bool = False,
-  robustness_release: bool = False,
+  robustness_release: bool = True,
 ) -> ManagerBasedRlEnvCfg:
   """Create the constraint-based PHYBot C2 wall-climbing configuration.
 
@@ -516,9 +516,16 @@ def phybot_c2_climb_wall_env_cfg(
     # is still wanted for the distilled student (which cannot observe latch
     # state), so it comes back as a FINAL stage once exact-90 is mastered,
     # on top of a policy whose schedule discipline is already fixed.
+    # R4 stage (2026-08-03): default ON now that exact-90 is mastered — the
+    # drill pairs with the reseat-hold clock freeze (affordance.reseat_hold)
+    # so recovery is a trained skill, not schedule truancy. Interval starts
+    # gentle (6-12 s); tighten to (3, 8) once the recovery exam passes. For
+    # a FROM-SCRATCH retrain launch with robustness_release=False until
+    # exact-90 is mastered (2026-08-01 rationale: unplanned-release-is-normal
+    # economics makes welding cheap before schedule discipline forms).
     cfg.events["random_release"] = EventTermCfg(
       mode="interval",
-      interval_range_s=(3.0, 8.0),
+      interval_range_s=(6.0, 12.0),
       func=mdp.random_microspine_release,
       params={"command_name": microspine_affordance_name},
     )
@@ -843,6 +850,17 @@ def phybot_c2_climb_wall_env_cfg(
       func=mdp.microspine_engagement_occupancy,
       params={"command_name": microspine_affordance_name},
     ),
+    # R4 reseat-hold telemetry: clock-freeze duty cycle and how many EEs are
+    # pending. hold_fraction >> interval-implied duty means reseats are slow
+    # or timing out; ~0 with random_release on means holds resolve instantly.
+    "microspine_reseat_hold_fraction": MetricsTermCfg(
+      func=mdp.microspine_reseat_hold_fraction,
+      params={"command_name": microspine_affordance_name},
+    ),
+    "microspine_reseat_pending_count": MetricsTermCfg(
+      func=mdp.microspine_reseat_pending_count,
+      params={"command_name": microspine_affordance_name},
+    ),
     "left_hand_engagement_occupancy": MetricsTermCfg(
       func=mdp.microspine_engagement_occupancy,
       params={"command_name": microspine_affordance_name, "ee_index": 0},
@@ -1052,8 +1070,12 @@ def phybot_c2_climb_wall_env_cfg(
     # latch state (no engagement sensing; the reference schedule inside
     # motion_command plus proprioceptive history carries it), the constant
     # velocity_command, and prev/prev_prev_action (the history covers them).
-    # 85 dims per frame x history 10 = 850; layout is term-major with frames
+    # 89 dims per frame x history 10 = 890; layout is term-major with frames
     # oldest->newest (the export sidecar documents the C++ contract).
+    # pad_normal_force (2026-08-03) is the one non-proprioceptive channel:
+    # the gimbal-mounted load cell the sensing co-design provides — it gives
+    # the student a physical engage/loss estimator instead of pure schedule
+    # faith, and it is the deploy-side trigger for the R4 clock pause.
     student_terms = {
       "base_ang_vel": ObservationTermCfg(
         func=mdp.builtin_sensor,
@@ -1079,6 +1101,21 @@ def phybot_c2_climb_wall_env_cfg(
       "motion_command": ObservationTermCfg(
         func=mdp.generated_commands,
         params={"command_name": motion_command_name},
+      ),
+      # APPEND-ONLY from here: inserting mid-dict shifts every downstream
+      # block of the exported C++ offset table. Pipeline reminder: noise is
+      # applied per-frame BEFORE the history append; the 1-2 step delay
+      # models load-cell/CAN latency and deliberately survives play/export
+      # (the real sensor is late too — delay is not corruption-gated).
+      "pad_normal_force": ObservationTermCfg(
+        func=mdp.microspine_pad_normal_force,
+        params={"command_name": microspine_affordance_name},
+        noise=Unoise(n_min=-5.0, n_max=5.0),
+        clip=(0.0, 200.0),
+        scale=0.01,
+        delay_min_lag=1,
+        delay_max_lag=2,
+        delay_per_env=True,
       ),
     }
     cfg.observations["student"] = ObservationGroupCfg(
@@ -1144,6 +1181,33 @@ def phybot_c2_climb_wall_distill_env_cfg(
   """
   cfg = phybot_c2_climb_wall_env_cfg(play=play, student_obs=True)
   cfg.observations["actor"].enable_corruption = False
+  if not play:
+    final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
+    cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+      {"iter": 0, "angle_deg": final_angle["angle_deg"]}
+    ]
+    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
+    cfg.curriculum["tilt_peel"].params["stages"] = [
+      {"iter": 0, "deg_range": final_tilt["deg_range"]}
+    ]
+  return cfg
+
+
+def phybot_c2_climb_wall_polish_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Phase-3 RL polish: PPO with the STUDENT group as the actor input.
+
+  BC-init + RL polish breaks the distillation ceiling: the distilled student
+  only imitates states its all-knowing teacher visits, so active information
+  gathering (probe-loading a pad before committing) can only emerge here,
+  where the acting policy pays for its own engage-state uncertainty. Same
+  pinned curricula as the distill variant; unlike it the actor group's
+  corruption is NOT disabled — there is no teacher reading it, and the
+  acting (student) group carries its own noise regardless. The runner cfg
+  points obs_groups at {"actor": ("student",), "critic": ("critic",)}.
+  """
+  cfg = phybot_c2_climb_wall_env_cfg(play=play, student_obs=True)
   if not play:
     final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
     cfg.curriculum["gravity_angle"].params["angle_stages"] = [

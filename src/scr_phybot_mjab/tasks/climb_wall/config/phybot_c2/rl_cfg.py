@@ -123,3 +123,36 @@ def phybot_c2_distill_runner_cfg() -> RslRlDistillationRunnerCfg:
     num_steps_per_env=96,
     max_iterations=3_000,
   )
+
+
+def phybot_c2_ppo_polish_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+  """Phase-3 polish: PPO whose ACTOR reads the student observation group.
+
+  rsl_rl decouples obs-set names from env group names, so pointing the
+  "actor" set at the ("student",) group is the whole wiring — the model's
+  input width follows the group automatically. The actor model cfg must
+  equal the distillation student cfg field-for-field so the distilled
+  ``student_state_dict`` loads strict (scripts/train_polish.py); the critic
+  cfg is unchanged so the teacher PPO checkpoint's 170-dim critic seeds it
+  strict. init_std here is documentation only — the loaded
+  ``distribution.std_param`` (0.3, the distill value) wins; overwrite that
+  tensor explicitly to widen exploration, not this field.
+  """
+  base = phybot_c2_ppo_runner_cfg()
+  distill_student = phybot_c2_distill_runner_cfg().student
+  return dataclasses.replace(
+    base,
+    actor=dataclasses.replace(distill_student),
+    obs_groups={"actor": ("student",), "critic": ("critic",)},
+    algorithm=dataclasses.replace(
+      base.algorithm,
+      # A BC-initialized actor trips the adaptive-KL controller (it shrinks
+      # LR against the loaded policy's own rollouts); fix the schedule low
+      # instead and let the polish run be short.
+      learning_rate=1.0e-4,
+      schedule="fixed",
+    ),
+    experiment_name="phybot_c2_climb_wall_polish",
+    wandb_tags=("phybot_c2", "polish"),
+    max_iterations=1_000,
+  )

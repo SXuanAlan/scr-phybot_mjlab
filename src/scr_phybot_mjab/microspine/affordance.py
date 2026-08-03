@@ -194,6 +194,16 @@ class MicrospineAffordance(CommandTerm):
     # Like anchor_load_tnl it holds the violating value on the release step
     # and resets the step after.
     self.release_reason = torch.zeros(shape, dtype=torch.int8, device=self.device)
+    # R4 reseat hold (2026-08-03): a dr-forced release (reason 6, report=True)
+    # arms the pending bit until that EE re-latches, the hold times out
+    # (dr_reseat_hold_timeout_steps), or the env resets. The motion command
+    # freezes its phase clock while any bit is set (``reseat_hold``) and the
+    # engage-mismatch bill exempts pending EEs — unplanned-release recovery
+    # trains as a first-class skill instead of a race against the schedule.
+    self.dr_release_pending = torch.zeros(shape, dtype=torch.bool, device=self.device)
+    self._reseat_hold_steps = torch.zeros(
+      shape[0], dtype=torch.long, device=self.device
+    )
     self.face_cos = torch.zeros(shape, device=self.device)
     self.contact_count = torch.zeros(shape, device=self.device)
     # Per-EE total pad compression against the wall (N). A contact fact, not a
@@ -305,6 +315,8 @@ class MicrospineAffordance(CommandTerm):
         f"Seed mask has {engaged.shape[-1]} EEs; expected {self._num_ee}."
       )
     self._engaged[env_ids] = engaged.to(device=self.device, dtype=torch.bool)
+    self.dr_release_pending[env_ids] = False
+    self._reseat_hold_steps[env_ids] = 0
     self._engage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
@@ -315,6 +327,11 @@ class MicrospineAffordance(CommandTerm):
     self._seat_scale[env_ids] = 1.0
     self._seat_charge[env_ids] = self._ls_cfg.capacity_ramp_time_s
     self._sync_latched_contact_margins()
+
+  @property
+  def reseat_hold(self) -> torch.Tensor:
+    """(E,) bool — clock-freeze request: a dr-forced release awaits reseat."""
+    return self.dr_release_pending.any(dim=-1)
 
   def force_release(
     self,
@@ -349,6 +366,15 @@ class MicrospineAffordance(CommandTerm):
     if not bool(mask.any()):
       return
     self._engaged[env_ids] = self._engaged[env_ids] & ~mask
+    if report and reason == RELEASE_REASON_DR_FORCED:
+      # Arm the reseat hold (see ``reseat_hold``). Scripted no-fault
+      # releases (report=False) never freeze the clock.
+      self.dr_release_pending[env_ids] = self.dr_release_pending[env_ids] | mask
+      self._reseat_hold_steps[env_ids] = torch.where(
+        mask.any(dim=-1),
+        torch.zeros_like(self._reseat_hold_steps[env_ids]),
+        self._reseat_hold_steps[env_ids],
+      )
     cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
     self._cooldown_steps[env_ids] = torch.where(
       mask,
@@ -457,6 +483,8 @@ class MicrospineAffordance(CommandTerm):
     self.anchor_effective_load_tnl[env_ids] = 0.0
     self.hold_margin[env_ids] = 1.0
     self.hold_margin_raw[env_ids] = 1.0
+    self.dr_release_pending[env_ids] = False
+    self._reseat_hold_steps[env_ids] = 0
     self.face_cos[env_ids] = 0.0
     self.contact_count[env_ids] = 0.0
     self.pad_press_force[env_ids] = 0.0
@@ -1145,6 +1173,24 @@ class MicrospineAffordance(CommandTerm):
     )
 
     self._engaged[:] = new_engaged
+    # Reseat-hold maintenance: a re-latch clears the pending bit; a hold that
+    # outlives its timeout is abandoned (clock resumes, normal billing).
+    self.dr_release_pending &= ~new_engaged
+    hold_active = self.dr_release_pending.any(dim=-1)
+    self._reseat_hold_steps = torch.where(
+      hold_active,
+      self._reseat_hold_steps + 1,
+      torch.zeros_like(self._reseat_hold_steps),
+    )
+    expired = self._reseat_hold_steps > self._mcfg.dr_reseat_hold_timeout_steps
+    self.dr_release_pending = torch.where(
+      expired.unsqueeze(-1),
+      torch.zeros_like(self.dr_release_pending),
+      self.dr_release_pending,
+    )
+    self._reseat_hold_steps = torch.where(
+      expired, torch.zeros_like(self._reseat_hold_steps), self._reseat_hold_steps
+    )
     if self._mcfg.seat_quality_scales_capacity:
       # This latch's capacity is set by how much of the spine field could
       # reach at the seat step (Wang 2017 Sec 2.4: pad capacity is the sum of

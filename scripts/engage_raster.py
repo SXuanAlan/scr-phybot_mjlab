@@ -102,6 +102,18 @@ DR_BIAS = next(
   None,
 )
 DR_NOISE = "drnoise" in sys.argv[1:]
+# drrelease=T1[,T2...] — R4 recovery drill: at each sim-time (s) force-release
+# one engaged, schedule-anchored EE (reason=dr-forced, report=True), which
+# arms the reseat hold and freezes the motion clock until the pad re-seats
+# or the hold times out. The verdict gains a "reseat drills" line.
+DR_RELEASE_TIMES = next(
+  (
+    [float(x) for x in a.split("=", 1)[1].split(",")]
+    for a in sys.argv[1:]
+    if a.startswith("drrelease=")
+  ),
+  [],
+)
 _argv = [
   a
   for a in sys.argv[1:]
@@ -116,6 +128,7 @@ _argv = [
       "drfriction=",
       "drmass=",
       "drbias=",
+      "drrelease=",
     )
   )
 ]
@@ -339,6 +352,8 @@ def _quat_mul_np(a, b):
 
 resets = []
 prev_ref = motion.ref_engaged[0].clone()
+_drill_idx = 0
+_drill_log: list[tuple[int, int]] = []  # (step, ee_index)
 with torch.no_grad():
   for t in range(STEPS):
     if LEASH_N > 0.0:
@@ -406,6 +421,21 @@ with torch.no_grad():
           report=False,
         )
       prev_ref = cur_ref.clone()
+    if _drill_idx < len(DR_RELEASE_TIMES) and t * dt >= DR_RELEASE_TIMES[_drill_idx]:
+      # Fire at the first opportunity >= T: pick the engaged EE the schedule
+      # wants anchored with the most run time left — the fully off-schedule
+      # loss, the hardest recovery. report=True arms the reseat hold.
+      cand = aff.engaged[0] & motion.ref_engaged[0]
+      if bool(cand.any()):
+        run_left = torch.where(
+          cand, motion.ref_run_time[0], torch.zeros_like(motion.ref_run_time[0])
+        )
+        ee = int(torch.argmax(run_left).item())
+        m = torch.zeros_like(aff.engaged[:1])
+        m[0, ee] = True
+        aff.force_release(torch.tensor([0], device=aff.engaged.device), m)
+        _drill_log.append((t, ee))
+        _drill_idx += 1
     pol[t] = motion.robot_engaged[0].bool().cpu().numpy()
     ref[t] = motion.ref_engaged[0].bool().cpu().numpy()
     forced[t] = aff.forced_release_this_step[0].bool().cpu().numpy()
@@ -462,6 +492,23 @@ hist = {
   for rid in (1, 2, 3, 4, 5)
 }
 print(f"forced-release reasons: {hist}")
+if DR_RELEASE_TIMES:
+  _EE = ("LH", "RH", "LF", "RF")
+  _timeout = aff._mcfg.dr_reseat_hold_timeout_steps
+  _rows = []
+  for t0, ee in _drill_log:
+    _reseat = next((tt for tt in range(t0 + 1, STEPS) if pol[tt, ee]), None)
+    _ok = _reseat is not None and (_reseat - t0) <= _timeout
+    _rows.append(
+      f"[t={t0 * dt:.1f}s ee={_EE[ee]} "
+      f"reseat={'-' if _reseat is None else f'{(_reseat - t0) * dt:.2f}s'} "
+      f"{'OK' if _ok else 'FAIL'}]"
+    )
+  _n_ok = sum(1 for r in _rows if r.endswith("OK]"))
+  print(
+    f"reseat drills: n={len(_drill_log)} ok={_n_ok} "
+    f"requested={len(DR_RELEASE_TIMES)} " + " ".join(_rows)
+  )
 # Moment attribution: the envelope judged moment-billed EFFECTIVE loads; a
 # release whose force-only margin was still positive was caused by the
 # moment fold alone (billed edge prying, not raw force overload).

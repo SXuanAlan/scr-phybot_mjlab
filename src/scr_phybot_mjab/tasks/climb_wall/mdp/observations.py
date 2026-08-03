@@ -181,6 +181,32 @@ def velocity_command(
   return cmd.unsqueeze(0).expand(env.num_envs, 3)
 
 
+def microspine_pad_normal_force(
+  env: ManagerBasedRlEnv,
+  command_name: str = "microspine_affordance",
+) -> torch.Tensor:
+  """Per-EE pad-normal reaction force in Newtons, (E, 4) — load-cell model.
+
+  Models the pad-mounted force channel the gimbal sensing co-design will
+  provide: the wall-normal reaction the pad transmits, continuous across the
+  latch event. Two sim sources are blended because
+  ``disable_contacts_while_latched`` retracts the sphere grid once latched —
+  ``pad_press_force`` reads structurally zero exactly when the anchor
+  carries its biggest load. Released pads report the sphere-grid compression
+  sum; latched pads the anchor equality-constraint normal reaction
+  (``anchor_load_tnl[..., 2]`` is f_n, positive = pull-off tension, so
+  compression is its negation clamped at zero). Privileged tensors serve
+  only as the signal SOURCE; the output is the physically continuous
+  quantity a real load cell measures. Noise/latency/quantization live on
+  the ObservationTermCfg, to be recalibrated against the real sensor.
+  """
+  affordance = env.command_manager.get_term(command_name)
+  anchor_compression = (-affordance.anchor_load_tnl[..., 2]).clamp(min=0.0)
+  return torch.where(
+    affordance.engaged, anchor_compression, affordance.pad_press_force
+  )
+
+
 def microspine_engaged_state(
   env: ManagerBasedRlEnv,
   event_term_name: str = "microspine_grip",

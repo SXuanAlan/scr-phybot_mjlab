@@ -12,11 +12,11 @@
 # Bias/noise cells are stochastic (per-joint draw / per-step noise) — rerun
 # interesting cells before concluding.
 set -u
-CKPT="${1:?usage: dr_bench.sh <ckpt> [angle] [steps] [gpu]}"
+CKPT="${1:?usage: dr_bench.sh <ckpt> [angle] [steps] [gpu] [task]}"
 ANGLE="${2:-90}"
 STEPS="${3:-1500}"
 GPU="${4:-2}"
-TASK=Mjlab-Climb-Wall-Phybot-C2
+TASK="${5:-Mjlab-Climb-Wall-Phybot-C2}"
 PY=/home/spider/miniconda3/envs/env_mjlab15/bin/python
 OUT="$(dirname "$CKPT")/dr_bench.log"
 mkdir -p logs/eval/drbench

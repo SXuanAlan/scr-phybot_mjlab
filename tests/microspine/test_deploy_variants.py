@@ -86,7 +86,7 @@ def test_default_dr_is_the_full_v3_package():
     noise = cfg.observations["actor"].terms[term].noise
     assert noise is not None
     assert (noise.n_min, noise.n_max) == (-half_range, half_range)
-  assert "random_release" not in cfg.events  # R4 stays an opt-in switch
+  assert "random_release" in cfg.events  # R4 default-on since 2026-08-03
   assert "push_robot" not in cfg.events
 
 
@@ -97,19 +97,28 @@ def test_play_is_deterministic():
   assert cfg.observations["actor"].enable_corruption is False
 
 
-def test_release_drill_is_opt_in_only():
-  cfg = phybot_c2_climb_wall_env_cfg(play=False, robustness_release=True)
-  assert cfg.events["random_release"].mode == "interval"
+def test_release_drill_is_default_on_with_reseat_hold():
+  # R4 (2026-08-03): the drill ships in the default package now that the
+  # lineage masters exact-90 — paired with the reseat-hold clock freeze.
+  cfg = phybot_c2_climb_wall_env_cfg(play=False)
+  drill = cfg.events["random_release"]
+  assert drill.mode == "interval"
+  assert drill.interval_range_s == (6.0, 12.0)  # gentle rung; (3, 8) later
   for name in _DR_EVENTS:
     assert name in cfg.events
-  play = phybot_c2_climb_wall_env_cfg(play=True, robustness_release=True)
+  # From-scratch retrains opt OUT until exact-90 is mastered.
+  fresh = phybot_c2_climb_wall_env_cfg(play=False, robustness_release=False)
+  assert "random_release" not in fresh.events
+  play = phybot_c2_climb_wall_env_cfg(play=True)
   assert "random_release" not in play.events
 
 
 def test_student_group_contract():
   cfg = phybot_c2_climb_wall_distill_env_cfg(play=False)
   student = cfg.observations["student"]
-  # Deployable terms only, in the exported (C++) order.
+  # Deployable terms only, in the exported (C++) order. pad_normal_force
+  # (2026-08-03) is APPEND-ONLY at the tail: inserting mid-list shifts every
+  # downstream block of the exported offset table.
   assert list(student.terms.keys()) == [
     "base_ang_vel",
     "projected_gravity",
@@ -117,9 +126,14 @@ def test_student_group_contract():
     "joint_vel_rel",
     "last_action",
     "motion_command",
+    "pad_normal_force",
   ]
   assert student.history_length == 10
   assert student.enable_corruption is True
+  # 89 dims/frame x 10 frames = 890 — the C++ packer contract.
+  pad = student.terms["pad_normal_force"]
+  assert pad.scale == 0.01 and pad.clip == (0.0, 200.0)
+  assert (pad.delay_min_lag, pad.delay_max_lag) == (1, 2)
   # Clean teacher labels; the physical DR stays on.
   assert cfg.observations["actor"].enable_corruption is False
   for name in _DR_EVENTS:
@@ -152,7 +166,9 @@ def test_distill_runner_cfg_contract():
 def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
   aff = object.__new__(MicrospineAffordance)
   aff._mcfg = SimpleNamespace(
-    grip_enabled=True, reengage_cooldown_steps=cooldown
+    grip_enabled=True,
+    reengage_cooldown_steps=cooldown,
+    dr_reseat_hold_timeout_steps=75,
   )
   aff._num_ee = num_ee
   aff._env = SimpleNamespace(device="cpu")  # backs the read-only .device
@@ -164,6 +180,8 @@ def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
   aff._steps_since_engage = torch.ones(shape, dtype=torch.long)
   aff.forced_release_this_step = torch.zeros(shape, dtype=torch.bool)
   aff.release_reason = torch.zeros(shape, dtype=torch.int8)
+  aff.dr_release_pending = torch.zeros(shape, dtype=torch.bool)
+  aff._reseat_hold_steps = torch.zeros(num_envs, dtype=torch.long)
   aff._seat_scale = torch.full(shape, 0.5)
   aff._seat_charge = torch.full(shape, 0.3)
   aff.sync_calls = 0

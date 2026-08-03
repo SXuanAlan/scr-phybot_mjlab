@@ -12,7 +12,7 @@ set -u
 RUN_DIR="${1:?usage: periodic_eval.sh <run_dir> [gpu] [iter_step]}"
 GPU="${2:-2}"
 STEP="${3:-250}"
-TASK="Mjlab-Climb-Wall-Phybot-C2"
+TASK="${TASK:-Mjlab-Climb-Wall-Phybot-C2}"  # override for -Distill/-Polish runs
 PY=/home/spider/miniconda3/envs/env_mjlab15/bin/python
 OUT="$RUN_DIR/periodic_eval.log"
 last=0
@@ -62,6 +62,16 @@ while true; do
         echo "[$(date +%H:%M)] iter=$it angle=$ang band=$label $line" >> "$OUT"
       done
     done
+    # R4 recovery drill (2026-08-03): two mid-climb forced releases at 90
+    # deg. The verdict line carries "reseat drills: n=2 ok=..". Recovery is
+    # the R4 gate alongside the clean 90-deg exam above.
+    raw="$RUN_DIR/.periodic_eval_last.out"
+    CUDA_VISIBLE_DEVICES="$GPU" MUJOCO_GL=egl PYTHONPATH=src "$PY" \
+      scripts/engage_raster.py "$CKPT" 90 1500 "task=$TASK" drrelease=8,16 \
+      > "$raw" 2>&1
+    line=$(grep -E "reseat drills|match\(" "$raw" | tr '\n' ' ')
+    [ -z "$line" ] && line="EXAM FAILED :: $(tail -2 "$raw" | tr '\n' ' ')"
+    echo "[$(date +%H:%M)] iter=$it angle=90 recovery $line" >> "$OUT"
     last=$it
   fi
   sleep 120
