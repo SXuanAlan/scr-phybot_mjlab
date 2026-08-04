@@ -137,10 +137,38 @@ ESTIMATOR_PATH = next(
   (a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("estimator=")),
   None,
 )
+# estfreeze — deploy-mirror of the R4 reseat hold: the phase clock freezes on
+# PHI'S ENGAGED ESTIMATE instead of the sim-truth latch bits. The C++ phase
+# player has no truth, so this is the exact state machine it must run: arm a
+# pending bit on an e-hat falling edge (>=0.5 -> <0.5) of an EE the current
+# (frozen) schedule frame wants anchored; clear it when e-hat re-crosses 0.5
+# (estimated re-latch) or the sim's dr_reseat_hold_timeout_steps expires
+# (no-pause fallback = pre-R4 behavior). With estimator= the pair (pi, phi)
+# then runs FULLY end-to-end: e-hat drives both the actor's privileged
+# slices and the clock. The verdict gains detection-latency / spurious-arm /
+# clear lines, and the trio gains an <out_prefix>_estfreeze.npz trace dump.
+# estfreeze=A,C adds debounce (v2, from the 8,16-needle chatter post-mortem):
+# arming needs A consecutive sub-0.5 frames, clearing needs C consecutive
+# frames back above — rate-limits the stop-go clock chatter that raw
+# thresholding produced around bounced reseats. Bare `estfreeze` = A,C = 1,1
+# (raw edges). nofreeze instead pins the hold LOW (clock never pauses —
+# pre-R4 deploy candidate: the simplest C++ contract has no state machine).
+_EF_ARG = next(
+  (a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("estfreeze=")),
+  None,
+)
+EST_FREEZE = ("estfreeze" in sys.argv[1:]) or (_EF_ARG is not None)
+EF_ARM_N, EF_CLEAR_N = (
+  (1, 1) if _EF_ARG is None else tuple(int(x) for x in _EF_ARG.split(","))
+)
+NO_FREEZE = "nofreeze" in sys.argv[1:]
+if NO_FREEZE and EST_FREEZE:
+  raise SystemExit("estfreeze and nofreeze are mutually exclusive")
 _argv = [
   a
   for a in sys.argv[1:]
-  if a not in ("worstf0", "scriptrelease", "gantry", "drnoise")
+  if a not in ("worstf0", "scriptrelease", "gantry", "drnoise", "estfreeze",
+               "nofreeze")
   and not a.startswith(
     (
       "clip=",
@@ -154,6 +182,7 @@ _argv = [
       "drrelease=",
       "ablate=",
       "estimator=",
+      "estfreeze=",
     )
   )
 ]
@@ -177,6 +206,8 @@ else:
   PREFIX = REPO / "logs" / "eval" / run_name / f"raster_{ANGLE:.0f}deg_{CKPT.stem}"
 PREFIX.parent.mkdir(parents=True, exist_ok=True)
 LABEL = "reference-replay" if REFERENCE else CKPT.name
+if EST_FREEZE and (ESTIMATOR_PATH is None or REFERENCE):
+  raise SystemExit("estfreeze requires estimator=<phi.pt> and a checkpoint actor")
 REASON_NAMES = {
   1: "reverse-shear(free)",
   2: "tension",
@@ -309,6 +340,21 @@ executor = u.event_manager.get_term_cfg("microspine_grip").func
 robot = u.scene["robot"]
 dt = float(u.step_dt)
 
+if NO_FREEZE:
+  # Pre-R4 deploy candidate: the clock never pauses. Drills still arm the
+  # sim-truth pending bits underneath; this severs their read path.
+  _no_hold_vec = torch.zeros(
+    aff.engaged.shape[0], dtype=torch.bool, device=aff.engaged.device
+  )
+
+  class _NoHoldAffordance(type(aff)):
+    @property
+    def reseat_hold(self):  # noqa: D401 - property override
+      return _no_hold_vec
+
+  aff.__class__ = _NoHoldAffordance
+  print("[nofreeze] reseat hold severed — the clock never pauses (pre-R4)")
+
 if REFERENCE:
   # Scripted reference-tracking actor: the PD target is the clip frame being
   # ENTERED (time_steps advances inside env.step, so +1 avoids a one-step
@@ -352,10 +398,12 @@ else:
     _tsl = [(t["actor_start"], t["actor_end"]) for t in _pm["targets"]]
     _zsl = [(z["actor_start"], z["actor_end"]) for z in _pm["zero_slices"]]
     _teacher_policy = policy
+    _est_cell: dict[str, torch.Tensor] = {}
 
     def policy(_obs):  # noqa: F811 - deliberate estimator wrapper
       with torch.no_grad():
         _est = _phi(_obs["student"])
+      _est_cell["est"] = _est
       _a = _obs["actor"].clone()
       _ofs = 0
       for _s, _e in _tsl:
@@ -368,6 +416,77 @@ else:
       return _teacher_policy(_o2)
 
     print(f"[estimator] privileged slices fed from {ESTIMATOR_PATH}")
+
+  if EST_FREEZE:
+    # ê is packed in phi_meta target order; locate the engaged block.
+    _eng_ofs, _eng_w = 0, 0
+    for _t in _pm["targets"]:
+      _w = _t["actor_end"] - _t["actor_start"]
+      if _t["term"] == "microspine_engaged_state":
+        _eng_w = _w
+        break
+      _eng_ofs += _w
+    if _eng_w == 0:
+      raise SystemExit("estfreeze: phi_meta lacks microspine_engaged_state")
+    # The motion command reads the freeze request through the affordance's
+    # reseat_hold property; swap that property for the ESTIMATED hold. The
+    # sim-truth dr_release_pending machinery keeps running underneath
+    # (reward exemptions, drill bookkeeping) but no longer touches the clock.
+    _est_hold_vec = torch.zeros(
+      aff.engaged.shape[0], dtype=torch.bool, device=aff.engaged.device
+    )
+
+    class _EstHoldAffordance(type(aff)):
+      @property
+      def reseat_hold(self):  # noqa: D401 - property override
+        return _est_hold_vec
+
+    aff.__class__ = _EstHoldAffordance
+    _EF_TIMEOUT = int(aff._mcfg.dr_reseat_hold_timeout_steps)
+    _ef_pending = torch.zeros(_eng_w, dtype=torch.bool, device=device)
+    _ef_below = torch.zeros(_eng_w, dtype=torch.long, device=device)
+    _ef_above = torch.zeros(_eng_w, dtype=torch.long, device=device)
+    _ef_hold_steps = 0
+    _ef_arms: list[tuple[int, int]] = []  # (step, ee)
+    _ef_clears: list[tuple[int, int, str]] = []  # (step, ee, relatch|timeout)
+    est_on_hist = np.zeros((STEPS, _eng_w), dtype=bool)
+    est_pend_hist = np.zeros((STEPS, _eng_w), dtype=bool)
+
+    def _estfreeze_update(t: int) -> None:
+      """Pre-step hold update: e-hat(t) decides whether THIS step's
+      _update_command advances the clock — the same one-tick cadence the
+      C++ player gets (infer phi, then choose to advance the row).
+      Debounced state machine: arm fires once when the below-threshold run
+      hits EXACTLY EF_ARM_N (so a timeout release cannot instantly re-arm);
+      clear needs an above-threshold run of EF_CLEAR_N."""
+      global _ef_hold_steps, _ef_pending, _ef_below, _ef_above
+      est_on = _est_cell["est"][0, _eng_ofs : _eng_ofs + _eng_w] >= 0.5
+      ref_on = motion.ref_engaged[0].bool()
+      _ef_below = torch.where(est_on, torch.zeros_like(_ef_below), _ef_below + 1)
+      _ef_above = torch.where(est_on, _ef_above + 1, torch.zeros_like(_ef_above))
+      armed = (_ef_below == EF_ARM_N) & ref_on & ~_ef_pending
+      for _ee in torch.nonzero(armed).flatten().tolist():
+        _ef_arms.append((t, _ee))
+      _ef_pending |= armed
+      relatched = _ef_pending & (_ef_above >= EF_CLEAR_N)
+      for _ee in torch.nonzero(relatched).flatten().tolist():
+        _ef_clears.append((t, _ee, "relatch"))
+      _ef_pending &= ~relatched
+      _ef_hold_steps = _ef_hold_steps + 1 if bool(_ef_pending.any()) else 0
+      if _ef_hold_steps > _EF_TIMEOUT:
+        for _ee in torch.nonzero(_ef_pending).flatten().tolist():
+          _ef_clears.append((t, _ee, "timeout"))
+        _ef_pending[:] = False
+        _ef_hold_steps = 0
+      _est_hold_vec[0] = bool(_ef_pending.any())
+      est_on_hist[t] = est_on.cpu().numpy()
+      est_pend_hist[t] = _ef_pending.cpu().numpy()
+
+    print(
+      f"[estfreeze] clock freeze driven by e-hat "
+      f"(arm/clear debounce={EF_ARM_N}/{EF_CLEAR_N} steps, "
+      f"timeout={_EF_TIMEOUT} steps)"
+    )
 
 act_names = list(robot.actuator_names)
 n_act = len(act_names)
@@ -446,8 +565,18 @@ with torch.no_grad():
         torques=_leash_zero_torque,
         body_ids=_leash_body,
       )
-    step_ret = env.step(policy(obs))
+    act = policy(obs)
+    if EST_FREEZE:
+      _estfreeze_update(t)
+    step_ret = env.step(act)
     obs, dones = step_ret[0], step_ret[2]
+    if EST_FREEZE and bool(dones[0]):
+      # A reset clears the truth hold in sim; mirror it (deploy: remount).
+      _ef_pending[:] = False
+      _ef_below[:] = 0
+      _ef_above[:] = 0
+      _ef_hold_steps = 0
+      _est_hold_vec[0] = False
     if GANTRY:
       # Timing-isolation rail: pin the base to the ghost trajectory each
       # policy step. Open-loop joint replay cannot reproduce the clip's
@@ -578,6 +707,64 @@ if DR_RELEASE_TIMES:
     f"reseat drills: n={len(_drill_log)} ok={_n_ok} "
     f"requested={len(DR_RELEASE_TIMES)} " + " ".join(_rows)
   )
+if EST_FREEZE:
+  # est_on[t] is pre-step (from the obs AFTER step t-1); pol[t] is post-step
+  # -> the aligned comparison is est_on[t] vs pol[t-1].
+  _agree = (est_on_hist[1:] == pol[:-1]).mean(axis=0)
+  print(
+    "[estfreeze] e-hat>=0.5 vs truth engaged agreement (1-step aligned): "
+    + " ".join(f"{n}={a:.4f}" for n, a in zip(names, _agree))
+    + f" | overall={float((est_on_hist[1:] == pol[:-1]).mean()):.4f}"
+  )
+  _hold_frac = float(est_pend_hist.any(axis=1).mean())
+  print(
+    f"[estfreeze] clock frozen {_hold_frac * 100:.2f}% of steps "
+    f"({int(est_pend_hist.any(axis=1).sum())}/{STEPS})"
+  )
+  _drill_by_ee: dict[int, list[int]] = {}
+  for _t0, _ee in _drill_log:
+    _drill_by_ee.setdefault(_ee, []).append(_t0)
+  _spurious = 0
+  _arm_rows = []
+  for _ta, _ee in _ef_arms:
+    _src = next(
+      (s for s in _drill_by_ee.get(_ee, []) if 0 <= _ta - s <= _EF_TIMEOUT),
+      None,
+    )
+    if _src is None:
+      _spurious += 1
+      _arm_rows.append(f"[t={_ta * dt:.1f}s {names[_ee]} SPURIOUS]")
+    else:
+      _arm_rows.append(
+        f"[t={_ta * dt:.1f}s {names[_ee]} detect={(_ta - _src) * dt:.2f}s]"
+      )
+  print(
+    f"[estfreeze] arms: n={len(_ef_arms)} spurious={_spurious} "
+    + " ".join(_arm_rows)
+  )
+  print(
+    "[estfreeze] clears: "
+    + " ".join(f"[t={_tc * dt:.1f}s {names[_ee]} {_how}]"
+               for _tc, _ee, _how in _ef_clears)
+  )
+  for _t0, _ee in _drill_log:
+    if not any(
+      e2 == _ee and 0 <= ta - _t0 <= _EF_TIMEOUT for ta, e2 in _ef_arms
+    ):
+      print(
+        f"[estfreeze] MISSED drill t={_t0 * dt:.1f}s {names[_ee]} "
+        f"— no arm within the timeout window"
+      )
+  np.savez(
+    str(PREFIX) + "_estfreeze.npz",
+    est_on=est_on_hist,
+    est_pending=est_pend_hist,
+    pol=pol,
+    ref=ref,
+    forced=forced,
+    reason=reason,
+  )
+  print(f"[estfreeze] traces -> {PREFIX}_estfreeze.npz")
 # Moment attribution: the envelope judged moment-billed EFFECTIVE loads; a
 # release whose force-only margin was still positive was caused by the
 # moment fold alone (billed edge prying, not raw force overload).
