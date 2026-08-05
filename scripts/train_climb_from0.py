@@ -12,6 +12,8 @@ False``) and delegates to the standard mjlab train CLI, so the usual
 """
 
 import dataclasses
+import json
+import os
 
 import scr_phybot_mjab.tasks  # noqa: F401 - registers the base tasks
 from mjlab.scripts.train import main
@@ -24,9 +26,26 @@ from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
   phybot_c2_ppo_runner_cfg,
 )
 
+_env_cfg = phybot_c2_climb_wall_env_cfg(robustness_release=False)
+
+# Competence-gated curriculum surgery: the campaign advances stages on
+# demonstrated learning, not on the wall clock. These env vars override the
+# stage tables at launch (JSON, same dict shapes as the curriculum params)
+# so a resume can extend a stage the policy has not mastered yet.
+_angle = os.environ.get("FROM0_ANGLE_STAGES")
+if _angle:
+  _env_cfg.curriculum["gravity_angle"].params["angle_stages"] = json.loads(
+    _angle
+  )
+  print("[from0] angle stages:", json.loads(_angle))
+_tilt = os.environ.get("FROM0_TILT_STAGES")
+if _tilt:
+  _env_cfg.curriculum["tilt_peel"].params["stages"] = json.loads(_tilt)
+  print("[from0] tilt stages:", json.loads(_tilt))
+
 register_mjlab_task(
   task_id="Mjlab-Climb-Wall-Phybot-C2-From0",
-  env_cfg=phybot_c2_climb_wall_env_cfg(robustness_release=False),
+  env_cfg=_env_cfg,
   play_env_cfg=phybot_c2_climb_wall_env_cfg(play=True, robustness_release=False),
   rl_cfg=dataclasses.replace(
     phybot_c2_ppo_runner_cfg(),
