@@ -78,11 +78,14 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
   assert microspine.limit_surface.moment_capacity_enable is True
   # Billing spans derive from the robot XML's sphere grid (pad_grid_spans),
-  # not from hand-maintained constants; arm = spacing / 2 (discrete 2-row
-  # aggregate fold), torquescale = reference-hold-calibrated compliance.
+  # not from hand-maintained constants; billing is per-unit (paper 12-tile
+  # palm: 3 rake rows x 4 lateral cols, weakest unit releases the pad);
+  # torquescale = reference-hold-calibrated compliance.
   assert abs(microspine.limit_surface.pad_span_rake_m - 0.0746) < 1.0e-3
   assert abs(microspine.limit_surface.pad_span_lateral_m - 0.096) < 1.0e-3
-  assert microspine.limit_surface.moment_arm_fraction == 0.5
+  assert microspine.limit_surface.moment_billing_mode == "per_unit"
+  assert microspine.limit_surface.unit_rows_rake == 3
+  assert microspine.limit_surface.unit_cols_lateral == 4
   assert microspine.anchor_torquescale == 0.01
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and

@@ -175,16 +175,25 @@ def phybot_c2_climb_wall_env_cfg(
   microspine_cfg.limit_surface.rake_mode = "ee_local"
   # Moment billing measures the pad from the robot XML itself: the billing
   # spans are the contact-sphere grid extents (74.7 mm rake x 96 mm lateral
-  # on this model) and the edge-force arm is spacing / 2 — the exact
-  # aggregate fold for a discrete two-row spine patch (edge-row load
-  # f_n/2 + M/s against edge-row budget F0/2). Regenerate nothing when the
-  # XML pad changes; this derives at cfg-build time.
+  # on this model). Regenerate nothing when the XML pad changes; this
+  # derives at cfg-build time.
   span_rake, span_lateral = pad_grid_spans(
     get_spec(), microspine_cfg, robot_prefix=""
   )
   microspine_cfg.limit_surface.pad_span_rake_m = span_rake
   microspine_cfg.limit_surface.pad_span_lateral_m = span_lateral
-  microspine_cfg.limit_surface.moment_arm_fraction = 0.5
+  # Per-unit billing (2026-08-04): distribute the weld's 6D wrench onto the
+  # paper's 3x4 spine-unit grid (bolt-group statics) and judge every unit's
+  # 3D load against its F0/12 share of the closed surface — weakest unit
+  # releases the pad. Supersedes the worst_edge fold whose arm = span/2 is
+  # exact only for the two-row point abstraction (the real spread array
+  # concentrates bending on its edge units ~1.5-1.8x harder per axis:
+  # span*(N+1)/(6*(N-1)) = s/3 rake, 0.278*s lateral). The arm-sweep bench
+  # (logs/eval/arm_sweep) showed clean climbing is insensitive to billing
+  # harshness — only worst-F0 forced-release recoveries feel it.
+  # moment_arm_fraction stays at its 0.25 default, used only when a bench
+  # (engage_raster arm=) explicitly flips back to worst_edge mode.
+  microspine_cfg.limit_surface.moment_billing_mode = "per_unit"
   # Weld rotational-residual scale, calibrated with the reference-hold
   # stress test (validate_microspine_constraint.py reference-hold): the old
   # 1 m default routed whole-body pitch couples through ~6 N*m of local pad

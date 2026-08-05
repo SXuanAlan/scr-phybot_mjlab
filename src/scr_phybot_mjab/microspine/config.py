@@ -158,18 +158,48 @@ class MicrospineLimitSurfaceCfg:
   """Rake-shear threshold [N] above which recruitment time accumulates."""
 
   moment_capacity_enable: bool = True
-  """Bill weld moments against the force envelope as worst-edge loads.
+  """Bill weld moments against the force envelope.
 
   A weld has unlimited solver moment, while a finite spine patch peels when
-  its tension-side edge row exhausts the same load budget as the rest of the
-  array. The equivalent loads are
+  its tension-side edge exhausts the same load budget as the rest of the
+  array. ``moment_billing_mode`` selects how the billing is computed."""
+
+  moment_billing_mode: str = "worst_edge"
+  """How weld moments reach the hold envelope. wang2017 mode only; wedge
+  always uses the legacy fold.
+
+  "worst_edge" (legacy): fold moments into effective PAD-scale loads
 
     f_n_eff = f_n + |M_l|/arm_rake + |M_t|/arm_lateral
     f_l_eff = |f_l| + |M_n|/arm_rake
     arm_*    = moment_arm_fraction * pad_span_*
 
-  Compression (f_n < 0) therefore offsets prying before the edge goes into
-  tension. The selected Wang or wedge envelope judges the effective loads."""
+  and judge one aggregate radial test. Exact only for a two-row point pad
+  (arm = span/2) with worst-aligned moment signs; ignores that a spread
+  array concentrates bending load on its edge units (see
+  ``moment_arm_fraction``).
+
+  "per_unit" (paper-faithful): distribute the full 6D pad wrench onto a
+  ``unit_rows_rake`` x ``unit_cols_lateral`` grid of spine units spanning
+  the pad (rigid pad, equal-stiffness bolt-group statics — normal load
+  varies linearly with position under M_l/M_t, twist M_n adds tangential
+  force proportional to radius), then judge EVERY unit's 3D load against
+  its own share of the closed surface (F0/N, same normalized R — Wang
+  capacity is a per-spine sum and the surface shape is single-unit
+  physics). The pad releases when its worst unit leaves the envelope (edge
+  pull-out unzips the array). Handles combined moments with exact signs
+  and honest edge concentration: single-axis prying reproduces the exact
+  discrete-row arm span*(N+1)/(6*(N-1)) per axis."""
+
+  unit_rows_rake: int = 3
+  """Spine-unit rows along the rake direction for "per_unit" billing.
+  Paper reference: the Wang 2017 palm is a 12-tile array, 3 tiles along
+  the (shorter) rake span x 4 along the lateral span on this pad. Unit
+  positions span ``pad_span_rake_m`` edge to edge. Must be >= 2."""
+
+  unit_cols_lateral: int = 4
+  """Spine-unit columns along the lateral direction for "per_unit"
+  billing. Spans ``pad_span_lateral_m`` edge to edge. Must be >= 2."""
 
   pad_span_rake_m: float = 0.04
   """Spine-patch extent along the rake direction [m].

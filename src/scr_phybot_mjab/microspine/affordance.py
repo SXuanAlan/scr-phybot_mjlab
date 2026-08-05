@@ -60,6 +60,45 @@ def moment_adjusted_loads(
   return f_t, f_l_eff, f_n_eff
 
 
+def distribute_wrench_to_units(
+  f_t: torch.Tensor,
+  f_l: torch.Tensor,
+  f_n: torch.Tensor,
+  m_t: torch.Tensor,
+  m_l: torch.Tensor,
+  m_n: torch.Tensor,
+  unit_x: torch.Tensor,
+  unit_y: torch.Tensor,
+  sxx: float,
+  syy: float,
+  srr: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+  """Distribute a pad wrench onto spine units (rigid pad, equal stiffness).
+
+  Unit i sits at ``r_i = x_i t̂ + y_i l̂`` in the pad plane and carries
+  ``F_i = a_i t̂ + b_i l̂ + c_i n̂``. The equal-stiffness (least-norm)
+  bolt-group solution reproducing ``sum F_i = F`` and ``sum r_i x F_i = M``
+  is, with ``sxx = sum x², syy = sum y², srr = sxx + syy``:
+
+    a_i = f_t/N − m_n·y_i/srr          (twist shares tangentially, ∝ radius)
+    b_i = f_l/N + m_n·x_i/srr
+    c_i = f_n/N − m_l·x_i/sxx + m_t·y_i/syy   (bending: linear in position)
+
+  (cross products in the engage frame: m_t = Σ y c, m_l = −Σ x c,
+  m_n = Σ (x b − y a)). Inputs (..., ) broadcast against unit_x/unit_y of
+  shape (..., N) or (N,); returns per-unit (a, b, c), each (..., N).
+  """
+  n_units = unit_x.shape[-1]
+  ft_u = f_t.unsqueeze(-1) / n_units - m_n.unsqueeze(-1) * unit_y / srr
+  fl_u = f_l.unsqueeze(-1) / n_units + m_n.unsqueeze(-1) * unit_x / srr
+  fn_u = (
+    f_n.unsqueeze(-1) / n_units
+    - m_l.unsqueeze(-1) * unit_x / sxx
+    + m_t.unsqueeze(-1) * unit_y / syy
+  )
+  return ft_u, fl_u, fn_u
+
+
 class MicrospineAffordance(CommandTerm):
   """Stateful world affordance for per-EE microspine grip.
 
@@ -228,6 +267,40 @@ class MicrospineAffordance(CommandTerm):
     self._rake_local_axis = rake_axis / torch.linalg.norm(rake_axis).clamp_min(
       1.0e-6
     )
+    # Per-unit moment billing: unit grid spanning the pad, precomputed once.
+    if self._ls_cfg.moment_billing_mode not in ("worst_edge", "per_unit"):
+      raise ValueError(
+        "Unknown moment_billing_mode "
+        f"'{self._ls_cfg.moment_billing_mode}' (expected 'worst_edge' or "
+        "'per_unit')."
+      )
+    self._unit_x: torch.Tensor | None = None
+    self._unit_y: torch.Tensor | None = None
+    if (
+      self._ls_cfg.model == "wang2017"
+      and self._ls_cfg.moment_billing_mode == "per_unit"
+    ):
+      rows = self._ls_cfg.unit_rows_rake
+      cols = self._ls_cfg.unit_cols_lateral
+      if rows < 2 or cols < 2:
+        raise ValueError(
+          "per_unit moment billing needs a >=2x2 unit grid to carry "
+          f"moments; got {rows}x{cols}."
+        )
+      xs = (
+        torch.linspace(-0.5, 0.5, rows, device=self.device)
+        * self._ls_cfg.pad_span_rake_m
+      )
+      ys = (
+        torch.linspace(-0.5, 0.5, cols, device=self.device)
+        * self._ls_cfg.pad_span_lateral_m
+      )
+      gx, gy = torch.meshgrid(xs, ys, indexing="ij")
+      self._unit_x = gx.reshape(-1)
+      self._unit_y = gy.reshape(-1)
+      self._unit_sxx = float((self._unit_x**2).sum())
+      self._unit_syy = float((self._unit_y**2).sum())
+      self._unit_srr = self._unit_sxx + self._unit_syy
     self._sample_limit_params(torch.arange(self.num_envs, device=self.device))
 
   def _sample_limit_params(self, env_ids: torch.Tensor) -> None:
@@ -570,31 +643,50 @@ class MicrospineAffordance(CommandTerm):
     f_n = (loads * n_hat).sum(dim=-1)
     self.anchor_load_tnl = torch.stack([f_t, f_l, f_n], dim=-1)
 
+    per_unit_moments = None
     if self._ls_cfg.moment_capacity_enable and self._mcfg.anchor_lock_rotation:
       moment = executor.anchor_moment_w
       m_t = (moment * t_hat).sum(dim=-1)
       m_l = (moment * l_hat).sum(dim=-1)
       m_n = (moment * n_hat).sum(dim=-1)
-      f_t_eff, f_l_eff, f_n_eff = moment_adjusted_loads(
-        f_t,
-        f_l,
-        f_n,
-        m_t,
-        m_l,
-        m_n,
-        pad_span_rake_m=self._ls_cfg.pad_span_rake_m,
-        pad_span_lateral_m=self._ls_cfg.pad_span_lateral_m,
-        moment_arm_fraction=self._ls_cfg.moment_arm_fraction,
-      )
       self.anchor_moment_tnl = torch.stack([m_t, m_l, m_n], dim=-1)
+      if self._unit_x is not None:
+        # per_unit billing distributes the raw wrench inside the envelope;
+        # no aggregate fold. The effective-load diagnostic becomes the
+        # worst unit's load at pad scale (x N), written below.
+        f_t_eff, f_l_eff, f_n_eff = f_t, f_l, f_n
+        per_unit_moments = (m_t, m_l, m_n)
+      else:
+        f_t_eff, f_l_eff, f_n_eff = moment_adjusted_loads(
+          f_t,
+          f_l,
+          f_n,
+          m_t,
+          m_l,
+          m_n,
+          pad_span_rake_m=self._ls_cfg.pad_span_rake_m,
+          pad_span_lateral_m=self._ls_cfg.pad_span_lateral_m,
+          moment_arm_fraction=self._ls_cfg.moment_arm_fraction,
+        )
     else:
       f_t_eff, f_l_eff, f_n_eff = f_t, f_l, f_n
       self.anchor_moment_tnl.zero_()
-    self.anchor_effective_load_tnl = torch.stack(
-      [f_t_eff, f_l_eff, f_n_eff], dim=-1
-    )
 
-    if self._wang_lut is not None:
+    if per_unit_moments is not None:
+      margin, soft_cond, instant_cond, reason, worst_pad_scale = (
+        self._wang_envelope_per_unit(f_t, f_l, f_n, *per_unit_moments)
+      )
+      self.anchor_effective_load_tnl = worst_pad_scale
+      # Force-only margin (moment billing excluded): with moments zeroed
+      # the equal-stiffness distribution is uniform and the per-unit test
+      # collapses to the aggregate radial test, so the aggregate margin IS
+      # the moment-free per-unit margin. Same moment-tax semantics as the
+      # worst_edge path (engage_raster diagnostics).
+      margin_raw = self._wang_margin(f_t, f_l, f_n)
+    elif self._wang_lut is not None:
+      self.anchor_effective_load_tnl = torch.stack(
+        [f_t_eff, f_l_eff, f_n_eff], dim=-1
+      )
       margin, soft_cond, instant_cond, reason = self._wang_envelope(
         f_t_eff, f_l_eff, f_n_eff
       )
@@ -603,6 +695,9 @@ class MicrospineAffordance(CommandTerm):
       # caused by the moment fold alone. Diagnostics (engage_raster) only.
       margin_raw = self._wang_margin(f_t, f_l, f_n)
     else:
+      self.anchor_effective_load_tnl = torch.stack(
+        [f_t_eff, f_l_eff, f_n_eff], dim=-1
+      )
       margin, soft_cond, instant_cond, reason = self._wedge_envelope(
         f_t_eff, f_l_eff, f_n_eff
       )
@@ -762,6 +857,83 @@ class MicrospineAffordance(CommandTerm):
     instant_cond = torch.zeros_like(violation)
     soft_cond = violation
     return margin, soft_cond, instant_cond, reason
+
+  def _wang_envelope_per_unit(
+    self,
+    f_t: torch.Tensor,
+    f_l: torch.Tensor,
+    f_n: torch.Tensor,
+    m_t: torch.Tensor,
+    m_l: torch.Tensor,
+    m_n: torch.Tensor,
+  ) -> tuple[
+    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
+  ]:
+    """Per-unit Wang billing: weakest unit of the spine-unit grid rules.
+
+    The pad's 6D wrench is distributed onto the unit grid
+    (``distribute_wrench_to_units``: rigid pad, equal-stiffness bolt-group
+    statics), and every unit's 3D load is judged against its own share of
+    the closed surface — capacity F0_eff/N with the SAME normalized
+    R(θ, φ): Wang capacity is a per-spine sum and the surface shape is
+    single-unit physics, so the unit test is the paper's Fig 8 object. A
+    unit in compression is judged at φ = 0 like the aggregate (its
+    compression rides the anchor for free). The pad margin is the minimum
+    unit margin — the tension-side edge pulling out unzips the array, so
+    one unit out of envelope releases the whole pad.
+
+    Returns (margin, soft_cond, instant_cond, reason, worst_load_tnl); the
+    last is the worst unit's load scaled back to pad scale (x N) for the
+    ``anchor_effective_load_tnl`` diagnostic.
+    """
+    ls = self._ls_cfg
+    ft_u, fl_u, fn_u = distribute_wrench_to_units(
+      f_t,
+      f_l,
+      f_n,
+      m_t,
+      m_l,
+      m_n,
+      self._unit_x,
+      self._unit_y,
+      self._unit_sxx,
+      self._unit_syy,
+      self._unit_srr,
+    )
+    n_units = self._unit_x.shape[-1]
+    f0_unit = (self._wang_capacity_f0() / n_units).unsqueeze(-1)
+    ratio = capacity_ratio(self._wang_lut, ft_u, fl_u, fn_u)
+    cap = f0_unit * ratio.clamp_min(ls.wang_r_floor)
+    tension = fn_u.clamp_min(0.0)
+    load_mag = torch.sqrt(ft_u**2 + fl_u**2 + tension**2)
+    margins = (cap - load_mag) / (cap + ls.wang_margin_eps * f0_unit)
+    margin, worst = margins.min(dim=-1)  # (E, H) each.
+    violation = margin < 0.0
+
+    # Reason taxonomy from the worst unit's own load direction (same
+    # semantics as the aggregate path: 1 reverse, 2 tension, 3 lateral,
+    # 4 ultimate shear).
+    widx = worst.unsqueeze(-1)
+    a_w = ft_u.gather(-1, widx).squeeze(-1)
+    b_w = fl_u.gather(-1, widx).squeeze(-1)
+    c_w = fn_u.gather(-1, widx).squeeze(-1)
+    tension_w = c_w.clamp_min(0.0)
+    in_plane = torch.sqrt(a_w**2 + b_w**2)
+    reason = torch.full_like(self.release_reason, 4)
+    reason = torch.where(
+      b_w.abs() > a_w, torch.full_like(reason, 3), reason
+    )
+    reason = torch.where(
+      tension_w >= in_plane, torch.full_like(reason, 2), reason
+    )
+    reason = torch.where(a_w < 0.0, torch.full_like(reason, 1), reason)
+
+    # Same counted-release semantics as the aggregate wang path.
+    instant_cond = torch.zeros_like(violation)
+    worst_load_tnl = (
+      torch.stack([a_w, b_w, c_w], dim=-1) * float(n_units)
+    )
+    return margin, violation, instant_cond, reason, worst_load_tnl
 
   def _face_wall_cos(self) -> torch.Tensor:
     wall_inward = self._wall_inward_normal()

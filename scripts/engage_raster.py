@@ -71,6 +71,30 @@ TILT_BAND = next(
   ),
   None,
 )
+# arm=X — LEGACY worst_edge billing sweep: forces
+# moment_billing_mode="worst_edge" and overrides moment_arm_fraction (0.5 =
+# two-row point pad, 0.25 = plastic-redistribution bound, ~0.167 (s/6) =
+# continuous-elastic limit). The climb default is per-unit billing; this
+# token exists for sensitivity comparisons against the old fold. The
+# moment-billed release count and the margin vs margin_raw gap are the
+# readouts.
+ARM_FRACTION = next(
+  (float(a.split("=", 1)[1]) for a in sys.argv[1:] if a.startswith("arm=")),
+  None,
+)
+# units=R,C — per-unit billing grid override (rows along rake, cols along
+# lateral); forces moment_billing_mode="per_unit". Climb default is 3,4
+# (the paper's 12-tile palm on this pad's spans).
+UNIT_GRID = next(
+  (
+    tuple(int(x) for x in a.split("=", 1)[1].split(","))
+    for a in sys.argv[1:]
+    if a.startswith("units=")
+  ),
+  None,
+)
+if ARM_FRACTION is not None and UNIT_GRID is not None:
+  raise SystemExit("arm= (worst_edge) and units= (per_unit) are exclusive")
 # upperpd=kp,kd — override the upper-body actuator gains (waist_yaw,
 # shoulder p/r/y, elbow) for a PD sweep. The arm chain carries the hang, so
 # its stiffness sets both the tracking error under load and the pad rotation
@@ -174,6 +198,8 @@ _argv = [
       "clip=",
       "leash=",
       "tiltband=",
+      "arm=",
+      "units=",
       "task=",
       "upperpd=",
       "drfriction=",
@@ -256,6 +282,18 @@ if TILT_BAND is not None:
     env_cfg.curriculum["tilt_peel"].params["stages"] = [
       {"iter": 0, "deg_range": _band}
     ]
+if ARM_FRACTION is not None:
+  _ls = env_cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
+  _ls.moment_billing_mode = "worst_edge"
+  _ls.moment_arm_fraction = ARM_FRACTION
+  print(
+    f"[arm] worst_edge billing, moment_arm_fraction={ARM_FRACTION}"
+  )
+if UNIT_GRID is not None:
+  _ls = env_cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
+  _ls.moment_billing_mode = "per_unit"
+  _ls.unit_rows_rake, _ls.unit_cols_lateral = UNIT_GRID[0], UNIT_GRID[-1]
+  print(f"[units] per_unit billing, grid={UNIT_GRID[0]}x{UNIT_GRID[-1]}")
 if UPPER_PD is not None:
   # Rebuild the actuator tuple (the cfgs are shared module singletons —
   # never mutate in place, other tasks reuse them).
@@ -767,8 +805,13 @@ if EST_FREEZE:
   print(f"[estfreeze] traces -> {PREFIX}_estfreeze.npz")
 # Moment attribution: the envelope judged moment-billed EFFECTIVE loads; a
 # release whose force-only margin was still positive was caused by the
-# moment fold alone (billed edge prying, not raw force overload).
-moment_caused = forced & (margin_raw > 0.0)
+# moment fold alone (billed edge prying, not raw force overload). Only
+# force-envelope reasons (1-4) qualify: tilt-peel (5) is geometric — its
+# force margin is trivially positive — and dr-forced (6) is commanded, so
+# both would pollute the attribution (measured: every diamond in the
+# 2026-08-04 recovery exams was a drill or a tilt-peel, zero true moment
+# kills).
+moment_caused = forced & (margin_raw > 0.0) & (reason < 5)
 print(
   f"moment-billed releases (force-only margin still positive): "
   f"{int(moment_caused.sum())}"
