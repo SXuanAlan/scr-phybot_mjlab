@@ -42,6 +42,17 @@ _tilt = os.environ.get("FROM0_TILT_STAGES")
 if _tilt:
   _env_cfg.curriculum["tilt_peel"].params["stages"] = json.loads(_tilt)
   print("[from0] tilt stages:", json.loads(_tilt))
+# Moment-billing override for controlled comparisons (the 2x2 ignition
+# matrix: start-angle x billing). FROM0_MOMENT_BILLING=worst_edge with
+# FROM0_MOMENT_ARM=0.5 reproduces the v3/v4-lineage physics exactly.
+_billing = os.environ.get("FROM0_MOMENT_BILLING")
+if _billing:
+  _ls = _env_cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
+  _ls.moment_billing_mode = _billing
+  _arm = os.environ.get("FROM0_MOMENT_ARM")
+  if _arm:
+    _ls.moment_arm_fraction = float(_arm)
+  print(f"[from0] moment billing: {_billing} arm={_ls.moment_arm_fraction}")
 
 register_mjlab_task(
   task_id="Mjlab-Climb-Wall-Phybot-C2-From0",
