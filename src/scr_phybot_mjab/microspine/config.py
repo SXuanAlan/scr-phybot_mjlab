@@ -140,6 +140,18 @@ class MicrospineLimitSurfaceCfg:
   WEAK until seated (``capacity_ramp_*`` below). The old 14-step immunity
   let policies yank fresh anchors for free, which reality does not."""
 
+  spawn_judge_guard_steps: int = 12
+  """Judge guard for latches SEEDED at reset (RSI / initial_on), in policy
+  steps. A seeded latch models a mature grip that has been carrying its load
+  all along — but RSI writes the state as a teleport, and the solver resolves
+  the written velocities/mm-level pose mismatch against the fresh welds as an
+  impulse (~hundreds of N for one step). Reality never produces that impulse,
+  so judging it is dishonest: it fired one phantom 'ultimate' release at
+  ~every RSI birth (visible as the lone ultimate in every clean exam).
+  This window covers the settling only for seeded latches; mid-episode
+  engages keep the strict ``hold_judge_guard_steps``. Must be >= that
+  value; the capacity ramp still applies afterward as usual."""
+
   capacity_ramp_floor: float = 0.3
   """Fresh-anchor capacity fraction at the engage step. Spine recruitment
   starts partial — only the spines that caught during the press are loaded;
