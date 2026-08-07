@@ -296,6 +296,9 @@ def test_climb_reward_contract_is_deepmimic_split():
   assert "no_progress" not in cfg.terminations
   assert cfg.terminations["bad_tracking"].params["threshold"] == 0.7
   assert "gait_phase_timeout" not in cfg.terminations
+  # Ultimate-shear releases are hardware-damage events: terminal like falls.
+  destructive = cfg.terminations["microspine_destructive_release"]
+  assert destructive.params["command_name"] == "microspine_affordance"
   assert "gait_curriculum_success" not in cfg.terminations
 
 

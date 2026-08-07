@@ -853,6 +853,15 @@ def phybot_c2_climb_wall_env_cfg(
     func=mdp.motion_tracking_divergence,
     params={"command_name": motion_command_name, "threshold": 0.7},
   )
+  # Ultimate-shear release = the pad torn off at full rake load — a
+  # hardware-damage event (2026-08-07): as terminal as a fall, sharing the
+  # -500 termination penalty, so the policy prices it as catastrophe rather
+  # than a free regrab. Reverse-shear unhooks (the designed release path)
+  # and DR drills are exempt inside the term.
+  cfg.terminations["microspine_destructive_release"] = TerminationTermCfg(
+    func=mdp.microspine_destructive_release,
+    params={"command_name": microspine_affordance_name},
+  )
 
   cfg.metrics = {
     "microspine_engagement_occupancy": MetricsTermCfg(
