@@ -153,38 +153,3 @@ def bad_state(
     | _bad(jpos)
     | _bad(jvel, max_joint_velocity)
   )
-
-
-def microspine_destructive_release(
-  env: ManagerBasedRlEnv,
-  command_name: str = "microspine_affordance",
-  reasons: tuple[int, ...] = (4,),
-  min_episode_steps: int = 25,
-) -> torch.Tensor:
-  """Terminate on destructive limit-surface releases (default: ultimate shear).
-
-  Reason 4 means the pad was torn off its asperities at ultimate rake load —
-  on hardware that fails spine tips under full load, damage on par with a
-  fall, so it shares the fall's terminal cost instead of pricing in as a
-  cheap regrab. Judged from the affordance's ``release_reason`` on the
-  release step. The designed reverse-shear unhook (1) and DR-forced drills
-  (6) never terminate; extend ``reasons`` only for faces that physically
-  destroy hardware.
-
-  ``min_episode_steps`` exempts the spawn window: RSI births carry an
-  anchor-settling transient that can fire one ultimate on the first judged
-  step (benign historically — release, re-latch, climb on). Terminating it
-  turns every spawn into an execution and the episode stream into a 0.2 s
-  metronome (measured: 166 spawn kills / 30 s). Inside the window the
-  release still happens and still pays ``unsafe_microspine_release``; it
-  just is not terminal — same newborn-clemency lesson as the motionref18
-  tilt-capture.
-  """
-  aff = env.command_manager.get_term(command_name)
-  released = aff.forced_release_this_step
-  reason = aff.release_reason
-  mask = torch.zeros_like(released)
-  for r in reasons:
-    mask = mask | (reason == int(r))
-  past_spawn = env.episode_length_buf >= int(min_episode_steps)
-  return past_spawn & (released & mask).any(dim=-1)
