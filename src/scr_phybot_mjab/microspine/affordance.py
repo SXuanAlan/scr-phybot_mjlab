@@ -393,13 +393,7 @@ class MicrospineAffordance(CommandTerm):
     self._engage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
-    # Seeded latches start with the SPAWN judge guard: the RSI teleport
-    # resolves written velocities against the fresh welds as an impulse
-    # reality never produces (see spawn_judge_guard_steps). The negative
-    # start extends the guard runway without a separate counter.
-    self._steps_since_engage[env_ids] = self._ls_cfg.hold_judge_guard_steps - max(
-      self._ls_cfg.spawn_judge_guard_steps, self._ls_cfg.hold_judge_guard_steps
-    )
+    self._steps_since_engage[env_ids] = 0
     # Seeded (RSI) latches get full capacity: the reference stance seats the
     # pads flat by construction, and kinematics may not have refreshed the
     # just-written reset pose yet, so a live fraction here could be stale.
@@ -556,12 +550,7 @@ class MicrospineAffordance(CommandTerm):
     self._engage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
-    # Reset-time latches (initial_on / about-to-be-RSI-seeded) get the spawn
-    # judge guard — the reset writes state as a teleport (see
-    # spawn_judge_guard_steps).
-    self._steps_since_engage[env_ids] = self._ls_cfg.hold_judge_guard_steps - max(
-      self._ls_cfg.spawn_judge_guard_steps, self._ls_cfg.hold_judge_guard_steps
-    )
+    self._steps_since_engage[env_ids] = 0
     self.anchor_load_tnl[env_ids] = 0.0
     self.anchor_moment_tnl[env_ids] = 0.0
     self.anchor_effective_load_tnl[env_ids] = 0.0
