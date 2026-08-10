@@ -103,7 +103,8 @@ def _rc() -> None:
 
 
 def climb_configs() -> tuple[MicrospineCfg, MicrospineLimitSurfaceCfg]:
-  """Reproduce tasks/climb_wall/config/phybot_c2/env_cfgs.py:93-142."""
+  """Reproduce the '## Microspine physics' section of
+  phybot_c2_climb_wall_env_cfg() (single-EE subset)."""
   mcfg = MicrospineCfg(
     ee_body_names=("left_hand_spine",),
     spheres_per_ee_rows=2,
