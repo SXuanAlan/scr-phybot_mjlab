@@ -10,7 +10,7 @@ import torch
 from .commands import ClimbVelocityCommandCfg
 
 if TYPE_CHECKING:
-  from mjlab.envs import ManagerBasedRlEnv
+  from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
 
 
 class RewardWeightStage(TypedDict):
@@ -245,6 +245,70 @@ def resolve_gravity_stage(
 def resolve_gravity_angle(current_iter: int, angle_stages: list[WallAngleStage]) -> float:
   """Resolve the effective gravity curriculum angle by stepwise stage lookup."""
   return resolve_gravity_stage(current_iter, angle_stages)["angle_deg"]
+
+
+# Training-schedule tables — gravity ladder x tilt-peel anneal, one timeline.
+# The iters transcribe the ONE validated trajectory (v3 birth->3300 on the
+# 45/75/tilt prefix, v4 bridge 3300->5050 through 85/88/exact-90 to the ship
+# gate) and are CEILINGS driven by mastery gates; every gravity hop overlaps
+# its neighbor's jitter pool, and the tilt anneal reaches the calibrated
+# physics (3000) before the wall gets steep (3550). Full doctrine + design
+# rules: docs/climb_env_cfg_notes.md ("Curriculum").
+# Consumers must copy at use ([dict(s) for s in ...]): these tuples are shared
+# module state and env cfgs are built eagerly at import time.
+GRAVITY_STAGES: tuple[WallAngleStage, ...] = (
+  {"iter": 0, "angle_deg": 45.0},
+  {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
+  {"iter": 3550, "angle_deg": 85.0, "jitter_deg": 3.0},
+  {"iter": 4200, "angle_deg": 88.0, "jitter_deg": 2.0},
+  {"iter": 4800, "angle_deg": 90.0},
+)
+TILT_PEEL_STAGES: tuple[TiltPeelStage, ...] = (
+  {
+    "iter": 0,
+    "deg_range": (12.0, 15.0),
+    "tax_threshold_deg": 10.0,
+    "tax_scale_deg": 8.0,
+  },
+  {
+    "iter": 1200,
+    "deg_range": (8.0, 10.0),
+    "tax_threshold_deg": 6.5,
+    "tax_scale_deg": 6.0,
+  },
+  {
+    "iter": 2400,
+    "deg_range": (5.0, 7.0),
+    "tax_threshold_deg": 4.0,
+    "tax_scale_deg": 5.0,
+  },
+  {
+    "iter": 3000,
+    "deg_range": (3.5, 4.5),
+    "tax_threshold_deg": 3.0,
+    "tax_scale_deg": 5.0,
+  },
+)
+
+
+def pin_curricula_to_final_stage(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Pin the gravity ladder and tilt-peel anneal to their terminal stages.
+
+  Play/eval and the distill/polish variants run the final task only: the
+  single remaining stage is the ladder's last angle and the CALIBRATED
+  tilt-peel band (the annealing ladder is a training aid, not physics).
+  Deliberately leaves ``angle_jitter_deg`` untouched — play zeroes it
+  separately for deterministic rollouts, while distill keeps the training
+  jitter so rollouts cover the neighborhood the teacher graduated on.
+  """
+  final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
+  cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+    {"iter": 0, "angle_deg": final_angle["angle_deg"]}
+  ]
+  final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
+  cfg.curriculum["tilt_peel"].params["stages"] = [
+    {"iter": 0, "deg_range": final_tilt["deg_range"]}
+  ]
 
 
 def resolve_climb_velocity_ranges(

@@ -8,6 +8,7 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.command_manager import CommandTermCfg
+from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
@@ -32,6 +33,11 @@ MICROSPINE_AFFORDANCE_COMMAND = "microspine_affordance"
 MICROSPINE_GRIP_EVENT = "microspine_grip"
 MICROSPINE_CONTACT_SENSOR = "microspine_wall_contact"
 TOE_CONTACT_SENSOR = "climb_toe_contact"
+
+# One PPO rollout must hold a full release -> cooldown -> re-engage -> hold
+# sequence (~0.7 s). Must equal the phybot_c2 rl_cfg's num_steps_per_env
+# (test_climb_task_config cross-checks).
+_STEPS_PER_ITER = 96
 
 
 def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
@@ -99,11 +105,35 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   }
 
   ##
-  # Robot-specific configs own concrete rewards and curriculum.
+  # Robot-specific configs own concrete rewards.
   ##
 
   rewards = {}
-  curriculum = {}
+
+  ##
+  # Curriculum — gravity ladder x tilt-peel anneal (tables + doctrine live in
+  # mdp.curriculums; play/distill/polish pin them to the terminal stage via
+  # mdp.pin_curricula_to_final_stage).
+  ##
+
+  curriculum = {
+    "gravity_angle": CurriculumTermCfg(
+      func=mdp.gravity_angle,
+      params={
+        "angle_stages": [dict(stage) for stage in mdp.GRAVITY_STAGES],
+        "steps_per_iter": _STEPS_PER_ITER,
+        "angle_jitter_deg": 5.0,
+      },
+    ),
+    "tilt_peel": CurriculumTermCfg(
+      func=mdp.tilt_peel_schedule,
+      params={
+        "stages": [dict(stage) for stage in mdp.TILT_PEEL_STAGES],
+        "command_name": MICROSPINE_AFFORDANCE_COMMAND,
+        "steps_per_iter": _STEPS_PER_ITER,
+      },
+    ),
+  }
 
   ##
   # Events

@@ -31,7 +31,6 @@ import mujoco
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
-from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.observation_manager import (
@@ -913,89 +912,6 @@ def phybot_c2_climb_wall_env_cfg(
     ),
   }
 
-  # ------------------------------------------------------------------------
-  # Training schedule — gravity ladder x tilt-peel anneal, one timeline
-  # (from-scratch rewrite 2026-08-02 evening, user call: the config must
-  # fully retrain from iter 0; the resume-era pinned variants live in the
-  # deploypd-v4-* run dirs and git history).
-  #
-  #    iter | gravity pool      | tilt-peel band (tax thresh/scale)
-  #   ------+-------------------+----------------------------------
-  #       0 | 45 (global +-5)   | 12-15 deg (10/8)  wide birth band
-  #    1200 |                   | 8-10 deg  (6.5/6)
-  #    1500 | 75 +-12 (63-87)   |
-  #    2400 |                   | 5-7 deg   (4/5)
-  #    3000 |                   | 3.5-4.5   (3/5)   calibrated, final
-  #    3550 | 85 +-3  (82-88)   |
-  #    4200 | 88 +-2  (86-90)   |
-  #    4800 | 90 exact          |
-  #
-  # The iters transcribe the ONE validated trajectory: v3 ran 0->3300 on
-  # exactly this 45/75/tilt prefix (from birth, full DR + pd100), and the
-  # v4 bridge campaign took the same lineage 3300->5050 through
-  # 85/88/exact-90 to the ship gate (90-deg cal-band exams
-  # 0.962/0.961/0.963 across three consecutive panels, zero falls).
-  # Design rules baked into the numbers:
-  #   - gravity is a function of training time alone (2026-07-21:
-  #     graduation-by-height once promoted a 20x-overspeed scramble), and
-  #     every hop overlaps its neighbor's pool (63-87 / 82-88 / 86-90 /
-  #     90) so zero-compression arrives in-distribution — v3 died on the
-  #     unbridged 75+-12 -> 88+-2 cliff (weld-hands basin: at 90 a hand
-  #     swing leaves 3 anchors on pure shear+tension, 12.3% margin at the
-  #     F0=400 worst draw). The final stage runs exactly 90; jitter there
-  #     would mix in >90 overhangs, a different task.
-  #   - the tilt anneal reaches the honest physics (3000) before the wall
-  #     gets steep (3550): every steep rung trains AND examines on the
-  #     calibrated band. Birth needs the wide band — cold starts on
-  #     3.5-4.5 peel apart within ~1 s (motionref18: zero learning).
-  #   - anneal steps and rung boundaries stay >=300 iters apart (fresh2b:
-  #     never stack two shocks inside a consolidation window).
-  #   - the iters are CEILINGS: drive by mastery gates (precise-angle exam
-  #     >=0.95 x2 zero falls; per-EE occ_pol-occ_ref < +0.04 is the weld
-  #     early warning) via kill/edit/resume, and when pulling a rung IN,
-  #     push the later rungs OUT (the 88 rung auto-fired at 4200 mid-soak
-  #     once; it survived only by luck of near-readiness).
-  #   - examine ALL rungs every cycle (periodic_eval.sh probes
-  #     75/85/88/90): steep-only pools erode shallow angles — accepted
-  #     under the ckpt-portfolio doctrine (bank each rung's graduate),
-  #     but the erosion must stay measured, never silent.
-  # steps_per_iter must match rl_cfg num_steps_per_env.
-  gravity_stages = [
-    {"iter": 0, "angle_deg": 45.0},
-    {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
-    {"iter": 3550, "angle_deg": 85.0, "jitter_deg": 3.0},
-    {"iter": 4200, "angle_deg": 88.0, "jitter_deg": 2.0},
-    {"iter": 4800, "angle_deg": 90.0},
-  ]
-  tilt_peel_stages = [
-    {"iter": 0, "deg_range": (12.0, 15.0),
-     "tax_threshold_deg": 10.0, "tax_scale_deg": 8.0},
-    {"iter": 1200, "deg_range": (8.0, 10.0),
-     "tax_threshold_deg": 6.5, "tax_scale_deg": 6.0},
-    {"iter": 2400, "deg_range": (5.0, 7.0),
-     "tax_threshold_deg": 4.0, "tax_scale_deg": 5.0},
-    {"iter": 3000, "deg_range": (3.5, 4.5),
-     "tax_threshold_deg": 3.0, "tax_scale_deg": 5.0},
-  ]
-  cfg.curriculum = {
-    "gravity_angle": CurriculumTermCfg(
-      func=mdp.gravity_angle,
-      params={
-        "angle_stages": gravity_stages,
-        "steps_per_iter": 96,
-        "angle_jitter_deg": 5.0,
-      },
-    ),
-    "tilt_peel": CurriculumTermCfg(
-      func=mdp.tilt_peel_schedule,
-      params={
-        "stages": tilt_peel_stages,
-        "command_name": microspine_affordance_name,
-        "steps_per_iter": 96,
-      },
-    ),
-  }
-
   cfg.actions["joint_pos"] = mdp.SoftJointPositionActionCfg(
     entity_name="robot",
     actuator_names=PHYBOT_C2_POLICY_JOINT_NAMES,
@@ -1155,21 +1071,12 @@ def phybot_c2_climb_wall_env_cfg(
     # locally constructed config when diagnosing the state machine.
     microspine_cfg.debug = False
     cfg.events[microspine_event_name].params["microspine_cfg"].debug = False
-    # Evaluation uses the final task directly. play.py's gravity resolver
-    # (CLI override or checkpoint-iteration lookup) can still replace this
-    # single stage. Jitter off: evaluation and diagnostic rollouts (engage
-    # raster) must be deterministic at the pinned angle.
-    final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
-    cfg.curriculum["gravity_angle"].params["angle_stages"] = [
-      {"iter": 0, "angle_deg": final_angle["angle_deg"]}
-    ]
+    # Evaluation uses the final task directly (calibrated tilt band; play.py's
+    # gravity resolver — CLI override or checkpoint-iteration lookup — can
+    # still replace the pinned stage). Jitter off: evaluation and diagnostic
+    # rollouts (engage raster) must be deterministic at the pinned angle.
+    mdp.pin_curricula_to_final_stage(cfg)
     cfg.curriculum["gravity_angle"].params["angle_jitter_deg"] = 0.0
-    # Evaluation always runs the CALIBRATED tilt-peel band (the annealing
-    # ladder is a training aid, not physics).
-    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
-    cfg.curriculum["tilt_peel"].params["stages"] = [
-      {"iter": 0, "deg_range": final_tilt["deg_range"]}
-    ]
     # Evaluation starts at the cycle's canonical stance instead of a random
     # RSI phase, so rollouts read as one continuous climb from frame 0.
     cfg.commands[motion_command_name].sampling_mode = "start"
@@ -1200,14 +1107,7 @@ def phybot_c2_climb_wall_distill_env_cfg(
   # the press-on-schedule behavior (model_250 already passed 2/2 drills).
   cfg.observations["actor"].enable_corruption = False
   if not play:
-    final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
-    cfg.curriculum["gravity_angle"].params["angle_stages"] = [
-      {"iter": 0, "angle_deg": final_angle["angle_deg"]}
-    ]
-    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
-    cfg.curriculum["tilt_peel"].params["stages"] = [
-      {"iter": 0, "deg_range": final_tilt["deg_range"]}
-    ]
+    mdp.pin_curricula_to_final_stage(cfg)
   return cfg
 
 
@@ -1229,12 +1129,5 @@ def phybot_c2_climb_wall_polish_env_cfg(
     play=play, student_obs=True, robustness_release=False
   )
   if not play:
-    final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
-    cfg.curriculum["gravity_angle"].params["angle_stages"] = [
-      {"iter": 0, "angle_deg": final_angle["angle_deg"]}
-    ]
-    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
-    cfg.curriculum["tilt_peel"].params["stages"] = [
-      {"iter": 0, "deg_range": final_tilt["deg_range"]}
-    ]
+    mdp.pin_curricula_to_final_stage(cfg)
   return cfg
