@@ -10,6 +10,7 @@ from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.command_manager import CommandTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
@@ -176,6 +177,84 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.bad_state,
       params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
     ),
+    # no_progress executioner REMOVED 2026-07-30 (it truncated every learning
+    # episode); if a dance-forever basin returns, reintroduce a curriculum-
+    # gated stall bar (mdp.no_progress_stall), never a flat one. (notes:
+    # no_progress obituary)
+    # DeepMimic early termination: end rollouts whose pose left the reference
+    # entirely (fallen/tangled). Threshold is generous — a clean hang at the
+    # wrong phase scores ~0.1-0.2 rad mean error and survives.
+    "bad_tracking": TerminationTermCfg(
+      func=mdp.motion_tracking_divergence,
+      params={"command_name": MOTION_COMMAND, "threshold": 0.7},
+    ),
+  }
+
+  ##
+  # Metrics — microspine occupancy/health telemetry + actuation saturation +
+  # climb progress. All params are manager-key names; robot-agnostic.
+  ##
+
+  metrics = {
+    "microspine_engagement_occupancy": MetricsTermCfg(
+      func=mdp.microspine_engagement_occupancy,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
+    ),
+    # Reseat-hold telemetry: clock-freeze duty cycle and pending-EE count
+    # (hold_fraction >> interval-implied duty = slow/timed-out reseats).
+    # (notes: metrics)
+    "microspine_reseat_hold_fraction": MetricsTermCfg(
+      func=mdp.microspine_reseat_hold_fraction,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
+    ),
+    "microspine_reseat_pending_count": MetricsTermCfg(
+      func=mdp.microspine_reseat_pending_count,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
+    ),
+    "left_hand_engagement_occupancy": MetricsTermCfg(
+      func=mdp.microspine_engagement_occupancy,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 0},
+    ),
+    "right_hand_engagement_occupancy": MetricsTermCfg(
+      func=mdp.microspine_engagement_occupancy,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 1},
+    ),
+    "left_foot_engagement_occupancy": MetricsTermCfg(
+      func=mdp.microspine_engagement_occupancy,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 2},
+    ),
+    "right_foot_engagement_occupancy": MetricsTermCfg(
+      func=mdp.microspine_engagement_occupancy,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 3},
+    ),
+    "microspine_forced_release_rate_hz": MetricsTermCfg(
+      func=mdp.microspine_forced_release_rate,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
+    ),
+    "microspine_engage_event_rate_hz": MetricsTermCfg(
+      func=mdp.microspine_engage_events,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
+    ),
+    "microspine_hold_margin_engaged": MetricsTermCfg(
+      func=mdp.microspine_hold_margin_engaged,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
+    ),
+    "action_saturation_fraction": MetricsTermCfg(
+      func=mdp.action_saturation_fraction,
+      params={"clip": 1.0},
+    ),
+    "joint_target_clamp_fraction": MetricsTermCfg(
+      func=mdp.joint_target_clamp_fraction,
+      params={"action_name": "joint_pos"},
+    ),
+    "joint_soft_limit_violation": MetricsTermCfg(
+      func=mdp.joint_soft_limit_violation,
+      params={"asset_name": "robot"},
+    ),
+    "motion_height_gained_m": MetricsTermCfg(
+      func=mdp.motion_height_gained,
+      params={"command_name": MOTION_COMMAND},
+    ),
   }
 
   ##
@@ -209,4 +288,5 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     curriculum=curriculum,
     events=events,
     terminations=terminations,
+    metrics=metrics,
   )

@@ -32,14 +32,12 @@ from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
 from mjlab.managers.event_manager import EventTermCfg
-from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.observation_manager import (
   ObservationGroupCfg,
   ObservationTermCfg,
 )
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
-from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -832,84 +830,6 @@ def phybot_c2_climb_wall_env_cfg(
     ),
     # RewardManager scales by dt, so -500 is a -10 one-shot failure cost.
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-500.0),
-  }
-
-  # no_progress executioner REMOVED (2026-07-30, motionref17). Under the
-  # motionref16 economics it truncated every learning episode at ~8-13 s and
-  # priced failed regrip experiments at -10, which dismantled the very
-  # learning ladder motionref15 had climbed (dance -> choreography -> climb).
-  # The climb pressure is now carried by motion_ref_height +
-  # motion_anchor_landing + motion_swing_approach; if a dance-forever basin
-  # returns, reintroduce a curriculum-gated stall bar instead of a flat one
-  # (see mdp.no_progress_stall, kept for that purpose).
-  # DeepMimic early termination: end rollouts whose pose left the reference
-  # entirely (fallen/tangled). Threshold is generous — a clean hang at the
-  # wrong phase scores ~0.1-0.2 rad mean error and survives.
-  cfg.terminations["bad_tracking"] = TerminationTermCfg(
-    func=mdp.motion_tracking_divergence,
-    params={"command_name": motion_command_name, "threshold": 0.7},
-  )
-
-  cfg.metrics = {
-    "microspine_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": microspine_affordance_name},
-    ),
-    # R4 reseat-hold telemetry: clock-freeze duty cycle and how many EEs are
-    # pending. hold_fraction >> interval-implied duty means reseats are slow
-    # or timing out; ~0 with random_release on means holds resolve instantly.
-    "microspine_reseat_hold_fraction": MetricsTermCfg(
-      func=mdp.microspine_reseat_hold_fraction,
-      params={"command_name": microspine_affordance_name},
-    ),
-    "microspine_reseat_pending_count": MetricsTermCfg(
-      func=mdp.microspine_reseat_pending_count,
-      params={"command_name": microspine_affordance_name},
-    ),
-    "left_hand_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": microspine_affordance_name, "ee_index": 0},
-    ),
-    "right_hand_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": microspine_affordance_name, "ee_index": 1},
-    ),
-    "left_foot_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": microspine_affordance_name, "ee_index": 2},
-    ),
-    "right_foot_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": microspine_affordance_name, "ee_index": 3},
-    ),
-    "microspine_forced_release_rate_hz": MetricsTermCfg(
-      func=mdp.microspine_forced_release_rate,
-      params={"command_name": microspine_affordance_name},
-    ),
-    "microspine_engage_event_rate_hz": MetricsTermCfg(
-      func=mdp.microspine_engage_events,
-      params={"command_name": microspine_affordance_name},
-    ),
-    "microspine_hold_margin_engaged": MetricsTermCfg(
-      func=mdp.microspine_hold_margin_engaged,
-      params={"command_name": microspine_affordance_name},
-    ),
-    "action_saturation_fraction": MetricsTermCfg(
-      func=mdp.action_saturation_fraction,
-      params={"clip": 1.0},
-    ),
-    "joint_target_clamp_fraction": MetricsTermCfg(
-      func=mdp.joint_target_clamp_fraction,
-      params={"action_name": "joint_pos"},
-    ),
-    "joint_soft_limit_violation": MetricsTermCfg(
-      func=mdp.joint_soft_limit_violation,
-      params={"asset_name": "robot"},
-    ),
-    "motion_height_gained_m": MetricsTermCfg(
-      func=mdp.motion_height_gained,
-      params={"command_name": motion_command_name},
-    ),
   }
 
   cfg.actions["joint_pos"] = mdp.SoftJointPositionActionCfg(
