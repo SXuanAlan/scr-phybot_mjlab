@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
 import torch
 
-from scr_phybot_mjab.assets.wall import WALL_HALF_SIZE, WALL_OFFSET
+from scr_phybot_mjab.assets.wall import WALL_OFFSET, WALL_PIVOT_X
 
 from .commands import ClimbVelocityCommandCfg
 
@@ -378,13 +378,6 @@ def sample_gravity_angles(
   )
 
 
-# The wall tilts about its surface/ground intersection line (x = pivot,
-# z = 0, along y): the pivot choice keeps the climbing surface anchored to
-# the floor plane at every angle, so the infinite collision plane never
-# sweeps through the robot's standing region and a real floor can coexist.
-_WALL_PIVOT_X = WALL_OFFSET[0] - WALL_HALF_SIZE[0]  # robot-facing surface x.
-
-
 def wall_pose_for_angle(
   angle_deg: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -393,7 +386,7 @@ def wall_pose_for_angle(
   ``angle_deg`` is the slope from horizontal (90 = vertical wall = the
   compiled identity pose; smaller angles lean the wall away from the robot
   like a ramp). The rotation is ``Rot_y(90 - angle)`` about the base line
-  ``(x=_WALL_PIVOT_X, z=0)``: ``pos' = pivot + R (offset - pivot)``,
+  ``(x=WALL_PIVOT_X, z=0)``: ``pos' = pivot + R (offset - pivot)``,
   ``quat' = R`` (wxyz). This is the world-rotation image of the retired
   gravity-tilt representation — at a given angle the robot-relative physics
   is identical, gravity stays physically down.
@@ -404,11 +397,11 @@ def wall_pose_for_angle(
   alpha = torch.deg2rad(90.0 - angle_deg)
   ca = torch.cos(alpha)
   sa = torch.sin(alpha)
-  rel_x = WALL_OFFSET[0] - _WALL_PIVOT_X
+  rel_x = WALL_OFFSET[0] - WALL_PIVOT_X
   rel_z = WALL_OFFSET[2]
   pos = torch.stack(
     [
-      _WALL_PIVOT_X + rel_x * ca + rel_z * sa,
+      WALL_PIVOT_X + rel_x * ca + rel_z * sa,
       torch.full_like(ca, float(WALL_OFFSET[1])),
       -rel_x * sa + rel_z * ca,
     ],

@@ -11,6 +11,10 @@ from mjlab.utils.spec_config import CollisionCfg
 
 WALL_HALF_SIZE = [0.5, 1.5, 7.5]  # 1m thick, 3m wide, 15m tall
 WALL_OFFSET = (2.0, 0.0, 7.5)  # center offset from env origin (z = half-height so wall sits on ground)
+# Robot-facing surface x at ground level — the hinge line the wall-angle
+# representation tilts about (env-local; the surface/floor intersection must
+# not move with angle).
+WALL_PIVOT_X = WALL_OFFSET[0] - WALL_HALF_SIZE[0]
 _WALL_SURFACE_LOCAL_X = -WALL_HALF_SIZE[0]
 _LOCAL_Z_TO_NEGATIVE_X_QUAT = [
   0.7071067811865476,

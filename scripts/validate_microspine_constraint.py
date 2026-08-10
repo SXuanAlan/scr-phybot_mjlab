@@ -357,9 +357,12 @@ def _place_reference_frames(
 
   env_ids = torch.arange(env.num_envs, device=DEVICE)
   motion.time_steps.copy_(frames)
-  motion.root_offset.copy_(env.scene.env_origins)
-  root_pos = motion.clip.root_pos[frames] + motion.root_offset
-  motion.spawn_z.copy_(root_pos[:, 2])
+  # Canonical-frame bookkeeping (wall-angle era): root_offset no longer
+  # carries env origins — the world transform adds them (identity wall here,
+  # so this is the plain origin shift it always was).
+  motion.root_offset.zero_()
+  root_pos = motion._to_world_point(motion.clip.root_pos[frames])
+  motion.spawn_pos.copy_(root_pos)
 
   joint_pos = robot.data.default_joint_pos.clone()
   joint_pos[:, motion._joint_ids] = motion.clip.joint_pos[frames]

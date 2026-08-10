@@ -30,7 +30,14 @@ import numpy as np
 import torch
 
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
-from mjlab.utils.lab_api.math import quat_apply_inverse, sample_uniform
+from mjlab.utils.lab_api.math import (
+  quat_apply,
+  quat_apply_inverse,
+  quat_mul,
+  sample_uniform,
+)
+
+from scr_phybot_mjab.assets.wall import WALL_PIVOT_X
 
 if TYPE_CHECKING:
   from mjlab.entity import Entity
@@ -380,12 +387,25 @@ class ClimbMotionCommand(CommandTerm):
     self.time_steps = torch.zeros(
       self.num_envs, dtype=torch.long, device=self.device
     )
-    # Offset from clip-frame root position to this env's reference position:
-    # env origin + reset height offset, plus one step height per completed
-    # loop. Used for RSI placement bookkeeping and the ghost only — no reward
+    # Offset from clip-frame root position to this env's reference position
+    # in the CANONICAL clip frame (vertical wall, no env origin): reset
+    # height jitter plus one step height per completed loop. World placement
+    # applies the per-env wall frame + env origin via ``_to_world_point``.
+    # Used for RSI placement bookkeeping and the ghost only — no reward
     # reads a global reference position.
     self.root_offset = torch.zeros(self.num_envs, 3, device=self.device)
-    self.spawn_z = torch.zeros(self.num_envs, device=self.device)
+    # Per-env wall frame (wxyz; identity = vertical wall), cached at reset
+    # from the wall entity's default root state — the wall_angle curriculum
+    # writes that earlier in the same reset pass, and the wall never moves
+    # mid-episode, so reset-time caching is exact. All world-facing outputs
+    # (RSI write, ref_* properties, ghost) rotate through this frame about
+    # the wall base line; at identity the transform is a bit-exact no-op.
+    self.wall_quat = torch.zeros(self.num_envs, 4, device=self.device)
+    self.wall_quat[:, 0] = 1.0
+    self._pivot_local = torch.tensor(
+      [WALL_PIVOT_X, 0.0, 0.0], device=self.device
+    )
+    self.spawn_pos = torch.zeros(self.num_envs, 3, device=self.device)
     self._order_checked = False
     self._ghost_model = None
 
@@ -434,7 +454,7 @@ class ClimbMotionCommand(CommandTerm):
 
   @property
   def ref_root_quat_w(self) -> torch.Tensor:
-    return self.clip.root_quat[self.time_steps]
+    return self._to_world_quat(self.clip.root_quat[self.time_steps])
 
   @property
   def ref_ee_pos_r(self) -> torch.Tensor:
@@ -454,10 +474,13 @@ class ClimbMotionCommand(CommandTerm):
   def ref_anchor_pos_w(self) -> torch.Tensor:
     """Scheduled anchor positions in sim world coordinates, (E, H, 3).
 
-    Clip-frame anchors shifted by the per-env root offset (env origin plus
-    the accumulated per-loop step height), i.e. exactly the ghost's anchor
-    ladder. While an EE swings this is its upcoming landing target."""
-    return self.clip.ee_anchor_pos[self.time_steps] + self.root_offset.unsqueeze(1)
+    Clip-frame anchors shifted by the accumulated per-loop step height and
+    mapped through the per-env wall frame (+ env origin), i.e. exactly the
+    ghost's anchor ladder. While an EE swings this is its upcoming landing
+    target."""
+    return self._to_world_point(
+      self.clip.ee_anchor_pos[self.time_steps] + self.root_offset.unsqueeze(1)
+    )
 
   @property
   def ref_edge_distance(self) -> torch.Tensor:
@@ -492,10 +515,69 @@ class ClimbMotionCommand(CommandTerm):
     """Duration of one reference cycle in seconds."""
     return self.clip.cycle_frames / self.clip.fps
 
+  # -- per-env wall frame -----------------------------------------------------
+  # The clip is canonical (vertical wall, gravity down). Under the wall-angle
+  # representation each env's wall is tilted about the base line
+  # (x = WALL_PIVOT_X, z = 0); every world-facing quantity applies that
+  # rotation. Envs at exactly 90° take a bit-exact identity fast path so the
+  # terminal rung reproduces the retired gravity representation verbatim.
+
+  @property
+  def wall_up_w(self) -> torch.Tensor:
+    """Along-wall climb direction per env, (E, 3) — ẑ on a vertical wall."""
+    z_axis = torch.zeros(self.num_envs, 3, device=self.device)
+    z_axis[:, 2] = 1.0
+    return quat_apply(self.wall_quat, z_axis)
+
+  @property
+  def wall_pivot_w(self) -> torch.Tensor:
+    """World position of the wall base (hinge) line per env, (E, 3)."""
+    return self._env.scene.env_origins + self._pivot_local
+
+  def _vertical_mask(self, env_ids: torch.Tensor | None) -> torch.Tensor:
+    quat = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
+    return quat[:, 0] >= 1.0 - 1.0e-9
+
+  def _to_world_point(
+    self, points: torch.Tensor, env_ids: torch.Tensor | None = None
+  ) -> torch.Tensor:
+    """Canonical clip-frame points -> world: rotate about the base line, add
+    the env origin. Accepts (N, 3) or (N, H, 3)."""
+    quat = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
+    origins = self._env.scene.env_origins
+    if env_ids is not None:
+      origins = origins[env_ids]
+    vertical = self._vertical_mask(env_ids)
+    pivot = self._pivot_local
+    if points.dim() == 3:
+      quat_b = quat.unsqueeze(1).expand(-1, points.shape[1], -1)
+      rotated = pivot + quat_apply(quat_b, points - pivot)
+      out = torch.where(vertical.view(-1, 1, 1), points, rotated)
+      return out + origins.unsqueeze(1)
+    rotated = pivot + quat_apply(quat, points - pivot)
+    out = torch.where(vertical.view(-1, 1), points, rotated)
+    return out + origins
+
+  def _to_world_quat(
+    self, quats: torch.Tensor, env_ids: torch.Tensor | None = None
+  ) -> torch.Tensor:
+    wall = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
+    vertical = self._vertical_mask(env_ids)
+    return torch.where(vertical.view(-1, 1), quats, quat_mul(wall, quats))
+
+  def _to_world_vec(
+    self, vecs: torch.Tensor, env_ids: torch.Tensor | None = None
+  ) -> torch.Tensor:
+    wall = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
+    # quat_apply with an identity quaternion is exact — no fast path needed.
+    return quat_apply(wall, vecs)
+
   @property
   def ref_root_pos_w(self) -> torch.Tensor:
     """Ghost/RSI-only global reference position (untracked by rewards)."""
-    return self.clip.root_pos[self.time_steps] + self.root_offset
+    return self._to_world_point(
+      self.clip.root_pos[self.time_steps] + self.root_offset
+    )
 
   # -- robot side -------------------------------------------------------------
 
@@ -527,8 +609,12 @@ class ClimbMotionCommand(CommandTerm):
 
   @property
   def height_gained(self) -> torch.Tensor:
-    """Base rise since the episode's RSI placement, (E,). Curriculum input."""
-    return self.robot.data.root_link_pos_w[:, 2] - self.spawn_z
+    """Along-wall base rise since the episode's RSI placement, (E,).
+
+    Curriculum input. Projection onto ``wall_up_w`` — world z on a vertical
+    wall (bit-identical to the retired z-difference there)."""
+    delta = self.robot.data.root_link_pos_w - self.spawn_pos
+    return (delta * self.wall_up_w).sum(dim=-1)
 
   def _affordance(self):
     return self._env.command_manager.get_term(self.cfg.affordance_command_name)
@@ -575,16 +661,27 @@ class ClimbMotionCommand(CommandTerm):
     self.time_steps[env_ids] = frames
 
     # --- reference state initialization -------------------------------------
-    offset = self._env.scene.env_origins[env_ids].clone()
-    offset[:, 2] += sample_uniform(
+    # Per-env wall frame first: the wall_angle curriculum wrote this env's
+    # pose into the wall's default_root_state earlier in this reset pass
+    # (identity when no wall_angle term is installed — vertical wall).
+    wall: Entity = self._env.scene[self.cfg.wall_entity_name]
+    self.wall_quat[env_ids] = wall.data.default_root_state[
+      env_ids, 3:7
+    ].clone()
+    # Canonical-frame offset: spawn-height jitter only (along the wall);
+    # env origins are applied by the world transform.
+    offset = torch.zeros(count, 3, device=self.device)
+    offset[:, 2] = sample_uniform(
       self.cfg.height_offset_range[0],
       self.cfg.height_offset_range[1],
       (count,),
       device=self.device,
     )
     self.root_offset[env_ids] = offset
-    root_pos = self.clip.root_pos[frames] + offset
-    self.spawn_z[env_ids] = root_pos[:, 2]
+    root_pos = self._to_world_point(
+      self.clip.root_pos[frames] + offset, env_ids
+    )
+    self.spawn_pos[env_ids] = root_pos
 
     joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
     joint_pos[:, self._joint_ids] = self.clip.joint_pos[frames]
@@ -604,9 +701,9 @@ class ClimbMotionCommand(CommandTerm):
     root_state = torch.cat(
       [
         root_pos,
-        self.clip.root_quat[frames],
-        self.clip.root_lin_vel[frames],
-        self.clip.root_ang_vel[frames],
+        self._to_world_quat(self.clip.root_quat[frames], env_ids),
+        self._to_world_vec(self.clip.root_lin_vel[frames], env_ids),
+        self._to_world_vec(self.clip.root_ang_vel[frames], env_ids),
       ],
       dim=-1,
     )
@@ -668,6 +765,9 @@ class ClimbMotionCommandCfg(CommandTermCfg):
   entity_name: str = "robot"
   motion_file: str
   affordance_command_name: str = "microspine_affordance"
+  # Wall entity whose per-env pose defines the wall frame (tilt about the
+  # base line); read once per reset AFTER the wall_angle curriculum writes it.
+  wall_entity_name: str = "wall"
   ee_body_names: tuple[str, ...]
   # "uniform" = DeepMimic RSI (sample a random cycle phase per episode);
   # "start" = always begin at frame 0 (evaluation/play).
