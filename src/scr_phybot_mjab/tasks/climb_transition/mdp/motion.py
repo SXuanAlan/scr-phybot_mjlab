@@ -42,6 +42,7 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.motion import (
   ClimbMotionClip,
   ClimbMotionCommand,
   ClimbMotionCommandCfg,
+  vertical_height_spawn_offset,
 )
 
 if TYPE_CHECKING:
@@ -263,6 +264,13 @@ class MountMotionCommand(ClimbMotionCommand):
       (count,),
       device=self.device,
     )
+    if self.cfg.spawn_match_vertical_height:
+      # Parent parity; exactly zero on the transition's identity wall.
+      offset[:, 2] += vertical_height_spawn_offset(
+        self.clip.root_pos[frames],
+        self.wall_quat[env_ids],
+        float(self._pivot_local[0].item()),
+      )
     self.root_offset[env_ids] = offset
     root_pos = self._to_world_point(
       self.clip.root_pos[frames] + offset, env_ids

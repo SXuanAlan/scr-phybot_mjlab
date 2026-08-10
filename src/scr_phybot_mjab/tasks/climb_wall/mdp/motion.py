@@ -46,6 +46,31 @@ if TYPE_CHECKING:
 
 _GHOST_COLOR = (0.5, 0.7, 0.5, 0.5)
 
+
+def vertical_height_spawn_offset(
+  clip_root_pos: torch.Tensor,
+  wall_quat: torch.Tensor,
+  pivot_x: float,
+) -> torch.Tensor:
+  """Along-wall shift restoring each frame's VERTICAL-wall spawn height.
+
+  The pure base-line rotation moves a spawn's world z with the wall (down at
+  shallow angles — ever closer to the floor). Sliding the whole RSI reference
+  along the tilted surface by this offset puts the root back at the world
+  height the same clip frame has on the vertical wall, while pads, anchors
+  and pose keep conforming to the surface (on-wall points recover their 90°
+  world heights to within the base-standoff correction). Solves
+  ``-rel_x sin(a) + (z + h) cos(a) = z`` for ``h``; exactly zero at identity.
+  """
+  alpha = 2.0 * torch.atan2(wall_quat[:, 2], wall_quat[:, 0])
+  ca = torch.cos(alpha)
+  sa = torch.sin(alpha)
+  rel_x = clip_root_pos[:, 0] - pivot_x
+  target_z = clip_root_pos[:, 2]
+  shift = (target_z + rel_x * sa) / ca - target_z
+  vertical = wall_quat[:, 0] >= 1.0 - 1.0e-9
+  return torch.where(vertical, torch.zeros_like(shift), shift)
+
 # Nominal cycle climb rate (m/s) used only when the clip file is absent at
 # config-build time (fresh checkout before ``gen_climb_clip.py`` ran). Env
 # construction still fails loudly without the file — this fallback exists so
@@ -668,8 +693,9 @@ class ClimbMotionCommand(CommandTerm):
     self.wall_quat[env_ids] = wall.data.default_root_state[
       env_ids, 3:7
     ].clone()
-    # Canonical-frame offset: spawn-height jitter only (along the wall);
-    # env origins are applied by the world transform.
+    # Canonical-frame offset: spawn-height jitter (along the wall) plus the
+    # vertical-height compensation; env origins are applied by the world
+    # transform.
     offset = torch.zeros(count, 3, device=self.device)
     offset[:, 2] = sample_uniform(
       self.cfg.height_offset_range[0],
@@ -677,6 +703,12 @@ class ClimbMotionCommand(CommandTerm):
       (count,),
       device=self.device,
     )
+    if self.cfg.spawn_match_vertical_height:
+      offset[:, 2] += vertical_height_spawn_offset(
+        self.clip.root_pos[frames],
+        self.wall_quat[env_ids],
+        float(self._pivot_local[0].item()),
+      )
     self.root_offset[env_ids] = offset
     root_pos = self._to_world_point(
       self.clip.root_pos[frames] + offset, env_ids
@@ -775,6 +807,11 @@ class ClimbMotionCommandCfg(CommandTermCfg):
   # Uniform extra spawn height (m) on top of the clip's root z, decoupling
   # absolute altitude from cycle phase.
   height_offset_range: tuple[float, float] = (0.0, 0.0)
+  # Slide the RSI reference along a TILTED wall so the spawn keeps the same
+  # WORLD height as the vertical-wall spawn (floor clearance stops shrinking
+  # with the angle). Exactly zero at 90° — the bit-identity path holds.
+  # Disable to reproduce the pure-rotation world (equivalence audits).
+  spawn_match_vertical_height: bool = True
   # Uniform RSI joint-angle noise (rad); clamped to soft limits.
   joint_pos_noise: float = 0.0
   # The reference loops; it is never resampled mid-episode.

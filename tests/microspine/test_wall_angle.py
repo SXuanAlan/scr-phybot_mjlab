@@ -56,6 +56,35 @@ def test_45_deg_pose_matches_hand_computation():
   )
 
 
+def test_vertical_height_spawn_offset_restores_the_90_deg_height():
+  import math as _math
+
+  from scr_phybot_mjab.tasks.climb_wall.mdp.motion import (
+    vertical_height_spawn_offset,
+  )
+
+  root = torch.tensor([[1.327, 0.0, 1.0], [1.327, 0.0, 1.0], [1.327, 0.0, 1.0]])
+  quats = []
+  for angle in (90.0, 45.0, 75.0):
+    half = _math.radians(90.0 - angle) / 2.0
+    quats.append([_math.cos(half), 0.0, _math.sin(half), 0.0])
+  wall_quat = torch.tensor(quats)
+  shift = vertical_height_spawn_offset(root, wall_quat, _PIVOT_X)
+  # Identity wall: exactly zero (the bit-identity path must hold).
+  assert shift[0].item() == 0.0
+  # Shifted spawns land back at the vertical-wall world height.
+  for i, angle in enumerate((90.0, 45.0, 75.0)):
+    alpha = _math.radians(90.0 - angle)
+    rel_x = 1.327 - _PIVOT_X
+    world_z = -rel_x * _math.sin(alpha) + (1.0 + shift[i].item()) * _math.cos(
+      alpha
+    )
+    assert abs(world_z - 1.0) < 1e-5, f"angle {angle}: world z {world_z}"
+  # Shallow wall raises the spawn up-slope; steep is a small correction.
+  assert shift[1].item() > 0.2
+  assert abs(shift[2].item()) < 0.02
+
+
 def test_leans_away_from_the_robot():
   # Shallower angle -> wall top tips toward +x (away from the robot at
   # x < 1.5), i.e. the face becomes a ramp the robot lies on.
