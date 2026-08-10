@@ -30,7 +30,7 @@ from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 
 import scr_phybot_mjab.tasks  # noqa: F401
-from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
+from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_wall_angle
 
 
 @dataclass(frozen=True)
@@ -44,8 +44,8 @@ class Cfg:
   device: str | None = None
   sat_threshold: float = 0.95
   """Ratio |tau|/limit at or above which a sample counts as saturated."""
-  gravity_angle_deg: float | None = None
-  """Override climb-wall gravity angle. If omitted, infer from model_<iter>.pt."""
+  wall_angle_deg: float | None = None
+  """Override the climb wall angle. If omitted, infer from model_<iter>.pt."""
   save_plots: bool = True
   """Save torque-vs-time plots under results/checkpoint by default."""
   output_dir: str | None = None
@@ -64,45 +64,31 @@ def _checkpoint_iteration(path_or_name: str | Path | None) -> int | None:
   return int(match.group(1)) if match is not None else None
 
 
-def _apply_climb_wall_gravity(
+def _apply_climb_wall_angle(
   env_cfg,
   *,
-  gravity_angle_deg: float | None,
+  wall_angle_deg: float | None,
   checkpoint_path: Path | None,
   checkpoint_hint: str | None = None,
 ) -> None:
   curriculum = getattr(env_cfg, "curriculum", None)
   if not curriculum:
     return
-
-  if "climb_difficulty" in curriculum:
-    term_cfg = curriculum["climb_difficulty"]
-    stages = term_cfg.params.get("stages")
-    if not stages:
-      return
-    final_stage = dict(stages[-1])
-    if gravity_angle_deg is not None:
-      final_stage["angle_deg"] = float(gravity_angle_deg)
-      source = "CLI override"
-    else:
-      source = "final performance stage"
-    term_cfg.params["stages"] = [final_stage]
-    print(
-      f"[INFO]: Saturation check gravity angle set to "
-      f"{final_stage['angle_deg']:.2f} deg ({source})"
+  if "gravity_angle" in curriculum or "climb_difficulty" in curriculum:
+    raise RuntimeError(
+      "Stale gravity-representation curriculum key in this config; the climb "
+      "task tilts the WALL now (curriculum key 'wall_angle')."
     )
-    return
+  if "wall_angle" not in curriculum:
+    return  # not a climb task
 
-  if "gravity_angle" not in curriculum:
-    return
-
-  term_cfg = curriculum["gravity_angle"]
+  term_cfg = curriculum["wall_angle"]
   stages = term_cfg.params.get("angle_stages")
   if not stages:
     return
 
-  if gravity_angle_deg is not None:
-    angle_deg = float(gravity_angle_deg)
+  if wall_angle_deg is not None:
+    angle_deg = float(wall_angle_deg)
     source = "CLI override"
   else:
     checkpoint_iter = _checkpoint_iteration(checkpoint_path)
@@ -110,15 +96,16 @@ def _apply_climb_wall_gravity(
       checkpoint_iter = _checkpoint_iteration(checkpoint_hint)
     if checkpoint_iter is None:
       print(
-        "[WARN]: Could not infer gravity angle because checkpoint name does not "
-        "look like model_<iter>.pt; keeping curriculum at its initial angle."
+        "[WARN]: Could not infer the wall angle because checkpoint name does "
+        "not look like model_<iter>.pt; keeping curriculum at its initial "
+        "angle."
       )
       return
-    angle_deg = float(resolve_gravity_angle(checkpoint_iter, stages))
+    angle_deg = float(resolve_wall_angle(checkpoint_iter, stages))
     source = f"checkpoint iter {checkpoint_iter}"
 
   term_cfg.params["angle_stages"] = [{"iter": 0, "angle_deg": angle_deg}]
-  print(f"[INFO]: Saturation check gravity angle set to {angle_deg:.2f} deg ({source})")
+  print(f"[INFO]: Saturation check wall angle set to {angle_deg:.2f} deg ({source})")
 
 
 def _safe_path_part(value: str) -> str:
@@ -246,10 +233,10 @@ def run(task_id: str, cfg: Cfg):
         "trained agent requires --checkpoint-file or --wandb-run-path"
       )
 
-  if cfg.agent == "trained" or cfg.gravity_angle_deg is not None:
-    _apply_climb_wall_gravity(
+  if cfg.agent == "trained" or cfg.wall_angle_deg is not None:
+    _apply_climb_wall_angle(
       env_cfg,
-      gravity_angle_deg=cfg.gravity_angle_deg,
+      wall_angle_deg=cfg.wall_angle_deg,
       checkpoint_path=resume_path,
       checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
     )

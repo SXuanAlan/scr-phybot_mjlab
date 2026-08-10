@@ -39,13 +39,13 @@ from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wrappers import VideoRecorder
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
-from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_gravity_angle
+from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_wall_angle
 
 
 @dataclass(frozen=True)
 class PlayConfig(MjlabPlayConfig):
-  gravity_angle_deg: float | None = None
-  """Override climb gravity; otherwise use the final performance stage or legacy checkpoint stage."""
+  wall_angle_deg: float | None = None
+  """Override the climb wall angle; otherwise resolve it from the checkpoint iteration."""
   disable_microspine: bool = False
   """Disable physical latch engagement for a climb-policy ablation rollout."""
   gamepad: bool = False
@@ -109,45 +109,32 @@ def _checkpoint_iteration(path_or_name: str | Path | None) -> int | None:
   return int(match.group(1)) if match is not None else None
 
 
-def _apply_climb_wall_play_gravity(
+def _apply_climb_wall_play_angle(
   env_cfg,
   *,
-  gravity_angle_deg: float | None,
+  wall_angle_deg: float | None,
   checkpoint_path: Path | None,
   checkpoint_hint: str | None = None,
 ) -> None:
   curriculum = getattr(env_cfg, "curriculum", None)
   if not curriculum:
     return
-
-  if "climb_difficulty" in curriculum:
-    term_cfg = curriculum["climb_difficulty"]
-    stages = term_cfg.params.get("stages")
-    if not stages:
-      return
-    final_stage = dict(stages[-1])
-    if gravity_angle_deg is not None:
-      final_stage["angle_deg"] = float(gravity_angle_deg)
-      source = "CLI override"
-    else:
-      source = "final performance stage"
-    term_cfg.params["stages"] = [final_stage]
-    print(
-      f"[INFO]: Play gravity angle set to {final_stage['angle_deg']:.2f} deg "
-      f"({source})"
+  if "gravity_angle" in curriculum or "climb_difficulty" in curriculum:
+    raise RuntimeError(
+      "Stale gravity-representation curriculum key in this config; the climb "
+      "task tilts the WALL now (curriculum key 'wall_angle'). A silent no-op "
+      "here would run every exam at the wrong angle."
     )
-    return
+  if "wall_angle" not in curriculum:
+    return  # not a climb task (walk/squat/transition have no angle ladder)
 
-  if "gravity_angle" not in curriculum:
-    return
-
-  term_cfg = curriculum["gravity_angle"]
+  term_cfg = curriculum["wall_angle"]
   stages = term_cfg.params.get("angle_stages")
   if not stages:
     return
 
-  if gravity_angle_deg is not None:
-    angle_deg = float(gravity_angle_deg)
+  if wall_angle_deg is not None:
+    angle_deg = float(wall_angle_deg)
     source = "CLI override"
   else:
     checkpoint_iter = _checkpoint_iteration(checkpoint_path)
@@ -155,15 +142,16 @@ def _apply_climb_wall_play_gravity(
       checkpoint_iter = _checkpoint_iteration(checkpoint_hint)
     if checkpoint_iter is None:
       print(
-        "[WARN]: Could not infer gravity angle because checkpoint name does not "
-        "look like model_<iter>.pt; keeping play curriculum at its initial angle."
+        "[WARN]: Could not infer the wall angle because checkpoint name does "
+        "not look like model_<iter>.pt; keeping play curriculum at its "
+        "initial angle."
       )
       return
-    angle_deg = float(resolve_gravity_angle(checkpoint_iter, stages))
+    angle_deg = float(resolve_wall_angle(checkpoint_iter, stages))
     source = f"checkpoint iter {checkpoint_iter}"
 
   term_cfg.params["angle_stages"] = [{"iter": 0, "angle_deg": angle_deg}]
-  print(f"[INFO]: Play gravity angle set to {angle_deg:.2f} deg ({source})")
+  print(f"[INFO]: Play wall angle set to {angle_deg:.2f} deg ({source})")
 
 
 def _setup_gamepad(env, cfg: PlayConfig):
@@ -323,9 +311,9 @@ def run_play(task_id: str, cfg: PlayConfig):
       )
     log_dir = resume_path.parent
 
-  _apply_climb_wall_play_gravity(
+  _apply_climb_wall_play_angle(
     env_cfg,
-    gravity_angle_deg=cfg.gravity_angle_deg,
+    wall_angle_deg=cfg.wall_angle_deg,
     checkpoint_path=resume_path,
     checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
   )

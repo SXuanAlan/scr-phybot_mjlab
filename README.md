@@ -198,12 +198,12 @@ python scripts/play.py Mjlab-Walk-Phybot-C2 \
   --num-envs 1
 ```
 
-Override the play-mode gravity curriculum angle:
+Override the play-mode wall angle:
 
 ```bash
 python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
   --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt \
-  --gravity-angle-deg 90 \
+  --wall-angle-deg 90 \
   --num-envs 1
 ```
 
@@ -260,17 +260,14 @@ Active rewards:
 Disabled reward terms are still present for quick experiments:
 `flat_orientation_l2 = 0.0`, `dof_pos_limits = 0.0`.
 
-Gravity curriculum is stepwise, without interpolation:
+The wall-angle curriculum is stepwise, without interpolation (the shipped
+ladder lives in `mdp.curriculums.WALL_ANGLE_STAGES`: 45 → 75±12 → 85±3 →
+88±2 → exact-90 by training iteration).
 
-| Iteration range | Effective wall angle |
-| --- | ---: |
-| `0 <= iter < 3000` | `30 deg` |
-| `3000 <= iter < 5000` | `60 deg` |
-| `5000 <= iter` | `90 deg` |
-
-The wall geometry stays vertical. The curriculum changes simulator gravity:
-30 degrees pushes the robot mostly into the wall, while 90 degrees is standard
-vertical-wall climbing.
+Gravity is always physically down. The curriculum TILTS THE WALL about its
+base line (per env, mocap pose): shallow angles are a ramp the robot lies on,
+90 degrees is standard vertical-wall climbing — and exactly the world the
+climb-transition (mount) task runs in, so the two tasks chain.
 
 Terminations:
 
@@ -305,7 +302,7 @@ observations.
 ```text
 scripts/
   train.py              # Register project tasks, then delegate to MJLab train.
-  play.py               # Play/evaluate with climb-wall gravity controls.
+  play.py               # Play/evaluate with climb-wall angle controls.
   tune_pose.py          # Viser-based pose tuning.
   list_envs.py          # List registered tasks.
   measure_contacts.py   # Estimate contact/constraint limits.

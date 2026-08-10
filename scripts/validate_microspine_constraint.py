@@ -121,7 +121,10 @@ def build_env(
 
 
 def set_gravity(env: ManagerBasedRlEnv, angle_deg: float, magnitude: float = 9.81):
-  """Same convention as the gravity_angle curriculum (90° = vertical wall)."""
+  """Angle convention of the RETIRED gravity representation (90° = gravity
+  straight down). The shipped task tilts the wall instead; this bench helper
+  survives only for the gravity-MAGNITUDE ramp at the vertical operating
+  point (angle_deg=90) — do not use it to emulate wall angles."""
   rad = math.radians(angle_deg)
   view = wp.to_torch(env.sim.wp_model.opt.gravity)
   view[:, 0] = magnitude * math.cos(rad)

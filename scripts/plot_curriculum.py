@@ -46,7 +46,9 @@ REWARD_SCHEDULES: list[tuple[str, list[tuple[int, float]], str]] = [
   ("stance_phase_velocity",[(0, 0.0), (P0_END, 10.0)],                "gait"),
 ]
 
-GRAVITY_STAGES: list[tuple[int, float]] = [(0, 30.0), (P1_END, 30.0), (P2_END, 90.0)]
+# STALE hand-transcribed sketch of a retired ladder (never matched the
+# shipped 45/75/85/88/90 schedule — see mdp.curriculums.WALL_ANGLE_STAGES).
+WALL_ANGLE_SKETCH: list[tuple[int, float]] = [(0, 30.0), (P1_END, 30.0), (P2_END, 90.0)]
 
 
 def step_schedule(stages: list[tuple[int, float]], iters: np.ndarray) -> np.ndarray:
@@ -58,7 +60,8 @@ def step_schedule(stages: list[tuple[int, float]], iters: np.ndarray) -> np.ndar
 
 
 def linear_schedule(stages: list[tuple[int, float]], iters: np.ndarray) -> np.ndarray:
-  """gravity_angle linearly interpolates between stage points."""
+  """Linear interpolation between stage points (the real wall_angle
+  curriculum is STEPWISE — this sketch predates it)."""
   xs = np.array([s[0] for s in stages], dtype=float)
   ys = np.array([s[1] for s in stages], dtype=float)
   return np.interp(iters, xs, ys, left=ys[0], right=ys[-1])
@@ -77,7 +80,7 @@ def main() -> None:
   ax_heat = fig.add_subplot(gs[0, 1])
 
   # --- Left: gravity angle -------------------------------------------------
-  g = linear_schedule(GRAVITY_STAGES, iters)
+  g = linear_schedule(WALL_ANGLE_SKETCH, iters)
   ax_grav.plot(iters, g, color="black", linewidth=2)
   ax_grav.fill_between(iters, 0, g, alpha=0.1, color="black")
   ax_grav.set_xlabel("iteration")

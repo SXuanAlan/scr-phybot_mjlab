@@ -34,7 +34,7 @@ _env_cfg = phybot_c2_climb_wall_env_cfg(robustness_release=False)
 # so a resume can extend a stage the policy has not mastered yet.
 _angle = os.environ.get("FROM0_ANGLE_STAGES")
 if _angle:
-  _env_cfg.curriculum["gravity_angle"].params["angle_stages"] = json.loads(
+  _env_cfg.curriculum["wall_angle"].params["angle_stages"] = json.loads(
     _angle
   )
   print("[from0] angle stages:", json.loads(_angle))
