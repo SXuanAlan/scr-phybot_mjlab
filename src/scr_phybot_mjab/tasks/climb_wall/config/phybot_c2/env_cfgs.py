@@ -85,7 +85,15 @@ from scr_phybot_mjab.microspine.constraint import (
   make_constraint_event_cfg,
 )
 from scr_phybot_mjab.tasks.climb_wall import mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import make_climb_wall_env_cfg
+from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
+  MICROSPINE_AFFORDANCE_COMMAND,
+  MICROSPINE_CONTACT_SENSOR,
+  MICROSPINE_GRIP_EVENT,
+  MOTION_COMMAND,
+  TOE_CONTACT_SENSOR,
+  VELOCITY_COMMAND,
+  make_climb_wall_env_cfg,
+)
 from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
   PHYBOT_C2_WALK_COLLISION,
 )
@@ -132,11 +140,11 @@ def phybot_c2_climb_wall_env_cfg(
       stage on a policy that already masters exact-90 — see the block that
       installs it for why it is not part of the base DR package.
   """
-  velocity_command_name = "climb_velocity"
-  motion_command_name = "climb_motion"
-  microspine_affordance_name = "microspine_affordance"
-  microspine_contact_sensor_name = "microspine_wall_contact"
-  microspine_event_name = "microspine_grip"
+  velocity_command_name = VELOCITY_COMMAND
+  motion_command_name = MOTION_COMMAND
+  microspine_affordance_name = MICROSPINE_AFFORDANCE_COMMAND
+  microspine_contact_sensor_name = MICROSPINE_CONTACT_SENSOR
+  microspine_event_name = MICROSPINE_GRIP_EVENT
 
   microspine_cfg = MicrospineCfg(
     ee_body_names=(
@@ -393,7 +401,7 @@ def phybot_c2_climb_wall_env_cfg(
   }
   # Ordinary per-sphere contacts handle compression and pre-engage sliding;
   # per-EE equalities provide grip.
-  toe_contact_sensor_name = "climb_toe_contact"
+  toe_contact_sensor_name = TOE_CONTACT_SENSOR
 
   cfg.sim.contact_sensor_maxmatch = max(cfg.sim.contact_sensor_maxmatch, 500)
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (

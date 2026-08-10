@@ -19,13 +19,26 @@ from mjlab.viewer import ViewerConfig
 
 from scr_phybot_mjab.tasks.climb_wall import mdp
 
+##
+# Manager-key names — single source of truth, shared by this base factory,
+# the robot configs, and climb_transition. FROZEN: the keys are public API
+# (tyro CLI paths, params/env.yaml, wandb names, phi_meta.json, and scripts
+# hard-code them — engage_raster / priv_ablate / export_policy / play).
+##
+
+VELOCITY_COMMAND = "climb_velocity"
+MOTION_COMMAND = "climb_motion"
+MICROSPINE_AFFORDANCE_COMMAND = "microspine_affordance"
+MICROSPINE_GRIP_EVENT = "microspine_grip"
+MICROSPINE_CONTACT_SENSOR = "microspine_wall_contact"
+TOE_CONTACT_SENSOR = "climb_toe_contact"
+
 
 def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   """Create base wall-climbing task configuration."""
 
   num_envs = 4096
   env_spacing = 8.0
-  velocity_command_name = "climb_velocity"
 
   ##
   # Observations
@@ -48,7 +61,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         # owns the target so obs and reward stay synchronized.
         "velocity_command": ObservationTermCfg(
           func=mdp.velocity_command,
-          params={"command_name": velocity_command_name},
+          params={"command_name": VELOCITY_COMMAND},
         ),
       },
       concatenate_terms=True,  # Concatenate all terms into a single vector.
@@ -74,7 +87,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   ##
 
   commands: dict[str, CommandTermCfg] = {
-    velocity_command_name: mdp.ClimbVelocityCommandCfg(
+    VELOCITY_COMMAND: mdp.ClimbVelocityCommandCfg(
       entity_name="robot",
       resampling_time_range=(4.0, 8.0),
       ranges=mdp.ClimbVelocityCommandCfg.Ranges(
