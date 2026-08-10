@@ -13,6 +13,16 @@ archived here.
 Entry titles carry the term key / cfg field, so `grep -n "<term key>"` on this
 file lands on the right block.
 
+> **Representation note (2026-08-10, same day, later):** the gravity-tilt
+> representation these comments were written under was RETIRED the same day.
+> Wall angles are now realized by tilting the WALL about its base line
+> (x = 1.5, z = 0) under real gravity (`mdp.wall_angle`, curriculum key
+> `wall_angle`), with the motion reference rotating along; the terrain floor
+> is contact-ENABLED (transition-world parity). At 90° the two
+> representations are bit-identical — every calibration and exam number
+> quoted below carries over unchanged; "gravity ladder/angle" in the archived
+> text reads as "wall-angle ladder" today.
+
 ---
 
 ## Motion file (`_CLIMB_MOTION_FILE`) — paced clip lineage  [L95-101]
