@@ -108,6 +108,54 @@ def test_transition_play_is_deterministic_and_noise_free() -> None:
     assert dr_event not in cfg.events
 
 
+def test_terminal_worlds_align_for_the_handoff(monkeypatch) -> None:
+  """Climb's 90° world == transition's world: same wall, same live floor.
+
+  The point of the wall-angle representation: the climb ladder's terminal
+  rung is physically the transition task's environment, so a mount policy
+  hands off to a climb policy in one consistent world.
+  """
+  climb = phybot_c2_climb_wall_env_cfg(play=True)
+  trans = phybot_c2_climb_transition_env_cfg(play=True)
+
+  # Identical wall entity binding (same factory, identity compiled pose).
+  for cfg in (climb, trans):
+    wall = cfg.scene.entities["wall"]
+    assert tuple(wall.init_state.pos) == (2.0, 0.0, 7.5)
+    assert tuple(wall.init_state.rot) == (1.0, 0.0, 0.0, 0.0)
+  # Climb's play curriculum pins exactly 90 — the identity wall pose.
+  stages = climb.curriculum["wall_angle"].params["angle_stages"]
+  assert stages == [{"iter": 0, "angle_deg": 90.0}]
+
+  # Both scene spec_fns leave the terrain floor CONTACT-ENABLED (climb's
+  # own enable + transition's re-enable are idempotent, not a tug-of-war).
+  # The microspine assembly helpers need the composed robot spec, so they
+  # are no-op'ed here; the floor call runs for real on a bare terrain spec.
+  import scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs as climb_mod
+
+  for helper in (
+    "add_contact_pairs",
+    "add_pad_wall_contact_excludes",
+    "add_toe_contact_pairs",
+    "add_attachment_equalities",
+  ):
+    monkeypatch.setattr(climb_mod, helper, lambda *a, **k: None)
+
+  def floor_contype(scene_spec_fn) -> int:
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(name="terrain")
+    body.add_geom(
+      name="terrain",
+      type=mujoco.mjtGeom.mjGEOM_PLANE,
+      size=[10.0, 10.0, 0.1],
+    )
+    scene_spec_fn(spec)
+    return int(spec.geom("terrain").contype)
+
+  assert floor_contype(climb.scene.spec_fn) == 1
+  assert floor_contype(trans.scene.spec_fn) == 1
+
+
 def test_climb_wall_package_is_untouched() -> None:
   """The parallel-architecture promise: climb's cfg carries NONE of the
   transition machinery."""

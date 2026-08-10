@@ -399,9 +399,13 @@ def phybot_c2_climb_wall_env_cfg(
     add_pad_wall_contact_excludes(spec, microspine_cfg)
     add_toe_contact_pairs(spec, microspine_cfg, toe_contacts)
     add_attachment_equalities(spec, microspine_cfg)
-    # Disable the aligned terrain ground plane — gravity-tilt curriculum
-    # replaces the floor; this forces the robot to actually grip the wall.
-    configure_phybot_c2_floor_geom(spec, enable_contact=False)
+    # Real floor, real gravity: under the wall-angle representation the
+    # ground plane is physically meaningful again (a fall LANDS instead of
+    # dropping into void) and the terminal 90° world matches
+    # climb_transition's, which re-enables the same floor. The wall's base
+    # line sits ON this plane at every angle, so floor and tilted wall
+    # coexist without the plane sweeping the robot's spawn region.
+    configure_phybot_c2_floor_geom(spec, enable_contact=True)
 
   cfg.scene.spec_fn = _spec_fn
 
