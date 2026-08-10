@@ -498,9 +498,13 @@ def motion_ref_height_tracking():
     settle_time_s: float = 0.5,
   ) -> torch.Tensor:
     asset: Entity = env.scene[asset_cfg.name]
-    z = asset.data.root_link_pos_w[:, 2]
     motion = env.command_manager.get_term(motion_command_name)
-    ref_z = motion.ref_root_pos_w[:, 2]
+    # Along-wall climb coordinates (world z on a vertical wall, bit-identical
+    # there). BOTH sides project onto the same per-env wall axis — rotating
+    # only one of them would silently misprice every tilted rung.
+    up = motion.wall_up_w
+    z = (asset.data.root_link_pos_w * up).sum(dim=-1)
+    ref_z = (motion.ref_root_pos_w * up).sum(dim=-1)
 
     if state["fresh"] is None or state["fresh"].shape != z.shape[:1]:
       state["fresh"] = torch.zeros(
@@ -544,6 +548,10 @@ def motion_ref_height_tracking():
 
 def climb_height_progress():
   """Factory: reward new height after the reset pose has physically settled.
+
+  UNMOUNTED (superseded by motion_ref_height) and NOT wall-frame aware: if
+  revived, the world-z high-water mark and ``command[:, 2]`` reads must
+  become along-wall projections (see motion_ref_height_tracking).
 
   The term tracks the best base height reached in each episode and rewards
   only increases of that high-water mark. A policy that thrusts the hips up
@@ -634,6 +642,9 @@ def climb_height_progress():
 
 def signed_climb_height_progress():
   """Factory: dense signed base-height change after initial settling.
+
+  UNMOUNTED (superseded by motion_ref_height) and NOT wall-frame aware: if
+  revived, its world-z deltas must become along-wall projections.
 
   Unlike a positive-only velocity reward, a closed up/down cycle has roughly
   zero undiscounted return. Its weight should stay below the high-water term:

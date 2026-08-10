@@ -139,7 +139,7 @@ def test_student_group_contract():
   for name in _DR_EVENTS:
     assert name in cfg.events
   # Curricula pinned to single stages (teacher-graduated difficulty).
-  assert len(cfg.curriculum["gravity_angle"].params["angle_stages"]) == 1
+  assert len(cfg.curriculum["wall_angle"].params["angle_stages"]) == 1
   assert len(cfg.curriculum["tilt_peel"].params["stages"]) == 1
   play = phybot_c2_climb_wall_distill_env_cfg(play=True)
   assert play.observations["student"].enable_corruption is False

@@ -15,6 +15,7 @@ import torch
 
 from mjlab.entity import Entity
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
+from mjlab.utils.lab_api.math import quat_apply
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -30,7 +31,14 @@ def _sample_uniform(
 
 
 class ClimbVelocityCommand(CommandTerm):
-  """World-frame linear velocity command for climbing."""
+  """Wall-frame linear velocity command for climbing.
+
+  The command triplet is (x, y, along-wall): the z channel is the climb rate
+  ALONG the wall surface (world vz on a vertical wall — bit-identical to the
+  retired world-frame reading there, and the policy-visible observation is
+  unchanged at every angle). x/y stay world axes; this task always commands
+  them zero.
+  """
 
   cfg: ClimbVelocityCommandCfg
 
@@ -46,13 +54,26 @@ class ClimbVelocityCommand(CommandTerm):
   def command(self) -> torch.Tensor:
     return self.vel_command_w
 
+  def _wall_up(self) -> torch.Tensor:
+    """Along-wall direction from the live wall pose (static per episode)."""
+    wall: Entity = self._env.scene["wall"]
+    z_axis = torch.zeros(self.num_envs, 3, device=self.device)
+    z_axis[:, 2] = 1.0
+    return quat_apply(wall.data.root_link_quat_w, z_axis)
+
   def _update_metrics(self) -> None:
     max_command_time = max(self.cfg.resampling_time_range[1], self._env.step_dt)
     max_command_step = max_command_time / self._env.step_dt
     lin_vel_w = self.robot.data.root_link_lin_vel_w
-    err = self.vel_command_w - lin_vel_w
+    up = self._wall_up()
+    # World image of the wall-frame command: z channel along the wall.
+    cmd_w = self.vel_command_w.clone()
+    cmd_w[:, 2] = 0.0
+    cmd_w = cmd_w + self.vel_command_w[:, 2:3] * up
+    err = cmd_w - lin_vel_w
     self.metrics["error_lin_vel_w"] += torch.norm(err, dim=-1) / max_command_step
-    self.metrics["error_vz"] += torch.abs(err[:, 2]) / max_command_step
+    err_along = self.vel_command_w[:, 2] - (lin_vel_w * up).sum(dim=-1)
+    self.metrics["error_vz"] += torch.abs(err_along) / max_command_step
 
   def _resample_command(self, env_ids: torch.Tensor) -> None:
     count = len(env_ids)

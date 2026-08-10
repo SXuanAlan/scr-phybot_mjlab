@@ -112,16 +112,18 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   rewards = {}
 
   ##
-  # Curriculum — gravity ladder x tilt-peel anneal (tables + doctrine live in
-  # mdp.curriculums; play/distill/polish pin them to the terminal stage via
-  # mdp.pin_curricula_to_final_stage).
+  # Curriculum — wall-angle ladder x tilt-peel anneal (tables + doctrine live
+  # in mdp.curriculums; play/distill/polish pin them to the terminal stage via
+  # mdp.pin_curricula_to_final_stage). The angle is realized by TILTING THE
+  # WALL about its base line under real gravity (mdp.wall_angle) — at the
+  # terminal 90° rung the world is exactly climb_transition's.
   ##
 
   curriculum = {
-    "gravity_angle": CurriculumTermCfg(
-      func=mdp.gravity_angle,
+    "wall_angle": CurriculumTermCfg(
+      func=mdp.wall_angle,
       params={
-        "angle_stages": [dict(stage) for stage in mdp.GRAVITY_STAGES],
+        "angle_stages": [dict(stage) for stage in mdp.WALL_ANGLE_STAGES],
         "steps_per_iter": _STEPS_PER_ITER,
         "angle_jitter_deg": 5.0,
       },
@@ -165,11 +167,12 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   terminations = {
     "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
     # Climb analog of G1's ``base_contact``: the robot has lost grip and
-    # fallen below the spawn floor. No terrain collision is active, so
-    # without this termination a fallen robot floats into void.
+    # fallen toward the wall base. Along-wall altitude, NOT world z — the
+    # mjlab builtin's absolute z bar would fire at t=0 on tilted rungs
+    # (the RSI spawn's world z shrinks with the wall angle).
     "base_height": TerminationTermCfg(
-      func=envs_mdp.root_height_below_minimum,
-      params={"minimum_height": 0.3},
+      func=mdp.root_below_wall_altitude,
+      params={"minimum_altitude": 0.3},
     ),
     # NaN / magnitude divergence guard. Not in G1 (IsaacLab has a global
     # NaN sink elsewhere); mjlab does not, so we keep this defensively.

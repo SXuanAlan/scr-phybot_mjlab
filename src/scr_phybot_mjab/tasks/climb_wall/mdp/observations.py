@@ -154,20 +154,23 @@ def gait_clock(env: ManagerBasedRlEnv) -> torch.Tensor:
 
 
 def height_above_spawn(
-  env: ManagerBasedRlEnv, baseline_z: float = 2.0
+  env: ManagerBasedRlEnv,
+  baseline_z: float = 2.0,
+  motion_command_name: str = "climb_motion",
 ) -> torch.Tensor:
-  """Robot base z-coordinate relative to spawn height. Shape (E, 1).
+  """Along-wall base altitude minus a fixed baseline. Shape (E, 1).
 
-  CRITICAL for learning the ``climb_height`` reward. Without this, the
-  critic cannot estimate V(s) based on current altitude, so the
-  position-based reward turns into pure noise from the policy's point of
-  view — every state looks the same to it, but the reward varies ±360 with
-  invisible z. Adding z-above-spawn as an observation collapses that
-  hidden-state variance and lets both V and π learn height-conditioned
-  behaviour.
+  The critic's altitude channel: without it the height income reads as pure
+  noise (hidden-state variance in V). Measured ALONG the climbing surface —
+  ``(root - wall_base_line) . wall_up`` — which is world z minus baseline on
+  a vertical wall (bit-identical to the retired world-z form) and, under
+  wall tilt, the same scalar the height rewards pay on. Using raw world z
+  here would mix wall-normal standoff into "altitude" at every tilted rung.
   """
-  z = env.scene["robot"].data.root_link_pos_w[:, 2]  # (E,)
-  return (z - baseline_z).unsqueeze(-1)  # (E, 1)
+  motion = env.command_manager.get_term(motion_command_name)
+  robot_pos = env.scene["robot"].data.root_link_pos_w
+  altitude = ((robot_pos - motion.wall_pivot_w) * motion.wall_up_w).sum(dim=-1)
+  return (altitude - baseline_z).unsqueeze(-1)  # (E, 1)
 
 
 def velocity_command(

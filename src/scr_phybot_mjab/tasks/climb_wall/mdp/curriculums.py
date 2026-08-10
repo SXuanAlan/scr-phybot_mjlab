@@ -258,7 +258,7 @@ def resolve_gravity_angle(current_iter: int, angle_stages: list[WallAngleStage])
 # rules: docs/climb_env_cfg_notes.md ("Curriculum").
 # Consumers must copy at use ([dict(s) for s in ...]): these tuples are shared
 # module state and env cfgs are built eagerly at import time.
-GRAVITY_STAGES: tuple[WallAngleStage, ...] = (
+WALL_ANGLE_STAGES: tuple[WallAngleStage, ...] = (
   {"iter": 0, "angle_deg": 45.0},
   {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
   {"iter": 3550, "angle_deg": 85.0, "jitter_deg": 3.0},
@@ -294,7 +294,7 @@ TILT_PEEL_STAGES: tuple[TiltPeelStage, ...] = (
 
 
 def pin_curricula_to_final_stage(cfg: ManagerBasedRlEnvCfg) -> None:
-  """Pin the gravity ladder and tilt-peel anneal to their terminal stages.
+  """Pin the wall-angle ladder and tilt-peel anneal to their terminal stages.
 
   Play/eval and the distill/polish variants run the final task only: the
   single remaining stage is the ladder's last angle and the CALIBRATED
@@ -303,8 +303,8 @@ def pin_curricula_to_final_stage(cfg: ManagerBasedRlEnvCfg) -> None:
   separately for deterministic rollouts, while distill keeps the training
   jitter so rollouts cover the neighborhood the teacher graduated on.
   """
-  final_angle = cfg.curriculum["gravity_angle"].params["angle_stages"][-1]
-  cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+  final_angle = cfg.curriculum["wall_angle"].params["angle_stages"][-1]
+  cfg.curriculum["wall_angle"].params["angle_stages"] = [
     {"iter": 0, "angle_deg": final_angle["angle_deg"]}
   ]
   final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]

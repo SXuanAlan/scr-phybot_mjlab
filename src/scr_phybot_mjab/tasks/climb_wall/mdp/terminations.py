@@ -30,6 +30,25 @@ def both_hands_unlatched(
   return engaged.sum(dim=-1) == 0
 
 
+def root_below_wall_altitude(
+  env: ManagerBasedRlEnv,
+  minimum_altitude: float = 0.3,
+  motion_command_name: str = "climb_motion",
+) -> torch.Tensor:
+  """Along-wall analog of ``root_height_below_minimum`` (the fall guard).
+
+  ``(root - wall_base_line) . wall_up < minimum_altitude`` — world z on a
+  vertical wall (bit-identical to the mjlab builtin there). The builtin's
+  absolute world-z bar is a trap under wall tilt: the RSI spawn's world z
+  shrinks with the angle (the whole reference tips toward the base line), so
+  a legitimately-placed robot on a 45° wall could terminate at t=0.
+  """
+  motion = env.command_manager.get_term(motion_command_name)
+  robot_pos = env.scene["robot"].data.root_link_pos_w
+  altitude = ((robot_pos - motion.wall_pivot_w) * motion.wall_up_w).sum(dim=-1)
+  return altitude < minimum_altitude
+
+
 def motion_tracking_divergence(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
@@ -49,6 +68,10 @@ def motion_tracking_divergence(
 
 def no_progress_stall():
   """Factory for terminating commanded climbs that make no new height.
+
+  RETIRED from the shipped cfg (2026-07-30) and NOT wall-frame aware: if
+  revived, its world-z progress mark must become an along-wall projection
+  (see ``root_below_wall_altitude``).
 
   The initial settling window continuously follows the base height, so the
   unavoidable reset-pose sag does not consume the stall budget. Afterwards a

@@ -180,7 +180,10 @@ def test_signed_progress_budget_caps_up_but_not_down():
 
 
 def test_ref_height_tracking_pays_on_profile_and_decays_both_ways():
-  motion = SimpleNamespace(ref_root_pos_w=torch.tensor([[0.0, 0.0, 5.0]]))
+  motion = SimpleNamespace(
+    ref_root_pos_w=torch.tensor([[0.0, 0.0, 5.0]]),
+    wall_up_w=torch.tensor([[0.0, 0.0, 1.0]]),  # vertical wall
+  )
   env = make_progress_env(motion=motion)
   reward = motion_ref_height_tracking()
   kw = dict(asset_cfg=SceneEntityCfg("robot"), std=0.05)
@@ -212,7 +215,10 @@ def test_ref_height_tracking_pays_on_profile_and_decays_both_ways():
 
 
 def test_signed_progress_reference_budget_tracks_the_clip_profile():
-  motion = SimpleNamespace(ref_root_pos_w=torch.tensor([[0.0, 0.0, 5.0]]))
+  motion = SimpleNamespace(
+    ref_root_pos_w=torch.tensor([[0.0, 0.0, 5.0]]),
+    wall_up_w=torch.tensor([[0.0, 0.0, 1.0]]),  # vertical wall
+  )
   env = make_progress_env(motion=motion)
   reward = signed_climb_height_progress()
   kw = dict(

@@ -828,7 +828,7 @@ def phybot_c2_climb_wall_env_cfg(
     # still replace the pinned stage). Jitter off: evaluation and diagnostic
     # rollouts (engage raster) must be deterministic at the pinned angle.
     mdp.pin_curricula_to_final_stage(cfg)
-    cfg.curriculum["gravity_angle"].params["angle_jitter_deg"] = 0.0
+    cfg.curriculum["wall_angle"].params["angle_jitter_deg"] = 0.0
     # Evaluation starts at the cycle's canonical stance instead of a random
     # RSI phase, so rollouts read as one continuous climb from frame 0.
     cfg.commands[MOTION_COMMAND].sampling_mode = "start"

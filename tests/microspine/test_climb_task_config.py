@@ -312,7 +312,7 @@ def test_climb_curriculum_retrains_from_scratch():
   # boundaries sit >=300 iters from tilt-anneal steps; drive by mastery
   # gates in practice (the iters are ceilings).
   assert "climb_difficulty" not in cfg.curriculum
-  term = cfg.curriculum["gravity_angle"]
+  term = cfg.curriculum["wall_angle"]
   stages = term.params["angle_stages"]
   assert [(s["iter"], s["angle_deg"], s.get("jitter_deg")) for s in stages] == [
     (0, 45.0, None),
@@ -342,7 +342,7 @@ def test_climb_curriculum_retrains_from_scratch():
   # Play/eval pins to the ladder's terminal values: exams always run the
   # honest physics at the target angle regardless of training progress.
   play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
-  play_term = play_cfg.curriculum["gravity_angle"]
+  play_term = play_cfg.curriculum["wall_angle"]
   assert play_term.params["angle_stages"][-1]["angle_deg"] == 90.0
   play_tilt = play_cfg.curriculum["tilt_peel"].params["stages"]
   assert play_tilt[-1]["deg_range"] == (3.5, 4.5)
