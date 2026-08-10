@@ -32,10 +32,7 @@ from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
 from mjlab.managers.event_manager import EventTermCfg
-from mjlab.managers.observation_manager import (
-  ObservationGroupCfg,
-  ObservationTermCfg,
-)
+from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
@@ -876,100 +873,23 @@ def phybot_c2_climb_wall_env_cfg(
     params={"command_name": motion_command_name},
   )
 
-  # Asymmetric actor-critic: the critic group is the actor group plus
-  # privileged microspine state (hold margin, anchor loads, forced releases)
-  # that a real robot cannot sense. Term cfgs are re-instantiated so the two
-  # groups never share mutable cfg objects. Built after all actor-term edits
-  # above so the copies pick them up.
-  critic_terms = {
-    name: dataclasses.replace(term) for name, term in actor_terms.items()
-  }
-  critic_terms["microspine_hold_margin"] = ObservationTermCfg(
-    func=mdp.microspine_hold_margin,
-    params={"command_name": microspine_affordance_name},
-  )
-  critic_terms["microspine_anchor_load"] = ObservationTermCfg(
-    func=mdp.microspine_anchor_load,
-    params={"command_name": microspine_affordance_name},
-    scale=0.01,  # Newtons → O(1).
-  )
-  critic_terms["microspine_forced_release"] = ObservationTermCfg(
-    func=mdp.microspine_forced_release,
-    params={"command_name": microspine_affordance_name},
-  )
-  cfg.observations["critic"] = ObservationGroupCfg(
-    terms=critic_terms,
-    concatenate_terms=True,
-    enable_corruption=False,
+  # Critic = actor terms + privileged microspine state; must be built AFTER
+  # every actor-term edit above so the replace-copies pick them up (the
+  # builder deliberately shares params dicts — see mdp.privileged_critic_group).
+  cfg.observations["critic"] = mdp.privileged_critic_group(
+    cfg.observations["actor"], command_name=microspine_affordance_name
   )
 
   if student_obs:
-    # Deployable observation contract for the distilled student. Every term
-    # is hardware-measurable: IMU gyro + gravity, joint encoders, the
-    # policy's own action, and the motion command — a pure 50 Hz clock
-    # lookup exported alongside the policy. Deliberately absent: base_lin_vel
-    # and height_above_spawn (no estimator on the robot), the microspine
-    # latch state (no engagement sensing; the reference schedule inside
-    # motion_command plus proprioceptive history carries it), the constant
-    # velocity_command, and prev/prev_prev_action (the history covers them).
-    # 89 dims per frame x history 10 = 890; layout is term-major with frames
-    # oldest->newest (the export sidecar documents the C++ contract).
-    # pad_normal_force (2026-08-03) is the one non-proprioceptive channel:
-    # the gimbal-mounted load cell the sensing co-design provides — it gives
-    # the student a physical engage/loss estimator instead of pure schedule
-    # faith, and it is the deploy-side trigger for the R4 clock pause.
-    student_terms = {
-      "base_ang_vel": ObservationTermCfg(
-        func=mdp.builtin_sensor,
-        params={"sensor_name": "robot/baselink-gyro"},
-        noise=Unoise(n_min=-0.2, n_max=0.2),
-      ),
-      "projected_gravity": ObservationTermCfg(
-        func=mdp.projected_gravity_from_framequat_sensor,
-        params={"sensor_name": "robot/baselink-quat"},
-        noise=Unoise(n_min=-0.05, n_max=0.05),
-      ),
-      "joint_pos_rel": ObservationTermCfg(
-        func=mdp.joint_pos_rel,
-        params={"asset_cfg": _policy_joint_cfg()},
-        noise=Unoise(n_min=-0.01, n_max=0.01),
-      ),
-      "joint_vel_rel": ObservationTermCfg(
-        func=mdp.joint_vel_rel,
-        params={"asset_cfg": _policy_joint_cfg()},
-        noise=Unoise(n_min=-1.5, n_max=1.5),
-      ),
-      "last_action": ObservationTermCfg(func=mdp.last_action),
-      "motion_command": ObservationTermCfg(
-        func=mdp.generated_commands,
-        params={"command_name": motion_command_name},
-      ),
-      # APPEND-ONLY from here: inserting mid-dict shifts every downstream
-      # block of the exported C++ offset table. Pipeline reminder: noise is
-      # applied per-frame BEFORE the history append; the 1-2 step delay
-      # models load-cell/CAN latency and deliberately survives play/export
-      # (the real sensor is late too — delay is not corruption-gated).
-      "pad_normal_force": ObservationTermCfg(
-        func=mdp.microspine_pad_normal_force,
-        params={"command_name": microspine_affordance_name},
-        noise=Unoise(n_min=-5.0, n_max=5.0),
-        clip=(0.0, 200.0),
-        scale=0.01,
-        delay_min_lag=1,
-        delay_max_lag=2,
-        delay_per_env=True,
-      ),
-    }
-    cfg.observations["student"] = ObservationGroupCfg(
-      terms=student_terms,
-      concatenate_terms=True,
-      enable_corruption=True,
-      # 50 frames = 1.0 s (2026-08-03, Route-B step 0 follow-up): the 10-frame
-      # window (0.2 s) cannot span the 0.6 s reengage cooldown, so latch
-      # timers were uninferable; 1 s also covers debounce + typical reseat
-      # and gives the height/slow-factor estimators a usable integration
-      # window. 89 dims/frame x 50 = 4450 — the packer contract.
-      history_length=50,
+    # Deployable student contract: hardware-measurable terms only, 89 dims x
+    # 50-frame history = 4450, APPEND-ONLY layout (C++ packer offsets) — see
+    # mdp.student_observation_group. (notes: student group design)
+    cfg.observations["student"] = mdp.student_observation_group(
+      policy_joint_cfg=_policy_joint_cfg(),
+      motion_command_name=motion_command_name,
+      affordance_command_name=microspine_affordance_name,
+      gyro_sensor_name="robot/baselink-gyro",
+      quat_sensor_name="robot/baselink-quat",
     )
 
   if play:
