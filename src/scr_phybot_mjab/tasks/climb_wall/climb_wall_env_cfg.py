@@ -42,13 +42,6 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         "last_action": ObservationTermCfg(func=mdp.last_action),
         "prev_action": ObservationTermCfg(func=mdp.prev_action),       # a_{t-1}
         "prev_prev_action": ObservationTermCfg(func=mdp.prev_prev_action),  # a_{t-2}
-        "gait_clock": ObservationTermCfg(func=mdp.gait_clock),
-        # Per-hand latch state (left, right). Lets the policy coordinate
-        # motion with grip transitions.
-        "hand_engaged_state": ObservationTermCfg(
-          func=mdp.hand_engaged_state,
-          params={"event_term_name": "microspine_grip"},
-        ),
         # Robot z above spawn — critic needs this to value climbing.
         "height_above_spawn": ObservationTermCfg(func=mdp.height_above_spawn),
         # Commanded world-frame velocity (vx, vy, vz). The command manager
@@ -103,37 +96,13 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   # Events
   ##
 
+  # Only the scene-default reset: the motion command performs reference-state
+  # initialization (it writes the robot's pose/velocities AFTER reset events
+  # run), so generic joint/base perturbation events would only be overwritten.
   events = {
     "reset_scene_to_default": EventTermCfg(
       func=envs_mdp.reset_scene_to_default,
       mode="reset",
-    ),
-    "reset_robot_joints": EventTermCfg(
-      func=envs_mdp.reset_joints_by_offset,
-      mode="reset",
-      params={
-        "position_range": (0.0, 0.0),
-        "velocity_range": (-0.1, 0.1),
-      },
-    ),
-    "reset_robot_base": EventTermCfg(
-      func=envs_mdp.reset_root_state_uniform,
-      mode="reset",
-      params={
-        "pose_range": {
-          "x": (0.0, 0.0),
-          "y": (0.0, 0.0),
-          "z": (0.0, 0.0),
-        },
-        "velocity_range": {
-          "x": (0.0, 0.0),
-          "y": (0.0, 0.0),
-          "z": (0.0, 0.0),
-          "roll": (0.0, 0.0),
-          "pitch": (0.0, 0.0),
-          "yaw": (0.0, 0.0),
-        },
-      },
     ),
   }
 

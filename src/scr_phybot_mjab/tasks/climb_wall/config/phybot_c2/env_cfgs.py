@@ -244,12 +244,6 @@ def phybot_c2_climb_wall_env_cfg(
   terms["base_ang_vel"].params = {"sensor_name": "robot/baselink-gyro"}
   terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
   terms["projected_gravity"].params = {"sensor_name": "robot/baselink-quat"}
-  # Drop the base factory's fixed-period gait clock and legacy hand-latch
-  # obs: the motion command below provides the phase clock (cos/sin, tied to
-  # the reference cycle) and the reference engage schedule, and the
-  # microspine_engaged_state term added later covers all four latches.
-  cfg.observations["actor"].terms.pop("gait_clock", None)
-  cfg.observations["actor"].terms.pop("hand_engaged_state", None)
 
   cfg.commands[microspine_affordance_name] = MicrospineAffordanceCfg(
     microspine_cfg=microspine_cfg,
@@ -448,11 +442,6 @@ def phybot_c2_climb_wall_env_cfg(
     microspine_cfg,
     affordance_name=microspine_affordance_name,
   )
-  # Reference-state initialization owns the robot's reset pose and velocities
-  # (the motion command writes them AFTER reset events run); the generic
-  # perturbation events would only be overwritten.
-  cfg.events.pop("reset_robot_joints", None)
-  cfg.events.pop("reset_robot_base", None)
 
   if domain_rand:
     # v4 revival (2026-08-02 user call): resume deploypd-v3/model_3300 with
