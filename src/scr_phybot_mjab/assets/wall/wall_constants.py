@@ -9,8 +9,14 @@ from mjlab.utils.spec_config import CollisionCfg
 # Wall geometry.
 ##
 
-WALL_HALF_SIZE = [0.5, 1.5, 7.5]  # 1m thick, 3m wide, 15m tall
-WALL_OFFSET = (2.0, 0.0, 7.5)  # center offset from env origin (z = half-height so wall sits on ground)
+# Real test-wall dimensions: 2 m along the climbing direction (its height
+# when vertical), 1.2 m wide. Thickness stays 1 m — wall_geom.size[0] is the
+# half-thickness CONTRACT the microspine projection code reconstructs the
+# surface from. The climb task collides against the analytic surface PLANE
+# (box is visual), so these numbers change what you SEE, not the contact
+# surface at x = WALL_PIVOT_X.
+WALL_HALF_SIZE = [0.5, 0.6, 1.0]  # 1m thick, 1.2m wide, 2m tall
+WALL_OFFSET = (2.0, 0.0, 1.0)  # center offset from env origin (z = half-height so wall sits on ground)
 # Robot-facing surface x at ground level — the hinge line the wall-angle
 # representation tilts about (env-local; the surface/floor intersection must
 # not move with angle).

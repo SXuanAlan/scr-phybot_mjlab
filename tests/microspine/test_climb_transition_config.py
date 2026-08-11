@@ -119,9 +119,11 @@ def test_terminal_worlds_align_for_the_handoff(monkeypatch) -> None:
   trans = phybot_c2_climb_transition_env_cfg(play=True)
 
   # Identical wall entity binding (same factory, identity compiled pose).
+  from scr_phybot_mjab.assets.wall import WALL_OFFSET
+
   for cfg in (climb, trans):
     wall = cfg.scene.entities["wall"]
-    assert tuple(wall.init_state.pos) == (2.0, 0.0, 7.5)
+    assert tuple(wall.init_state.pos) == tuple(WALL_OFFSET)
     assert tuple(wall.init_state.rot) == (1.0, 0.0, 0.0, 0.0)
   # Climb's play curriculum pins exactly 90 — the identity wall pose.
   stages = climb.curriculum["wall_angle"].params["angle_stages"]

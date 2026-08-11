@@ -156,7 +156,9 @@ def test_climb_wall_keeps_visual_box_but_collides_as_surface_plane():
   assert visual.conaffinity == 0
   assert collision.type == mujoco.mjtGeom.mjGEOM_PLANE
   assert tuple(collision.pos) == (-0.5, 0.0, 0.0)
-  assert tuple(collision.size) == (0.5, 1.5, 0.1)
+  # size[0] is the half-thickness contract (microspine surface projection);
+  # size[1] mirrors the real 1.2 m test wall's half-width (visual only).
+  assert tuple(collision.size) == (0.5, 0.6, 0.1)
 
 
 def test_climb_reward_contract_is_deepmimic_split():

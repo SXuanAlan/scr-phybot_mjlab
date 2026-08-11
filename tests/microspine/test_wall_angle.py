@@ -43,9 +43,14 @@ def test_base_line_stays_on_the_ground_at_every_angle():
 def test_45_deg_pose_matches_hand_computation():
   pos, quat = wall_pose_for_angle(torch.tensor([45.0]))
   s = math.sqrt(0.5)
+  rel_x = WALL_OFFSET[0] - _PIVOT_X
+  rel_z = WALL_OFFSET[2]
   assert torch.allclose(
     pos[0],
-    torch.tensor([_PIVOT_X + 8.0 * s, 0.0, 7.0 * s], dtype=pos.dtype),
+    torch.tensor(
+      [_PIVOT_X + (rel_x + rel_z) * s, 0.0, (rel_z - rel_x) * s],
+      dtype=pos.dtype,
+    ),
     atol=1e-5,
   )
   half = math.radians(45.0) / 2.0

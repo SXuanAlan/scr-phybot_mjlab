@@ -279,8 +279,8 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.WORLD,
-      lookat=(1.5, 0.0, 4.0),
-      distance=12.0,
+      lookat=(1.5, 0.0, 1.2),
+      distance=5.0,
       elevation=-20.0,
       azimuth=135.0,
     ),

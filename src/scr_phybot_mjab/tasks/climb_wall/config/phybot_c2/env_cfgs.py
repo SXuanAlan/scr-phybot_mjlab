@@ -250,6 +250,12 @@ def phybot_c2_climb_wall_env_cfg(
     ee_body_names=microspine_cfg.ee_body_names,
     sampling_mode="uniform",  # DeepMimic RSI: random cycle phase per episode.
     joint_pos_noise=0.02,
+    # Along-wall spawn-height randomization (on top of the vertical-height
+    # compensation), sized to the 2 m wall: at -0.30 the toes stay ~0.2 m
+    # above the base line; at +0.15 the hands end an episode's climb
+    # (~1.53 + 0.15 + 0.2) still under the 2 m top. Decouples absolute
+    # altitude from cycle phase; play pins it to zero.
+    height_offset_range=(-0.30, 0.15),
   )
 
   ##
@@ -837,6 +843,7 @@ def phybot_c2_climb_wall_env_cfg(
     # RSI phase, so rollouts read as one continuous climb from frame 0.
     cfg.commands[MOTION_COMMAND].sampling_mode = "start"
     cfg.commands[MOTION_COMMAND].joint_pos_noise = 0.0
+    cfg.commands[MOTION_COMMAND].height_offset_range = (0.0, 0.0)
 
   return cfg
 
