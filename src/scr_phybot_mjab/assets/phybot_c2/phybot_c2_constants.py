@@ -101,8 +101,8 @@ PHYBOT_C2_JOINT_FORCE_LIMITS = PHYBOT_C2_MOTOR_CTRL_RANGES
 
 # Real-robot torque limits from deploy RL_deploy_cpg/config/rl_params.yaml
 # (`torque_limits`). The deploy stack clamps commanded torques to these values,
-# so training must respect them rather than the larger XML ctrlranges. Neck is
-# not policy-controlled and keeps its XML limit.
+# and the actuator cfgs below use them as effort_limit. Neck is not
+# policy-controlled and keeps its XML limit.
 PHYBOT_C2_DEPLOY_TORQUE_LIMITS = {
   "hip_pitch": 200.0,
   "hip_roll": 80.0,
@@ -116,6 +116,28 @@ PHYBOT_C2_DEPLOY_TORQUE_LIMITS = {
   "shoulder_yaw": 58.0,
   "elbow_pitch": 58.0,
 }
+
+# XML-side clamps (motor ctrlrange + joint actuatorfrcrange), unified with the
+# deploy caps on 2026-08-06 EXCEPT hip_pitch, deliberately held at the
+# conservative vendor 160 (user call, 2026-08-06). The joint actuatorfrcrange
+# survives the actuator replacement at spec build, so hip_pitch's effective
+# sim clamp is min(effort_limit 200, joint clamp 160) = 160 — the regime every
+# shipped checkpoint was trained under — while the torque_headroom reward
+# keeps pricing against the deploy 200 (it reads the built model's
+# actuator_forcerange).
+PHYBOT_C2_XML_TORQUE_CLAMPS = {
+  **PHYBOT_C2_DEPLOY_TORQUE_LIMITS,
+  "hip_pitch": 160.0,
+}
+
+# Import-time sync check: keep the XML from drifting against the table above.
+for _group, _limit in PHYBOT_C2_XML_TORQUE_CLAMPS.items():
+  if PHYBOT_C2_CTRL_LIMITS[_group] != _limit:
+    raise ValueError(
+      f"phybot_c2.xml ctrlrange for '{_group}' "
+      f"({PHYBOT_C2_CTRL_LIMITS[_group]}) != expected clamp ({_limit}); "
+      "keep the XML in sync with PHYBOT_C2_XML_TORQUE_CLAMPS"
+    )
 
 PHYBOT_C2_POLICY_JOINT_NAMES = (
   "left_hip_pitch",

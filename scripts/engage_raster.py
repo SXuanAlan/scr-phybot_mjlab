@@ -246,16 +246,23 @@ REASON_NAMES = {
 device = "cuda:0"
 env_cfg = load_env_cfg(TASK, play=True)
 agent_cfg = load_rl_cfg(TASK)
-# Pin the play gravity stage to the requested angle, whichever curriculum
-# flavor the config carries. (Play configs already disable the angle jitter.)
-if "climb_difficulty" in env_cfg.curriculum:
-  env_cfg.curriculum["climb_difficulty"].params["stages"] = [
-    {"angle_deg": ANGLE, "min_height_gain": 0.18}
-  ]
-else:
-  env_cfg.curriculum["gravity_angle"].params["angle_stages"] = [
+# Pin the play wall angle to the requested value. (Play configs already
+# disable the angle jitter.)
+if (
+  "gravity_angle" in env_cfg.curriculum
+  or "climb_difficulty" in env_cfg.curriculum
+):
+  raise SystemExit(
+    "Stale gravity-representation curriculum key in this config; the climb "
+    "task tilts the WALL now (curriculum key 'wall_angle'). Refusing to run "
+    "an exam that would silently sit at the wrong angle."
+  )
+if "wall_angle" in env_cfg.curriculum:
+  env_cfg.curriculum["wall_angle"].params["angle_stages"] = [
     {"iter": 0, "angle_deg": ANGLE}
   ]
+# else: no angle curriculum at all (transition task) — the vertical wall IS
+# the operating point; an explicit non-90 ANGLE has no effect.
 if WORST_F0:
   # Pin the per-grip F0 lottery at its worst draw. A collapsed range redraws
   # the same value at every latch (bench determinism, see
@@ -576,6 +583,13 @@ def _quat_mul_np(a, b):
   )
 
 
+def _quat_rotate_np(q, v):
+  """Rotate a single vector ``v`` (3,) by a wxyz quaternion ``q`` (4,)."""
+  w, im = q[0], q[1:4]
+  t = 2.0 * np.cross(im, v)
+  return v + w * t + np.cross(im, t)
+
+
 resets = []
 prev_ref = motion.ref_engaged[0].clone()
 _drill_idx = 0
@@ -693,8 +707,15 @@ with torch.no_grad():
     ang = 2.0 * np.arctan2(vec_n, q_rel[:, 0])
     axis = q_rel[:, 1:4] / np.maximum(vec_n, 1.0e-9)[:, None]
     rotvec = axis * ang[:, None]
-    tilt_yaw[t] = np.abs(rotvec[:, 0])  # wall normal = world x
-    tilt_pry[t] = np.linalg.norm(rotvec[:, 1:3], axis=-1)
+    # Decompose about the LIVE wall normal (world -x only on a vertical
+    # wall; the wall-angle representation tilts it about the base line).
+    wall_q = u.scene["wall"].data.root_link_quat_w[0].float().cpu().numpy()
+    n_hat = _quat_rotate_np(wall_q, np.array([-1.0, 0.0, 0.0]))
+    yaw_component = rotvec @ n_hat
+    tilt_yaw[t] = np.abs(yaw_component)
+    tilt_pry[t] = np.linalg.norm(
+      rotvec - yaw_component[:, None] * n_hat[None, :], axis=-1
+    )
     if bool(dones[0]):
       resets.append(t)
 env.close()

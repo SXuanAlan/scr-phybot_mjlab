@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1432 540" width="1432" height="540">
+<defs>
+  <marker id="m-blue" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L8.5,3.5 L0,7 Z" fill="#2563EB"/></marker>
+  <marker id="m-purple" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L8.5,3.5 L0,7 Z" fill="#7C3AED"/></marker>
+  <marker id="m-orange" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L8.5,3.5 L0,7 Z" fill="#EA580C"/></marker>
+  <marker id="m-slate" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L8.5,3.5 L0,7 Z" fill="#334155"/></marker>
+  <marker id="m-green" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L8.5,3.5 L0,7 Z" fill="#059669"/></marker>
+  <marker id="m-gray" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L8.5,3.5 L0,7 Z" fill="#94A3B8"/></marker>
+
+  <g id="badge-trained">
+    <rect x="0" y="0" width="86" height="24" rx="12" fill="#FFEDD5" stroke="#FDBA74" stroke-width="1"/>
+    <path d="M14 5 C15.5 7.5 17.8 8.6 17.8 11.6 A3.8 3.8 0 1 1 10.2 11.6 C10.2 9.2 12.5 8 14 5 Z" fill="#F97316"/>
+    <text x="26" y="16.5" font-size="13" font-weight="bold" fill="#C2410C">trained</text>
+  </g>
+  <g id="badge-frozen">
+    <rect x="0" y="0" width="82" height="24" rx="12" fill="#E0F2FE" stroke="#7DD3FC" stroke-width="1"/>
+    <g stroke="#0284C7" stroke-width="1.6" stroke-linecap="round">
+      <line x1="14" y1="5.5" x2="14" y2="18.5"/>
+      <line x1="8.4" y1="8.75" x2="19.6" y2="15.25"/>
+      <line x1="8.4" y1="15.25" x2="19.6" y2="8.75"/>
+    </g>
+    <text x="26" y="16.5" font-size="13" font-weight="bold" fill="#075985">frozen</text>
+  </g>
+</defs>
+
+<g font-family="Liberation Sans, DejaVu Sans, sans-serif">
+<rect x="0" y="0" width="1432" height="540" fill="white"/>
+
+<!-- ================= panel frames ================= -->
+<rect x="8"   y="12" width="440" height="456" rx="14" fill="#FBFCFE" stroke="#CBD5E1" stroke-width="1.5"/>
+<rect x="492" y="12" width="440" height="456" rx="14" fill="#FBFCFE" stroke="#CBD5E1" stroke-width="1.5"/>
+<rect x="976" y="12" width="440" height="456" rx="14" fill="#FBFCFE" stroke="#CBD5E1" stroke-width="1.5"/>
+
+<!-- chevrons between panels -->
+<polygon points="452,252 470,252 470,242 488,264 470,286 470,276 452,276" fill="#CBD5E1"/>
+<polygon points="936,252 954,252 954,242 972,264 954,286 954,276 936,276" fill="#CBD5E1"/>
+
+<!-- ================= PANEL 1 : privileged teacher ================= -->
+<g>
+  <circle cx="38" cy="44" r="13" fill="#334155"/>
+  <text x="38" y="49.5" font-size="16" font-weight="bold" fill="white" text-anchor="middle">1</text>
+  <text x="60" y="50" font-size="23" font-weight="bold" fill="#111827">Privileged motion-mimic teacher</text>
+  <text x="60" y="74" font-size="16" fill="#64748B">RL with full simulator state</text>
+
+  <!-- motion reference box -->
+  <rect x="28" y="96" width="184" height="88" rx="9" fill="#ECFDF5" stroke="#34D399" stroke-width="1.4"/>
+  <text x="40" y="118" font-size="17" font-weight="bold" fill="#065F46">Motion reference</text>
+  <text x="40" y="139" font-size="13" fill="#334155">IK-generated 4-beat cycle,</text>
+  <text x="40" y="156" font-size="13" fill="#334155">paced dwells ≥ 0.3 s</text>
+  <text x="40" y="173" font-size="13" fill="#334155">phase command c<tspan font-size="10" dy="3">t</tspan><tspan dy="-3"> (in o</tspan><tspan font-size="10" dy="3">t</tspan><tspan dy="-3">)</tspan></text>
+
+  <!-- PPO / reward chip -->
+  <rect x="240" y="96" width="192" height="88" rx="9" fill="#FFF7ED" stroke="#FDBA74" stroke-width="1.4"/>
+  <text x="252" y="118" font-size="17" font-weight="bold" fill="#9A3412">PPO</text>
+  <text x="252" y="139" font-size="13" fill="#334155">r: motion mimic + climb</text>
+  <text x="252" y="156" font-size="13" fill="#334155">+ microspine safety</text>
+  <text x="252" y="173" font-size="13" fill="#334155">+ regularizers</text>
+
+  <!-- mimic-target arrow motionref -> PPO chip -->
+  <line x1="212" y1="136" x2="234" y2="136" stroke="#059669" stroke-width="2" marker-end="url(#m-green)"/>
+
+  <!-- RSI arrow motionref -> env -->
+  <line x1="88" y1="184" x2="88" y2="201" stroke="#059669" stroke-width="2" marker-end="url(#m-green)"/>
+  <text x="97" y="199" font-size="13" fill="#047857">RSI</text>
+
+  <!-- PPO -> policy dashed update arrow -->
+  <line x1="343" y1="184" x2="343" y2="201" stroke="#EA580C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m-orange)"/>
+
+  <!-- env box -->
+  <rect x="28" y="206" width="176" height="240" rx="9" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.4"/>
+  <text x="40" y="228" font-size="17" font-weight="bold" fill="#334155">Wall-climb sim</text>
+  <!-- pictogram: ground, wall, arc, robot -->
+  <g stroke-linecap="round">
+    <line x1="52" y1="316" x2="188" y2="316" stroke="#94A3B8" stroke-width="2"/>
+    <line x1="98" y1="316" x2="118.4" y2="239.7" stroke="#475569" stroke-width="3"/>
+    <path d="M118,316 A20,20 0 0 0 103.2,296.7" fill="none" stroke="#64748B" stroke-width="1.4"/>
+    <text x="126" y="305" font-size="14" font-style="italic" fill="#475569" text-anchor="middle">θ</text>
+    <!-- robot: body + 4 limbs to wall pads (on the up-slope face, θ &lt; 90°) -->
+    <line x1="90.4" y1="267.1" x2="104.1" y2="293.4" stroke="#475569" stroke-width="1.8"/>
+    <line x1="90.4" y1="267.1" x2="107.7" y2="279.9" stroke="#475569" stroke-width="1.8"/>
+    <line x1="90.4" y1="267.1" x2="111.7" y2="264.8" stroke="#475569" stroke-width="1.8"/>
+    <line x1="90.4" y1="267.1" x2="115.4" y2="251.2" stroke="#475569" stroke-width="1.8"/>
+    <circle cx="90.4" cy="267.1" r="6.5" fill="#475569"/>
+    <circle cx="104.1" cy="293.4" r="2.6" fill="#7C3AED"/>
+    <circle cx="107.7" cy="279.9" r="2.6" fill="#7C3AED"/>
+    <circle cx="111.7" cy="264.8" r="2.6" fill="#7C3AED"/>
+    <circle cx="115.4" cy="251.2" r="2.6" fill="#7C3AED"/>
+  </g>
+  <text x="116" y="342" font-size="13.5" fill="#334155" text-anchor="middle">staged θ curriculum: 45° → 90°</text>
+  <text x="40" y="368" font-size="13.5" fill="#334155">microspine contact model</text>
+  <text x="40" y="386" font-size="13.5" fill="#334155">3×4 spine units per pad</text>
+  <line x1="115.4" y1="251.2" x2="150" y2="247" stroke="#94A3B8" stroke-width="1" stroke-dasharray="2 2"/>
+  <rect x="151" y="237" width="27" height="20" rx="3" fill="white" stroke="#94A3B8" stroke-width="1"/>
+  <g fill="#64748B">
+    <circle cx="155.5" cy="242" r="1.5"/><circle cx="161.5" cy="242" r="1.5"/><circle cx="167.5" cy="242" r="1.5"/><circle cx="173.5" cy="242" r="1.5"/>
+    <circle cx="155.5" cy="247" r="1.5"/><circle cx="161.5" cy="247" r="1.5"/><circle cx="167.5" cy="247" r="1.5"/><circle cx="173.5" cy="247" r="1.5"/>
+    <circle cx="155.5" cy="252" r="1.5"/><circle cx="161.5" cy="252" r="1.5"/><circle cx="167.5" cy="252" r="1.5"/><circle cx="173.5" cy="252" r="1.5"/>
+  </g>
+  <text x="40" y="410" font-size="13.5" fill="#334155">domain randomization</text>
+
+  <!-- teacher policy box -->
+  <rect x="258" y="206" width="170" height="130" rx="9" fill="white" stroke="#F97316" stroke-width="2"/>
+  <text x="272" y="238" font-size="18" font-weight="bold" fill="#111827">teacher policy π<tspan font-size="13" dy="4">T</tspan></text>
+  <text x="343" y="260" font-size="12.5" fill="#64748B" text-anchor="middle">actor–critic MLP 256–128–64</text>
+  <text x="343" y="278" font-size="12.5" fill="#64748B" text-anchor="middle">21-D joint targets @ 50 Hz</text>
+  <use xlink:href="#badge-trained" x="300" y="296"/>
+
+  <!-- env <-> policy arrows -->
+  <line x1="204" y1="246" x2="252" y2="246" stroke="#2563EB" stroke-width="2" marker-end="url(#m-blue)"/>
+  <text x="221" y="239" font-size="15" font-style="italic" fill="#2563EB">o<tspan font-size="11" dy="3">t</tspan></text>
+  <line x1="204" y1="276" x2="252" y2="276" stroke="#7C3AED" stroke-width="2" marker-end="url(#m-purple)"/>
+  <text x="221" y="269" font-size="15" font-style="italic" fill="#7C3AED">x<tspan font-size="11" dy="3">t</tspan></text>
+  <line x1="258" y1="312" x2="210" y2="312" stroke="#334155" stroke-width="2" marker-end="url(#m-slate)"/>
+  <text x="221" y="305" font-size="15" font-style="italic" fill="#334155">a<tspan font-size="11" dy="3">t</tspan></text>
+
+  <!-- privileged annotation -->
+  <rect x="258" y="356" width="170" height="90" rx="8" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.2"/>
+  <text x="268" y="377" font-size="14.5" font-weight="bold" fill="#6D28D9">privileged x<tspan font-size="11" dy="3">t</tspan><tspan dy="-3"> (sim only)</tspan></text>
+  <text x="268" y="397" font-size="12.5" fill="#4C1D95">per-pad spine engagement (4)</text>
+  <text x="268" y="414" font-size="12.5" fill="#4C1D95">per-pad seating fraction (4)</text>
+  <text x="268" y="431" font-size="12.5" fill="#4C1D95">base height (1)</text>
+</g>
+
+<!-- ================= PANEL 2 : estimator distillation ================= -->
+<g>
+  <circle cx="522" cy="44" r="13" fill="#334155"/>
+  <text x="522" y="49.5" font-size="16" font-weight="bold" fill="white" text-anchor="middle">2</text>
+  <text x="544" y="50" font-size="23" font-weight="bold" fill="#111827">Estimator distillation</text>
+  <text x="544" y="74" font-size="16" fill="#64748B">regress privileged state from proprio history (DAgger)</text>
+
+  <!-- rollout box -->
+  <rect x="512" y="96" width="400" height="76" rx="9" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.4"/>
+  <text x="524" y="120" font-size="17" font-weight="bold" fill="#334155">On-policy rollouts (DAgger)</text>
+  <text x="524" y="144" font-size="13.5" fill="#334155">frozen teacher π<tspan font-size="10.5" dy="3">T</tspan><tspan dy="-3"> acts on (o</tspan><tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3"> , ê</tspan><tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3">)</tspan></text>
+  <use xlink:href="#badge-frozen" x="812" y="110"/>
+
+  <!-- o_t stream arrow -->
+  <line x1="560" y1="172" x2="560" y2="246" stroke="#2563EB" stroke-width="2" marker-end="url(#m-blue)"/>
+  <text x="536" y="212" font-size="15" font-style="italic" fill="#2563EB">o<tspan font-size="11" dy="3">t</tspan></text>
+
+  <!-- x_t label arrow -->
+  <line x1="830" y1="172" x2="830" y2="188" stroke="#7C3AED" stroke-width="2" marker-end="url(#m-purple)"/>
+  <text x="843" y="185" font-size="15" font-style="italic" fill="#7C3AED">x<tspan font-size="11" dy="3">t</tspan></text>
+
+  <!-- loss chip -->
+  <rect x="716" y="192" width="170" height="38" rx="8" fill="#FFF7ED" stroke="#FDBA74" stroke-width="1.4"/>
+  <text x="748" y="216" font-size="15" fill="#9A3412">L = MSE(ê<tspan font-size="11" dy="3">t</tspan><tspan dy="-3">, x</tspan><tspan font-size="11" dy="3">t</tspan><tspan dy="-3">)</tspan></text>
+
+  <!-- history buffer -->
+  <rect x="512" y="252" width="176" height="90" rx="9" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.4"/>
+  <rect x="580" y="270" width="40" height="28" rx="4" fill="white" stroke="#60A5FA" stroke-width="1.3"/>
+  <rect x="586" y="264" width="40" height="28" rx="4" fill="white" stroke="#60A5FA" stroke-width="1.3"/>
+  <rect x="592" y="258" width="40" height="28" rx="4" fill="#DBEAFE" stroke="#60A5FA" stroke-width="1.3"/>
+  <text x="539" y="316" font-size="15" font-weight="bold" fill="#1D4ED8">proprio history H<tspan font-size="11" dy="3">t</tspan></text>
+  <text x="600" y="334" font-size="13" fill="#3730A3" text-anchor="middle">50 frames × 85-D (1 s)</text>
+
+  <!-- estimator box -->
+  <rect x="726" y="252" width="110" height="90" rx="9" fill="white" stroke="#F97316" stroke-width="2"/>
+  <text x="781" y="288" font-size="16.5" font-weight="bold" fill="#111827" text-anchor="middle">estimator φ</text>
+  <text x="781" y="306" font-size="13" fill="#64748B" text-anchor="middle">MLP 512–256</text>
+  <use xlink:href="#badge-trained" x="738" y="312"/>
+
+  <!-- H -> phi -->
+  <line x1="688" y1="297" x2="720" y2="297" stroke="#2563EB" stroke-width="2" marker-end="url(#m-blue)"/>
+  <!-- phi -> loss (e_hat) -->
+  <line x1="781" y1="252" x2="781" y2="236" stroke="#7C3AED" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#m-purple)"/>
+  <text x="794" y="247" font-size="15" font-style="italic" fill="#7C3AED">ê<tspan font-size="11" dy="3">t</tspan></text>
+  <!-- gradient arrow loss -> phi -->
+  <line x1="744" y1="230" x2="744" y2="246" stroke="#EA580C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m-orange)"/>
+  <!-- DAgger loop: phi -> rollouts -->
+  <path d="M836,297 L900,297 L900,178" fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#m-purple)"/>
+  <text x="0" y="0" font-size="13" fill="#6D28D9" transform="translate(914,300) rotate(-90)">ê<tspan font-size="10" dy="3">t</tspan><tspan dy="-3"> into rollouts</tspan></text>
+
+  <!-- nc note -->
+  <text x="712" y="404" font-size="14" font-style="italic" fill="#64748B" text-anchor="middle">estimator input is pure proprioception —</text>
+  <text x="712" y="424" font-size="14" font-style="italic" fill="#64748B" text-anchor="middle">contact / load-cell channels ablated</text>
+</g>
+
+<!-- ================= PANEL 3 : RL fine-tune ================= -->
+<g>
+  <circle cx="1006" cy="44" r="13" fill="#334155"/>
+  <text x="1006" y="49.5" font-size="16" font-weight="bold" fill="white" text-anchor="middle">3</text>
+  <text x="1028" y="50" font-size="23" font-weight="bold" fill="#111827">RL fine-tuning on ê</text>
+  <text x="1028" y="74" font-size="16" fill="#64748B">PPO on π with the frozen estimator in the loop</text>
+
+  <!-- env box -->
+  <rect x="996" y="96" width="112" height="190" rx="9" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.4"/>
+  <text x="1052" y="120" font-size="15.5" font-weight="bold" fill="#334155" text-anchor="middle">Wall-climb sim</text>
+  <text x="1052" y="142" font-size="13" fill="#334155" text-anchor="middle">full DR</text>
+  <text x="1052" y="160" font-size="13" fill="#334155" text-anchor="middle">90° wall</text>
+  <text x="1052" y="178" font-size="13" fill="#334155" text-anchor="middle">mimic reward</text>
+
+  <!-- PPO chip -->
+  <rect x="1276" y="92" width="122" height="38" rx="8" fill="#FFF7ED" stroke="#FDBA74" stroke-width="1.4"/>
+  <text x="1337" y="108" font-size="14.5" font-weight="bold" fill="#9A3412" text-anchor="middle">PPO · 600 it</text>
+  <text x="1337" y="124" font-size="12" fill="#334155" text-anchor="middle">same mimic reward</text>
+  <line x1="1337" y1="130" x2="1337" y2="142" stroke="#EA580C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m-orange)"/>
+
+  <!-- policy box -->
+  <rect x="1276" y="148" width="122" height="164" rx="9" fill="white" stroke="#F97316" stroke-width="2"/>
+  <text x="1337" y="180" font-size="17" font-weight="bold" fill="#111827" text-anchor="middle">policy π</text>
+  <text x="1301" y="200" font-size="13" fill="#64748B">init from π<tspan font-size="10" dy="3">T</tspan></text>
+  <text x="1281" y="220" font-size="12.5" fill="#64748B">critic keeps true x<tspan font-size="10" dy="3">t</tspan></text>
+  <use xlink:href="#badge-trained" x="1294" y="276"/>
+
+  <!-- estimator chip (frozen) -->
+  <rect x="1140" y="224" width="104" height="88" rx="9" fill="white" stroke="#38BDF8" stroke-width="2"/>
+  <text x="1192" y="256" font-size="15.5" font-weight="bold" fill="#111827" text-anchor="middle">estimator φ</text>
+  <use xlink:href="#badge-frozen" x="1151" y="268"/>
+
+  <!-- arrows -->
+  <line x1="1108" y1="158" x2="1270" y2="158" stroke="#2563EB" stroke-width="2" marker-end="url(#m-blue)"/>
+  <text x="1183" y="151" font-size="15" font-style="italic" fill="#2563EB">o<tspan font-size="11" dy="3">t</tspan></text>
+  <line x1="1108" y1="268" x2="1134" y2="268" stroke="#2563EB" stroke-width="2" marker-end="url(#m-blue)"/>
+  <text x="1112" y="261" font-size="14" font-style="italic" fill="#2563EB">H<tspan font-size="10.5" dy="3">t</tspan></text>
+  <line x1="1244" y1="268" x2="1270" y2="268" stroke="#7C3AED" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#m-purple)"/>
+  <text x="1250" y="261" font-size="14" font-style="italic" fill="#7C3AED">ê<tspan font-size="10.5" dy="3">t</tspan></text>
+  <path d="M1337,312 L1337,336 L1052,336 L1052,292" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#m-slate)"/>
+  <text x="1193" y="329" font-size="15" font-style="italic" fill="#334155">a<tspan font-size="11" dy="3">t</tspan></text>
+
+  <!-- deploy strip -->
+  <rect x="996" y="384" width="402" height="62" rx="9" fill="#FAFAFA" stroke="#94A3B8" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="1012" y="406" font-size="15" font-weight="bold" fill="#334155">Deployment</text>
+  <text x="1012" y="426" font-size="13" fill="#475569">onboard (φ, π) + phase-clock table — proprioception only</text>
+  <text x="1012" y="442" font-size="13" fill="#475569">ê-triggered clock-freeze safety on suspected detachment</text>
+</g>
+
+<!-- ================= legend ================= -->
+<g>
+  <line x1="30" y1="508" x2="66" y2="508" stroke="#2563EB" stroke-width="2" marker-end="url(#m-blue)"/>
+  <text x="74" y="513" font-size="14" fill="#334155">proprioception (o<tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3">, history H</tspan><tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3">)</tspan></text>
+  <line x1="300" y1="508" x2="336" y2="508" stroke="#7C3AED" stroke-width="2" marker-end="url(#m-purple)"/>
+  <text x="344" y="513" font-size="14" fill="#334155">privileged state x<tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3"> (sim only)</tspan></text>
+  <line x1="560" y1="508" x2="596" y2="508" stroke="#7C3AED" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#m-purple)"/>
+  <text x="604" y="513" font-size="14" fill="#334155">estimate ê<tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3"> = φ(H</tspan><tspan font-size="10.5" dy="3">t</tspan><tspan dy="-3">)</tspan></text>
+  <line x1="760" y1="508" x2="796" y2="508" stroke="#EA580C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m-orange)"/>
+  <text x="804" y="513" font-size="14" fill="#334155">gradient update</text>
+  <line x1="940" y1="508" x2="976" y2="508" stroke="#059669" stroke-width="2" marker-end="url(#m-green)"/>
+  <text x="984" y="513" font-size="14" fill="#334155">reference / reward</text>
+  <use xlink:href="#badge-trained" x="1140" y="496"/>
+  <use xlink:href="#badge-frozen" x="1246" y="496"/>
+</g>
+</g>
+</svg>
