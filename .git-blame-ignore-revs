@@ -1,3 +1,5 @@
 # Mechanical reformat commits; use with: git config blame.ignoreRevsFile .git-blame-ignore-revs
 # ruff format, 2-space indent (2026-09 cleanup)
 609454adced81065967e2bd9d915b1aa1cc3156b
+# ruff import sorting / unused imports (2026-09 cleanup)
+51e38d44f52939497cb68fa36f03a8ef31fc8343
