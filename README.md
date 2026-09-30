@@ -339,7 +339,6 @@ scripts/
   play.py               # Play/evaluate with climb-wall angle controls.
   tune_pose.py          # Viser-based pose tuning.
   list_envs.py          # List registered tasks.
-  measure_contacts.py   # Estimate contact/constraint limits.
 
 src/scr_phybot_mjab/
   assets/

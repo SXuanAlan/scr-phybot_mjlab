@@ -111,7 +111,7 @@ TRANSITION80_SEED_GUARD_STEPS = 6
 # the right foot lifts) and the end of hand_place_right 500-540 (RF toe in
 # reverse shear + LH ultimate during the RH reach). RSI never births there;
 # the phases stay reachable by playing through. REGENERATE after any clip
-# re-choreography (scripts/transition80_birth_mask.py).
+# re-choreography (scripts/transition80_birth_mask.py in archive/pre-cleanup-2026-09).
 # cross v3r6 (2026-08-22 14:0x, place-right-s 3.2 -> the reach ends 20 frames
 # later; hand rakes 0.5 s): right_foot_mount 270-379, the end of
 # hand_place_right 510-569, and one mid-hand_up_left frame 790-799 (LF
