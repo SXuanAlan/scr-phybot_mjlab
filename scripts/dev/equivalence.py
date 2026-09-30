@@ -6,8 +6,11 @@
   python scripts/dev/equivalence.py compare artifacts/equivalence/G1 artifacts/equivalence/NEW
 
 MuJoCo Warp is not bitwise deterministic, so rollouts are judged against the
-same-code noise floor stored in ``<base>/floor.npz``; cfg, model and clips
-must match exactly.
+same-code noise floor stored in ``<base>/floor.npz`` (measure it from at least
+three reruns); cfg, model and clips must match exactly. A rollout flagged in
+only a column or two of a contact-rich task can be a noise flip: re-record
+just that rollout (``record --tasks``) before trusting it; a real change
+reproduces.
 
 A behaviour-preserving commit must compare clean on every tier. When a
 function or class only moves, add ``"old.qualname" = "new.qualname"`` to
