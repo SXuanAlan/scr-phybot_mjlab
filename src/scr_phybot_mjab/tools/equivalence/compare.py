@@ -178,6 +178,7 @@ def _columns(values: np.ndarray) -> np.ndarray:
 
 
 def _abs_diff(old: np.ndarray, cur: np.ndarray) -> np.ndarray:
+  old, cur = np.atleast_1d(old), np.atleast_1d(cur)
   delta = np.abs(old.astype(np.float64) - cur.astype(np.float64))
   delta[np.isnan(old) & np.isnan(cur)] = 0.0
   return np.nan_to_num(delta, nan=np.inf)

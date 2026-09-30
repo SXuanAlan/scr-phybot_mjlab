@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from scr_phybot_mjab.tools.equivalence.canonical import apply_renames, canonical_lines
-from scr_phybot_mjab.tools.equivalence.compare import _column_noise, _signal_problem
+from scr_phybot_mjab.tools.equivalence.compare import _column_noise, _signal_problem, _value_problems
 
 
 @dataclass
@@ -60,3 +60,11 @@ def test_rollout_judging_tolerates_noise_but_not_a_changed_column():
   changed[..., 2] *= 1.001
   problem = _signal_problem("obs", base, changed, noise)
   assert problem is not None and "column 2" in problem
+
+
+def test_clip_comparison_handles_scalars_nested_lists_and_changes():
+  clip = {"fps": np.float32(50.0), "names": ["a", "b"], "q": np.zeros((3, 2), np.float32)}
+  assert _value_problems(clip, {**clip}, "") == []
+  changed = {**clip, "fps": np.float32(60.0), "q": np.ones((3, 2), np.float32)}
+  problems = _value_problems(clip, changed, "")
+  assert any(p.startswith("/fps") for p in problems) and any(p.startswith("/q") for p in problems)
