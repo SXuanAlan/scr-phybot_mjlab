@@ -1,4 +1,5 @@
 """Shared figure styling and artifact export for offline analysis tools."""
+
 from pathlib import Path
 
 CAT = {"ml": "#2a78d6", "mt": "#eb6834", "mn": "#1baf7a"}
@@ -53,8 +54,14 @@ def style_3d(ax, xlabel, ylabel, zlabel, box_aspect):
   # pin it in axes coordinates beside the z spine instead.
   ax.set_zlabel("")
   ax.text2D(
-    1.0, 0.875, zlabel, transform=ax.transAxes,
-    ha="right", va="bottom", fontsize=6.8, color=INK,
+    1.0,
+    0.875,
+    zlabel,
+    transform=ax.transAxes,
+    ha="right",
+    va="bottom",
+    fontsize=6.8,
+    color=INK,
   )
   ax.set_box_aspect(box_aspect)
   ax.tick_params(pad=-2, labelsize=5.5)
@@ -65,4 +72,3 @@ def style_3d(ax, xlabel, ylabel, zlabel, box_aspect):
       axis._axinfo["grid"].update(linewidth=0.3, color="#c9c8c2")
   except (AttributeError, KeyError):
     pass
-

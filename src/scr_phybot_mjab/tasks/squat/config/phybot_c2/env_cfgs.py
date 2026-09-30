@@ -55,9 +55,7 @@ _LEG_JOINT_NAMES = PHYBOT_C2_POLICY_JOINT_NAMES[:12]
 _WAIST_JOINT_NAMES = (PHYBOT_C2_POLICY_JOINT_NAMES[12],)
 _ARM_JOINT_NAMES = PHYBOT_C2_POLICY_JOINT_NAMES[13:21]
 _FOOT_SITE_NAMES = tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
-assert _LEG_JOINT_NAMES + _WAIST_JOINT_NAMES + _ARM_JOINT_NAMES == tuple(
-  PHYBOT_C2_POLICY_JOINT_NAMES
-)
+assert _LEG_JOINT_NAMES + _WAIST_JOINT_NAMES + _ARM_JOINT_NAMES == tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
 
 _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
 _SQUAT_MOTION_FILE = _MOTIONS_DIR / "squat.npy"
@@ -99,10 +97,7 @@ def _motion_duration_s(path: Path, control_dt: float = 0.02) -> float:
   duration_s = frames / fps
   control_steps = duration_s / control_dt
   if not np.isclose(control_steps, round(control_steps), atol=1e-9):
-    raise ValueError(
-      f"Squat motion duration {duration_s}s is not an integer number of "
-      f"{control_dt}s control steps."
-    )
+    raise ValueError(f"Squat motion duration {duration_s}s is not an integer number of {control_dt}s control steps.")
   if not np.isclose(fps, 1.0 / control_dt, atol=1e-6):
     raise ValueError(f"Squat motion fps {fps} must equal control fps {1.0 / control_dt}.")
   return duration_s
@@ -140,10 +135,7 @@ _SQUAT_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
 def _apply_real_pd_actuator_damping(cfg: ManagerBasedRlEnvCfg) -> None:
   """Match hip/knee damping to the deployed mini PD (kd 5 -> 10)."""
   robot_cfg = copy.deepcopy(cfg.scene.entities["robot"])
-  damping_by_target_expr = {
-    (f".*_{group}",): damping
-    for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()
-  }
+  damping_by_target_expr = {(f".*_{group}",): damping for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()}
   updated = set()
   for actuator in robot_cfg.articulation.actuators:
     target_expr = tuple(actuator.target_names_expr)
@@ -179,9 +171,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   actor_terms["projected_gravity"].params = {"sensor_name": _BASE_QUAT_SENSOR}
   for term_name in ("joint_pos", "joint_vel"):
     actor_terms[term_name].params = {
-      "asset_cfg": SceneEntityCfg(
-        "robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True
-      )
+      "asset_cfg": SceneEntityCfg("robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True)
     }
   cfg.observations["critic"].terms["base_lin_vel"].params = {"sensor_name": _BASE_LIN_VEL_SENSOR}
 
@@ -237,15 +227,11 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   for reward_name in ("arm_position_symmetry", "arm_action_symmetry"):
     cfg.rewards[reward_name].params["left_joint_names"] = left_arm_names
     cfg.rewards[reward_name].params["right_joint_names"] = right_arm_names
-  cfg.rewards["arm_reference_action"].params["max_abs_deviation"] = (
-    (0.75,) * len(_ARM_JOINT_NAMES)
-  )
-  cfg.rewards["arm_action_limits"].params["max_abs_actions"] = (
-    _motion_action_limits(
-      _SQUAT_MOTION_FILE,
-      _ARM_JOINT_NAMES,
-      PHYBOT_C2_ACTION_SCALE,
-    )
+  cfg.rewards["arm_reference_action"].params["max_abs_deviation"] = (0.75,) * len(_ARM_JOINT_NAMES)
+  cfg.rewards["arm_action_limits"].params["max_abs_actions"] = _motion_action_limits(
+    _SQUAT_MOTION_FILE,
+    _ARM_JOINT_NAMES,
+    PHYBOT_C2_ACTION_SCALE,
   )
   for reward_name in (
     "track_feet_stationary",
@@ -261,9 +247,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     weight=-5.0,
     params={
       "min_dist": _MIN_FOOT_LATERAL_DISTANCE,
-      "asset_cfg": SceneEntityCfg(
-        "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
-      ),
+      "asset_cfg": SceneEntityCfg("robot", site_names=_FOOT_SITE_NAMES, preserve_order=True),
     },
   )
 
@@ -316,9 +300,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # Sample the two feet independently so the policy cannot rely on perfectly
   # symmetric contact conditions that are unlikely on the real floor.
   body_friction = cfg.events["body_friction"]
-  body_friction.params["asset_cfg"].geom_names = (
-    r"^(?!(left|right)_ankle_roll_collision$).*_collision$",
-  )
+  body_friction.params["asset_cfg"].geom_names = (r"^(?!(left|right)_ankle_roll_collision$).*_collision$",)
   body_friction.params["ranges"] = (0.6, 1.0)
   cfg.events["foot_friction"] = EventTermCfg(
     mode="startup",

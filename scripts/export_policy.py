@@ -174,10 +174,7 @@ def run_export(task_id: str, cfg: ExportConfig):
         indent=None,
       )
     )
-    print(
-      f"[INFO] Motion command table ({cmd_table.shape[0]}x{cmd_table.shape[1]}) "
-      f"written to {cmd_path}"
-    )
+    print(f"[INFO] Motion command table ({cmd_table.shape[0]}x{cmd_table.shape[1]}) written to {cmd_path}")
 
   # --- Deploy-simulation self-test -------------------------------------------
   if "brick_task" in (env_cfg.commands or {}):
@@ -197,8 +194,7 @@ def run_export(task_id: str, cfg: ExportConfig):
         err = (actions.cpu() - jit_actions).abs().max().item()
         max_err = max(max_err, err)
         obs, _, _, _ = wrapped.step(actions)
-    print(f"[INFO] Self-test over {cfg.self_test_steps} steps: "
-          f"max |runner - jit| = {max_err:.2e}")
+    print(f"[INFO] Self-test over {cfg.self_test_steps} steps: max |runner - jit| = {max_err:.2e}")
     if max_err > 1e-5:
       raise RuntimeError(f"Exported policy diverges from runner policy: {max_err}")
     print("[INFO] Self-test PASSED")

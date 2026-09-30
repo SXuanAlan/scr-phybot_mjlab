@@ -105,25 +105,17 @@ def weld_rotational_force_to_world_moment(
   ``(w, v)``. At a satisfied weld this reduces exactly to
   ``0.5 * torquescale * multiplier``.
   """
-  anchor_conj = torch.cat(
-    [anchor_quat_w[..., 0:1], -anchor_quat_w[..., 1:4]], dim=-1
-  )
+  anchor_conj = torch.cat([anchor_quat_w[..., 0:1], -anchor_quat_w[..., 1:4]], dim=-1)
   q_err = _quat_mul_batched(body_quat_w, anchor_conj)
   if target_quat_w is not None:
     # The quaternion residual/multipliers are expressed in body2's axes.
-    q_err = _quat_mul_batched(
-      _quat_mul_batched(conjugate(target_quat_w), q_err), target_quat_w
-    )
+    q_err = _quat_mul_batched(_quat_mul_batched(conjugate(target_quat_w), q_err), target_quat_w)
   w, v = q_err[..., 0:1], q_err[..., 1:4]
-  moment = 0.5 * float(torquescale) * (
-    w * rotational_force + torch.cross(v, rotational_force, dim=-1)
-  )
+  moment = 0.5 * float(torquescale) * (w * rotational_force + torch.cross(v, rotational_force, dim=-1))
   return moment if target_quat_w is None else _quat_rotate_batched(target_quat_w, moment)
 
 
-def _wall_inward_normal_w(
-  env: ManagerBasedRlEnv, wall_entity_name: str
-) -> torch.Tensor:
+def _wall_inward_normal_w(env: ManagerBasedRlEnv, wall_entity_name: str) -> torch.Tensor:
   """Wall inward normal (robot-to-wall, wall local +x) in world frame, (E, 3)."""
   wall = env.scene[wall_entity_name]
   wquat = wall.data.root_link_quat_w
@@ -174,11 +166,7 @@ def add_attachment_equalities(
       data[0:3] = anchor1
     spec.add_equality(
       name=microspine_equality_name(ee),
-      type=(
-        mujoco.mjtEq.mjEQ_WELD
-        if cfg.anchor_lock_rotation
-        else mujoco.mjtEq.mjEQ_CONNECT
-      ),
+      type=(mujoco.mjtEq.mjEQ_WELD if cfg.anchor_lock_rotation else mujoco.mjtEq.mjEQ_CONNECT),
       objtype=mujoco.mjtObj.mjOBJ_BODY,
       name1=f"{prefix}{ee}",
       name2=surfaces[index].scoped_body if surfaces else "",
@@ -228,13 +216,10 @@ class MicrospineConstraint:
     self._mcfg: MicrospineCfg = cfg.params["microspine_cfg"]
     self._affordance_name = self._mcfg.affordance_name
     if self._affordance_name is None:
-      raise ValueError(
-        "MicrospineConstraint requires MicrospineCfg.affordance_name."
-      )
+      raise ValueError("MicrospineConstraint requires MicrospineCfg.affordance_name.")
     if self._mcfg.limit_surface.release_mode != "binary":
       raise NotImplementedError(
-        "Only release_mode='binary' is implemented; 'slip_drag' is reserved "
-        "for a later milestone."
+        "Only release_mode='binary' is implemented; 'slip_drag' is reserved for a later milestone."
       )
 
     self._env = env
@@ -250,10 +235,7 @@ class MicrospineConstraint:
 
     # Equality ids from the compiled model (the scene spec_fn added them).
     mj_model = env.sim.mj_model
-    eq_ids = [
-      mj_model.equality(microspine_equality_name(ee)).id
-      for ee in self._mcfg.ee_body_names
-    ]
+    eq_ids = [mj_model.equality(microspine_equality_name(ee)).id for ee in self._mcfg.ee_body_names]
     self._eq_ids = torch.tensor(eq_ids, dtype=torch.long, device=self._device)
 
     # Entity-local EE body indices for body_link_pos_w / body_link_quat_w.
@@ -261,9 +243,7 @@ class MicrospineConstraint:
     for bname in self._mcfg.ee_body_names:
       ids, _ = self._asset.find_bodies([bname])
       ee_body_ids.append(ids[0])
-    self._ee_body_ids = torch.tensor(
-      ee_body_ids, dtype=torch.long, device=self._device
-    )
+    self._ee_body_ids = torch.tensor(ee_body_ids, dtype=torch.long, device=self._device)
 
     # Pad-center offsets in the spine-body frame. For connect the single
     # source of truth is the compiled eq_data[:, 0:3] written by
@@ -290,17 +270,11 @@ class MicrospineConstraint:
               f"'{robot_prefix}/{ee}'; pad-local anchor recomputation "
               "assumes EE-local sphere positions."
             )
-        pad_local_rows.append(
-          pad_contact_center(
-            mj_model, self._mcfg, ee, robot_prefix
-          )
-        )
+        pad_local_rows.append(pad_contact_center(mj_model, self._mcfg, ee, robot_prefix))
       pad_local = np.stack(pad_local_rows)
     else:
       pad_local = np.stack([mj_model.eq_data[eq, 0:3] for eq in eq_ids])
-    self._pad_local = torch.tensor(
-      pad_local, dtype=torch.float32, device=self._device
-    )
+    self._pad_local = torch.tensor(pad_local, dtype=torch.float32, device=self._device)
 
     if self._mcfg.anchor_project_to_wall and self._surfaces is None:
       wall_geom = mj_model.geom(self._mcfg.wall_geom_name)
@@ -309,27 +283,19 @@ class MicrospineConstraint:
       self._wall_half_thickness = 0.0
 
     # State buffers consumed by observations and rewards.
-    self.engaged = torch.zeros(
-      self._num_envs, self._num_ee, dtype=torch.bool, device=self._device
-    )
+    self.engaged = torch.zeros(self._num_envs, self._num_ee, dtype=torch.bool, device=self._device)
     self.disengaged_this_step = torch.zeros_like(self.engaged)
     self.engaged_this_step = torch.zeros_like(self.engaged)
-    self.current_disengage_time = torch.zeros(
-      self._num_envs, self._num_ee, dtype=torch.float32, device=self._device
-    )
+    self.current_disengage_time = torch.zeros(self._num_envs, self._num_ee, dtype=torch.float32, device=self._device)
     self.last_engage_command = torch.zeros_like(self.engaged)
     # Cached world anchors; only rows with engaged=True are meaningful.
-    self.anchor_pos_w = torch.zeros(
-      self._num_envs, self._num_ee, 3, dtype=torch.float32, device=self._device
-    )
+    self.anchor_pos_w = torch.zeros(self._num_envs, self._num_ee, 3, dtype=torch.float32, device=self._device)
     self.anchor_load_w = torch.zeros_like(self.anchor_pos_w)
     # Physical couple ABOUT C, world axes (weld mode only). The translational
     # rows already apply force at C; adding the B-to-C lever again is wrong.
     self.anchor_moment_w = torch.zeros_like(self.anchor_pos_w)
     # Engage-time pad world orientation (wxyz); weld mode locks the pad to it.
-    self.anchor_quat_w = torch.zeros(
-      self._num_envs, self._num_ee, 4, dtype=torch.float32, device=self._device
-    )
+    self.anchor_quat_w = torch.zeros(self._num_envs, self._num_ee, 4, dtype=torch.float32, device=self._device)
     self.anchor_quat_w[..., 0] = 1.0
     self.anchor_pos_local = torch.zeros_like(self.anchor_pos_w)
     self.anchor_quat_local = self.anchor_quat_w.clone()
@@ -340,16 +306,12 @@ class MicrospineConstraint:
     # edge, so its own age is path-independent. Re-seating stops at
     # grace - 1 so the first limit-surface check reads post-re-grip physics
     # on both paths.
-    self._engage_age = torch.zeros(
-      self._num_envs, self._num_ee, dtype=torch.long, device=self._device
-    )
+    self._engage_age = torch.zeros(self._num_envs, self._num_ee, dtype=torch.long, device=self._device)
     self._reseat_max_age = max(1, self._mcfg.limit_surface.hold_grace_steps - 1)
     # Envs whose constraints must be (re)asserted on the next call: after any
     # reset the sim re-tiles eq_active to eq_active0 (all False) and the
     # kinematics seen here are stale, so anchor placement is deferred.
-    self._needs_init = torch.ones(
-      self._num_envs, dtype=torch.bool, device=self._device
-    )
+    self._needs_init = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
     self._row_arange = None  # Lazily sized to njmax at first load readout.
     self._checked_expansion = False
 
@@ -395,12 +357,8 @@ class MicrospineConstraint:
       return points - ((points - point) * normal).sum(-1, keepdim=True) * normal
     wall = self._env.scene[self._mcfg.wall_entity_name]
     inward = _wall_inward_normal_w(self._env, self._mcfg.wall_entity_name)
-    face_point = (
-      wall.data.root_link_pos_w - self._wall_half_thickness * inward
-    )
-    offset = (
-      (points - face_point.unsqueeze(1)) * inward.unsqueeze(1)
-    ).sum(dim=-1, keepdim=True)
+    face_point = wall.data.root_link_pos_w - self._wall_half_thickness * inward
+    offset = ((points - face_point.unsqueeze(1)) * inward.unsqueeze(1)).sum(dim=-1, keepdim=True)
     return points - offset * inward.unsqueeze(1)
 
   def _down_wall_dir(self) -> torch.Tensor:
@@ -425,9 +383,7 @@ class MicrospineConstraint:
       g = g.expand(n_in.shape[0], -1)
     t = g - (g * n_in).sum(dim=-1, keepdim=True) * n_in
     norm = torch.linalg.norm(t, dim=-1, keepdim=True)
-    fb = torch.tensor(
-      [0.0, 0.0, -1.0], device=n_in.device
-    ).expand_as(t)
+    fb = torch.tensor([0.0, 0.0, -1.0], device=n_in.device).expand_as(t)
     fb = fb - (fb * n_in).sum(dim=-1, keepdim=True) * n_in
     fb = fb / torch.linalg.norm(fb, dim=-1, keepdim=True).clamp_min(1.0e-6)
     t = torch.where(norm > 1.0e-6, t / norm.clamp_min(1.0e-9), fb)
@@ -472,27 +428,17 @@ class MicrospineConstraint:
 
     # (E, njmax, H) row-vs-equality match; each engaged connect owns exactly 3
     # consecutive rows, so the first matching row + [0, 1, 2] addresses them.
-    match = is_eq.unsqueeze(-1) & (
-      efc_id.unsqueeze(-1) == self._eq_ids.view(1, 1, -1)
-    )
+    match = is_eq.unsqueeze(-1) & (efc_id.unsqueeze(-1) == self._eq_ids.view(1, 1, -1))
     found = match.any(dim=1)  # (E, H)
     first = match.long().argmax(dim=1)  # (E, H); 0 where not found.
     rows = (first.unsqueeze(-1) + self._comp_arange).clamp(max=njmax - 1)
-    gathered = efc_force.gather(
-      1, rows.reshape(self._num_envs, -1)
-    ).reshape(self._num_envs, self._num_ee, 3)
+    gathered = efc_force.gather(1, rows.reshape(self._num_envs, -1)).reshape(self._num_envs, self._num_ee, 3)
     loads = self.anchor_load_w
-    torch.where(
-      found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads
-    )
+    torch.where(found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads)
     loads.neg_()  # F_load = -efc_force (EE-on-anchor reaction).
     if self._lock_rotation:
-      trows = (first.unsqueeze(-1) + self._comp_arange + 3).clamp(
-        max=njmax - 1
-      )
-      tgather = efc_force.gather(
-        1, trows.reshape(self._num_envs, -1)
-      ).reshape(self._num_envs, self._num_ee, 3)
+      trows = (first.unsqueeze(-1) + self._comp_arange + 3).clamp(max=njmax - 1)
+      tgather = efc_force.gather(1, trows.reshape(self._num_envs, -1)).reshape(self._num_envs, self._num_ee, 3)
       body_quat_w = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
       moment_on_ee = weld_rotational_force_to_world_moment(
         tgather,
@@ -508,9 +454,7 @@ class MicrospineConstraint:
         out=self.anchor_moment_w,
       )
       self.anchor_moment_w.neg_()
-      torch.nan_to_num_(
-        self.anchor_moment_w, nan=0.0, posinf=1.0e6, neginf=-1.0e6
-      )
+      torch.nan_to_num_(self.anchor_moment_w, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
     else:
       self.anchor_moment_w.zero_()
     # Rare solver transients under extreme poses can emit non-finite efc
@@ -588,24 +532,15 @@ class MicrospineConstraint:
     self._check_expansion()
     self.refresh_target_anchors()
     pad_raw = self.pad_center_world()
-    pad_engage = (
-      self._project_to_wall(pad_raw)
-      if self._mcfg.anchor_project_to_wall
-      else pad_raw
-    )
+    pad_engage = self._project_to_wall(pad_raw) if self._mcfg.anchor_project_to_wall else pad_raw
     rising = engage_command & ~self.engaged
     continuing = engage_command & self.engaged
     if env_mask is not None:
       rising &= env_mask[:, None]
       continuing &= env_mask[:, None]
-    age = torch.where(
-      continuing, self._engage_age + 1, torch.zeros_like(self._engage_age)
-    )
-    self._engage_age = age if env_mask is None else torch.where(
-      env_mask[:, None], age, self._engage_age)
-    self.anchor_pos_w = torch.where(
-      rising.unsqueeze(-1), pad_engage, self.anchor_pos_w
-    )
+    age = torch.where(continuing, self._engage_age + 1, torch.zeros_like(self._engage_age))
+    self._engage_age = age if env_mask is None else torch.where(env_mask[:, None], age, self._engage_age)
+    self.anchor_pos_w = torch.where(rising.unsqueeze(-1), pad_engage, self.anchor_pos_w)
     capture = rising
     if self._mcfg.reanchor_after_grace:
       reseat = continuing & (self._engage_age <= self._reseat_max_age)
@@ -638,16 +573,12 @@ class MicrospineConstraint:
         # and further rotation spends the real budget.
         capture = capture | reseat
       else:  # "free" (legacy all-DOF following)
-        self.anchor_pos_w = torch.where(
-          reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w
-        )
+        self.anchor_pos_w = torch.where(reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w)
         capture = capture | reseat
     eq_data = self._env.sim.model.eq_data
     if self._lock_rotation:
       pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
-      self.anchor_quat_w = torch.where(
-        capture.unsqueeze(-1), pad_quat, self.anchor_quat_w
-      )
+      self.anchor_quat_w = torch.where(capture.unsqueeze(-1), pad_quat, self.anchor_quat_w)
     position, orientation = self.anchor_pos_w, self.anchor_quat_w
     if getattr(self, "_surfaces", None) is not None:
       target_pos, target_quat = self._surfaces.pose()
@@ -658,7 +589,8 @@ class MicrospineConstraint:
       )
       self.anchor_quat_local = torch.where(
         capture.unsqueeze(-1),
-        _quat_mul_batched(conjugate(target_quat), orientation), self.anchor_quat_local,
+        _quat_mul_batched(conjugate(target_quat), orientation),
+        self.anchor_quat_local,
       )
       position, orientation = self.anchor_pos_local, self.anchor_quat_local
     if self._lock_rotation:
@@ -673,9 +605,7 @@ class MicrospineConstraint:
       eq_data[:, self._eq_ids, 3:6] = position
     self._env.sim.data.eq_active[:, self._eq_ids] = engage_command
 
-  def _update_disengage_time(
-    self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor
-  ) -> None:
+  def _update_disengage_time(self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor) -> None:
     self.engaged_this_step = ~was_engaged & self.engaged
     self.disengaged_this_step = was_engaged & ~self.engaged
     self.current_disengage_time = torch.where(
@@ -684,9 +614,7 @@ class MicrospineConstraint:
       self.current_disengage_time + env.step_dt,
     )
 
-  def _log_transitions(
-    self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor
-  ) -> None:
+  def _log_transitions(self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor) -> None:
     if not self._debug:
       return
     step = env.episode_length_buf[0].item()

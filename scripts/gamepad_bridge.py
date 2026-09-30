@@ -65,9 +65,7 @@ class BridgeConfig:
 
 
 def _parse_args() -> BridgeConfig:
-  parser = argparse.ArgumentParser(
-    description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-  )
+  parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--host", default="127.0.0.1", help="Forwarded TCP host.")
   parser.add_argument("--port", type=int, default=8766, help="Forwarded TCP port.")
   parser.add_argument("--deadband", type=float, default=0.08, help="Stick deadband.")
@@ -127,10 +125,7 @@ def _open_joystick(pygame, config: BridgeConfig):
     raise SystemExit(f"--joystick-index {config.joystick_index} >= {count} detected.")
   joystick = pygame.joystick.Joystick(config.joystick_index)
   joystick.init()
-  print(
-    f"Opened gamepad '{joystick.get_name()}' "
-    f"({joystick.get_numaxes()} axes, {joystick.get_numbuttons()} buttons)"
-  )
+  print(f"Opened gamepad '{joystick.get_name()}' ({joystick.get_numaxes()} axes, {joystick.get_numbuttons()} buttons)")
   return joystick
 
 
@@ -204,10 +199,13 @@ def _send_loop(pygame, config: BridgeConfig, joystick) -> None:
     if config.invert_turn:
       turn = -turn
 
-    payload = json.dumps(
-      {"fwd": fwd, "left": left, "turn": turn, "speed": speed_index},
-      separators=(",", ":"),
-    ) + "\n"
+    payload = (
+      json.dumps(
+        {"fwd": fwd, "left": left, "turn": turn, "speed": speed_index},
+        separators=(",", ":"),
+      )
+      + "\n"
+    )
     try:
       sock.sendall(payload.encode("utf-8"))
     except OSError as exc:

@@ -105,12 +105,7 @@ def motion_body_position_error_exp(
   """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies (or a subset)."""
   cmd = _tracking(env, command_name)
   idx = cmd.tracking_body_indices(body_names)
-  error = (
-    (cmd.body_pos_target_w[:, idx] - cmd.robot_body_pos_w[:, idx])
-    .square()
-    .sum(dim=-1)
-    .mean(dim=-1)
-  )
+  error = (cmd.body_pos_target_w[:, idx] - cmd.robot_body_pos_w[:, idx]).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 
@@ -128,9 +123,7 @@ def motion_body_orientation_error_exp(
   idx = cmd.tracking_body_indices(body_names)
   ref = cmd.body_quat_target_w[:, idx]
   rob = cmd.robot_body_quat_w[:, idx]
-  error = quat_error_magnitude(
-    ref.reshape(-1, 4), rob.reshape(-1, 4)
-  ).reshape(ref.shape[0], ref.shape[1])
+  error = quat_error_magnitude(ref.reshape(-1, 4), rob.reshape(-1, 4)).reshape(ref.shape[0], ref.shape[1])
   return torch.exp(-error.square().mean(dim=-1) / std**2)
 
 
@@ -145,9 +138,7 @@ def motion_pad_center_error_exp(
   while scheduled) is the path to schedule compliance, so it is the one
   pose income that must not be discounted while unwelded (v1g)."""
   cmd = _tracking(env, command_name)
-  error = (
-    (cmd.ref_pad_center_w - cmd.robot_pad_center_w).square().sum(dim=-1).mean(dim=-1)
-  )
+  error = (cmd.ref_pad_center_w - cmd.robot_pad_center_w).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 
@@ -160,12 +151,7 @@ def motion_body_linear_velocity_error_exp(
   """exp(-mean_B |v_b - v̂_b|² / std²), world frame."""
   cmd = _tracking(env, command_name)
   idx = cmd.tracking_body_indices(body_names)
-  error = (
-    (cmd.body_lin_vel_w[:, idx] - cmd.robot_body_lin_vel_w[:, idx])
-    .square()
-    .sum(dim=-1)
-    .mean(dim=-1)
-  )
+  error = (cmd.body_lin_vel_w[:, idx] - cmd.robot_body_lin_vel_w[:, idx]).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 
@@ -178,12 +164,7 @@ def motion_body_angular_velocity_error_exp(
   """exp(-mean_B |ω_b - ω̂_b|² / std²), world frame."""
   cmd = _tracking(env, command_name)
   idx = cmd.tracking_body_indices(body_names)
-  error = (
-    (cmd.body_ang_vel_w[:, idx] - cmd.robot_body_ang_vel_w[:, idx])
-    .square()
-    .sum(dim=-1)
-    .mean(dim=-1)
-  )
+  error = (cmd.body_ang_vel_w[:, idx] - cmd.robot_body_ang_vel_w[:, idx]).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 

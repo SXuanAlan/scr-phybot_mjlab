@@ -161,14 +161,10 @@ def _setup_gamepad(env, cfg: PlayConfig):
 
   command_manager = env.unwrapped.command_manager
   if "twist" not in command_manager.active_terms:
-    raise RuntimeError(
-      "--gamepad requires a velocity ('twist') command; this task has none."
-    )
+    raise RuntimeError("--gamepad requires a velocity ('twist') command; this task has none.")
   term = command_manager.get_term("twist")
   if not isinstance(term, UniformVelocityCommand):
-    raise RuntimeError(
-      f"--gamepad expects a UniformVelocityCommand 'twist' term, got {type(term).__name__}."
-    )
+    raise RuntimeError(f"--gamepad expects a UniformVelocityCommand 'twist' term, got {type(term).__name__}.")
 
   ranges = term.cfg.ranges
   receiver = GamepadReceiver(
@@ -233,9 +229,7 @@ def run_play(task_id: str, cfg: PlayConfig):
     env_cfg.terminations = {}
     print("[INFO]: Terminations disabled")
 
-  is_tracking_task = "motion" in env_cfg.commands and isinstance(
-    env_cfg.commands["motion"], MotionCommandCfg
-  )
+  is_tracking_task = "motion" in env_cfg.commands and isinstance(env_cfg.commands["motion"], MotionCommandCfg)
 
   if is_tracking_task and cfg._demo_mode:
     motion_cmd = env_cfg.commands["motion"]
@@ -279,9 +273,7 @@ def run_play(task_id: str, cfg: PlayConfig):
           )
         if cfg.wandb_run_path is not None:
           wandb_run = api.run(str(cfg.wandb_run_path))
-          art = next(
-            (a for a in wandb_run.used_artifacts() if a.type == "motions"), None
-          )
+          art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
           if art is None:
             raise RuntimeError("No motion artifact found in the run.")
           motion_cmd.motion_file = str(Path(art.download()) / "motion.npz")
@@ -297,18 +289,14 @@ def run_play(task_id: str, cfg: PlayConfig):
       print(f"[INFO]: Loading checkpoint: {resume_path.name}")
     else:
       if cfg.wandb_run_path is None:
-        raise ValueError(
-          "`wandb_run_path` is required when `checkpoint_file` is not provided."
-        )
+        raise ValueError("`wandb_run_path` is required when `checkpoint_file` is not provided.")
       resume_path, was_cached = get_wandb_checkpoint_path(
         log_root_path, Path(cfg.wandb_run_path), cfg.wandb_checkpoint_name
       )
       run_id = resume_path.parent.name
       checkpoint_name = resume_path.name
       cached_str = "cached" if was_cached else "downloaded"
-      print(
-        f"[INFO]: Loading checkpoint: {checkpoint_name} (run: {run_id}, {cached_str})"
-      )
+      print(f"[INFO]: Loading checkpoint: {checkpoint_name} (run: {run_id}, {cached_str})")
     log_dir = resume_path.parent
 
   _apply_climb_wall_play_angle(
@@ -336,9 +324,7 @@ def run_play(task_id: str, cfg: PlayConfig):
 
   render_mode = "rgb_array" if (trained_mode and cfg.video) else None
   if cfg.video and dummy_mode:
-    print(
-      "[WARN] Video recording with dummy agents is disabled (no checkpoint/log_dir)."
-    )
+    print("[WARN] Video recording with dummy agents is disabled (no checkpoint/log_dir).")
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device, render_mode=render_mode)
 
   if trained_mode and cfg.video:
@@ -389,9 +375,7 @@ def run_play(task_id: str, cfg: PlayConfig):
     resolved_viewer = cfg.viewer
 
   gamepad_rx = _setup_gamepad(env, cfg) if cfg.gamepad else None
-  gamepad_bridge = (
-    _start_gamepad_bridge(cfg) if cfg.gamepad and cfg.gamepad_auto_bridge else None
-  )
+  gamepad_bridge = _start_gamepad_bridge(cfg) if cfg.gamepad and cfg.gamepad_auto_bridge else None
 
   try:
     if resolved_viewer == "native":

@@ -102,12 +102,8 @@ def replay(motion_file: Path, output_dir: Path, settle_s: float, sat_threshold: 
   substeps = max(int(round((1.0 / fps) / dt)), 1)
 
   jname = PHYBOT_C2_POLICY_JOINT_NAMES
-  qadr = np.array(
-    [model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in jname]
-  )
-  dadr = np.array(
-    [model.jnt_dofadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in jname]
-  )
+  qadr = np.array([model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in jname])
+  dadr = np.array([model.jnt_dofadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in jname])
   kp = np.array([_PD_GAINS_BY_GROUP[_group_of(n)][0] for n in jname])
   kd = np.array([_PD_GAINS_BY_GROUP[_group_of(n)][1] for n in jname])
   tau_lim = np.array([PHYBOT_C2_DEPLOY_TORQUE_LIMITS[_group_of(n)] for n in jname])
@@ -156,12 +152,36 @@ def replay(motion_file: Path, output_dir: Path, settle_s: float, sat_threshold: 
     base_z[f] = data.qpos[2]
     base_z_ref[f] = ref_root_pos[idx, 2]
 
-  _report(jname, tau_log, q_log, qref_log, tau_lim, base_z, base_z_ref,
-          settle_frames, sat_threshold, motion_file, output_dir, fps)
+  _report(
+    jname,
+    tau_log,
+    q_log,
+    qref_log,
+    tau_lim,
+    base_z,
+    base_z_ref,
+    settle_frames,
+    sat_threshold,
+    motion_file,
+    output_dir,
+    fps,
+  )
 
 
-def _report(jname, tau_log, q_log, qref_log, tau_lim, base_z, base_z_ref,
-            settle_frames, sat_threshold, motion_file, output_dir, fps) -> None:
+def _report(
+  jname,
+  tau_log,
+  q_log,
+  qref_log,
+  tau_lim,
+  base_z,
+  base_z_ref,
+  settle_frames,
+  sat_threshold,
+  motion_file,
+  output_dir,
+  fps,
+) -> None:
   ratio = np.abs(tau_log) / tau_lim  # (T, 21)
   track_err = np.abs(q_log - qref_log)
 
@@ -176,10 +196,7 @@ def _report(jname, tau_log, q_log, qref_log, tau_lim, base_z, base_z_ref,
       f"{np.degrees(np.sqrt(np.mean(track_err[:, i] ** 2))):>16.2f}"
     )
   worst = np.unravel_index(np.argmax(ratio), ratio.shape)
-  print(
-    f"\npeak torque ratio {ratio[worst]:.2f} at {jname[worst[1]]} "
-    f"({'SATURATED' if ratio[worst] >= 1.0 else 'ok'})"
-  )
+  print(f"\npeak torque ratio {ratio[worst]:.2f} at {jname[worst[1]]} ({'SATURATED' if ratio[worst] >= 1.0 else 'ok'})")
   ref_z_min = float(base_z_ref.min())
   achieved_min = float(base_z[settle_frames:].min())
   print(

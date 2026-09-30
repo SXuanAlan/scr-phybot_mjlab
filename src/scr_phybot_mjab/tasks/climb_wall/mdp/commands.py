@@ -21,9 +21,7 @@ if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
 
-def _sample_uniform(
-  count: int, value_range: tuple[float, float], device: torch.device
-) -> torch.Tensor:
+def _sample_uniform(count: int, value_range: tuple[float, float], device: torch.device) -> torch.Tensor:
   lo, hi = value_range
   if lo == hi:
     return torch.full((count,), float(lo), device=device)
@@ -78,15 +76,9 @@ class ClimbVelocityCommand(CommandTerm):
   def _resample_command(self, env_ids: torch.Tensor) -> None:
     count = len(env_ids)
     ranges = self.cfg.ranges
-    self.vel_command_w[env_ids, 0] = _sample_uniform(
-      count, ranges.lin_vel_x, self.device
-    )
-    self.vel_command_w[env_ids, 1] = _sample_uniform(
-      count, ranges.lin_vel_y, self.device
-    )
-    self.vel_command_w[env_ids, 2] = _sample_uniform(
-      count, ranges.lin_vel_z, self.device
-    )
+    self.vel_command_w[env_ids, 0] = _sample_uniform(count, ranges.lin_vel_x, self.device)
+    self.vel_command_w[env_ids, 1] = _sample_uniform(count, ranges.lin_vel_y, self.device)
+    self.vel_command_w[env_ids, 2] = _sample_uniform(count, ranges.lin_vel_z, self.device)
 
   def _update_command(self) -> None:
     pass

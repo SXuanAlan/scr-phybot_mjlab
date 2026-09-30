@@ -37,10 +37,7 @@ from scr_phybot_mjab.assets.wall.wall_constants import (  # noqa: E402
 )
 from scr_phybot_mjab.microspine.pad_geometry import pad_geometry_from_sites
 
-_DEFAULT_CLIP = (
-  _REPO
-  / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"
-)
+_DEFAULT_CLIP = _REPO / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"
 
 
 def _wall_frame(wall_angle: float):
@@ -70,9 +67,7 @@ def _quat_mul_wxyz(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
   )
 
 
-def _build_model(
-  width: int, height: int, wall_angle: float = 90.0
-) -> mujoco.MjModel:
+def _build_model(width: int, height: int, wall_angle: float = 90.0) -> mujoco.MjModel:
   spec = get_spec()
   spec.visual.global_.offwidth = width
   spec.visual.global_.offheight = height
@@ -106,9 +101,7 @@ def _build_model(
     width=300,
     height=300,
   )
-  mat = spec.add_material(
-    name="viz_wall_mat", texrepeat=[8.0, 8.0], texuniform=True
-  )
+  mat = spec.add_material(name="viz_wall_mat", texrepeat=[8.0, 8.0], texuniform=True)
   mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = "viz_wall_tex"
   face_pos_c = np.array(
     [
@@ -185,47 +178,33 @@ def main() -> None:
     root_quat_xyzw = q_nat[:, [1, 2, 3, 0]]
     if pad_positions is not None and pad_positions.ndim == 3:
       pad_positions = (pad_positions - pivot) @ rot.T + pivot
-  if args.grip_markers and (
-    pad_positions.shape[:2] != ee_engaged.shape
-    or pad_positions.shape[-1] != 3
-  ):
-    raise ValueError(
-      "--grip-markers requires pad_positions (T,H,3) and ee_engaged (T,H)"
-    )
+  if args.grip_markers and (pad_positions.shape[:2] != ee_engaged.shape or pad_positions.shape[-1] != 3):
+    raise ValueError("--grip-markers requires pad_positions (T,H,3) and ee_engaged (T,H)")
 
   model = _build_model(args.width, args.height, wall_angle)
   if clip.get("unit_layout", "all") == "corners":
     # Disabled hardware remains present; grey units contribute no capacity.
     for ee in ee_names:
-      all_units = pad_geometry_from_sites(model,ee)
+      all_units = pad_geometry_from_sites(model, ee)
       active_units = set(all_units.select_layout("corners").unit_names)
       for name in all_units.unit_names:
         if name not in active_units:
-          model.geom(f"{name}_visual").rgba[:] = [.28,.28,.28,1.]
+          model.geom(f"{name}_visual").rgba[:] = [0.28, 0.28, 0.28, 1.0]
   data = mujoco.MjData(model)
   grip_visual_geoms: list[int] = []
   if args.grip_markers:
     for ee_name in ee_names:
-      body_id = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_BODY, ee_name
-      )
+      body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ee_name)
       geom_ids = np.flatnonzero(model.geom_bodyid == body_id)
       visual = [
         int(geom_id)
         for geom_id in geom_ids
-        if (mujoco.mj_id2name(
-          model, mujoco.mjtObj.mjOBJ_GEOM, int(geom_id)
-        ) or "") == f"{ee_name}_visual"
+        if (mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, int(geom_id)) or "") == f"{ee_name}_visual"
       ]
       if len(visual) != 1:
-        raise ValueError(
-          f"Expected one visual geom on pad body '{ee_name}', got {visual}."
-        )
+        raise ValueError(f"Expected one visual geom on pad body '{ee_name}', got {visual}.")
       grip_visual_geoms.append(visual[0])
-  qadr = {
-    n: model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)]
-    for n in joints
-  }
+  qadr = {n: model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in joints}
 
   camera = mujoco.MjvCamera()
   camera.type = mujoco.mjtCamera.mjCAMERA_FREE
@@ -242,14 +221,8 @@ def main() -> None:
     for i, name in enumerate(clip.get("passive_joint_names", ())):
       data.qpos[model.joint(name).qposadr[0]] = clip["passive_joint_positions"][t, i]
     if args.grip_markers:
-      for geom_id, latched in zip(
-        grip_visual_geoms, ee_engaged[t], strict=True
-      ):
-        model.geom_rgba[geom_id] = (
-          (0.1, 0.9, 0.25, 1.0)
-          if latched
-          else (1.0, 0.25, 0.05, 1.0)
-        )
+      for geom_id, latched in zip(grip_visual_geoms, ee_engaged[t], strict=True):
+        model.geom_rgba[geom_id] = (0.1, 0.9, 0.25, 1.0) if latched else (1.0, 0.25, 0.05, 1.0)
     mujoco.mj_forward(model, data)
 
   renderer = mujoco.Renderer(model, height=args.height, width=args.width)
@@ -263,16 +236,10 @@ def main() -> None:
     if args.grip_markers:
       scene = renderer.scene
       identity = np.eye(3).reshape(-1)
-      for pad_index, (pad_pos, latched) in enumerate(
-        zip(pad_positions[t], ee_engaged[t], strict=True)
-      ):
+      for pad_index, (pad_pos, latched) in enumerate(zip(pad_positions[t], ee_engaged[t], strict=True)):
         if scene.ngeom >= scene.maxgeom:
           raise RuntimeError("MuJoCo render scene has no room for grip markers.")
-        rgba = (
-          np.array([0.1, 0.9, 0.25, 0.95])
-          if latched
-          else np.array([1.0, 0.25, 0.05, 0.95])
-        )
+        rgba = np.array([0.1, 0.9, 0.25, 0.95]) if latched else np.array([1.0, 0.25, 0.05, 0.95])
         # Pull the marker toward the robot/camera and just outside the limb so
         # the pad mesh cannot hide it against the wall.
         lateral = 0.045 if pad_index in (0, 2) else -0.045
@@ -296,9 +263,7 @@ def main() -> None:
     out = args.output or args.motion_file.with_suffix(".mp4")
     frames = [render(t) for t in range(len(root_pos))]
     imageio.mimsave(out, frames, fps=int(round(fps)))
-    print(
-      f"wrote {out} ({len(frames)} frames, {len(frames) / fps:.2f}s @ {fps:.0f} fps)"
-    )
+    print(f"wrote {out} ({len(frames)} frames, {len(frames) / fps:.2f}s @ {fps:.0f} fps)")
   renderer.close()
 
 

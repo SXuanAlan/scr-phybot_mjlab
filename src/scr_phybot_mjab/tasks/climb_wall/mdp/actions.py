@@ -20,10 +20,7 @@ def clamp_to_joint_limits(
 ) -> tuple[torch.Tensor, torch.Tensor]:
   """Clamp position targets and return a per-joint saturation mask."""
   if limits.shape != (*target.shape, 2):
-    raise ValueError(
-      f"Joint-limit shape {tuple(limits.shape)} does not match target shape "
-      f"{tuple(target.shape)}."
-    )
+    raise ValueError(f"Joint-limit shape {tuple(limits.shape)} does not match target shape {tuple(target.shape)}.")
   lower = limits[..., 0]
   upper = limits[..., 1]
   clamped = torch.clamp(target, min=lower, max=upper)

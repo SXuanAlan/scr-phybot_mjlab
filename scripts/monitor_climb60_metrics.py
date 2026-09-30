@@ -72,7 +72,7 @@ def parse_stdout(contents: str) -> list[dict[str, Any]]:
   rows = {}
   for i, header in enumerate(headers):
     end = headers[i + 1].start() if i + 1 < len(headers) else len(clean)
-    block = clean[header.end():end]
+    block = clean[header.end() : end]
     # A concurrent read can encounter half of the newest print().
     if not re.search(r"Iteration time:\s*", block):
       continue
@@ -133,9 +133,11 @@ def window_stats(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | int 
     values = [row["metrics"][tag] for row in rows if tag in row["metrics"]]
     finite = [value for value in values if math.isfinite(value)]
     result[tag] = {
-      "n": len(values), "nonfinite": len(values) - len(finite),
+      "n": len(values),
+      "nonfinite": len(values) - len(finite),
       "mean": statistics.fmean(finite) if finite else None,
-      "min": min(finite) if finite else None, "max": max(finite) if finite else None,
+      "min": min(finite) if finite else None,
+      "max": max(finite) if finite else None,
       "latest": values[-1] if values and math.isfinite(values[-1]) else None,
     }
   return result
@@ -144,7 +146,11 @@ def window_stats(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | int 
 def digest(rows: list[dict[str, Any]], run: Path, source: str, window: int = 10) -> dict[str, Any]:
   selected = rows[-window:]
   stats = window_stats(selected)
-  checkpoints = [(int(match.group(1)), path.name) for path in run.glob("model_*.pt") if (match := re.fullmatch(r"model_(\d+)\.pt", path.name))]
+  checkpoints = [
+    (int(match.group(1)), path.name)
+    for path in run.glob("model_*.pt")
+    if (match := re.fullmatch(r"model_(\d+)\.pt", path.name))
+  ]
   alerts = []
   nonfinite = [tag for tag, value in stats.items() if value["nonfinite"]]
   if nonfinite:
@@ -158,15 +164,22 @@ def digest(rows: list[dict[str, Any]], run: Path, source: str, window: int = 10)
   if not rows:
     alerts.append("No complete training iteration available yet.")
   result = {
-    "schema_version": 1, "observed_at_utc": datetime.now(timezone.utc).isoformat(),
-    "run": str(run.resolve()), "source": source,
+    "schema_version": 1,
+    "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+    "run": str(run.resolve()),
+    "source": source,
     "latest_iteration": rows[-1]["iteration"] if rows else None,
     "latest_checkpoint": max(checkpoints)[1] if checkpoints else None,
     "metric_age_s": round(age, 1) if age is not None else None,
     "window_first_iteration": selected[0]["iteration"] if selected else None,
-    "window_count": len(selected), "rows": selected, "window_statistics": stats,
-    "alerts": alerts, "mastery": "requires_rollout_and_visual_review", "metric_semantics": SEMANTICS,
+    "window_count": len(selected),
+    "rows": selected,
+    "window_statistics": stats,
+    "alerts": alerts,
+    "mastery": "requires_rollout_and_visual_review",
+    "metric_semantics": SEMANTICS,
   }
+
   # RFC-compliant JSON uses null, with nonfinite counts preserved above.
   def finite_json(value: Any) -> Any:
     if isinstance(value, float) and not math.isfinite(value):
@@ -176,6 +189,7 @@ def digest(rows: list[dict[str, Any]], run: Path, source: str, window: int = 10)
     if isinstance(value, list):
       return [finite_json(item) for item in value]
     return value
+
   return finite_json(result)
 
 
@@ -212,18 +226,30 @@ def print_digest(result: dict[str, Any]) -> None:
       values.append(f"{value:10.4g}" if value is not None else f"{'--':>10}")
     print(" ".join(values))
   for prefix in ("Episode_Termination/", "Metrics/climb_motion/error_", "Episode_Reward/", "Curriculum/"):
-    selected = [(tag.removeprefix(prefix), value["mean"]) for tag, value in result["window_statistics"].items() if tag.startswith(prefix)]
+    selected = [
+      (tag.removeprefix(prefix), value["mean"])
+      for tag, value in result["window_statistics"].items()
+      if tag.startswith(prefix)
+    ]
     if selected:
-      print(prefix + " window mean: " + " ".join(f"{name}={value:.4g}" if value is not None else f"{name}=null" for name, value in selected))
+      print(
+        prefix
+        + " window mean: "
+        + " ".join(f"{name}={value:.4g}" if value is not None else f"{name}=null" for name, value in selected)
+      )
   for alert in result["alerts"]:
     print("ALERT: " + alert)
-  print("Training scalars alone cannot establish mastery; review continuous progress, schedule plots, and rollout video.")
+  print(
+    "Training scalars alone cannot establish mastery; review continuous progress, schedule plots, and rollout video."
+  )
 
 
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("run", type=Path)
-  parser.add_argument("--log", type=Path, help="Optional stdout log, including iterations not yet flushed to TensorBoard")
+  parser.add_argument(
+    "--log", type=Path, help="Optional stdout log, including iterations not yet flushed to TensorBoard"
+  )
   parser.add_argument("--last", type=int, default=10)
   parser.add_argument("--json", action="store_true", help="Print one JSON object per snapshot")
   parser.add_argument("--watch", type=float, default=0, help="Repeat at this interval in seconds; zero reads once")

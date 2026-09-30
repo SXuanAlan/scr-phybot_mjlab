@@ -22,11 +22,18 @@ def test_angle_jitter_samples_around_base_but_never_at_the_vertical_stage():
   assert torch.all(sample_wall_angles(60.0, 0.0, 90.0, 8) == 60.0)
 
 
-@pytest.mark.parametrize("iteration,low,high", [
-  (0, 40.0, 50.0), (1499, 40.0, 50.0),
-  (1500, 50.0, 60.0), (3299, 50.0, 60.0),
-  (3300, 60.0, 60.0), (5150, 60.0, 60.0), (12000, 60.0, 60.0),
-])
+@pytest.mark.parametrize(
+  "iteration,low,high",
+  [
+    (0, 40.0, 50.0),
+    (1499, 40.0, 50.0),
+    (1500, 50.0, 60.0),
+    (3299, 50.0, 60.0),
+    (3300, 60.0, 60.0),
+    (5150, 60.0, 60.0),
+    (12000, 60.0, 60.0),
+  ],
+)
 def test_corner_curriculum_advances_but_never_samples_above_60(iteration, low, high):
   from mjlab.tasks.registry import load_env_cfg
 

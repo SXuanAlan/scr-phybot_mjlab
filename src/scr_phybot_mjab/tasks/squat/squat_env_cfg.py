@@ -363,9 +363,7 @@ def make_squat_env_cfg() -> ManagerBasedRlEnvCfg:
     "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.2),
     "dof_pos_limits": RewardTermCfg(func=mdp.joint_pos_limits, weight=-5.0),
     "dof_acc_l2": RewardTermCfg(func=mdp.joint_acc_l2, weight=-1.0e-7),
-    "energy": RewardTermCfg(
-      func=mdp.energy, weight=-5e-4, params={"asset_cfg": SceneEntityCfg("robot")}
-    ),
+    "energy": RewardTermCfg(func=mdp.energy, weight=-5e-4, params={"asset_cfg": SceneEntityCfg("robot")}),
     "self_collisions": RewardTermCfg(
       func=mdp.self_collision_cost,
       weight=-3.0,

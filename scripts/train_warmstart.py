@@ -20,10 +20,7 @@ from mjlab.utils.wandb import add_wandb_tags
 
 
 DEFAULT_TASK = "Mjlab-Walk-Amp-Phybot-C2"
-DEFAULT_WARMSTART = (
-  "logs/rsl_rl/phybot_c2_walk_amp/"
-  "2026-06-13_10-08-48_autoresearch_4096x12000_s1_gpu0/model_11999.pt"
-)
+DEFAULT_WARMSTART = "logs/rsl_rl/phybot_c2_walk_amp/2026-06-13_10-08-48_autoresearch_4096x12000_s1_gpu0/model_11999.pt"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -35,17 +32,12 @@ def _parse_args() -> argparse.Namespace:
   parser.add_argument("--run-name", default="preset_amp_warmstart")
   parser.add_argument("--gpu-id", type=int, default=0)
   parser.add_argument("--seed", type=int, default=None)
-  parser.add_argument(
-    "--logger", choices=("tensorboard", "wandb"), default="tensorboard"
-  )
+  parser.add_argument("--logger", choices=("tensorboard", "wandb"), default="tensorboard")
   parser.add_argument(
     "--load-mode",
     choices=("actor", "policy", "full"),
     default="actor",
-    help=(
-      "actor: load only actor; policy: actor+critic+discriminator; "
-      "full: policy plus optimizer"
-    ),
+    help=("actor: load only actor; policy: actor+critic+discriminator; full: policy plus optimizer"),
   )
   return parser.parse_args()
 

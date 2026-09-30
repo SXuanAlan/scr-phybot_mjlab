@@ -387,9 +387,7 @@ def generate_mount_clip(
   if not 0.0 < wall_angle_deg <= 90.0:
     raise ValueError("--wall-angle-deg must be in (0, 90].")
   wall = _WallFrame(wall_angle_deg)
-  ik = gcc.ClimbIK(
-    limit_margin_frac=limit_margin_frac, limit_weight=limit_weight
-  )
+  ik = gcc.ClimbIK(limit_margin_frac=limit_margin_frac, limit_weight=limit_weight)
   m, d = ik.model, ik.data
   lh, rh, lf, rf = ik.ee_names
   gimbal_joint_names: dict[str, list[str]] = {}
@@ -418,9 +416,7 @@ def generate_mount_clip(
       names = [f"{ee}_gimbal_{ax}" for ax in ("x", "y", "z")]
       missing = [nm for nm in names if nm not in ik.qpos_addresses]
       if missing:
-        raise ValueError(
-          f"--weld-gimbal-deg needs the gimbal plant (PHYBOT_C2_PAD_GIMBAL=1); missing {missing}"
-        )
+        raise ValueError(f"--weld-gimbal-deg needs the gimbal plant (PHYBOT_C2_PAD_GIMBAL=1); missing {missing}")
       gimbal_joint_names[ee] = names
       for nm in names:
         ik.joint_ranges[nm] = np.array([-rad, rad])
@@ -500,8 +496,7 @@ def generate_mount_clip(
   n_rake_foot = n_rake if foot_rake_s is None else max(int(round(foot_rake_s * fps)), 1)
   seg_rake["left_foot_mount"] = n_rake_foot
   n_lt = max(int(round(hand_load_transfer_s * fps)), 0)
-  for seg in ("hand_place", "hand_place_right", "left_foot_mount",
-              "right_foot_mount", "hand_up_left", "hand_up_right"):
+  for seg in ("hand_place", "hand_place_right", "left_foot_mount", "right_foot_mount", "hand_up_left", "hand_up_right"):
     if n[seg] - seg_rake[seg] < 2:
       raise ValueError(f"rake leaves fewer than two arc frames in {seg}")
   if n_lt >= min(n["hand_up_left"], n["hand_up_right"]):
@@ -513,9 +508,7 @@ def generate_mount_clip(
     rake_vec = float(rake_dist) * wall.up
   rake_vec_default = rake_vec
   foot_dist = float(rake_dist if foot_rake_dist is None else foot_rake_dist)
-  rake_vec_foot = (
-    np.array([0.0, 0.0, foot_dist]) if wall.identity else foot_dist * wall.up
-  )
+  rake_vec_foot = np.array([0.0, 0.0, foot_dist]) if wall.identity else foot_dist * wall.up
 
   def _swing_target(t, n_seg, p0, p1, p2, n_rake_seg=None, rake_vec_seg=None):
     nr = n_rake if n_rake_seg is None else n_rake_seg
@@ -544,39 +537,23 @@ def generate_mount_clip(
       d.qpos[ik.qpos_addresses[name]] = handoff["passive_joint_positions"][0, i]
     mujoco.mj_forward(m, d)
   state1_qpos = d.qpos.copy()
-  state1_joint = {
-    nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-  }
+  state1_joint = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
   state1_anchor = {ee: ik.pad_pose(ee) for ee in ik.ee_names}
   if not wall.identity:
     state1_qpos = wall.rotate_root_qpos(state1_qpos)
-    state1_anchor = {
-      ee: (wall.rotate_point(pos), wall.rotate_mat(rot))
-      for ee, (pos, rot) in state1_anchor.items()
-    }
+    state1_anchor = {ee: (wall.rotate_point(pos), wall.rotate_mat(rot)) for ee, (pos, rot) in state1_anchor.items()}
   state1_pad_rot = {ee: state1_anchor[ee][1].copy() for ee in ik.ee_names}
   state1_hand_z = wall.along_wall(state1_anchor[lh][0])
   dz = hand_z - state1_hand_z
   final_qpos = state1_qpos.copy()
   if wall.identity:
     final_qpos[2] += dz
-    final_anchor_pos = {
-      ee: state1_anchor[ee][0] + np.array([0.0, 0.0, dz])
-      for ee in ik.ee_names
-    }
-    low_anchor_pos = {
-      ee: final_anchor_pos[ee] + np.array([0.0, 0.0, hand_z_low - hand_z])
-      for ee in hands
-    }
+    final_anchor_pos = {ee: state1_anchor[ee][0] + np.array([0.0, 0.0, dz]) for ee in ik.ee_names}
+    low_anchor_pos = {ee: final_anchor_pos[ee] + np.array([0.0, 0.0, hand_z_low - hand_z]) for ee in hands}
   else:
     final_qpos[0:3] = final_qpos[0:3] + dz * wall.up
-    final_anchor_pos = {
-      ee: state1_anchor[ee][0] + dz * wall.up for ee in ik.ee_names
-    }
-    low_anchor_pos = {
-      ee: final_anchor_pos[ee] + (hand_z_low - hand_z) * wall.up
-      for ee in hands
-    }
+    final_anchor_pos = {ee: state1_anchor[ee][0] + dz * wall.up for ee in ik.ee_names}
+    low_anchor_pos = {ee: final_anchor_pos[ee] + (hand_z_low - hand_z) * wall.up for ee in hands}
   if hand_z_low >= hand_z:
     raise ValueError("--hand-z-low must be below --hand-z")
 
@@ -622,22 +599,20 @@ def generate_mount_clip(
       base_st = d.qpos[0:3].copy()
       tasks_st = [gcc.base_task(ik, base_st, (1000.0, 1000.0, 1000.0), rot=np.eye(3), w_rot=500.0)]
       for sid_st in ik.foot_sid:
-        pos_st = d.site_xpos[sid_st].copy(); rot_st = d.site_xmat[sid_st].reshape(3, 3).copy()
+        pos_st = d.site_xpos[sid_st].copy()
+        rot_st = d.site_xmat[sid_st].reshape(3, 3).copy()
         pos_st[1] = float(np.sign(pos_st[1])) * stance_width / 2.0
-        tasks_st.append(gcc.IKTask(kind="site", sid=sid_st, pos=pos_st, rot=rot_st, w_pos=np.full(3, 1000.0), w_rot=500.0))
+        tasks_st.append(
+          gcc.IKTask(kind="site", sid=sid_st, pos=pos_st, rot=rot_st, w_pos=np.full(3, 1000.0), w_rot=500.0)
+        )
       for _ in range(4):
         ik.solve_frame(tasks_st, sel_st, post_st, posture_weight=0.2, iters=200, max_step=0.1)
       mujoco.mj_forward(m, d)
 
   set_standing()
   standing_qpos = d.qpos.copy()
-  standing_joint = {
-    nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-  }
-  foot_body_bid = {
-    ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, toe.body_name)
-    for ee, toe in ik.toes.items()
-  }
+  standing_joint = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
+  foot_body_bid = {ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, toe.body_name) for ee, toe in ik.toes.items()}
   foot_hold_pose = {}
   for i, ee in enumerate(feet):
     sid = ik.foot_sid[i]
@@ -662,9 +637,9 @@ def generate_mount_clip(
         continue
       if m.geom_contype[g] == 0 and m.geom_conaffinity[g] == 0:
         continue
-      world = d.geom_xpos[g] + (
-        m.geom_aabb[g, :3] + m.geom_aabb[g, 3:] * _corner_signs
-      ) @ d.geom_xmat[g].reshape(3, 3).T
+      world = (
+        d.geom_xpos[g] + (m.geom_aabb[g, :3] + m.geom_aabb[g, 3:] * _corner_signs) @ d.geom_xmat[g].reshape(3, 3).T
+      )
       ground_z = min(ground_z, float(world[:, 2].min()))
 
   # -- bookkeeping -------------------------------------------------------------
@@ -686,13 +661,9 @@ def generate_mount_clip(
   def push(segment: str, engaged: dict[str, bool]) -> None:
     qpos_frames.append(d.qpos.copy())
     labels.append(seg_id[segment])
-    engaged_frames.append(
-      np.array([engaged[ee] for ee in ik.ee_names], dtype=np.uint8)
-    )
+    engaged_frames.append(np.array([engaged[ee] for ee in ik.ee_names], dtype=np.uint8))
     anchor_frames.append(np.stack([anchor_now[ee] for ee in ik.ee_names]))
-    ground_frames.append(
-      np.array([on_ground[lf], on_ground[rf]], dtype=np.uint8)
-    )
+    ground_frames.append(np.array([on_ground[lf], on_ground[rf]], dtype=np.uint8))
 
   def foot_hold_task(ee: str) -> gcc.IKTask:
     pos, rot, sid = foot_hold_pose[ee]
@@ -711,11 +682,7 @@ def generate_mount_clip(
   all_on = {ee: True for ee in ik.ee_names}
 
   ankle_joints = {
-    ee: tuple(
-      nm
-      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      if nm.startswith(toe.body_name.removesuffix("_roll"))
-    )
+    ee: tuple(nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.startswith(toe.body_name.removesuffix("_roll")))
     for ee, toe in ik.toes.items()
   }
 
@@ -760,9 +727,7 @@ def generate_mount_clip(
     base_rot = np.zeros(9)
     mujoco.mju_quat2Mat(base_rot, d.qpos[3:7])
     base_rot = base_rot.reshape(3, 3)
-    posture_hold = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     overrides: dict[str, float] = {}
     plant0, plant_goal = {}, {}
     for ee in toe_hold_targets or ():
@@ -869,24 +834,15 @@ def generate_mount_clip(
         )
       for ee in plant_toes:
         if wall.identity:
-          toe_gap_report[ee] = float(
-            gcc.WALL_SURFACE_X
-            - d.site_xpos[ik.toe_sid[ee]][0]
-            - ik.toes[ee].radius
-          )
+          toe_gap_report[ee] = float(gcc.WALL_SURFACE_X - d.site_xpos[ik.toe_sid[ee]][0] - ik.toes[ee].radius)
         else:
-          toe_gap_report[ee] = (
-            wall.wall_distance(d.site_xpos[ik.toe_sid[ee]])
-            - ik.toes[ee].radius
-          )
+          toe_gap_report[ee] = wall.wall_distance(d.site_xpos[ik.toe_sid[ee]]) - ik.toes[ee].radius
       target = base_hold if base_shift is None else base_hold + s * base_shift
       # v5: optional base ATTITUDE key (world rotation applied to the entry
       # attitude, slerped over the dwell) — the hands-first set dwell leans
       # the trunk off a high welded hand so the arm is in tension, not pushed.
       rot_t = base_rot if base_rot_key is None else gcc.slerp_matrix(base_rot, base_rot_key @ base_rot, s)
-      tasks.append(
-        gcc.base_task(ik, target, base_w, rot=rot_t, w_rot=base_w_rot)
-      )
+      tasks.append(gcc.base_task(ik, target, base_w, rot=rot_t, w_rot=base_w_rot))
       res = ik.solve_frame(
         tasks,
         sel_all,
@@ -936,9 +892,7 @@ def generate_mount_clip(
     if wall.identity:
       mount_ctl_off = np.array([-foot_bulge, 0.0, foot_lift])
     else:
-      mount_ctl_off = foot_bulge * wall.outward + np.array(
-        [0.0, 0.0, foot_lift]
-      )
+      mount_ctl_off = foot_bulge * wall.outward + np.array([0.0, 0.0, foot_lift])
     p1 = 0.65 * p0 + 0.35 * p2 + mount_ctl_off
     base_seg_start = d.qpos[0:3].copy()
     # A STEP's weight shift, not the hands-first lean: the hips move over
@@ -947,13 +901,9 @@ def generate_mount_clip(
     if wall.identity:
       base_seg_end = base_seg_start + np.array([0.01, -0.05, 0.01])
     else:
-      base_seg_end = (
-        base_seg_start - 0.01 * wall.outward + 0.01 * wall.up
-      )
+      base_seg_end = base_seg_start - 0.01 * wall.outward + 0.01 * wall.up
       base_seg_end[1] = base_seg_start[1] - 0.05
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     swing_leg = _leg_joints("left")
     for t in range(n["left_foot_mount"]):
       u = t / (n["left_foot_mount"] - 1)
@@ -968,7 +918,11 @@ def generate_mount_clip(
           kind="site",
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(
-            t, n["left_foot_mount"], p0, p1, p2,
+            t,
+            n["left_foot_mount"],
+            p0,
+            p1,
+            p2,
             n_rake_seg=seg_rake["left_foot_mount"],
           ),
           rot=gcc.slerp_matrix(rot0, rot2, s_rot),
@@ -988,9 +942,7 @@ def generate_mount_clip(
       posture_t = {}
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
         if nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
         else:
           posture_t[nm] = posture_start[nm]
       overrides = {}
@@ -1037,9 +989,7 @@ def generate_mount_clip(
     # (legs and base frozen each frame so the fresh foot weld cannot
     # drift) — the same lateral roll-out choreography, both arms.
     raise_base = d.qpos.copy()
-    cur_joint = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    cur_joint = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     raise_keys = {}
     for side, ee in (("left", lh), ("right", rh)):
       roll_range = ik.joint_ranges[f"{side}_shoulder_roll"]
@@ -1083,13 +1033,9 @@ def generate_mount_clip(
     # by the right-hand landing, 70% through its set dwell, 95% by the
     # left-hand landing, 100% through hand_set_left.
     if wall.identity:
-      base_compressed = np.array(
-        [final_qpos[0] - 0.012, 0.0, final_qpos[2] - 0.030]
-      )
+      base_compressed = np.array([final_qpos[0] - 0.012, 0.0, final_qpos[2] - 0.030])
     else:
-      base_compressed = (
-        final_qpos[0:3] + 0.012 * wall.outward - 0.030 * wall.up
-      )
+      base_compressed = final_qpos[0:3] + 0.012 * wall.outward - 0.030 * wall.up
       base_compressed[1] = 0.0
 
     # hand_place_right: the RIGHT pad arcs from the cocked pose to the LOW
@@ -1103,9 +1049,7 @@ def generate_mount_clip(
     base_rot_r = np.zeros(9)
     mujoco.mju_quat2Mat(base_rot_r, d.qpos[3:7])
     base_rot_r = base_rot_r.reshape(3, 3)
-    posture_hold_r = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold_r = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     if wall.identity:
       place_ctl_off = np.array([-place_bulge, 0.0, 0.03])
     else:
@@ -1135,9 +1079,7 @@ def generate_mount_clip(
           ik,
           (1.0 - s) * base_hold_r + s * base_pr_end,
           (60.0, 60.0, 100.0),
-          rot=gcc.slerp_matrix(
-            base_rot_r, np.eye(3) if wall.identity else wall.R, 0.45 * s
-          ),
+          rot=gcc.slerp_matrix(base_rot_r, np.eye(3) if wall.identity else wall.R, 0.45 * s),
           w_rot=8.0,
         )
       )
@@ -1192,9 +1134,7 @@ def generate_mount_clip(
     base_rot_l = np.zeros(9)
     mujoco.mju_quat2Mat(base_rot_l, d.qpos[3:7])
     base_rot_l = base_rot_l.reshape(3, 3)
-    posture_hold_l = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold_l = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     p0_l = lh_start[0]
     p2_l = final_anchor_pos[lh]
     p1_l = 0.5 * (p0_l + p2_l) + place_ctl_off
@@ -1206,9 +1146,7 @@ def generate_mount_clip(
     # the hands-first hand_up_left; hand_set_left settles back down to
     # the compressed hang for the right swing afterwards.
     if wall.identity:
-      base_pl_end = np.array(
-        [final_qpos[0] - 0.002, -lateral_weight_shift, final_qpos[2] - 0.012]
-      )
+      base_pl_end = np.array([final_qpos[0] - 0.002, -lateral_weight_shift, final_qpos[2] - 0.012])
     else:
       base_pl_end = final_qpos[0:3] + 0.002 * wall.outward - 0.012 * wall.up
       base_pl_end[1] = -lateral_weight_shift
@@ -1246,9 +1184,7 @@ def generate_mount_clip(
           ik,
           (1.0 - s) * base_hold_l + s * base_pl_end,
           (60.0, 60.0, 100.0),
-          rot=gcc.slerp_matrix(
-            base_rot_l, np.eye(3) if wall.identity else wall.R, 0.8 * s
-          ),
+          rot=gcc.slerp_matrix(base_rot_l, np.eye(3) if wall.identity else wall.R, 0.8 * s),
           w_rot=8.0,
         )
       )
@@ -1322,12 +1258,8 @@ def generate_mount_clip(
     swing_fold_from = {}
     engaged_rswing = {lh: True, rh: True, lf: True, rf: False}
     base_seg_start = d.qpos[0:3].copy()
-    base_seg_end = base_compressed + np.array(
-      [0.0, lateral_weight_shift, 0.0]
-    )
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    base_seg_end = base_compressed + np.array([0.0, lateral_weight_shift, 0.0])
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     swing_leg = _leg_joints("right")
     for t in range(n[seg_name]):
       u = t / (n[seg_name] - 1)
@@ -1350,20 +1282,15 @@ def generate_mount_clip(
         )
       tasks.append(lf_toe_hold())
       relax = 1.0 - 0.85 * float(
-        gcc.smootherstep(np.clip((u - 0.45) / 0.12, 0.0, 1.0))
-        - gcc.smootherstep(np.clip((u - 0.72) / 0.10, 0.0, 1.0))
+        gcc.smootherstep(np.clip((u - 0.45) / 0.12, 0.0, 1.0)) - gcc.smootherstep(np.clip((u - 0.72) / 0.10, 0.0, 1.0))
       )
       tasks.append(
         gcc.IKTask(
           kind="site",
           sid=ik.pad_sid[swing_ee],
-          pos=_swing_target(
-            t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name]
-          ),
+          pos=_swing_target(t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name]),
           rot=gcc.slerp_matrix(rot0, rot2, s_rot),
-          w_pos=np.array(
-            [1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]
-          ),
+          w_pos=np.array([1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]),
           w_rot=100.0 * relax,
           track=relax > 0.9,
         )
@@ -1371,15 +1298,9 @@ def generate_mount_clip(
       base_target = (1.0 - s) * base_seg_start + s * base_seg_end
       press = float(np.sin(np.pi * min(u / 0.9, 1.0)))
       if wall.identity:
-        base_target = base_target + np.array(
-          [swing_press * press, 0.03 * press, 0.0]
-        )
+        base_target = base_target + np.array([swing_press * press, 0.03 * press, 0.0])
       else:
-        base_target = (
-          base_target
-          - swing_press * press * wall.outward
-          + np.array([0.0, 0.03 * press, 0.0])
-        )
+        base_target = base_target - swing_press * press * wall.outward + np.array([0.0, 0.03 * press, 0.0])
       tasks.append(
         gcc.base_task(
           ik,
@@ -1392,9 +1313,7 @@ def generate_mount_clip(
       posture_t = {}
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
         if nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
         else:
           posture_t[nm] = posture_start[nm]
       if u >= 0.45:
@@ -1403,9 +1322,7 @@ def generate_mount_clip(
             swing_fold_from[nm] = float(d.qpos[ik.qpos_addresses[nm]])
         w = float(gcc.smootherstep(np.clip((u - 0.45) / 0.50, 0.0, 1.0)))
         for nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
       overrides = {}
       for nm in swing_leg:
         if "ankle_roll" in nm:
@@ -1458,9 +1375,7 @@ def generate_mount_clip(
     for ee in ik.ee_names:
       if ee != swing_ee:
         anchor_now[ee] = ik.pad_pose(ee)[0].copy()
-    weld_anchor = {
-      ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee
-    }
+    weld_anchor = {ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee}
     p0, rot0 = ik.pad_pose(swing_ee)
     p2 = final_anchor_pos[swing_ee]
     anchor_now[swing_ee] = p0.copy()
@@ -1475,14 +1390,10 @@ def generate_mount_clip(
     mujoco.mju_quat2Mat(base_rot_start, d.qpos[3:7])
     base_rot_start = base_rot_start.reshape(3, 3)
     base_seg_end = final_qpos[0:3].copy()
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     support_arm = _arm_joints("left")
     swing_arm = _arm_joints("right")
-    ankle_pitches = tuple(
-      nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch")
-    )
+    ankle_pitches = tuple(nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch"))
     fold_from = {}
     for t in range(n[seg_name]):
       engaged = all_on if t < n_lt else engaged_swing
@@ -1493,11 +1404,7 @@ def generate_mount_clip(
       n_arc = n[seg_name] - n_rake
       s_arc = float(gcc.smootherstep(min(t / (n_arc - 1), 1.0)))
       w_fade = min(s_arc / 0.3, 1.0)
-      tasks = [
-        gcc.weld_task(ik, ee, weld_anchor[ee])
-        for ee in ik.ee_names
-        if ee != swing_ee
-      ]
+      tasks = [gcc.weld_task(ik, ee, weld_anchor[ee]) for ee in ik.ee_names if ee != swing_ee]
       toe_w = float(np.clip((0.55 - u) / 0.15, 0.0, 1.0)) ** 2
       if toe_w > 1.0e-3:
         for ee in feet:
@@ -1525,9 +1432,7 @@ def generate_mount_clip(
           ik,
           base_target,
           (60.0, 30.0, 50.0),
-          rot=gcc.slerp_matrix(
-            base_rot_start, np.eye(3) if wall.identity else wall.R, s
-          ),
+          rot=gcc.slerp_matrix(base_rot_start, np.eye(3) if wall.identity else wall.R, s),
           w_rot=30.0,
         )
       )
@@ -1693,9 +1598,7 @@ def generate_mount_clip(
     p1_l = 0.5 * (p0_l + p2_l) + place_ctl_off
     base_hold_l = d.qpos[0:3].copy()
     base_pl_end = base_hold_l - place_lean * wall.outward
-    posture_hold_l = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold_l = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     # The torso BOWS into the reach (base pitched 0.30 rad nose-down by
     # landing): at 80 deg the low rung sits 0.44 m out horizontally from
     # the standing hips (0.22 at 90), and with the base held level the
@@ -1839,9 +1742,7 @@ def generate_mount_clip(
     if wall.identity:
       mount_ctl_off = np.array([-foot_bulge, 0.0, foot_lift])
     else:
-      mount_ctl_off = foot_bulge * wall.outward + np.array(
-        [0.0, 0.0, foot_lift]
-      )
+      mount_ctl_off = foot_bulge * wall.outward + np.array([0.0, 0.0, foot_lift])
     p1 = 0.65 * p0 + 0.35 * p2 + mount_ctl_off
     base_seg_start = d.qpos[0:3].copy()
     base_rot_lf = np.zeros(9)
@@ -1858,14 +1759,10 @@ def generate_mount_clip(
     if wall.identity:
       base_seg_end = base_seg_start + np.array([step_hips_in, -0.05, 0.01])
     else:
-      base_seg_end = (
-        base_seg_start - step_hips_in * wall.outward + 0.01 * wall.up
-      )
+      base_seg_end = base_seg_start - step_hips_in * wall.outward + 0.01 * wall.up
       base_seg_end[1] = base_seg_start[1] - 0.05
     base_rot_lf_end = np.eye(3) if wall.identity else wall.R
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     swing_leg = _leg_joints("left")
     for t in range(n["left_foot_mount"]):
       u = t / (n["left_foot_mount"] - 1)
@@ -1881,7 +1778,11 @@ def generate_mount_clip(
           kind="site",
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(
-            t, n["left_foot_mount"], p0, p1, p2,
+            t,
+            n["left_foot_mount"],
+            p0,
+            p1,
+            p2,
             n_rake_seg=seg_rake["left_foot_mount"],
           ),
           rot=gcc.slerp_matrix(rot0, rot2, s_rot),
@@ -1911,9 +1812,7 @@ def generate_mount_clip(
       posture_t = {}
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
         if nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
         else:
           posture_t[nm] = posture_start[nm]
       overrides = {}
@@ -1984,9 +1883,7 @@ def generate_mount_clip(
     base_rot_r = base_rot_r.reshape(3, 3)
     p2_r = final_anchor_pos[rh]
     if wall.identity:
-      base_pr_end = np.array(
-        [final_qpos[0] - 0.002, lateral_weight_shift, final_qpos[2] - 0.012]
-      )
+      base_pr_end = np.array([final_qpos[0] - 0.002, lateral_weight_shift, final_qpos[2] - 0.012])
     else:
       base_pr_end = final_qpos[0:3] + 0.002 * wall.outward - 0.012 * wall.up
       base_pr_end[1] = lateral_weight_shift
@@ -2005,9 +1902,7 @@ def generate_mount_clip(
     if n_pr - n_raise_r - n_rake < 2:
       raise ValueError("--place-right-s leaves fewer than two arc frames")
     raise_base_r = d.qpos.copy()
-    cur_r = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in _arm_joints("right")
-    }
+    cur_r = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in _arm_joints("right")}
     # The raise is keyed in WORLD elevation, not joint space: the trunk
     # arrives bowed toward the slab (the hand place leaned ~18 deg into
     # its reach and the welded low hand holds that bow), and a joint-space
@@ -2016,9 +1911,7 @@ def generate_mount_clip(
     # trunk pitch so the arm sweeps the same world arc as on an upright
     # trunk.
     _qw, _qx, _qy, _qz = (float(v) for v in d.qpos[3:7])
-    trunk_pitch = float(
-      np.arcsin(np.clip(2.0 * (_qw * _qy - _qz * _qx), -1.0, 1.0))
-    )
+    trunk_pitch = float(np.arcsin(np.clip(2.0 * (_qw * _qy - _qz * _qx), -1.0, 1.0)))
     # The wall-parallel attitude (native pitch 90 - a) is the reference
     # the raise was validated on; only the bow PAST it shifts the keys.
     trunk_bow = max(trunk_pitch - np.radians(90.0 - wall.angle_deg), 0.0)
@@ -2069,9 +1962,7 @@ def generate_mount_clip(
     p0_r = rh_cocked[0]
     p1_r = 0.5 * (p0_r + p2_r) + place_ctl_off
     n_arc_seg = n_pr - n_raise_r
-    posture_hold_b = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold_b = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     rf_toe0 = d.site_xpos[ik.toe_sid[rf]].copy()
     rf_ankles = ankle_joints[rf]
     rf_ankle_pitch = next(nm for nm in rf_ankles if nm.endswith("_pitch"))
@@ -2164,9 +2055,7 @@ def generate_mount_clip(
           # leaned geometry recruit the waist and detonate the arm (0.55
           # measured: waist snap 2.0 rad, welded left hand dragged through
           # the wall).
-          rot=gcc.slerp_matrix(
-            rh_cocked[1], state1_pad_rot[rh], min(s / 0.35, 1.0)
-          ),
+          rot=gcc.slerp_matrix(rh_cocked[1], state1_pad_rot[rh], min(s / 0.35, 1.0)),
           w_pos=np.full(3, 500.0 + 1500.0 * max(1.0 - w_fade, s_arc * s_arc)),
           w_rot=50.0 + 450.0 * max(1.0 - w_fade, s_arc * s_arc),
         )
@@ -2284,9 +2173,7 @@ def generate_mount_clip(
     if wall.identity:
       toe_smear[0] = gcc.WALL_SURFACE_X - toe_r - 0.008
     else:
-      toe_smear[0] = wall.pivot[0] + (
-        wall.outward[2] * toe_hold[2] - (toe_r + 0.008)
-      ) / (-wall.outward[0])
+      toe_smear[0] = wall.pivot[0] + (wall.outward[2] * toe_hold[2] - (toe_r + 0.008)) / (-wall.outward[0])
     swing_fold_from = {}
     base_seg_start = d.qpos[0:3].copy()
     # The pivot HOLDS the station the reach ended on (plus the lateral
@@ -2296,9 +2183,7 @@ def generate_mount_clip(
     # the tiptoe stood the body taller).
     base_seg_end = base_seg_start + pivot_out * wall.outward
     base_seg_end[1] = lateral_weight_shift
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     swing_leg = _leg_joints("right")
     fold_u0 = 0.45  # guided fold + stiff leg posture start (donor value)
     for t in range(n[seg_name]):
@@ -2317,9 +2202,7 @@ def generate_mount_clip(
         # timed. Dragging the toe 2 cm short of the base line shortens
         # the chain; the one draft where the toe had (wrongly) slid
         # forward folded at 4 rad/s.
-        smear_s = float(
-          gcc.smootherstep(np.clip((u - 0.05) / 0.40, 0.0, 1.0))
-        )
+        smear_s = float(gcc.smootherstep(np.clip((u - 0.05) / 0.40, 0.0, 1.0)))
         # z at the donor's 250: pinning it at 1000 neither kept the toe
         # down (knee drive still lifts it ~1 cm) nor helped the low hand's
         # pull-out, and cost the cross pivot an early audit frame.
@@ -2336,20 +2219,15 @@ def generate_mount_clip(
         )
       tasks.append(lf_toe_hold())
       relax = 1.0 - 0.85 * float(
-        gcc.smootherstep(np.clip((u - 0.45) / 0.12, 0.0, 1.0))
-        - gcc.smootherstep(np.clip((u - 0.72) / 0.10, 0.0, 1.0))
+        gcc.smootherstep(np.clip((u - 0.45) / 0.12, 0.0, 1.0)) - gcc.smootherstep(np.clip((u - 0.72) / 0.10, 0.0, 1.0))
       )
       tasks.append(
         gcc.IKTask(
           kind="site",
           sid=ik.pad_sid[swing_ee],
-          pos=_swing_target(
-            t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name]
-          ),
+          pos=_swing_target(t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name]),
           rot=gcc.slerp_matrix(rot0, rot2, s_rot),
-          w_pos=np.array(
-            [1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]
-          ),
+          w_pos=np.array([1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]),
           w_rot=100.0 * relax,
           track=relax > 0.9,
         )
@@ -2357,15 +2235,9 @@ def generate_mount_clip(
       base_target = (1.0 - s) * base_seg_start + s * base_seg_end
       press = float(np.sin(np.pi * min(u / 0.9, 1.0)))
       if wall.identity:
-        base_target = base_target + np.array(
-          [swing_press * press, 0.03 * press, 0.0]
-        )
+        base_target = base_target + np.array([swing_press * press, 0.03 * press, 0.0])
       else:
-        base_target = (
-          base_target
-          - swing_press * press * wall.outward
-          + np.array([0.0, 0.03 * press, 0.0])
-        )
+        base_target = base_target - swing_press * press * wall.outward + np.array([0.0, 0.03 * press, 0.0])
       tasks.append(
         gcc.base_task(
           ik,
@@ -2378,22 +2250,16 @@ def generate_mount_clip(
       posture_t = {}
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
         if nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
         else:
           posture_t[nm] = posture_start[nm]
       if u >= fold_u0:
         if not swing_fold_from:
           for nm in swing_leg:
             swing_fold_from[nm] = float(d.qpos[ik.qpos_addresses[nm]])
-        w = float(
-          gcc.smootherstep(np.clip((u - fold_u0) / 0.50, 0.0, 1.0))
-        )
+        w = float(gcc.smootherstep(np.clip((u - fold_u0) / 0.50, 0.0, 1.0)))
         for nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
       overrides = {}
       for nm in swing_leg:
         if "ankle_roll" in nm:
@@ -2452,9 +2318,7 @@ def generate_mount_clip(
     for ee in ik.ee_names:
       if ee != swing_ee:
         anchor_now[ee] = ik.pad_pose(ee)[0].copy()
-    weld_anchor = {
-      ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee
-    }
+    weld_anchor = {ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee}
     p0, rot0 = ik.pad_pose(swing_ee)
     p2 = final_anchor_pos[swing_ee]
     anchor_now[swing_ee] = p0.copy()
@@ -2469,14 +2333,10 @@ def generate_mount_clip(
     mujoco.mju_quat2Mat(base_rot_start, d.qpos[3:7])
     base_rot_start = base_rot_start.reshape(3, 3)
     base_seg_end = final_qpos[0:3].copy()
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     support_arm = _arm_joints("right")
     swing_arm = _arm_joints("left")
-    ankle_pitches = tuple(
-      nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch")
-    )
+    ankle_pitches = tuple(nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch"))
     fold_from = {}
     for t in range(n[seg_name]):
       engaged = all_on if t < n_lt else engaged_swing
@@ -2487,11 +2347,7 @@ def generate_mount_clip(
       n_arc = n[seg_name] - n_rake
       s_arc = float(gcc.smootherstep(min(t / (n_arc - 1), 1.0)))
       w_fade = min(s_arc / 0.3, 1.0)
-      tasks = [
-        gcc.weld_task(ik, ee, weld_anchor[ee])
-        for ee in ik.ee_names
-        if ee != swing_ee
-      ]
+      tasks = [gcc.weld_task(ik, ee, weld_anchor[ee]) for ee in ik.ee_names if ee != swing_ee]
       toe_w = float(np.clip((0.55 - u) / 0.15, 0.0, 1.0)) ** 2
       if toe_w > 1.0e-3:
         for ee in feet:
@@ -2526,9 +2382,7 @@ def generate_mount_clip(
           ik,
           base_target,
           (200.0, 100.0, 150.0),
-          rot=gcc.slerp_matrix(
-            base_rot_start, np.eye(3) if wall.identity else wall.R, s
-          ),
+          rot=gcc.slerp_matrix(base_rot_start, np.eye(3) if wall.identity else wall.R, s),
           w_rot=60.0,
         )
       )
@@ -2607,9 +2461,7 @@ def generate_mount_clip(
       if not (hand_z_low < hand_z_mid < hand_z):
         raise ValueError("--hand-z-mid must lie between --hand-z-low and --hand-z")
       up_vec = np.array([0.0, 0.0, 1.0]) if wall.identity else wall.up
-      mid_anchor_rh = (
-        final_anchor_pos[rh] + (hand_z_mid - hand_z) * up_vec + np.array([0.0, mid_rung_y, 0.0])
-      )
+      mid_anchor_rh = final_anchor_pos[rh] + (hand_z_mid - hand_z) * up_vec + np.array([0.0, mid_rung_y, 0.0])
       anchor_now[rh] = mid_anchor_rh.copy()
     if rh_first:
       # v5 hands-first order: the right hand's first rung is --hand-z-mid when
@@ -2722,9 +2574,7 @@ def generate_mount_clip(
     p1_l = 0.5 * (p0_l + p2_l) + place_ctl_off
     base_hold_l = d.qpos[0:3].copy()
     base_pl_end = base_hold_l - place_lean * wall.outward
-    posture_hold_l = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold_l = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     # The torso BOWS into the reach (base pitched 0.30 rad nose-down by
     # landing): at 80 deg the low rung sits 0.44 m out horizontally from
     # the standing hips (0.22 at 90), and with the base held level the
@@ -2905,10 +2755,14 @@ def generate_mount_clip(
       _R_tr = np.zeros(9)
       mujoco.mju_quat2Mat(_R_tr, q_frozen_r[3:7])
       _R_tr = _R_tr.reshape(3, 3)
-      trunk_fwd_pitch = float(np.arcsin(np.clip(_R_tr[0, 2], -1.0, 1.0)))  # world-x component of the trunk up axis (+ = toward the wall)
+      trunk_fwd_pitch = float(
+        np.arcsin(np.clip(_R_tr[0, 2], -1.0, 1.0))
+      )  # world-x component of the trunk up axis (+ = toward the wall)
       if not wall.identity:
         trunk_fwd_pitch -= float(np.arcsin(np.clip(wall.R[0, 2], -1.0, 1.0))) if hasattr(wall, "R") else 0.0
-      raise_pitch_end_r = (raise_pitch_end if raise_pitch_end_right is None else raise_pitch_end_right) + raise_pitch_comp_sign * trunk_fwd_pitch
+      raise_pitch_end_r = (
+        raise_pitch_end if raise_pitch_end_right is None else raise_pitch_end_right
+      ) + raise_pitch_comp_sign * trunk_fwd_pitch
       raise_keys_r = {
         "right_shoulder_pitch": (
           (0.0, st_r["right_shoulder_pitch"]),
@@ -2960,9 +2814,7 @@ def generate_mount_clip(
       base_rot_rl = np.zeros(9)
       mujoco.mju_quat2Mat(base_rot_rl, d.qpos[3:7])
       base_rot_rl = base_rot_rl.reshape(3, 3)
-      posture_hold_rl = {
-        nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_hold_rl = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       n_plr = n["hand_place_right"]
       n_arc_rl = n_plr - n_rake
       if n_arc_rl < 2:
@@ -3002,7 +2854,9 @@ def generate_mount_clip(
         rot_pl_t = base_rot_rl
         if place_right_pitch != 0.0:
           cp_, sp_ = np.cos(place_right_pitch), np.sin(place_right_pitch)
-          rot_pl_t = gcc.slerp_matrix(base_rot_rl, np.array([[cp_, 0.0, sp_], [0.0, 1.0, 0.0], [-sp_, 0.0, cp_]]) @ base_rot_rl, s)
+          rot_pl_t = gcc.slerp_matrix(
+            base_rot_rl, np.array([[cp_, 0.0, sp_], [0.0, 1.0, 0.0], [-sp_, 0.0, cp_]]) @ base_rot_rl, s
+          )
         base_pl_t = base_hold_rl
         if place_right_base_dz != 0.0 or place_right_base_dx != 0.0:
           # v6: reach relief for a high right rung -- the base rises /
@@ -3012,9 +2866,7 @@ def generate_mount_clip(
             base_pl_t = base_hold_rl + s * np.array([place_right_base_dx, 0.0, place_right_base_dz])
           else:
             base_pl_t = base_hold_rl - s * place_right_base_dx * wall.outward + s * place_right_base_dz * wall.up
-        tasks.append(
-          gcc.base_task(ik, base_pl_t, (60.0, 60.0, 100.0), rot=rot_pl_t, w_rot=60.0)
-        )
+        tasks.append(gcc.base_task(ik, base_pl_t, (60.0, 60.0, 100.0), rot=rot_pl_t, w_rot=60.0))
         posture_t = {}
         for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
           if nm in _arm_joints("right"):
@@ -3100,9 +2952,7 @@ def generate_mount_clip(
     if wall.identity:
       mount_ctl_off = np.array([-foot_bulge, 0.0, foot_lift])
     else:
-      mount_ctl_off = foot_bulge * wall.outward + np.array(
-        [0.0, 0.0, foot_lift]
-      )
+      mount_ctl_off = foot_bulge * wall.outward + np.array([0.0, 0.0, foot_lift])
     p1 = 0.65 * p0 + 0.35 * p2 + mount_ctl_off
     base_seg_start = d.qpos[0:3].copy()
     base_rot_lf = np.zeros(9)
@@ -3131,19 +2981,13 @@ def generate_mount_clip(
     if wall.identity:
       base_seg_end = base_seg_start + np.array([step_hips_in, step_hips_lateral, step_rise])
     else:
-      base_seg_end = (
-        base_seg_start - step_hips_in * wall.outward + step_rise * wall.up
-      )
+      base_seg_end = base_seg_start - step_hips_in * wall.outward + step_rise * wall.up
       base_seg_end[1] = base_seg_start[1] + step_hips_lateral
     base_rot_lf_end = np.eye(3) if wall.identity else wall.R
     if step_trunk_pitch != 0.0:
       cp, sp = np.cos(step_trunk_pitch), np.sin(step_trunk_pitch)
-      base_rot_lf_end = base_rot_lf_end @ np.array(
-        [[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]]
-      )
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+      base_rot_lf_end = base_rot_lf_end @ np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     swing_leg = _leg_joints("right")
     for t in range(n["right_foot_mount"]):
       u = t / (n["right_foot_mount"] - 1)
@@ -3161,7 +3005,11 @@ def generate_mount_clip(
           kind="site",
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(
-            t, n["right_foot_mount"], p0, p1, p2,
+            t,
+            n["right_foot_mount"],
+            p0,
+            p1,
+            p2,
             n_rake_seg=seg_rake["right_foot_mount"],
             rake_vec_seg=rake_vec_foot,
           ),
@@ -3199,9 +3047,7 @@ def generate_mount_clip(
       posture_t = {}
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
         if nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
         else:
           posture_t[nm] = posture_start[nm]
       overrides = {}
@@ -3275,9 +3121,7 @@ def generate_mount_clip(
       p2_r = final_anchor_pos[rh] if mid_anchor_rh is None else mid_anchor_rh
       reach_y = -lateral_weight_shift if reach_lateral is None else reach_lateral
       if wall.identity:
-        base_pr_end = np.array(
-          [final_qpos[0] - 0.002, reach_y, final_qpos[2] - 0.012]
-        )
+        base_pr_end = np.array([final_qpos[0] - 0.002, reach_y, final_qpos[2] - 0.012])
       else:
         base_pr_end = final_qpos[0:3] + 0.002 * wall.outward - 0.012 * wall.up
         base_pr_end[1] = reach_y
@@ -3307,9 +3151,7 @@ def generate_mount_clip(
       if n_pr - n_raise_r - n_rake < 2:
         raise ValueError("--place-right-s leaves fewer than two arc frames")
       raise_base_r = d.qpos.copy()
-      cur_r = {
-        nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in _arm_joints("right")
-      }
+      cur_r = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in _arm_joints("right")}
       # The raise is keyed in WORLD elevation, not joint space: the trunk
       # arrives bowed toward the slab (the hand place leaned ~18 deg into
       # its reach and the welded low hand holds that bow), and a joint-space
@@ -3318,9 +3160,7 @@ def generate_mount_clip(
       # trunk pitch so the arm sweeps the same world arc as on an upright
       # trunk.
       _qw, _qx, _qy, _qz = (float(v) for v in d.qpos[3:7])
-      trunk_pitch = float(
-        np.arcsin(np.clip(2.0 * (_qw * _qy - _qz * _qx), -1.0, 1.0))
-      )
+      trunk_pitch = float(np.arcsin(np.clip(2.0 * (_qw * _qy - _qz * _qx), -1.0, 1.0)))
       # The wall-parallel attitude (native pitch 90 - a) is the reference
       # the raise was validated on; only the bow PAST it shifts the keys.
       trunk_bow = max(trunk_pitch - np.radians(90.0 - wall.angle_deg), 0.0)
@@ -3371,9 +3211,7 @@ def generate_mount_clip(
       p0_r = rh_cocked[0]
       p1_r = 0.5 * (p0_r + p2_r) + place_ctl_off
       n_arc_seg = n_pr - n_raise_r
-      posture_hold_b = {
-        nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_hold_b = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       lf_toe0 = d.site_xpos[ik.toe_sid[lf]].copy()
       lf_ankles = ankle_joints[lf]
       lf_ankle_pitch = next(nm for nm in lf_ankles if nm.endswith("_pitch"))
@@ -3468,9 +3306,7 @@ def generate_mount_clip(
             # leaned geometry recruit the waist and detonate the arm (0.55
             # measured: waist snap 2.0 rad, welded left hand dragged through
             # the wall).
-            rot=gcc.slerp_matrix(
-              rh_cocked[1], state1_pad_rot[rh], min(s / 0.35, 1.0)
-            ),
+            rot=gcc.slerp_matrix(rh_cocked[1], state1_pad_rot[rh], min(s / 0.35, 1.0)),
             w_pos=np.full(3, 500.0 + 1500.0 * max(1.0 - w_fade, s_arc * s_arc)),
             w_rot=50.0 + 450.0 * max(1.0 - w_fade, s_arc * s_arc),
           )
@@ -3621,9 +3457,7 @@ def generate_mount_clip(
     p1 = 0.5 * (p0 + p2) + pivot_ctl_off
     # The planted-toe station of the press-up, not the entry pose: the toe
     # has been sitting there since the right-hand reach.
-    toe_hold = (
-      d.site_xpos[ik.toe_sid[lf]].copy() if reach_heel_lift <= 0.0 else lf_floor_toe.copy()
-    )
+    toe_hold = d.site_xpos[ik.toe_sid[lf]].copy() if reach_heel_lift <= 0.0 else lf_floor_toe.copy()
     # Smear terminus: same height and lateral spot, toe sphere 8 mm short
     # of the (tilted) wall surface.
     toe_r = ik.toes[swing_ee].radius
@@ -3635,9 +3469,7 @@ def generate_mount_clip(
     if wall.identity:
       toe_smear[0] = gcc.WALL_SURFACE_X - toe_r - pivot_smear_gap
     else:
-      toe_smear[0] = wall.pivot[0] + (
-        wall.outward[2] * toe_hold[2] - (toe_r + pivot_smear_gap)
-      ) / (-wall.outward[0])
+      toe_smear[0] = wall.pivot[0] + (wall.outward[2] * toe_hold[2] - (toe_r + pivot_smear_gap)) / (-wall.outward[0])
     swing_fold_from = {}
     base_seg_start = d.qpos[0:3].copy()
     # The pivot HOLDS the station the reach ended on (plus the lateral
@@ -3654,9 +3486,7 @@ def generate_mount_clip(
     up_vec_pv = np.array([0.0, 0.0, 1.0]) if wall.identity else wall.up
     base_seg_end = base_seg_start + pivot_out * wall.outward + pivot_rise * up_vec_pv
     base_seg_end[1] = -lateral_weight_shift if pivot_lateral is None else pivot_lateral
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     swing_leg = _leg_joints("left")
     fold_u0 = pivot_fold_u0  # guided fold + stiff leg posture start (donor value 0.45; v5 knob)
     for t in range(n[seg_name]):
@@ -3681,9 +3511,7 @@ def generate_mount_clip(
         # timed. Dragging the toe 2 cm short of the base line shortens
         # the chain; the one draft where the toe had (wrongly) slid
         # forward folded at 4 rad/s.
-        smear_s = float(
-          gcc.smootherstep(np.clip((u - 0.05) / 0.40, 0.0, 1.0))
-        )
+        smear_s = float(gcc.smootherstep(np.clip((u - 0.05) / 0.40, 0.0, 1.0)))
         # z at the donor's 250: pinning it at 1000 neither kept the toe
         # down (knee drive still lifts it ~1 cm) nor helped the low hand's
         # pull-out, and cost the cross pivot an early audit frame.
@@ -3707,7 +3535,10 @@ def generate_mount_clip(
           heel_s_pv = float(gcc.smootherstep(np.clip(u / 0.30, 0.0, 1.0)))
           hold_w_pv = 1.0 - heel_s_pv
           if hold_w_pv > 0.01:
-            th_pv = float(pivot_heel_lift - posture_start[next(nm for nm in swing_leg if nm.endswith("ankle_pitch"))]) * heel_s_pv
+            th_pv = (
+              float(pivot_heel_lift - posture_start[next(nm for nm in swing_leg if nm.endswith("ankle_pitch"))])
+              * heel_s_pv
+            )
             heel_R_pv = np.array(
               [[np.cos(th_pv), 0.0, np.sin(th_pv)], [0.0, 1.0, 0.0], [-np.sin(th_pv), 0.0, np.cos(th_pv)]]
             )
@@ -3725,21 +3556,23 @@ def generate_mount_clip(
             )
       tasks.append(rf_toe_hold())
       relax = 1.0 - 0.85 * float(
-        gcc.smootherstep(np.clip((u - 0.45) / 0.12, 0.0, 1.0))
-        - gcc.smootherstep(np.clip((u - 0.72) / 0.10, 0.0, 1.0))
+        gcc.smootherstep(np.clip((u - 0.45) / 0.12, 0.0, 1.0)) - gcc.smootherstep(np.clip((u - 0.72) / 0.10, 0.0, 1.0))
       )
       tasks.append(
         gcc.IKTask(
           kind="site",
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(
-            t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name],
+            t,
+            n[seg_name],
+            p0,
+            p1,
+            p2,
+            n_rake_seg=seg_rake[seg_name],
             rake_vec_seg=rake_vec_foot,
           ),
           rot=gcc.slerp_matrix(rot0, rot2, s_rot),
-          w_pos=np.array(
-            [1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]
-          ),
+          w_pos=np.array([1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]),
           w_rot=100.0 * relax,
           track=relax > 0.9,
         )
@@ -3747,15 +3580,9 @@ def generate_mount_clip(
       base_target = (1.0 - s) * base_seg_start + s * base_seg_end
       press = float(np.sin(np.pi * min(u / 0.9, 1.0)))
       if wall.identity:
-        base_target = base_target + np.array(
-          [swing_press * press, -0.03 * press, 0.0]
-        )
+        base_target = base_target + np.array([swing_press * press, -0.03 * press, 0.0])
       else:
-        base_target = (
-          base_target
-          - swing_press * press * wall.outward
-          + np.array([0.0, -0.03 * press, 0.0])
-        )
+        base_target = base_target - swing_press * press * wall.outward + np.array([0.0, -0.03 * press, 0.0])
       tasks.append(
         gcc.base_task(
           ik,
@@ -3768,9 +3595,7 @@ def generate_mount_clip(
       posture_t = {}
       for nm in PHYBOT_C2_POLICY_JOINT_NAMES:
         if nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - s_rot) * posture_start[nm] + s_rot * state1_joint[nm]
         else:
           posture_t[nm] = posture_start[nm]
       if pivot_heel_lift is not None and u < fold_u0:
@@ -3787,13 +3612,9 @@ def generate_mount_clip(
         if not swing_fold_from:
           for nm in swing_leg:
             swing_fold_from[nm] = float(d.qpos[ik.qpos_addresses[nm]])
-        w = float(
-          gcc.smootherstep(np.clip((u - fold_u0) / 0.50, 0.0, 1.0))
-        )
+        w = float(gcc.smootherstep(np.clip((u - fold_u0) / 0.50, 0.0, 1.0)))
         for nm in swing_leg:
-          posture_t[nm] = (
-            (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
-          )
+          posture_t[nm] = (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
       overrides = {}
       for nm in swing_leg:
         if "ankle_roll" in nm:
@@ -3852,13 +3673,13 @@ def generate_mount_clip(
     # hand_up_right. The hand_up rule from the 08-20 post-mortem stands for
     # both: the base is nailed (200/100/150, w_rot 60) and the support arm
     # held stiff (override 4) inside a hand step.
-    def cross_hand_up(seg_name, swing_ee, support_hand, base_end, closing, target_override=None, report_key=None, pin_swing=True):
+    def cross_hand_up(
+      seg_name, swing_ee, support_hand, base_end, closing, target_override=None, report_key=None, pin_swing=True
+    ):
       for ee in ik.ee_names:
         if ee != swing_ee:
           anchor_now[ee] = ik.pad_pose(ee)[0].copy()
-      weld_anchor = {
-        ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee
-      }
+      weld_anchor = {ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee}
       p0, rot0 = ik.pad_pose(swing_ee)
       # v6g: an optional mid-rung target (the left hand's two-step walk-up).
       p2 = final_anchor_pos[swing_ee] if target_override is None else np.asarray(target_override, dtype=np.float64)
@@ -3874,14 +3695,10 @@ def generate_mount_clip(
       mujoco.mju_quat2Mat(base_rot_start, d.qpos[3:7])
       base_rot_start = base_rot_start.reshape(3, 3)
       base_seg_end = np.asarray(base_end, dtype=np.float64).copy()
-      posture_start = {
-        nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       support_arm = _arm_joints("right" if support_hand == rh else "left")
       swing_arm = _arm_joints("left" if swing_ee == lh else "right")
-      ankle_pitches = tuple(
-        nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch")
-      )
+      ankle_pitches = tuple(nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch"))
       fold_from = {}
       for t in range(n[seg_name]):
         engaged = all_on if t < n_lt else engaged_swing
@@ -3892,11 +3709,7 @@ def generate_mount_clip(
         n_arc = n[seg_name] - n_rake
         s_arc = float(gcc.smootherstep(min(t / (n_arc - 1), 1.0)))
         w_fade = min(s_arc / 0.3, 1.0)
-        tasks = [
-          gcc.weld_task(ik, ee, weld_anchor[ee])
-          for ee in ik.ee_names
-          if ee != swing_ee
-        ]
+        tasks = [gcc.weld_task(ik, ee, weld_anchor[ee]) for ee in ik.ee_names if ee != swing_ee]
         toe_w = float(np.clip((0.55 - u) / 0.15, 0.0, 1.0)) ** 2 if closing else 1.0
         if toe_w > 1.0e-3:
           for ee in feet:
@@ -3924,9 +3737,7 @@ def generate_mount_clip(
             ik,
             base_target,
             (200.0, 100.0, 150.0),
-            rot=gcc.slerp_matrix(
-              base_rot_start, np.eye(3) if wall.identity else wall.R, s
-            ),
+            rot=gcc.slerp_matrix(base_rot_start, np.eye(3) if wall.identity else wall.R, s),
             w_rot=60.0,
           )
         )
@@ -4024,8 +3835,14 @@ def generate_mount_clip(
           base_mid = np.asarray(base_lh, dtype=np.float64).copy()
           base_mid[1] = 0.5 * base_mid[1]
           cross_hand_up(
-            "hand_up_left_mid", lh, rh, base_mid, closing=False,
-            target_override=mid_lh, report_key=f"{lh}@mid_up", pin_swing=False,
+            "hand_up_left_mid",
+            lh,
+            rh,
+            base_mid,
+            closing=False,
+            target_override=mid_lh,
+            report_key=f"{lh}@mid_up",
+            pin_swing=False,
           )
           dwell(
             "hand_up_left_hold",
@@ -4112,12 +3929,8 @@ def generate_mount_clip(
     place_end = {lh: low_anchor_pos[lh], rh: low_anchor_pos[rh] + hover_vec}
     base_start = d.qpos[0:3].copy()
     base_place_end = base_start + np.array([place_lean, 0.0, 0.0])
-    posture_start = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
-    arm_target = {
-      nm: state1_joint[nm] for side in ("left", "right") for nm in _arm_joints(side)
-    }
+    posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
+    arm_target = {nm: state1_joint[nm] for side in ("left", "right") for nm in _arm_joints(side)}
     if wall.identity:
       place_ctl_off = np.array([-place_bulge, 0.0, 0.03])
     else:
@@ -4156,8 +3969,7 @@ def generate_mount_clip(
         )
       )
       posture_t = {
-        nm: (1.0 - s) * posture_start[nm]
-        + s * arm_target.get(nm, standing_joint[nm])
+        nm: (1.0 - s) * posture_start[nm] + s * arm_target.get(nm, standing_joint[nm])
         for nm in PHYBOT_C2_POLICY_JOINT_NAMES
       }
       res = ik.solve_frame(
@@ -4165,9 +3977,7 @@ def generate_mount_clip(
         sel_all,
         posture_t,
         posture_weight=0.6,
-        posture_weight_overrides={
-          nm: 1.2 for side in ("left", "right") for nm in _arm_joints(side)
-        },
+        posture_weight_overrides={nm: 1.2 for side in ("left", "right") for nm in _arm_joints(side)},
       )
       seg_residual["hand_place"].merge(res)
       push("hand_place", none_on)
@@ -4197,9 +4007,7 @@ def generate_mount_clip(
     base_rot_r = np.zeros(9)
     mujoco.mju_quat2Mat(base_rot_r, d.qpos[3:7])
     base_rot_r = base_rot_r.reshape(3, 3)
-    posture_hold_r = {
-      nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold_r = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     p0_r = rh_start[0]
     p2_r = low_anchor_pos[rh]
     p1_r = 0.5 * (p0_r + p2_r) + 0.3 * place_ctl_off
@@ -4217,11 +4025,7 @@ def generate_mount_clip(
           w_rot=300.0,
         )
       )
-      tasks.append(
-        gcc.base_task(
-          ik, base_hold_r, (60.0, 60.0, 100.0), rot=base_rot_r, w_rot=10.0
-        )
-      )
+      tasks.append(gcc.base_task(ik, base_hold_r, (60.0, 60.0, 100.0), rot=base_rot_r, w_rot=10.0))
       res = ik.solve_frame(tasks, sel_all, posture_hold_r, posture_weight=0.4)
       seg_residual["hand_place_right"].merge(res)
       push("hand_place_right", set_left_on)
@@ -4252,9 +4056,7 @@ def generate_mount_clip(
       )
     else:
       # 12 mm off the surface, 30 mm down-wall from the final stance base.
-      base_compressed = (
-        final_qpos[0:3] + 0.012 * wall.outward - 0.030 * wall.up
-      )
+      base_compressed = final_qpos[0:3] + 0.012 * wall.outward - 0.030 * wall.up
       base_compressed[1] = 0.0
     hand_weld = {ee: ik.pad_pose(ee) for ee in hands}
     toe_wall_hold.clear()
@@ -4296,9 +4098,7 @@ def generate_mount_clip(
         if wall.identity:
           mount_ctl_off = np.array([-foot_bulge, 0.0, foot_lift])
         else:
-          mount_ctl_off = foot_bulge * wall.outward + np.array(
-            [0.0, 0.0, foot_lift]
-          )
+          mount_ctl_off = foot_bulge * wall.outward + np.array([0.0, 0.0, foot_lift])
         p1 = 0.65 * p0 + 0.35 * p2 + mount_ctl_off
       engaged = {
         lh: True,
@@ -4312,9 +4112,7 @@ def generate_mount_clip(
         + seg_frac * (base_compressed - base_after_place)
         + np.array([0.0, shift_sign * lateral_weight_shift, 0.0])
       )
-      posture_start = {
-        nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       swing_leg = _leg_joints("left" if swing_ee == lf else "right")
       for t in range(n[seg_name]):
         u = t / (n[seg_name] - 1)
@@ -4359,11 +4157,7 @@ def generate_mount_clip(
           if lf in toe_wall_hold:
             # The left toe keeps its wall touch through the whole right
             # swing; it is the right-swing tail's low-couple support.
-            tasks.append(
-              gcc.toe_task(
-                ik, lf, toe_wall_hold[lf], w_pos=(600.0, 3.0, 10.0)
-              )
-            )
+            tasks.append(gcc.toe_task(ik, lf, toe_wall_hold[lf], w_pos=(600.0, 3.0, 10.0)))
         # Fold-window relaxation (right swing): between toe-off and the rake
         # the leg must cross a bistable fold ("heel-lift pivot" shape ->
         # "frog wall-plant" shape). Mid-swing the free pad's Bezier tracking
@@ -4388,13 +4182,9 @@ def generate_mount_clip(
           gcc.IKTask(
             kind="site",
             sid=ik.pad_sid[swing_ee],
-            pos=_swing_target(
-              t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name]
-            ),
+            pos=_swing_target(t, n[seg_name], p0, p1, p2, n_rake_seg=seg_rake[seg_name]),
             rot=gcc.slerp_matrix(rot0, rot2, s_rot),
-            w_pos=np.array(
-              [1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]
-            ),
+            w_pos=np.array([1000.0 * relax, 1000.0 * relax, 1000.0 * max(relax, 0.5)]),
             w_rot=100.0 * relax,
             # A relaxed mid-swing task is guidance, not a kinematic fact —
             # its commanded deviation must not read as solver failure.
@@ -4413,16 +4203,10 @@ def generate_mount_clip(
           # stress the branch snap releases (20 rad/s hip, 1.8 m/s base).
           press = float(np.sin(np.pi * min(u / 0.9, 1.0)))
           if wall.identity:
-            base_target = base_target + np.array(
-              [swing_press * press, 0.03 * press, 0.0]
-            )
+            base_target = base_target + np.array([swing_press * press, 0.03 * press, 0.0])
           else:
             # Press INTO the surface (against outward) + the lateral bias.
-            base_target = (
-              base_target
-              - swing_press * press * wall.outward
-              + np.array([0.0, 0.03 * press, 0.0])
-            )
+            base_target = base_target - swing_press * press * wall.outward + np.array([0.0, 0.03 * press, 0.0])
         tasks.append(
           gcc.base_task(
             ik,
@@ -4456,9 +4240,7 @@ def generate_mount_clip(
               swing_fold_from[nm] = float(d.qpos[ik.qpos_addresses[nm]])
           w = float(gcc.smootherstep(np.clip((u - 0.45) / 0.50, 0.0, 1.0)))
           for nm in swing_leg:
-            posture_t[nm] = (
-              (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
-            )
+            posture_t[nm] = (1.0 - w) * swing_fold_from[nm] + w * state1_joint[nm]
         overrides = {}
         for nm in swing_leg:
           if "ankle_roll" in nm:
@@ -4546,9 +4328,7 @@ def generate_mount_clip(
       for ee in ik.ee_names:
         if ee != swing_ee:
           anchor_now[ee] = ik.pad_pose(ee)[0].copy()
-      weld_anchor = {
-        ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee
-      }
+      weld_anchor = {ee: ik.pad_pose(ee) for ee in ik.ee_names if ee != swing_ee}
       p0, rot0 = ik.pad_pose(swing_ee)
       p2 = final_anchor_pos[swing_ee]
       anchor_now[swing_ee] = p0.copy()
@@ -4581,20 +4361,14 @@ def generate_mount_clip(
             ]
           )
         else:
-          base_seg_end = (
-            final_qpos[0:3] + 0.002 * wall.outward - 0.012 * wall.up
-          )
+          base_seg_end = final_qpos[0:3] + 0.002 * wall.outward - 0.012 * wall.up
           base_seg_end[1] = support_side * lateral_weight_shift
       else:
         base_seg_end = final_qpos[0:3].copy()
-      posture_start = {
-        nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_start = {nm: float(d.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       support_arm = _arm_joints("left" if support_hand == lh else "right")
       swing_arm = _arm_joints("left" if swing_ee == lh else "right")
-      ankle_pitches = tuple(
-        nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch")
-      )
+      ankle_pitches = tuple(nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.endswith("ankle_pitch"))
       fold_from: dict[str, float] = {}
       for t in range(n[seg_name]):
         # Engage flips at the segment boundary (cycle convention); the
@@ -4608,22 +4382,14 @@ def generate_mount_clip(
         n_arc = n[seg_name] - n_rake
         s_arc = float(gcc.smootherstep(min(t / (n_arc - 1), 1.0)))
         w_fade = min(s_arc / 0.3, 1.0)
-        tasks = [
-          gcc.weld_task(ik, ee, weld_anchor[ee])
-          for ee in ik.ee_names
-          if ee != swing_ee
-        ]
+        tasks = [gcc.weld_task(ik, ee, weld_anchor[ee]) for ee in ik.ee_names if ee != swing_ee]
         # Both toes stay at their wall touch through the first step; on the
         # closure swing the hold RELEASES first (fade^2, done by u=0.55) and
         # the fold to the state-1 hang runs afterwards under its own
         # rate-limited posture blend below — spring release and fold must not
         # overlap or the stored toe-task stress snaps the ankle (24 rad/s
         # measured at the old hard fade-end).
-        toe_w = (
-          1.0
-          if seg_name == "hand_up_left"
-          else float(np.clip((0.55 - u) / 0.15, 0.0, 1.0)) ** 2
-        )
+        toe_w = 1.0 if seg_name == "hand_up_left" else float(np.clip((0.55 - u) / 0.15, 0.0, 1.0)) ** 2
         if toe_w > 1.0e-3:
           for ee in feet:
             tasks.append(
@@ -4649,21 +4415,15 @@ def generate_mount_clip(
           # Wall press through the first hand transfer (cycle's body_press):
           # the anchored low hand's pull-out shrinks with the CoM lever.
           if wall.identity:
-            base_target = base_target + np.array(
-              [0.02 * np.sin(np.pi * s), 0.0, 0.0]
-            )
+            base_target = base_target + np.array([0.02 * np.sin(np.pi * s), 0.0, 0.0])
           else:
-            base_target = base_target - (
-              0.02 * np.sin(np.pi * s)
-            ) * wall.outward
+            base_target = base_target - (0.02 * np.sin(np.pi * s)) * wall.outward
         tasks.append(
           gcc.base_task(
             ik,
             base_target,
             (60.0, 30.0, 50.0),
-            rot=gcc.slerp_matrix(
-              base_rot_start, np.eye(3) if wall.identity else wall.R, s
-            ),
+            rot=gcc.slerp_matrix(base_rot_start, np.eye(3) if wall.identity else wall.R, s),
             # A 4-DoF arm under a 6-DoF weld is overdetermined: given the base
             # pose the support arm's roll is FORCED, and near the stop only a
             # small base tilt can relieve it. Keep the base rotation nearly
@@ -4727,7 +4487,6 @@ def generate_mount_clip(
           toe_hold_targets=toe_wall_hold,
         )
 
-
   # closure: land exactly on state 1 shifted by dz -----------------------------
   # The blend window keys off the LAST hand step of the sequence: interleaved
   # ends on hand_up_left (it has no hand_up_right frames); both shipped
@@ -4749,9 +4508,7 @@ def generate_mount_clip(
   closure_joint_name = "<none>"
   if delta[7:].size:
     _wj = int(np.argmax(np.abs(delta[7:])))
-    for _nm, _adr in (
-      (nm, ik.qpos_addresses[nm]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    ):
+    for _nm, _adr in ((nm, ik.qpos_addresses[nm]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES):
       if _adr == 7 + _wj:
         closure_joint_name = _nm
         break
@@ -4784,7 +4541,7 @@ def generate_mount_clip(
     kern /= kern.sum()
     arr = np.stack(qpos_frames)
     left = np.repeat(arr[:1], radius, axis=0)
-    right = np.repeat(arr[n_play:n_play + 1], radius, axis=0)
+    right = np.repeat(arr[n_play : n_play + 1], radius, axis=0)
     padded = np.concatenate([left, arr[:n_play], right], axis=0)
     sm = np.empty_like(arr[:n_play])
     for col in range(arr.shape[1]):
@@ -4820,10 +4577,7 @@ def generate_mount_clip(
   # Shank (ankle_pitch) geoms are exempt with the feet: the spine pads
   # stand off the shin by their 12 mm sphere radius, so a welded pad puts
   # the shank's AABB corner within ~1 mm of the plane by construction.
-  shank_bids = {
-    mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{side}_ankle_pitch")
-    for side in ("left", "right")
-  }
+  shank_bids = {mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{side}_ankle_pitch") for side in ("left", "right")}
   all_foot_geoms = set()
   for g in range(m.ngeom):
     name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
@@ -4831,19 +4585,9 @@ def generate_mount_clip(
       pad_or_toe_geoms.add(g)
     if m.geom_contype[g] == 0 and m.geom_conaffinity[g] == 0:
       visual_geoms.add(g)
-    if (
-      m.geom_bodyid[g] in foot_body_bid.values()
-      or m.geom_bodyid[g] in shank_bids
-    ):
+    if m.geom_bodyid[g] in foot_body_bid.values() or m.geom_bodyid[g] in shank_bids:
       all_foot_geoms.add(g)
-  foot_geoms = {
-    ee: {
-      g
-      for g in range(m.ngeom)
-      if m.geom_bodyid[g] == foot_body_bid[ee]
-    }
-    for ee in feet
-  }
+  foot_geoms = {ee: {g for g in range(m.ngeom) if m.geom_bodyid[g] == foot_body_bid[ee]} for ee in feet}
   corner_signs = np.array(
     [[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)],
     dtype=np.float64,
@@ -4862,9 +4606,7 @@ def generate_mount_clip(
   for t, q in enumerate(qpos_frames):
     d.qpos[:] = q
     mujoco.mj_forward(m, d)
-    joint_positions[t] = [
-      d.qpos[ik.qpos_addresses[nm]] for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    ]
+    joint_positions[t] = [d.qpos[ik.qpos_addresses[nm]] for nm in PHYBOT_C2_POLICY_JOINT_NAMES]
     root_position[t] = q[0:3]
     root_quaternion[t] = (q[4], q[5], q[6], q[3])
     for i, ee in enumerate(ik.ee_names):
@@ -4885,9 +4627,7 @@ def generate_mount_clip(
           else:
             # Penetration past the pad-touch offset plane (one sphere
             # radius short of the tilted surface).
-            pen = (
-              gcc.WALL_SURFACE_X - gcc.PAD_TOUCH_X
-            ) - wall.wall_distance(d.xpos[bid_s])
+            pen = (gcc.WALL_SURFACE_X - gcc.PAD_TOUCH_X) - wall.wall_distance(d.xpos[bid_s])
           if pen > max_wall_pen:
             max_wall_pen_at = (t, ee)
           max_wall_pen = max(max_wall_pen, pen)
@@ -4900,16 +4640,9 @@ def generate_mount_clip(
     if seg_name_t in ("hand_up_left", "hand_up_hold", "hand_up_right"):
       for ee in feet:
         if wall.identity:
-          gap = float(
-            gcc.WALL_SURFACE_X
-            - d.site_xpos[ik.toe_sid[ee]][0]
-            - ik.toes[ee].radius
-          )
+          gap = float(gcc.WALL_SURFACE_X - d.site_xpos[ik.toe_sid[ee]][0] - ik.toes[ee].radius)
         else:
-          gap = (
-            wall.wall_distance(d.site_xpos[ik.toe_sid[ee]])
-            - ik.toes[ee].radius
-          )
+          gap = wall.wall_distance(d.site_xpos[ik.toe_sid[ee]]) - ik.toes[ee].radius
         key = f"{ee}@{seg_name_t}"
         toe_gap_report[key] = max(toe_gap_report.get(key, -np.inf), gap)
     grounded_geoms = set()
@@ -4924,9 +4657,7 @@ def generate_mount_clip(
         continue
       center = m.geom_aabb[g, :3]
       half = m.geom_aabb[g, 3:]
-      world = d.geom_xpos[g] + (center + half * corner_signs) @ d.geom_xmat[
-        g
-      ].reshape(3, 3).T
+      world = d.geom_xpos[g] + (center + half * corner_signs) @ d.geom_xmat[g].reshape(3, 3).T
       if g not in pad_or_toe_geoms and g not in all_foot_geoms:
         if wall.identity:
           clear = gcc.WALL_SURFACE_X - float(world[:, 0].max())
@@ -4959,22 +4690,15 @@ def generate_mount_clip(
       else:
         tw = -np.array([wall.outward[0], wall.outward[1], 0.0])
         tw = tw / max(np.linalg.norm(tw), 1.0e-9)
-      toe_front = float(
-        d.site_xpos[ik.toe_sid[feet[i_st]]] @ tw + ik.toes[feet[i_st]].radius
-      )
+      toe_front = float(d.site_xpos[ik.toe_sid[feet[i_st]]] @ tw + ik.toes[feet[i_st]].radius)
       dx = float(com_w @ tw) - toe_front
       rec = com_single.setdefault(SEGMENT_NAMES[label_arr[t]], [np.inf, -np.inf])
       rec[0] = min(rec[0], dy)
       rec[1] = max(rec[1], dx)
     if ground_arr[t].all() and not engaged_arr[t].any():
       com_x = float((m.body_mass[:, None] * d.xipos).sum(axis=0)[0] / mass)
-      toe_x = max(
-        float(d.site_xpos[ik.toe_sid[ee]][0] + ik.toes[ee].radius)
-        for ee in feet
-      )
-      heel_x = min(
-        float(d.xpos[foot_body_bid[ee]][0] - 0.06) for ee in feet
-      )
+      toe_x = max(float(d.site_xpos[ik.toe_sid[ee]][0] + ik.toes[ee].radius) for ee in feet)
+      heel_x = min(float(d.xpos[foot_body_bid[ee]][0] - 0.06) for ee in feet)
       margin = min(toe_x - com_x, com_x - heel_x)
       if margin < com_margin_min[0]:
         com_margin_min = (margin, t)
@@ -5047,24 +4771,16 @@ def generate_mount_clip(
   for name in SEGMENT_NAMES:
     r = seg_residual[name]
     if r.pos > 0.0 or r.rot > 0.0:
-      print(
-        f"  {name:18s} IK residual: pos {r.pos * 1000.0:6.2f} mm, "
-        f"rot {np.degrees(r.rot):5.2f} deg"
-      )
+      print(f"  {name:18s} IK residual: pos {r.pos * 1000.0:6.2f} mm, rot {np.degrees(r.rot):5.2f} deg")
   for key, (pos_err, rot_err) in landing_report.items():
-    print(
-      f"  {key:22s} landing vs scheduled anchor: "
-      f"{pos_err * 1000.0:6.2f} mm, {np.degrees(rot_err):5.2f} deg"
-    )
+    print(f"  {key:22s} landing vs scheduled anchor: {pos_err * 1000.0:6.2f} mm, {np.degrees(rot_err):5.2f} deg")
   for ee, gap in toe_gap_report.items():
     print(
       f"  toe {ee:18s} wall-touch gap {gap * 1000.0:+6.2f} mm "
       "(must be within +0.5 mm for the static audit to credit the brace)"
     )
   joint_speed = np.abs(np.diff(joint_positions, axis=0)) * fps
-  peak_frame, peak_joint = np.unravel_index(
-    np.argmax(joint_speed), joint_speed.shape
-  )
+  peak_frame, peak_joint = np.unravel_index(np.argmax(joint_speed), joint_speed.shape)
   base_speed = float(np.abs(np.diff(root_position, axis=0)).max() * fps)
   print(
     f"  peak joint speed {joint_speed.max():.2f} rad/s "
@@ -5095,9 +4811,7 @@ def generate_mount_clip(
     last = int(frames_in_seg[-1])
     nr = seg_rake[seg_name]
     drop = float(pad_positions[last - nr, i, 2] - pad_positions[last, i, 2])
-    print(
-      f"  rake {ik.ee_names[i]:18s} ({seg_name}): down {drop * 1000.0:5.2f} mm"
-    )
+    print(f"  rake {ik.ee_names[i]:18s} ({seg_name}): down {drop * 1000.0:5.2f} mm")
   if gimbal_joint_names:
     arr_g = np.stack(qpos_frames)
     for ee, names in gimbal_joint_names.items():
@@ -5154,10 +4868,7 @@ def generate_mount_clip(
       fr = int(np.argmin(col) if lo_m < hi_m else np.argmax(col))
       flagged.append((nm, margin, fr))
   for nm, margin, fr in flagged:
-    print(
-      f"  LIMIT {nm:22s} {margin * 100.0:5.2f}% of range @f{fr} "
-      f"{SEGMENT_NAMES[label_arr[fr]]}"
-    )
+    print(f"  LIMIT {nm:22s} {margin * 100.0:5.2f}% of range @f{fr} {SEGMENT_NAMES[label_arr[fr]]}")
   worst_name, worst_margin, worst_frame = "", np.inf, -1
   for i, nm in enumerate(PHYBOT_C2_POLICY_JOINT_NAMES):
     lo, hi = ik.joint_ranges[nm]
@@ -5167,17 +4878,13 @@ def generate_mount_clip(
     margin = min(lo_m, hi_m) / (hi - lo)
     if margin < worst_margin:
       worst_name, worst_margin = nm, margin
-      worst_frame = int(
-        np.argmin(col) if lo_m < hi_m else np.argmax(col)
-      )
+      worst_frame = int(np.argmin(col) if lo_m < hi_m else np.argmax(col))
   print(
     f"  joint-limit clearance min       {worst_margin * 100.0:6.2f}% of range "
     f"({worst_name} @f{worst_frame} "
     f"{SEGMENT_NAMES[label_arr[worst_frame]]})"
   )
-  if "shoulder_roll" in worst_name and "hand_up" in SEGMENT_NAMES[
-    label_arr[worst_frame]
-  ]:
+  if "shoulder_roll" in worst_name and "hand_up" in SEGMENT_NAMES[label_arr[worst_frame]]:
     print(
       "    note: one-hand-high / one-hand-low support kinematically forces "
       "the LOW arm's shoulder roll onto its stop on this wristless 4-DoF "
@@ -5187,10 +4894,7 @@ def generate_mount_clip(
     )
   # Handoff contract: the final frame must BE state 1 shifted by dz.
   handoff_joint = float(
-    np.abs(
-      joint_positions[-1]
-      - np.array([state1_joint[nm] for nm in PHYBOT_C2_POLICY_JOINT_NAMES])
-    ).max()
+    np.abs(joint_positions[-1] - np.array([state1_joint[nm] for nm in PHYBOT_C2_POLICY_JOINT_NAMES])).max()
   )
   print(f"  handoff joint delta vs state-1  {handoff_joint:.2e} rad (must be ~0)")
   if max_weld_drift > 5.0e-3 or max_wall_pen > 2.0e-3:
@@ -5200,12 +4904,16 @@ def generate_mount_clip(
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
-    "--output", type=Path, required=True,
+    "--output",
+    type=Path,
+    required=True,
     help="Clip to write (the committed one is assets/motions/climb_mount_prologue_a80.npy).",
   )
   parser.add_argument("--fps", type=float, default=50.0)
   parser.add_argument(
-    "--handoff-motion", type=Path, default=CAD_CLIMB_MOTION,
+    "--handoff-motion",
+    type=Path,
+    default=CAD_CLIMB_MOTION,
     help="Cycle whose first complete pose (including passive joints) defines the handoff.",
   )
   parser.add_argument(
@@ -5278,15 +4986,13 @@ def main() -> None:
     "--place-right-s",
     type=float,
     default=1.0,
-    help="hand_place_right duration (s): the braced right-hand close "
-    "hover -> anchor + rake",
+    help="hand_place_right duration (s): the braced right-hand close hover -> anchor + rake",
   )
   parser.add_argument(
     "--hand-hover",
     type=float,
     default=0.015,
-    help="right-hand hover distance off its anchor (m) while the left "
-    "welds first",
+    help="right-hand hover distance off its anchor (m) while the left welds first",
   )
   parser.add_argument("--set-hold-s", type=float, default=0.5)
   parser.add_argument("--foot-swing-s", type=float, default=1.6)
@@ -5313,7 +5019,9 @@ def main() -> None:
   parser.add_argument("--end-hold-s", type=float, default=0.6)
   parser.add_argument("--place-bulge", type=float, default=0.04)
   parser.add_argument(
-    "--raise-yaw", type=float, default=0.0,
+    "--raise-yaw",
+    type=float,
+    default=0.0,
     help="cross sequence: mirrored shoulder-yaw excursion during the arm fold (rad)",
   )
   parser.add_argument("--foot-bulge", type=float, default=0.04)
@@ -5436,8 +5144,7 @@ def main() -> None:
     "--step-hips-lateral",
     type=float,
     default=0.05,
-    help="cross: lateral hip shift over the standing LEFT foot across the "
-    "right-foot mount (world +y)",
+    help="cross: lateral hip shift over the standing LEFT foot across the right-foot mount (world +y)",
   )
   parser.add_argument(
     "--reach-rise",
@@ -5457,8 +5164,7 @@ def main() -> None:
     "--reach-rot-frac",
     type=float,
     default=0.8,
-    help="cross: fraction of the trunk slerp toward wall-parallel reached "
-    "by the end of the right-hand reach",
+    help="cross: fraction of the trunk slerp toward wall-parallel reached by the end of the right-hand reach",
   )
   parser.add_argument(
     "--reach-heel-lift",
@@ -5519,8 +5225,7 @@ def main() -> None:
     "--pivot-lateral",
     type=float,
     default=None,
-    help="cross: lateral base target at the end of the toe pivot (None = "
-    "-lateral_weight_shift as in v3)",
+    help="cross: lateral base target at the end of the toe pivot (None = -lateral_weight_shift as in v3)",
   )
   parser.add_argument(
     "--step-trunk-pitch",
@@ -5533,8 +5238,7 @@ def main() -> None:
     "--foot-rake-s",
     type=float,
     default=None,
-    help="cross v4: rake duration of the LEFT foot mount (None = --rake-s); "
-    "the right foot keeps --rake-right-s",
+    help="cross v4: rake duration of the LEFT foot mount (None = --rake-s); the right foot keeps --rake-right-s",
   )
   parser.add_argument(
     "--foot-rake-dist",
@@ -5591,40 +5295,193 @@ def main() -> None:
     "(mirror of the left place), both feet then mount on two hand welds, and the closure "
     "is the two-step hand walk-up (left then right). No tiptoe reach.",
   )
-  parser.add_argument("--pivot-rise", type=float, default=0.0, help="cross v5: along-wall base rise (m) through the left-foot toe pivot (three welds); 0 = v3.")
-  parser.add_argument("--set-right-press", type=float, default=0.0, help="cross v5 --rh-first: base shift toward the wall (m) during hand_set_right (hips-in before the lift).")
-  parser.add_argument("--set-right-drop", type=float, default=0.0, help="cross v5 --rh-first: base drop along the wall (m) during hand_set_right.")
-  parser.add_argument("--close-rh-first", action="store_true", help="cross v5 two-step closure: the right hand steps first (non-closing), the left hand closes.")
-  parser.add_argument("--set-hold-press", type=float, default=0.0, help="cross v5: base shift toward the wall (m) during hand_set_hold (pivot starts closer).")
-  parser.add_argument("--set-hold-rise", type=float, default=0.0, help="cross v5: along-wall base rise (m) during hand_set_hold (pivot starts higher).")
-  parser.add_argument("--pivot-heel-lift", type=float, default=None, help="cross v5: absolute swing-ankle plantarflexion target (rad) keyed over the first 30%% of the toe pivot (v3 tiptoe = 0.38); None = v3 behaviour.")
-  parser.add_argument("--pivot-smear-gap", type=float, default=0.008, help="cross v5: the toe smear stops this far short of the wall base (m); v3 = 0.008.")
-  parser.add_argument("--pivot-toe-release", type=float, default=0.49, help="cross v5: pivot progress u at which the planted toe pin starts fading (gone 0.17 later); v3 = 0.49.")
-  parser.add_argument("--pivot-ctl-up", type=float, default=0.05, help="cross v5: pivot arc control point lift (m); v3 = 0.05.")
-  parser.add_argument("--pivot-ctl-out", type=float, default=0.030, help="cross v5: pivot arc control point outward offset (m); v3 = 0.03.")
-  parser.add_argument("--pivot-fold-u0", type=float, default=0.45, help="cross v5: pivot progress u at which the guided leg fold (posture -> state-1, stiff leg) starts; v3 = 0.45.")
-  parser.add_argument("--set-right-pitch", type=float, default=0.0, help="cross v6 --rh-first: trunk pitch key (rad, world +y; negative = lean away from the wall) reached by the end of hand_set_right.")
-  parser.add_argument("--set-right-s", type=float, default=None, help="cross v6 --rh-first: hand_set_right duration (s); None = --set-left-s.")
-  parser.add_argument("--set-left-pitch", type=float, default=0.0, help="cross v6: trunk pitch key (rad; positive = lean away from the wall) reached by the end of hand_set_left.")
-  parser.add_argument("--raise-pitch-comp-sign", type=float, default=1.0, help="cross v6 --rh-first: sign/scale of the trunk-pitch compensation of the right-arm raise keys (1 = add the trunk forward pitch to the end key).")
-  parser.add_argument("--rh-raise-lateral", action="store_true", help="cross v6 --rh-first: raise the right arm laterally (--raise-roll-right) instead of sagittally.")
+  parser.add_argument(
+    "--pivot-rise",
+    type=float,
+    default=0.0,
+    help="cross v5: along-wall base rise (m) through the left-foot toe pivot (three welds); 0 = v3.",
+  )
+  parser.add_argument(
+    "--set-right-press",
+    type=float,
+    default=0.0,
+    help="cross v5 --rh-first: base shift toward the wall (m) during hand_set_right (hips-in before the lift).",
+  )
+  parser.add_argument(
+    "--set-right-drop",
+    type=float,
+    default=0.0,
+    help="cross v5 --rh-first: base drop along the wall (m) during hand_set_right.",
+  )
+  parser.add_argument(
+    "--close-rh-first",
+    action="store_true",
+    help="cross v5 two-step closure: the right hand steps first (non-closing), the left hand closes.",
+  )
+  parser.add_argument(
+    "--set-hold-press",
+    type=float,
+    default=0.0,
+    help="cross v5: base shift toward the wall (m) during hand_set_hold (pivot starts closer).",
+  )
+  parser.add_argument(
+    "--set-hold-rise",
+    type=float,
+    default=0.0,
+    help="cross v5: along-wall base rise (m) during hand_set_hold (pivot starts higher).",
+  )
+  parser.add_argument(
+    "--pivot-heel-lift",
+    type=float,
+    default=None,
+    help="cross v5: absolute swing-ankle plantarflexion target (rad) keyed over the first 30%% of the toe pivot (v3 tiptoe = 0.38); None = v3 behaviour.",
+  )
+  parser.add_argument(
+    "--pivot-smear-gap",
+    type=float,
+    default=0.008,
+    help="cross v5: the toe smear stops this far short of the wall base (m); v3 = 0.008.",
+  )
+  parser.add_argument(
+    "--pivot-toe-release",
+    type=float,
+    default=0.49,
+    help="cross v5: pivot progress u at which the planted toe pin starts fading (gone 0.17 later); v3 = 0.49.",
+  )
+  parser.add_argument(
+    "--pivot-ctl-up", type=float, default=0.05, help="cross v5: pivot arc control point lift (m); v3 = 0.05."
+  )
+  parser.add_argument(
+    "--pivot-ctl-out",
+    type=float,
+    default=0.030,
+    help="cross v5: pivot arc control point outward offset (m); v3 = 0.03.",
+  )
+  parser.add_argument(
+    "--pivot-fold-u0",
+    type=float,
+    default=0.45,
+    help="cross v5: pivot progress u at which the guided leg fold (posture -> state-1, stiff leg) starts; v3 = 0.45.",
+  )
+  parser.add_argument(
+    "--set-right-pitch",
+    type=float,
+    default=0.0,
+    help="cross v6 --rh-first: trunk pitch key (rad, world +y; negative = lean away from the wall) reached by the end of hand_set_right.",
+  )
+  parser.add_argument(
+    "--set-right-s",
+    type=float,
+    default=None,
+    help="cross v6 --rh-first: hand_set_right duration (s); None = --set-left-s.",
+  )
+  parser.add_argument(
+    "--set-left-pitch",
+    type=float,
+    default=0.0,
+    help="cross v6: trunk pitch key (rad; positive = lean away from the wall) reached by the end of hand_set_left.",
+  )
+  parser.add_argument(
+    "--raise-pitch-comp-sign",
+    type=float,
+    default=1.0,
+    help="cross v6 --rh-first: sign/scale of the trunk-pitch compensation of the right-arm raise keys (1 = add the trunk forward pitch to the end key).",
+  )
+  parser.add_argument(
+    "--rh-raise-lateral",
+    action="store_true",
+    help="cross v6 --rh-first: raise the right arm laterally (--raise-roll-right) instead of sagittally.",
+  )
   parser.add_argument("--set-left-s2", type=float, default=None, help="cross v6: hand_set_left duration override (s).")
-  parser.add_argument("--stance-width", type=float, default=None, help="v6: standing stance width (m, feet re-planted at +-w/2 by IK); None = the walk keyframe (0.296).")
-  parser.add_argument("--place-right-pitch", type=float, default=0.0, help="cross v6 --rh-first: trunk pitch key (rad, + = toward the wall) reached over the right-hand place arc.")
-  parser.add_argument("--hand-up-left-mid", type=float, default=None, help="v6g closing rework: split the left hand's 30 cm walk-up (1.22 -> hand-z) into TWO steps through a mid rung at this height (m); each landing keeps elbow flexion in reserve. None = the shipped single step.")
-  parser.add_argument("--hand-up-left-mid-s", type=float, default=None, help="duration of the mid step (default: --hand-up-s).")
-  parser.add_argument("--up-left-mid-hold-s", type=float, default=0.4, help="four-anchor re-seat dwell between the two left-hand steps.")
-  parser.add_argument("--hand-up-left-mid-y", type=float, default=0.0, help="lateral offset (m, world +y = outboard for the left hand) of the mid rung off the final lane: at 1.40 the lane sits past the shoulder-roll stop (+24 mm flat landing miss measured); the lane is the hand's to choose on the closing step.")
-  parser.add_argument("--weld-hard", action="store_true", help="welds and planted floor feet become the IK's top-priority level (exact, null-space hierarchy): an engaged pad never drifts off its anchor -- the physics of a latched microspine -- and any reach shortfall lands on the swing target / base instead (landing error, closure).")
-  parser.add_argument("--weld-gimbal-deg", type=float, default=0.0, help="let the IK use the WELDED pads' passive gimbal hinges (plant joints *_gimbal_{x,y,z}, real stop 3 deg) within +-D deg, so a closed-chain rotation demand is met by the wrist ball joint instead of dragging the pad off its anchor (weld drift). 0 = gimbals locked at zero (legacy). Swing pads stay pinned at zero.")
-  parser.add_argument("--weld-gimbal-w", type=float, default=3.0, help="posture spring (to zero) on a freed gimbal hinge; higher = the arm joints are preferred over the gimbal.")
-  parser.add_argument("--weld-w-scale", type=float, default=1.0, help="multiplier on every support-weld IK task weight (pos 1000 / rot 500 x scale): >1 trades base/press realization for less engaged-pad drift (the welded pads sink 1-3 mm into the wall under the hips-in press at 1.0).")
-  parser.add_argument("--place-right-base-dz", type=float, default=0.0, help="cross v6 --rh-first: base rise (m) reached over the right-hand place arc (reach relief for high rungs: the parked base over-stretches the welded left arm, 13-21 mm weld drift at 1.44-1.46).")
-  parser.add_argument("--place-right-base-dx", type=float, default=0.0, help="cross v6 --rh-first: base shift toward the wall (m) reached over the right-hand place arc.")
-  parser.add_argument("--place-right-left-arm-w", type=float, default=4.0, help="cross v6 --rh-first: posture-override weight of the welded left arm during the right-hand place (4.0 = stiff support-arm rule).")
-  parser.add_argument("--set-right-lateral", type=float, default=0.0, help="cross v6 --rh-first: lateral base shift (m, +y = left) during hand_set_right (both hands welded).")
-  parser.add_argument("--set-hold-pitch", type=float, default=0.0, help="cross v6: trunk pitch key (rad, + = toward the wall) over hand_set_hold (un-bow before the pivot).")
-  parser.add_argument("--raise-pitch-end-right", type=float, default=None, help="cross v6 --rh-first: end shoulder-pitch key of the right-arm raise (rad); None = --raise-pitch-end.")
+  parser.add_argument(
+    "--stance-width",
+    type=float,
+    default=None,
+    help="v6: standing stance width (m, feet re-planted at +-w/2 by IK); None = the walk keyframe (0.296).",
+  )
+  parser.add_argument(
+    "--place-right-pitch",
+    type=float,
+    default=0.0,
+    help="cross v6 --rh-first: trunk pitch key (rad, + = toward the wall) reached over the right-hand place arc.",
+  )
+  parser.add_argument(
+    "--hand-up-left-mid",
+    type=float,
+    default=None,
+    help="v6g closing rework: split the left hand's 30 cm walk-up (1.22 -> hand-z) into TWO steps through a mid rung at this height (m); each landing keeps elbow flexion in reserve. None = the shipped single step.",
+  )
+  parser.add_argument(
+    "--hand-up-left-mid-s", type=float, default=None, help="duration of the mid step (default: --hand-up-s)."
+  )
+  parser.add_argument(
+    "--up-left-mid-hold-s", type=float, default=0.4, help="four-anchor re-seat dwell between the two left-hand steps."
+  )
+  parser.add_argument(
+    "--hand-up-left-mid-y",
+    type=float,
+    default=0.0,
+    help="lateral offset (m, world +y = outboard for the left hand) of the mid rung off the final lane: at 1.40 the lane sits past the shoulder-roll stop (+24 mm flat landing miss measured); the lane is the hand's to choose on the closing step.",
+  )
+  parser.add_argument(
+    "--weld-hard",
+    action="store_true",
+    help="welds and planted floor feet become the IK's top-priority level (exact, null-space hierarchy): an engaged pad never drifts off its anchor -- the physics of a latched microspine -- and any reach shortfall lands on the swing target / base instead (landing error, closure).",
+  )
+  parser.add_argument(
+    "--weld-gimbal-deg",
+    type=float,
+    default=0.0,
+    help="let the IK use the WELDED pads' passive gimbal hinges (plant joints *_gimbal_{x,y,z}, real stop 3 deg) within +-D deg, so a closed-chain rotation demand is met by the wrist ball joint instead of dragging the pad off its anchor (weld drift). 0 = gimbals locked at zero (legacy). Swing pads stay pinned at zero.",
+  )
+  parser.add_argument(
+    "--weld-gimbal-w",
+    type=float,
+    default=3.0,
+    help="posture spring (to zero) on a freed gimbal hinge; higher = the arm joints are preferred over the gimbal.",
+  )
+  parser.add_argument(
+    "--weld-w-scale",
+    type=float,
+    default=1.0,
+    help="multiplier on every support-weld IK task weight (pos 1000 / rot 500 x scale): >1 trades base/press realization for less engaged-pad drift (the welded pads sink 1-3 mm into the wall under the hips-in press at 1.0).",
+  )
+  parser.add_argument(
+    "--place-right-base-dz",
+    type=float,
+    default=0.0,
+    help="cross v6 --rh-first: base rise (m) reached over the right-hand place arc (reach relief for high rungs: the parked base over-stretches the welded left arm, 13-21 mm weld drift at 1.44-1.46).",
+  )
+  parser.add_argument(
+    "--place-right-base-dx",
+    type=float,
+    default=0.0,
+    help="cross v6 --rh-first: base shift toward the wall (m) reached over the right-hand place arc.",
+  )
+  parser.add_argument(
+    "--place-right-left-arm-w",
+    type=float,
+    default=4.0,
+    help="cross v6 --rh-first: posture-override weight of the welded left arm during the right-hand place (4.0 = stiff support-arm rule).",
+  )
+  parser.add_argument(
+    "--set-right-lateral",
+    type=float,
+    default=0.0,
+    help="cross v6 --rh-first: lateral base shift (m, +y = left) during hand_set_right (both hands welded).",
+  )
+  parser.add_argument(
+    "--set-hold-pitch",
+    type=float,
+    default=0.0,
+    help="cross v6: trunk pitch key (rad, + = toward the wall) over hand_set_hold (un-bow before the pivot).",
+  )
+  parser.add_argument(
+    "--raise-pitch-end-right",
+    type=float,
+    default=None,
+    help="cross v6 --rh-first: end shoulder-pitch key of the right-arm raise (rad); None = --raise-pitch-end.",
+  )
   parser.add_argument("--lateral-weight-shift", type=float, default=0.03)
   parser.add_argument("--hand-load-transfer-s", type=float, default=0.1)
   parser.add_argument("--rake-s", type=float, default=0.1)

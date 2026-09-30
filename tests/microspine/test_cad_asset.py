@@ -1,4 +1,5 @@
 """Source-CAD regressions catch mesh warping, missing pieces and wrong mates."""
+
 import numpy as np
 
 from scr_phybot_mjab.tools.microspine.cad import load_cad_pad_assembly
@@ -14,6 +15,6 @@ def test_compiled_geometry_is_a_rigid_import_of_every_cad_solid():
 
 def test_step_bearing_seat_and_sleeve_stop_define_mounting():
   cad = load_cad_pad_assembly()
-  np.testing.assert_allclose(cad.pivot, [0, .01225, .0905], atol=1e-12)
-  np.testing.assert_allclose(cad.features["sleeve_shoulder_m"], [0, 0, .035], atol=1e-12)
-  np.testing.assert_allclose(cad.contact_center, [0, -.04750, .07798417], atol=5e-8)
+  np.testing.assert_allclose(cad.pivot, [0, 0.01225, 0.0905], atol=1e-12)
+  np.testing.assert_allclose(cad.features["sleeve_shoulder_m"], [0, 0, 0.035], atol=1e-12)
+  np.testing.assert_allclose(cad.contact_center, [0, -0.04750, 0.07798417], atol=5e-8)

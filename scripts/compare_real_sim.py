@@ -87,12 +87,14 @@ def quat_wxyz_from_zyx(yaw: float, pitch: float, roll: float) -> np.ndarray:
   cy, sy = np.cos(yaw / 2), np.sin(yaw / 2)
   cp, sp = np.cos(pitch / 2), np.sin(pitch / 2)
   cr, sr = np.cos(roll / 2), np.sin(roll / 2)
-  return np.array([
-    cy * cp * cr + sy * sp * sr,
-    cy * cp * sr - sy * sp * cr,
-    cy * sp * cr + sy * cp * sr,
-    sy * cp * cr - cy * sp * sr,
-  ])
+  return np.array(
+    [
+      cy * cp * cr + sy * sp * sr,
+      cy * cp * sr - sy * sp * cr,
+      cy * sp * cr + sy * cp * sr,
+      sy * cp * cr - cy * sp * sr,
+    ]
+  )
 
 
 def fit_base_height(model: mujoco.MjModel, data: mujoco.MjData, floor_gid: int) -> None:
@@ -109,8 +111,7 @@ def fit_base_height(model: mujoco.MjModel, data: mujoco.MjData, floor_gid: int) 
   mujoco.mj_forward(model, data)
 
 
-def pin_base_linvel_to_contacts(model: mujoco.MjModel, data: mujoco.MjData,
-                                floor_gid: int) -> bool:
+def pin_base_linvel_to_contacts(model: mujoco.MjModel, data: mujoco.MjData, floor_gid: int) -> bool:
   """Set base lin vel so the mean world velocity of floor contacts is zero.
 
   The log has no base velocity, but whatever touches the ground is (nearly)
@@ -135,8 +136,9 @@ def pin_base_linvel_to_contacts(model: mujoco.MjModel, data: mujoco.MjData,
   return True
 
 
-def replay(log: real_log.RealLog, w0: int, w1: int, physics_dt: float,
-           friction: float, settle_ticks: int) -> tuple[np.ndarray, np.ndarray]:
+def replay(
+  log: real_log.RealLog, w0: int, w1: int, physics_dt: float, friction: float, settle_ticks: int
+) -> tuple[np.ndarray, np.ndarray]:
   """Open-loop PD replay of q_des rows [w0, w1); returns (q_sim, tau_sim)."""
   model = build_model(friction)
   model.opt.timestep = physics_dt
@@ -176,7 +178,8 @@ def replay(log: real_log.RealLog, w0: int, w1: int, physics_dt: float,
   for _ in range(settle_ticks):
     tau = np.clip(
       kp * (log.q_des[w0] - data.qpos[qadr]) - kd * data.qvel[dadr],
-      -tau_lim, tau_lim,
+      -tau_lim,
+      tau_lim,
     )
     data.qfrc_applied[:] = 0.0
     data.qfrc_applied[dadr] = tau
@@ -200,7 +203,8 @@ def replay(log: real_log.RealLog, w0: int, w1: int, physics_dt: float,
     for _ in range(substeps):
       tau = np.clip(
         kp * (target - data.qpos[qadr]) - kd * data.qvel[dadr],
-        -tau_lim, tau_lim,
+        -tau_lim,
+        tau_lim,
       )
       data.qfrc_applied[:] = 0.0
       data.qfrc_applied[dadr] = tau
@@ -219,9 +223,16 @@ def divergence_time(err: np.ndarray, thr: float, sustain_ticks: int = 25) -> flo
   return float(idx[0] * real_log.TICK_DT) if len(idx) else np.nan
 
 
-def report(log: real_log.RealLog, w0: int, w1: int, q_sim: np.ndarray,
-           tau_sim: np.ndarray, thr_deg: float, out_dir: Path,
-           run_name: str) -> None:
+def report(
+  log: real_log.RealLog,
+  w0: int,
+  w1: int,
+  q_sim: np.ndarray,
+  tau_sim: np.ndarray,
+  thr_deg: float,
+  out_dir: Path,
+  run_name: str,
+) -> None:
   jname = PHYBOT_C2_POLICY_JOINT_NAMES
   t = np.arange(w1 - w0) * real_log.TICK_DT
   q_real = log.q[w0:w1]
@@ -230,36 +241,42 @@ def report(log: real_log.RealLog, w0: int, w1: int, q_sim: np.ndarray,
   one_s = min(len(t), int(round(1.0 / real_log.TICK_DT)))
 
   rmse_1s = np.degrees(np.sqrt(np.mean(err[:one_s] ** 2, axis=0)))
-  rmse_full = np.degrees(np.sqrt(np.mean(err ** 2, axis=0)))
+  rmse_full = np.degrees(np.sqrt(np.mean(err**2, axis=0)))
   t_div = np.array([divergence_time(err[:, i], thr) for i in range(err.shape[1])])
 
   print(f"\nwindow: rows [{w0}, {w1}) = {t[-1] + real_log.TICK_DT:.2f} s @ 500 Hz")
-  print(f"command |vx| mean/max: {np.abs(log.js[w0:w1, 0]).mean():.2f}/"
-        f"{np.abs(log.js[w0:w1, 0]).max():.2f} m/s")
-  print(f"{'joint':<20}{'rmse@1s(deg)':>14}{'rmse(deg)':>11}{'max(deg)':>10}"
-        f"{'t_div(s)':>10}")
+  print(f"command |vx| mean/max: {np.abs(log.js[w0:w1, 0]).mean():.2f}/{np.abs(log.js[w0:w1, 0]).max():.2f} m/s")
+  print(f"{'joint':<20}{'rmse@1s(deg)':>14}{'rmse(deg)':>11}{'max(deg)':>10}{'t_div(s)':>10}")
   for i, name in enumerate(jname):
     div = f"{t_div[i]:.2f}" if np.isfinite(t_div[i]) else "-"
-    print(f"{name:<20}{rmse_1s[i]:>14.2f}{rmse_full[i]:>11.2f}"
-          f"{np.degrees(np.abs(err[:, i]).max()):>10.2f}{div:>10}")
+    print(f"{name:<20}{rmse_1s[i]:>14.2f}{rmse_full[i]:>11.2f}{np.degrees(np.abs(err[:, i]).max()):>10.2f}{div:>10}")
   legs_div = t_div[_LEG_IDX]
   first = np.nanmin(legs_div) if np.isfinite(legs_div).any() else np.nan
-  print(f"\nlegs: mean rmse@1s {rmse_1s[_LEG_IDX].mean():.2f} deg; earliest "
-        f"divergence (> {thr_deg:.0f} deg for 50 ms): "
-        + (f"{first:.2f} s ({jname[_LEG_IDX[int(np.nanargmin(legs_div))]]})"
-           if np.isfinite(first) else "none in window"))
+  print(
+    f"\nlegs: mean rmse@1s {rmse_1s[_LEG_IDX].mean():.2f} deg; earliest "
+    f"divergence (> {thr_deg:.0f} deg for 50 ms): "
+    + (f"{first:.2f} s ({jname[_LEG_IDX[int(np.nanargmin(legs_div))]]})" if np.isfinite(first) else "none in window")
+  )
 
   out_dir.mkdir(parents=True, exist_ok=True)
   np.savez_compressed(
     out_dir / "aligned.npz",
-    t=t, q_real=q_real, dq_real=log.dq[w0:w1], q_des=log.q_des[w0:w1],
-    tau_real=log.tau[w0:w1], q_sim=q_sim, tau_sim=tau_sim,
-    joint_names=np.array(jname), row0=w0, tick0=log.tick[w0],
+    t=t,
+    q_real=q_real,
+    dq_real=log.dq[w0:w1],
+    q_des=log.q_des[w0:w1],
+    tau_real=log.tau[w0:w1],
+    q_sim=q_sim,
+    tau_sim=tau_sim,
+    joint_names=np.array(jname),
+    row0=w0,
+    tick0=log.tick[w0],
   )
   print(f"saved {out_dir / 'aligned.npz'}")
 
   try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
   except ImportError:
@@ -267,14 +284,12 @@ def report(log: real_log.RealLog, w0: int, w1: int, q_sim: np.ndarray,
     return
 
   def overlay_page(idx: list[int], nrow: int, ncol: int, fname: str) -> None:
-    fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 2.6 * nrow),
-                             sharex=True, squeeze=False)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 2.6 * nrow), sharex=True, squeeze=False)
     for k, i in enumerate(idx):
       ax = axes[k // ncol][k % ncol]
       ax.plot(t, np.degrees(q_real[:, i]), lw=1.2, label="real")
       ax.plot(t, np.degrees(q_sim[:, i]), lw=1.2, ls="--", label="sim")
-      ax.plot(t, np.degrees(log.q_des[w0:w1, i]), lw=0.7, ls=":",
-              color="0.4", label="target")
+      ax.plot(t, np.degrees(log.q_des[w0:w1, i]), lw=0.7, ls=":", color="0.4", label="target")
       if np.isfinite(t_div[i]):
         ax.axvline(t_div[i], color="r", lw=0.7, alpha=0.5)
       ax.set_title(f"{jname[i]}  rmse@1s {rmse_1s[i]:.2f} deg", fontsize=9)
@@ -321,40 +336,39 @@ def report(log: real_log.RealLog, w0: int, w1: int, q_sim: np.ndarray,
 
 
 def main() -> None:
-  parser = argparse.ArgumentParser(
-    description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-  )
+  parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   src = parser.add_mutually_exclusive_group(required=True)
   src.add_argument("--run-dir", type=Path, help="robot_logs run dir (data.lcmlog)")
   src.add_argument("--csv", type=Path, help="pre-exported state.csv")
-  parser.add_argument("--deploy-repo", type=Path,
-                      default=real_log.default_deploy_repo(_REPO),
-                      help="bdml_phybot_deploy_c2 checkout (for log2csv)")
-  parser.add_argument("--task-code", type=int, default=None,
-                      help="pin the walk_amp select_code instead of auto-detect")
-  parser.add_argument("--t-start", type=float, default=0.0,
-                      help="window start, seconds into the walk segment")
-  parser.add_argument("--duration", type=float, default=np.inf,
-                      help="window length in seconds (default: to segment end)")
-  parser.add_argument("--physics-dt", type=float, default=0.002,
-                      help="sim integration step (default 0.002 = one real tick)")
+  parser.add_argument(
+    "--deploy-repo",
+    type=Path,
+    default=real_log.default_deploy_repo(_REPO),
+    help="bdml_phybot_deploy_c2 checkout (for log2csv)",
+  )
+  parser.add_argument("--task-code", type=int, default=None, help="pin the walk_amp select_code instead of auto-detect")
+  parser.add_argument("--t-start", type=float, default=0.0, help="window start, seconds into the walk segment")
+  parser.add_argument(
+    "--duration", type=float, default=np.inf, help="window length in seconds (default: to segment end)"
+  )
+  parser.add_argument(
+    "--physics-dt", type=float, default=0.002, help="sim integration step (default 0.002 = one real tick)"
+  )
   parser.add_argument("--friction", type=float, default=1.0)
-  parser.add_argument("--settle-ticks", type=int, default=100,
-                      help="vertical contact-loading settle before the replay")
+  parser.add_argument("--settle-ticks", type=int, default=100, help="vertical contact-loading settle before the replay")
   parser.add_argument("--div-threshold-deg", type=float, default=5.0)
-  parser.add_argument("--output-dir", type=Path, default=None,
-                      help="default: results/sim2real/<run name>")
+  parser.add_argument("--output-dir", type=Path, default=None, help="default: results/sim2real/<run name>")
   args = parser.parse_args()
 
   csv = real_log.ensure_state_csv(args.run_dir or args.csv, args.deploy_repo)
   log = real_log.load_state_csv(csv)
-  default_dof_pos = np.array(
-    [PHYBOT_C2_STANDING_JOINT_POS[n] for n in PHYBOT_C2_POLICY_JOINT_NAMES]
-  )
+  default_dof_pos = np.array([PHYBOT_C2_STANDING_JOINT_POS[n] for n in PHYBOT_C2_POLICY_JOINT_NAMES])
   seg = real_log.find_walk_segment(log, default_dof_pos, task_code=args.task_code)
-  print(f"walk segment: rows [{seg.start}, {seg.end}) = {seg.duration_s:.1f} s, "
-        f"task_code={seg.task_code}, first inference row {seg.infer_rows[0]}"
-        + ("" if seg.true_task_start else " (log starts mid-task)"))
+  print(
+    f"walk segment: rows [{seg.start}, {seg.end}) = {seg.duration_s:.1f} s, "
+    f"task_code={seg.task_code}, first inference row {seg.infer_rows[0]}"
+    + ("" if seg.true_task_start else " (log starts mid-task)")
+  )
 
   # Snap the window start to a policy step so it begins on a fresh target.
   w0_min = seg.infer_rows[0] + int(round(args.t_start / real_log.TICK_DT))
@@ -368,8 +382,7 @@ def main() -> None:
   if w1 - w0 < 2 * real_log.DECIMATION:
     raise SystemExit("comparison window is shorter than two policy steps")
 
-  q_sim, tau_sim = replay(log, w0, w1, args.physics_dt, args.friction,
-                          args.settle_ticks)
+  q_sim, tau_sim = replay(log, w0, w1, args.physics_dt, args.friction, args.settle_ticks)
 
   run_name = csv.parent.name if csv.name == "state.csv" else csv.stem
   out_dir = args.output_dir or (_REPO / "results" / "sim2real" / run_name)

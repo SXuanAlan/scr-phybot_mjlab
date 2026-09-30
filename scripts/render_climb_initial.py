@@ -70,9 +70,9 @@ def capture():
       "contacts_at_reset": [],
     }
     # Cross-check the host snapshot against the actual GPU reset kinematics.
-    report["host_gpu_site_max_error_m"] = float(np.max(np.abs(
-      data.site_xpos - env.sim.data.site_xpos[0].cpu().numpy()
-    )))
+    report["host_gpu_site_max_error_m"] = float(
+      np.max(np.abs(data.site_xpos - env.sim.data.site_xpos[0].cpu().numpy()))
+    )
     report["empirical_runtime"] = {
       "table": str(affordance._empirical.path),
       "strength_draw_shape": list(affordance.unit_strength_quantile.shape),
@@ -83,10 +83,7 @@ def capture():
     for i, ee in enumerate(microspine.ee_body_names):
       prefix = f"robot/{ee}"
       center = data.site_xpos[model.site(prefix + "_contact_center").id]
-      unit_ids = [
-        j for j in range(model.nsite)
-        if (model.site(j).name or "").startswith(prefix + "_unit_")
-      ]
+      unit_ids = [j for j in range(model.nsite) if (model.site(j).name or "").startswith(prefix + "_unit_")]
       unit_gaps = (data.site_xpos[unit_ids] - wall_point) @ wall_normal
       unit_rows = microspine.limit_surface.unit_rows_rake
       unit_cols = microspine.limit_surface.unit_cols_lateral
@@ -95,22 +92,18 @@ def capture():
           site = model.site(f"{prefix}_unit_{row}_{col}")
           offset = site.pos - anchor_offsets[i]
           expected = np.array([-offset[2], -offset[0]])
-          actual = np.array([affordance._unit_x[row*unit_cols+col].item(),
-                             affordance._unit_y[row*unit_cols+col].item()])
+          actual = np.array(
+            [affordance._unit_x[row * unit_cols + col].item(), affordance._unit_y[row * unit_cols + col].item()]
+          )
           report["empirical_runtime"]["unit_order_max_error_m"] = max(
-            report["empirical_runtime"]["unit_order_max_error_m"],
-            float(np.max(np.abs(expected-actual))))
-      face = data.xmat[model.body(prefix).id].reshape(3, 3) @ np.asarray(
-        microspine.face_local_axis
-      )
+            report["empirical_runtime"]["unit_order_max_error_m"], float(np.max(np.abs(expected - actual)))
+          )
+      face = data.xmat[model.body(prefix).id].reshape(3, 3) @ np.asarray(microspine.face_local_axis)
       report["pads"][ee] = {
         "center_world_m": center.tolist(),
         "center_wall_gap_mm": float((center - wall_point) @ wall_normal * 1000),
-        "unit_wall_gap_range_mm": [float(unit_gaps.min() * 1000),
-                                   float(unit_gaps.max() * 1000)],
-        "face_angle_to_wall_deg": float(np.rad2deg(np.arccos(np.clip(
-          face @ -wall_normal, -1, 1
-        )))),
+        "unit_wall_gap_range_mm": [float(unit_gaps.min() * 1000), float(unit_gaps.max() * 1000)],
+        "face_angle_to_wall_deg": float(np.rad2deg(np.arccos(np.clip(face @ -wall_normal, -1, 1)))),
         "reference_engaged": bool(motion.clip.ee_engaged[0, i].item()),
         "field_center_error_m": float(np.linalg.norm(face_centers[i] - center)),
         "weld_anchor_pad_local_m": anchor_offsets[i].tolist(),
@@ -118,24 +111,27 @@ def capture():
     for i in range(model.ngeom):
       name = model.geom(i).name or ""
       if "_collision" in name or "_spine_c_" in name:
-        report["collision_geoms"].append({
-          "name": name,
-          "contype": int(model.geom_contype[i]),
-          "conaffinity": int(model.geom_conaffinity[i]),
-        })
+        report["collision_geoms"].append(
+          {
+            "name": name,
+            "contype": int(model.geom_contype[i]),
+            "conaffinity": int(model.geom_conaffinity[i]),
+          }
+        )
     for i in range(model.npair):
       ids = (int(model.pair_geom1[i]), int(model.pair_geom2[i]))
       if wall_id in ids:
-        report["explicit_wall_pairs"].append([
-          model.geom(j).name for j in ids
-        ])
+        report["explicit_wall_pairs"].append([model.geom(j).name for j in ids])
     for contact in data.contact:
-      report["contacts_at_reset"].append({
-        "geoms": [model.geom(int(j)).name for j in contact.geom],
-        "distance_mm": float(contact.dist * 1000),
-      })
+      report["contacts_at_reset"].append(
+        {
+          "geoms": [model.geom(int(j)).name for j in contact.geom],
+          "distance_mm": float(contact.dist * 1000),
+        }
+      )
     report["reference_collision_audit"] = audit_reference_collisions(
-      model, cfg.commands["climb_motion"].motion_file, wall_id)
+      model, cfg.commands["climb_motion"].motion_file, wall_id
+    )
     return model, data, report
   finally:
     env.close()
@@ -147,29 +143,32 @@ def audit_reference_collisions(model, motion_file, wall_id):
   data = mujoco.MjData(model)
   root = int(model.joint("robot/floating_base_joint").qposadr[0])
   names = list(clip["joints_list"]) + list(clip.get("passive_joint_names", ()))
-  ids = [int(model.joint("robot/"+name).qposadr[0]) for name in names]
+  ids = [int(model.joint("robot/" + name).qposadr[0]) for name in names]
   values = np.concatenate([clip["joint_positions"], clip["passive_joint_positions"]], axis=-1)
   unexpected = {}
   max_penetration = 0.0
   for frame in range(len(values)):
-    data.qpos[root:root+3] = clip["root_position"][frame]
-    data.qpos[root+3:root+7] = clip["root_quaternion"][frame, [3,0,1,2]]
+    data.qpos[root : root + 3] = clip["root_position"][frame]
+    data.qpos[root + 3 : root + 7] = clip["root_quaternion"][frame, [3, 0, 1, 2]]
     data.qpos[ids] = values[frame]
     mujoco.mj_forward(model, data)
     for contact in data.contact:
-      penetration = max(0., -float(contact.dist)*1000)
+      penetration = max(0.0, -float(contact.dist) * 1000)
       max_penetration = max(max_penetration, penetration)
       geoms = [model.geom(int(g)).name for g in contact.geom]
-      intended = wall_id in contact.geom and any(
-        "_spine_c_" in name or name.endswith("_toe") for name in geoms)
-      if not intended and penetration > .15:
+      intended = wall_id in contact.geom and any("_spine_c_" in name or name.endswith("_toe") for name in geoms)
+      if not intended and penetration > 0.15:
         pair = " / ".join(geoms)
         previous = unexpected.get(pair)
         if previous is None or penetration > previous["penetration_mm"]:
           unexpected[pair] = dict(frame=frame, penetration_mm=penetration)
-  return dict(frames=len(values), max_active_contact_penetration_mm=max_penetration,
-    unexpected_penetrating_pairs=unexpected, collision_pass=not unexpected,
-    scope="Actual task collision masks/pairs; disabled visual/chassis geometry excluded; no dynamics steps")
+  return dict(
+    frames=len(values),
+    max_active_contact_penetration_mm=max_penetration,
+    unexpected_penetrating_pairs=unexpected,
+    collision_pass=not unexpected,
+    scope="Actual task collision masks/pairs; disabled visual/chassis geometry excluded; no dynamics steps",
+  )
 
 
 def render(model, data, report):
@@ -202,6 +201,7 @@ def render(model, data, report):
   camera.distance = 3.25
   camera.elevation = -8
   with mujoco.Renderer(model, width=width, height=height) as renderer:
+
     def view(azimuth):
       camera.azimuth = azimuth
       renderer.update_scene(data, camera=camera, scene_option=option)
@@ -218,20 +218,24 @@ def render(model, data, report):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     font = ImageFont.truetype(font_path, 27)
     small = ImageFont.truetype(font_path, 21)
-    draw.text((30, 15), "PHYBot C2 | Current climbing reset with updated assets",
-              font=font, fill="#25313d")
+    draw.text((30, 15), "PHYBot C2 | Current climbing reset with updated assets", font=font, fill="#25313d")
     draw.text((30, 57), "Oblique view", font=small, fill="#4c5a68")
     draw.text((width + 30, 57), "Side view", font=small, fill="#4c5a68")
-    draw.text((30, height + 110),
-              "New CAD reference frame 0 | Passive x gimbals at -3 deg stops | No physics steps",
-              font=small, fill="#4c5a68")
+    draw.text(
+      (30, height + 110),
+      "New CAD reference frame 0 | Passive x gimbals at -3 deg stops | No physics steps",
+      font=small,
+      fill="#4c5a68",
+    )
     gaps = report["pads"]
     hand = gaps["left_hand_spine"]["center_wall_gap_mm"]
     foot = gaps["left_foot_spine"]["center_wall_gap_mm"]
-    draw.text((30, height + 145),
-              f"C-to-wall signed gap: hands {hand:+.1f} mm, feet {foot:+.1f} mm"
-              " | Negative = wall penetration",
-              font=small, fill="#9b412f")
+    draw.text(
+      (30, height + 145),
+      f"C-to-wall signed gap: hands {hand:+.1f} mm, feet {foot:+.1f} mm | Negative = wall penetration",
+      font=small,
+      fill="#9b412f",
+    )
     canvas.save(OUTPUT / "phybot_c2_climb_initial.png")
 
   path = OUTPUT / "phybot_c2_climb_initial.audit.json"

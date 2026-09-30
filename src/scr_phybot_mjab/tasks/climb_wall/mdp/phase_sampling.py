@@ -4,6 +4,7 @@ The uniform ratio is an additive probability floor before normalization,
 not a fixed mixture percentage. Failures are attributed to the death phase;
 sampling stays uniform within each bin and reaches every loop frame.
 """
+
 from __future__ import annotations
 
 import math
@@ -11,8 +12,7 @@ import torch
 
 
 class AdaptivePhaseSampler:
-  def __init__(self, frames: int, fps: float, device, *, bin_time_s=1.0,
-               alpha=0.001, uniform_ratio=0.1):
+  def __init__(self, frames: int, fps: float, device, *, bin_time_s=1.0, alpha=0.001, uniform_ratio=0.1):
     if frames < 1 or fps <= 0 or bin_time_s <= 0:
       raise ValueError("Adaptive sampling requires positive frame and time scales")
     if not 0 < alpha <= 1 or uniform_ratio <= 0:
@@ -33,7 +33,7 @@ class AdaptivePhaseSampler:
     self.pending += torch.bincount(bins, minlength=self.bin_count).to(self.failed.dtype)
 
   def update(self) -> None:
-    self.failed.mul_(1. - self.alpha).add_(self.pending, alpha=self.alpha)
+    self.failed.mul_(1.0 - self.alpha).add_(self.pending, alpha=self.alpha)
     self.pending.zero_()
 
   def probabilities(self) -> torch.Tensor:

@@ -223,10 +223,7 @@ def main() -> None:
       print(np.array2string(data.qpos, precision=4, separator=", "))
       if free_jnt_id is not None:
         qadr = int(model.jnt_qposadr[free_jnt_id])
-        print(
-          f"\nrobot base pos = ({data.qpos[qadr]:.4f}, "
-          f"{data.qpos[qadr + 1]:.4f}, {data.qpos[qadr + 2]:.4f})"
-        )
+        print(f"\nrobot base pos = ({data.qpos[qadr]:.4f}, {data.qpos[qadr + 1]:.4f}, {data.qpos[qadr + 2]:.4f})")
         print(
           f"robot base quat = ({data.qpos[qadr + 3]:.4f}, "
           f"{data.qpos[qadr + 4]:.4f}, {data.qpos[qadr + 5]:.4f}, "

@@ -62,9 +62,7 @@ def main() -> None:
 
   model = get_spec().compile()
   data = mujoco.MjData(model)
-  qadr = {
-    n: model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in joints
-  }
+  qadr = {n: model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in joints}
 
   def set_frame(t: int) -> None:
     data.qpos[:] = 0.0

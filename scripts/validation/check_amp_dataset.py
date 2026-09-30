@@ -193,9 +193,7 @@ def main() -> None:
   )
   print(f"loader.all_obs shape: {tuple(loader.all_obs.shape)}")
   if loader.all_obs.shape[1] != _EXPECTED_AMP_DIM:
-    raise ValueError(
-      f"AMP obs dim mismatch: got {loader.all_obs.shape[1]}, expected {_EXPECTED_AMP_DIM}"
-    )
+    raise ValueError(f"AMP obs dim mismatch: got {loader.all_obs.shape[1]}, expected {_EXPECTED_AMP_DIM}")
 
   if args.no_render:
     return

@@ -1,4 +1,5 @@
 """Shared native model and coordinate helpers for offline reference audits."""
+
 from __future__ import annotations
 
 import mujoco
@@ -6,8 +7,9 @@ import numpy as np
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec, PHYBOT_C2_FOOT_TOES
 from scr_phybot_mjab.microspine.contact import ToeContact, add_toe_geoms, toe_site_name
 
-WALL_OUTWARD_WORLD = np.array([-1., 0., 0.], dtype=np.float64)
-RAKE_LOCAL = np.array([0., 0., -1.], dtype=np.float64)
+WALL_OUTWARD_WORLD = np.array([-1.0, 0.0, 0.0], dtype=np.float64)
+RAKE_LOCAL = np.array([0.0, 0.0, -1.0], dtype=np.float64)
+
 
 class WallGeometry:
   """Tilted-wall geometry for clips carrying a ``wall_angle`` key.
@@ -43,9 +45,7 @@ class WallGeometry:
 
   def distance(self, p: np.ndarray) -> float:
     """Signed clearance to the tilted surface (positive on the robot side)."""
-    return float(
-      self.outward @ (np.asarray(p, dtype=np.float64) - self.pivot)
-    )
+    return float(self.outward @ (np.asarray(p, dtype=np.float64) - self.pivot))
 
 
 def joint_group(name: str) -> str:
@@ -82,26 +82,14 @@ def build_reference_model(
     for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
     if ee in ee_names
   }
-  add_toe_geoms(
-    spec, tuple(toes.values()), robot_prefix="", with_sites=True
-  )
+  add_toe_geoms(spec, tuple(toes.values()), robot_prefix="", with_sites=True)
 
   model = spec.compile()
-  pad_site_ids = {
-    ee: mujoco.mj_name2id(
-      model, mujoco.mjtObj.mjOBJ_SITE, pad_site_names[ee]
-    )
-    for ee in ee_names
-  }
-  ee_body_ids = {
-    ee: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ee)
-    for ee in ee_names
-  }
+  pad_site_ids = {ee: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, pad_site_names[ee]) for ee in ee_names}
+  ee_body_ids = {ee: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ee) for ee in ee_names}
   toe_sites = {
     ee: (
-      mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_SITE, toe_site_name(toe)
-      ),
+      mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, toe_site_name(toe)),
       toe.radius,
     )
     for ee, toe in toes.items()
@@ -127,9 +115,9 @@ def build_reference_model(
         continue
       rot = np.zeros(9)
       mujoco.mju_quat2Mat(rot, model.geom_quat[g])
-      corners = model.geom_pos[g] + (
-        model.geom_aabb[g, :3] + model.geom_aabb[g, 3:] * corner_signs
-      ) @ rot.reshape(3, 3).T
+      corners = (
+        model.geom_pos[g] + (model.geom_aabb[g, :3] + model.geom_aabb[g, 3:] * corner_signs) @ rot.reshape(3, 3).T
+      )
       lo = np.minimum(lo, corners.min(axis=0))
       hi = np.maximum(hi, corners.max(axis=0))
     sole_z = float(lo[2]) + 0.002
@@ -158,4 +146,3 @@ def engage_basis(
   t_hat = tangent / norm
   l_hat = np.cross(n_hat, t_hat)
   return t_hat, l_hat, n_hat
-

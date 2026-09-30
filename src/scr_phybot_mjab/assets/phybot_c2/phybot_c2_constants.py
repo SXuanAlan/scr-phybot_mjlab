@@ -76,9 +76,7 @@ PHYBOT_C2_PAD_GIMBAL_ARMATURE = 1.0e-5
 # Provisional solid-PLA volume integrals from the adjusted CAD. Full COM
 # tensors live in the XML, separately for moving pads and fixed arm mounts.
 # Replace these estimates with weighed assemblies when available.
-PHYBOT_C2_PAD_GEOMETRY = json.loads(
-  (PHYBOT_C2_XML.parent.parent / "microspine_cad_geometry.json").read_text()
-)
+PHYBOT_C2_PAD_GEOMETRY = json.loads((PHYBOT_C2_XML.parent.parent / "microspine_cad_geometry.json").read_text())
 PHYBOT_C2_PAD_MASS = PHYBOT_C2_PAD_GEOMETRY["moving_pad"]["mass_kg"]
 PHYBOT_C2_FOOT_SITES = (
   ("left_ankle_roll", "left_foot"),
@@ -641,6 +639,7 @@ def get_phybot_c2_robot_cfg() -> EntityCfg:
     spec_fn=get_spec,
     articulation=PHYBOT_C2_ARTICULATION,
   )
+
 
 if __name__ == "__main__":
   import mujoco.viewer as viewer

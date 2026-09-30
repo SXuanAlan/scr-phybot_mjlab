@@ -8,8 +8,23 @@ from typing import Any
 import numpy as np
 
 _SIZE_FIELDS = (
-  "nq", "nv", "nu", "na", "nbody", "njnt", "ngeom", "nsite", "nsensor", "neq",
-  "npair", "nexclude", "nmesh", "nmeshvert", "nkey", "ntendon", "nmocap",
+  "nq",
+  "nv",
+  "nu",
+  "na",
+  "nbody",
+  "njnt",
+  "ngeom",
+  "nsite",
+  "nsensor",
+  "neq",
+  "npair",
+  "nexclude",
+  "nmesh",
+  "nmeshvert",
+  "nkey",
+  "ntendon",
+  "nmocap",
 )
 
 
@@ -37,7 +52,9 @@ def model_fingerprint(env_cfg: Any) -> tuple[dict, str | None]:
 def changed_parts(base: dict, new: dict) -> list[str]:
   """Human-readable list of what differs between two fingerprints."""
   changes = [f"size {k}: {v} -> {new['sizes'].get(k)}" for k, v in base["sizes"].items() if new["sizes"].get(k) != v]
-  changes += [f"option {k}: {v} -> {new['options'].get(k)}" for k, v in base["options"].items() if new["options"].get(k) != v]
+  changes += [
+    f"option {k}: {v} -> {new['options'].get(k)}" for k, v in base["options"].items() if new["options"].get(k) != v
+  ]
   changes += [f"array {k}" for k, v in base["arrays"].items() if new["arrays"].get(k) != v]
   return changes
 

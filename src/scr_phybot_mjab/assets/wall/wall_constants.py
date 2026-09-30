@@ -54,7 +54,7 @@ def get_wall_spec() -> mujoco.MjSpec:
     type=mujoco.mjtGeom.mjGEOM_BOX,
     size=WALL_HALF_SIZE,
     rgba=[0.6, 0.6, 0.6, 1.0],
-    solref=[0.02, 1.5],   # unified: 20ms time constant, moderate overdamping
+    solref=[0.02, 1.5],  # unified: 20ms time constant, moderate overdamping
     solimp=[0.9, 0.99, 0.001, 0.5, 2],  # unified impedance, 1mm transition zone
   )
   return spec
@@ -102,11 +102,7 @@ def get_wall_plane_collision_spec() -> mujoco.MjSpec:
 def get_wall_cfg(*, analytic_collision_plane: bool = False) -> EntityCfg:
   """Get a fresh wall configuration instance."""
   return EntityCfg(
-    spec_fn=(
-      get_wall_plane_collision_spec
-      if analytic_collision_plane
-      else get_wall_spec
-    ),
+    spec_fn=(get_wall_plane_collision_spec if analytic_collision_plane else get_wall_spec),
     init_state=EntityCfg.InitialStateCfg(pos=WALL_OFFSET),
     collisions=(WALL_COLLISION,),
   )

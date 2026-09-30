@@ -221,8 +221,14 @@ def visual_verdict(exam: dict[str, Any], exam_dir: Path) -> dict[str, Any]:
   if any(review.get(key) is not True for key in ("raster_reviewed", "video_reviewed")):
     return {"approved": False, "reason": "raster / video 尚未同时完成实际审阅"}
   if review.get("approved") is not True:
-    return {"approved": False, "reviewed": True, "path": str(path), "reviewer": review.get("reviewer"),
-            "reason": "已审阅，未通过：" + review.get("notes", "未填写观察记录"), "notes": review.get("notes")}
+    return {
+      "approved": False,
+      "reviewed": True,
+      "path": str(path),
+      "reviewer": review.get("reviewer"),
+      "reason": "已审阅，未通过：" + review.get("notes", "未填写观察记录"),
+      "notes": review.get("notes"),
+    }
   if not review.get("reviewer") or not review.get("notes") or not review.get("reviewed_at"):
     return {"approved": False, "reason": "视觉审阅缺少审阅者、时间或观察记录"}
   for case in exam.get("cases", []):
@@ -247,7 +253,10 @@ def consecutive_passes(exams: list[dict[str, Any]], stage_index: int) -> list[di
 
 
 def align_runtime_schedule(
-  control: dict[str, Any], runtime: dict[str, Any], *, now: str | None = None,
+  control: dict[str, Any],
+  runtime: dict[str, Any],
+  *,
+  now: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
   """Match future dates to the training gate's minimum duration after a late entry."""
   updated = copy.deepcopy(control)
@@ -272,11 +281,16 @@ def align_runtime_schedule(
   # A permission tied to the old date cannot survive a moved evidence window.
   updated["max_stage"] = current
   event = {
-    "kind": "minimum_stage_duration_aligned", "at": now or utc_now(),
-    "stage_index": following, "active_stage_index": current,
-    "stage_started_iter": started, "old_iteration": old_due,
-    "new_iteration": minimum_due, "delay_iterations": delay,
-    "previous_max_stage": previous_permission, "max_stage": current,
+    "kind": "minimum_stage_duration_aligned",
+    "at": now or utc_now(),
+    "stage_index": following,
+    "active_stage_index": current,
+    "stage_started_iter": started,
+    "old_iteration": old_due,
+    "new_iteration": minimum_due,
+    "delay_iterations": delay,
+    "previous_max_stage": previous_permission,
+    "max_stage": current,
     "reason": "按实际入课迭代补足原始阶段最小时长，并同步平移未来课程；审批证据窗口随之更新",
   }
   updated.setdefault("supervisor_audit", []).append(event)
@@ -286,7 +300,11 @@ def align_runtime_schedule(
 
 
 def curriculum_decision(
-  control: dict[str, Any], iteration: int, exams: list[dict[str, Any]], *, now: str | None = None,
+  control: dict[str, Any],
+  iteration: int,
+  exams: list[dict[str, Any]],
+  *,
+  now: str | None = None,
   current_stage_index: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
   """Pure, independently testable decision; mutations only affect future iteration gates."""
@@ -300,11 +318,15 @@ def curriculum_decision(
   due = control["angle_stages"][next_stage]["iter"]
   # Early success is diagnostic. Recheck immediately before changing the band,
   # because an approval made at iter 500 can become stale before iter 1500.
-  passes = passes if iteration >= due - 250 and all(exam["checkpoint_iteration"] >= due - 250 for exam in passes) else []
+  passes = (
+    passes if iteration >= due - 250 and all(exam["checkpoint_iteration"] >= due - 250 for exam in passes) else []
+  )
   if passes:
     updated["max_stage"] = next_stage
     event = {
-      "kind": "stage_approved", "at": at, "observed_iteration": iteration,
+      "kind": "stage_approved",
+      "at": at,
+      "observed_iteration": iteration,
       "stage_index": next_stage,
       "effective_iteration": updated["angle_stages"][next_stage]["iter"],
       "evidence_iterations": [exam["checkpoint_iteration"] for exam in passes],
@@ -318,9 +340,13 @@ def curriculum_decision(
     for stage in updated["angle_stages"][next_stage:]:
       stage["iter"] += delay
     event = {
-      "kind": "stage_delayed", "at": at, "observed_iteration": iteration,
-      "stage_index": next_stage, "old_iteration": due,
-      "new_iteration": updated["angle_stages"][next_stage]["iter"], "delay_iterations": delay,
+      "kind": "stage_delayed",
+      "at": at,
+      "observed_iteration": iteration,
+      "stage_index": next_stage,
+      "old_iteration": due,
+      "new_iteration": updated["angle_stages"][next_stage]["iter"],
+      "delay_iterations": delay,
       "reason": "未获得连续两次完整数值通过且已审阅 raster/video 的证据；保留当前课程并同步平移后续节点",
     }
   updated.setdefault("supervisor_audit", []).append(event)
@@ -359,7 +385,9 @@ def decode_result(summary: dict[str, Any], exam: dict[str, Any], profile: str, a
     raise ValueError("Evaluator did not finish its summary")
   if identity.get("sha256") != exam["checkpoint_sha256"] or identity.get("iteration") != exam["checkpoint_iteration"]:
     raise ValueError("Evaluator summary refers to another checkpoint")
-  results = [item for item in summary.get("results", []) if item.get("profile") == profile and item.get("angle_deg") == angle]
+  results = [
+    item for item in summary.get("results", []) if item.get("profile") == profile and item.get("angle_deg") == angle
+  ]
   if len(results) != 1:
     raise ValueError("Evaluator summary must have exactly one result for this profile and angle")
   result = results[0]
@@ -378,10 +406,18 @@ class Supervisor:
     self.control_path = self.run_dir / "curriculum_control.json"
     self.status_path = self.monitor_dir / "status.json"
     self.monitor_dir.mkdir(parents=True, exist_ok=True)
-    self.state = read_json(self.status_path) if self.status_path.exists() else {
-      "schema_version": 1, "task": TASK, "run_dir": str(self.run_dir), "created_at": utc_now(),
-      "exams": {}, "errors": [],
-    }
+    self.state = (
+      read_json(self.status_path)
+      if self.status_path.exists()
+      else {
+        "schema_version": 1,
+        "task": TASK,
+        "run_dir": str(self.run_dir),
+        "created_at": utc_now(),
+        "exams": {},
+        "errors": [],
+      }
+    )
     # Recover exam artifacts even if the prior process died before writing status.
     for path in sorted((self.run_dir / "exams").glob("iter_*/exam.json")):
       try:
@@ -391,8 +427,11 @@ class Supervisor:
         self.state["errors"].append(f"{path}: {exc}")
     for exam in self.state["exams"].values():
       if exam.get("status") == "running":
-        exam.update(status="error", error="Previous supervisor exited before completing this exam",
-                    retry_after=time.time() + self.args.error_retry_seconds)
+        exam.update(
+          status="error",
+          error="Previous supervisor exited before completing this exam",
+          retry_after=time.time() + self.args.error_retry_seconds,
+        )
     self.state.pop("active_evaluation", None)
 
   def save(self) -> None:
@@ -410,7 +449,9 @@ class Supervisor:
     if control:
       stage = self.state.get("curriculum_runtime", {}).get("stage_index", active_stage(control, iteration or 0))
       value = control["angle_stages"][stage]
-      lines.append(f"当前课程：stage {stage}，{value['angle_deg']}° ± {value['jitter_deg']}°；允许到 stage {control['max_stage']}。")
+      lines.append(
+        f"当前课程：stage {stage}，{value['angle_deg']}° ± {value['jitter_deg']}°；允许到 stage {control['max_stage']}。"
+      )
       if stage + 1 < len(control["angle_stages"]):
         following = control["angle_stages"][stage + 1]
         lines.append(f"下个门槛：iter {following['iter']}，{following['angle_deg']}° ± {following['jitter_deg']}°。")
@@ -421,11 +462,17 @@ class Supervisor:
     rows = metrics.get("rows", [])
     if rows:
       values = rows[-1].get("metrics", {})
-      shown = [(label, values.get(key)) for label, key in (
-        ("reward", "Train/mean_reward"), ("episode steps", "Train/mean_episode_length"),
-        ("action std", "Policy/mean_std"), ("末帧 engage match", "Metrics/climb_motion/engage_match"),
-        ("新挂接事件 Hz", "Episode_Metrics/microspine_engage_event_rate_hz"),
-      ) if values.get(key) is not None]
+      shown = [
+        (label, values.get(key))
+        for label, key in (
+          ("reward", "Train/mean_reward"),
+          ("episode steps", "Train/mean_episode_length"),
+          ("action std", "Policy/mean_std"),
+          ("末帧 engage match", "Metrics/climb_motion/engage_match"),
+          ("新挂接事件 Hz", "Episode_Metrics/microspine_engage_event_rate_hz"),
+        )
+        if values.get(key) is not None
+      ]
       lines += ["", "训练日志：" + "；".join(f"{name}={value:.4g}" for name, value in shown) + "。"]
       lines.append("训练平均值与末帧 match 只用于诊断；升课依据连续无重置考试及图像/视频审阅。")
     exams = sorted(self.state["exams"].values(), key=lambda item: item["checkpoint_iteration"])
@@ -436,24 +483,52 @@ class Supervisor:
         lines.append("本次为首次冒烟检查，不作为升课凭据。")
       else:
         lines.append(f"完整数值判据：{'通过' if exam_numeric_pass(exam) else '未通过或证据不完整'}。")
-      lines.append("视觉审阅：" + exam.get("visual_review", {}).get("reason", "已记录审阅" if exam.get("visual_review", {}).get("approved") else "待审阅") + "。")
-      lines += ["", "| Profile / 角度 | Match 最小 | 首个 episode 失败 | 最大过占空比 | 进度比最小 | 真重挂循环最小 | 结果 |", "|---|---:|---:|---:|---:|---:|---|"]
+      lines.append(
+        "视觉审阅："
+        + exam.get("visual_review", {}).get(
+          "reason", "已记录审阅" if exam.get("visual_review", {}).get("approved") else "待审阅"
+        )
+        + "。"
+      )
+      lines += [
+        "",
+        "| Profile / 角度 | Match 最小 | 首个 episode 失败 | 最大过占空比 | 进度比最小 | 真重挂循环最小 | 结果 |",
+        "|---|---:|---:|---:|---:|---:|---|",
+      ]
       for case in exam.get("cases", []):
         verdict = case.get("verdict", {})
         values = verdict.get("metrics", {})
         excess = values.get("pad_occupancy_excess_max_per_pad", [])
-        worst_excess = max(excess) if isinstance(excess, list) and excess and all(finite_number(v) for v in excess) else "—"
-        cells = [values.get("engage_match_min", "—"), values.get("first_episode_falls", "—"), worst_excess,
-                 values.get("progress_ratio_min", "—"), values.get("true_regrip_cycles_min", "—")]
-        lines.append(f"| {case['profile']} / {case['angle_deg']:g}° | " + " | ".join(f"{v:.4g}" if finite_number(v) else str(v) for v in cells) + f" | {'通过' if verdict.get('passed') else '未通过'} |")
+        worst_excess = (
+          max(excess) if isinstance(excess, list) and excess and all(finite_number(v) for v in excess) else "—"
+        )
+        cells = [
+          values.get("engage_match_min", "—"),
+          values.get("first_episode_falls", "—"),
+          worst_excess,
+          values.get("progress_ratio_min", "—"),
+          values.get("true_regrip_cycles_min", "—"),
+        ]
+        lines.append(
+          f"| {case['profile']} / {case['angle_deg']:g}° | "
+          + " | ".join(f"{v:.4g}" if finite_number(v) else str(v) for v in cells)
+          + f" | {'通过' if verdict.get('passed') else '未通过'} |"
+        )
       lines += ["", f"考试记录和 engage raster / rollout 视频：`{exam['output_dir']}`。"]
     active = self.state.get("active_evaluation")
     if active:
-      lines += ["", f"正在评估：iter {active['checkpoint_iteration']}，{active['profile']} / {active['angle_deg']:g}°。"]
+      lines += [
+        "",
+        f"正在评估：iter {active['checkpoint_iteration']}，{active['profile']} / {active['angle_deg']:g}°。",
+      ]
     alerts = [*metrics.get("alerts", []), *self.state.get("errors", [])[-3:]]
     if alerts:
       lines += ["", "诊断提示：", "", *(f"- {alert}" for alert in alerts)]
-    lines += ["", "升课门槛：各角度及 canonical / training-rsi 均须 match ≥ 0.95、首个 episode 零失败、每 pad 过占空比 < 0.04、最小进度比 ≥ 0.8、每环境各 pad 至少 2 次真实重挂；连续两次且对应 raster/video 审阅通过。", ""]
+    lines += [
+      "",
+      "升课门槛：各角度及 canonical / training-rsi 均须 match ≥ 0.95、首个 episode 零失败、每 pad 过占空比 < 0.04、最小进度比 ≥ 0.8、每环境各 pad 至少 2 次真实重挂；连续两次且对应 raster/video 审阅通过。",
+      "",
+    ]
     (self.monitor_dir / "feedback.md").write_text("\n".join(lines))
 
   def refresh(self) -> tuple[dict[str, Any], dict[int, Path]]:
@@ -476,7 +551,9 @@ class Supervisor:
       control = read_json(self.control_path)
       validate_control(control)
       aligned, alignment_event = align_runtime_schedule(control, runtime)
-      updated, event = curriculum_decision(aligned, current, list(self.state["exams"].values()), current_stage_index=runtime_stage)
+      updated, event = curriculum_decision(
+        aligned, current, list(self.state["exams"].values()), current_stage_index=runtime_stage
+      )
       if alignment_event or event:
         atomic_json(self.control_path, updated)
         for decision in (alignment_event, event):
@@ -490,18 +567,43 @@ class Supervisor:
     output = Path(exam["output_dir"]) / profile / f"angle_{angle:g}"
     output.mkdir(parents=True, exist_ok=True)
     command = [
-      self.args.python, str(self.args.eval_script), "--checkpoint", str(checkpoint),
-      "--output-dir", str(output), "--task", TASK, "--angle-deg", str(angle),
-      "--profile", profile, "--num-envs", str(self.args.num_envs),
-      "--duration-s", str(self.args.duration_s), "--device", "cuda:0", "--video",
+      self.args.python,
+      str(self.args.eval_script),
+      "--checkpoint",
+      str(checkpoint),
+      "--output-dir",
+      str(output),
+      "--task",
+      TASK,
+      "--angle-deg",
+      str(angle),
+      "--profile",
+      profile,
+      "--num-envs",
+      str(self.args.num_envs),
+      "--duration-s",
+      str(self.args.duration_s),
+      "--device",
+      "cuda:0",
+      "--video",
     ]
     self.state["active_evaluation"] = {
-      "checkpoint_iteration": exam["checkpoint_iteration"], "profile": profile,
-      "angle_deg": angle, "started_at": utc_now(), "command": command, "output_dir": str(output),
+      "checkpoint_iteration": exam["checkpoint_iteration"],
+      "profile": profile,
+      "angle_deg": angle,
+      "started_at": utc_now(),
+      "command": command,
+      "output_dir": str(output),
     }
     self.save()
     logging.info("Evaluate iter=%d profile=%s angle=%g", exam["checkpoint_iteration"], profile, angle)
-    env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(self.args.gpu), MUJOCO_GL="egl", OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
+    env = dict(
+      os.environ,
+      CUDA_VISIBLE_DEVICES=str(self.args.gpu),
+      MUJOCO_GL="egl",
+      OPENBLAS_NUM_THREADS="1",
+      OMP_NUM_THREADS="1",
+    )
     with (output / "evaluation.log").open("a") as stream:
       process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT, env=env)
       deadline = time.monotonic() + self.args.eval_timeout_seconds
@@ -528,8 +630,11 @@ class Supervisor:
             process.wait(timeout=5)
     summary = decode_result(read_json(output / "summary.json"), exam, profile, angle)
     result = {
-      "profile": profile, "angle_deg": angle, "output_dir": str(output),
-      "summary_path": str(output / "summary.json"), "verdict": numeric_verdict(summary),
+      "profile": profile,
+      "angle_deg": angle,
+      "output_dir": str(output),
+      "summary_path": str(output / "summary.json"),
+      "verdict": numeric_verdict(summary),
       "artifacts": summary.get("artifacts", {}),
     }
     return result
@@ -540,12 +645,21 @@ class Supervisor:
     output = self.run_dir / "exams" / f"iter_{iteration:06d}"
     output.mkdir(parents=True, exist_ok=True)
     exam = {
-      "schema_version": 1, "checkpoint_iteration": iteration, "checkpoint": str(checkpoint),
-      "checkpoint_sha256": None, "stage_index": stage_index, "stage": copy.deepcopy(stage),
+      "schema_version": 1,
+      "checkpoint_iteration": iteration,
+      "checkpoint": str(checkpoint),
+      "checkpoint_sha256": None,
+      "stage_index": stage_index,
+      "stage": copy.deepcopy(stage),
       "stage_started_iter": None,
-      "num_envs": self.args.num_envs, "duration_s": self.args.duration_s,
-      "output_dir": str(output), "started_at": utc_now(), "status": "running", "smoke": iteration == 0,
-      "cases": [], "numeric_thresholds": GATES,
+      "num_envs": self.args.num_envs,
+      "duration_s": self.args.duration_s,
+      "output_dir": str(output),
+      "started_at": utc_now(),
+      "status": "running",
+      "smoke": iteration == 0,
+      "cases": [],
+      "numeric_thresholds": GATES,
       "attempts": self.state["exams"].get(str(iteration), {}).get("attempts", 0) + 1,
     }
     self.state["exams"][str(iteration)] = exam
@@ -555,15 +669,21 @@ class Supervisor:
     try:
       stage_index, stage_started_iter = checkpoint_stage(checkpoint)
       stage = control["angle_stages"][stage_index]
-      exam.update(checkpoint_sha256=sha256(checkpoint), stage_index=stage_index,
-                  stage=copy.deepcopy(stage), stage_started_iter=stage_started_iter)
+      exam.update(
+        checkpoint_sha256=sha256(checkpoint),
+        stage_index=stage_index,
+        stage=copy.deepcopy(stage),
+        stage_started_iter=stage_started_iter,
+      )
       angles = [float(stage["angle_deg"])] if exam["smoke"] else band_angles(stage)
       for angle in angles:
         exam["cases"].append(self.run_case(checkpoint, exam, "canonical", angle))
         atomic_json(output / "exam.json", exam)
         self.refresh()  # Keep curriculum guarded while a multi-case suite is running.
       next_stage = stage_index + 1
-      next_iteration = control["angle_stages"][next_stage]["iter"] if next_stage < len(control["angle_stages"]) else None
+      next_iteration = (
+        control["angle_stages"][next_stage]["iter"] if next_stage < len(control["angle_stages"]) else None
+      )
       near_gate = next_iteration is not None and iteration >= next_iteration - 250
       canonical_passed = all(case["verdict"]["passed"] for case in exam["cases"])
       if not exam["smoke"] and (near_gate or canonical_passed):
@@ -577,14 +697,22 @@ class Supervisor:
       exam["numeric_passed"] = exam_numeric_pass(exam)
       exam["visual_review"] = visual_verdict(exam, output)
       template = {
-        "schema_version": 1, "checkpoint_iteration": iteration,
-        "checkpoint_sha256": exam["checkpoint_sha256"], "stage_index": stage_index,
-        "approved": False, "raster_reviewed": False, "video_reviewed": False,
-        "reviewer": "", "reviewed_at": "", "notes": "",
+        "schema_version": 1,
+        "checkpoint_iteration": iteration,
+        "checkpoint_sha256": exam["checkpoint_sha256"],
+        "stage_index": stage_index,
+        "approved": False,
+        "raster_reviewed": False,
+        "video_reviewed": False,
+        "reviewer": "",
+        "reviewed_at": "",
+        "notes": "",
         "instructions": "实际打开本目录各 profile/angle 的 engage raster 及 rollout 视频；记录观察后另存 visual_review.json。未看或失败保持 approved=false。",
       }
       atomic_json(output / "visual_review.template.json", template)
-      logging.info("Exam complete iter=%d numeric_passed=%s; awaiting actual visual review", iteration, exam["numeric_passed"])
+      logging.info(
+        "Exam complete iter=%d numeric_passed=%s; awaiting actual visual review", iteration, exam["numeric_passed"]
+      )
     except Exception as exc:
       exam["status"] = "error"
       exam["error"] = f"{type(exc).__name__}: {exc}"
@@ -656,9 +784,14 @@ def main() -> None:
   args = parse_args()
   monitor_dir = args.run_dir / "monitor"
   monitor_dir.mkdir(parents=True, exist_ok=True)
-  logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[
-    logging.StreamHandler(), logging.FileHandler(monitor_dir / "supervisor.log"),
-  ])
+  logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+      logging.StreamHandler(),
+      logging.FileHandler(monitor_dir / "supervisor.log"),
+    ],
+  )
   try:
     with file_lock(monitor_dir / "supervisor.lock", nonblocking=True):
       supervisor = Supervisor(args)

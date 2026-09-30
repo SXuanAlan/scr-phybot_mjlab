@@ -85,9 +85,7 @@ def termination_param_schedule(
   live termination cfg's params dict)."""
   del env_ids
   current = stage_value_at(stages, env.common_step_counter // steps_per_iter)
-  env.termination_manager.get_term_cfg(termination_name).params[param_name] = (
-    current
-  )
+  env.termination_manager.get_term_cfg(termination_name).params[param_name] = current
   return torch.tensor([current], device=env.device)
 
 
@@ -105,9 +103,7 @@ def reward_param_schedule(
   the stages instead of steps (v5 rip bill)."""
   del env_ids
   iteration = env.common_step_counter // steps_per_iter
-  current = (
-    stage_interp_at(stages, iteration) if interpolate else stage_value_at(stages, iteration)
-  )
+  current = stage_interp_at(stages, iteration) if interpolate else stage_value_at(stages, iteration)
   env.reward_manager.get_term_cfg(reward_name).params[param_name] = current
   return torch.tensor([current], device=env.device)
 
@@ -142,6 +138,4 @@ def pad_gimbal_travel_schedule(
     env_ids = env_ids.to(env.device, dtype=torch.int)
   field = env.sim.model.jnt_range
   env_grid, jnt_grid = torch.meshgrid(env_ids, joint_ids, indexing="ij")
-  field[env_grid, jnt_grid] = torch.tensor(
-    [-travel, travel], device=field.device, dtype=field.dtype
-  )
+  field[env_grid, jnt_grid] = torch.tensor([-travel, travel], device=field.device, dtype=field.dtype)

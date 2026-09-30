@@ -6,7 +6,9 @@ import math
 from pathlib import Path
 
 
-spec = importlib.util.spec_from_file_location("climb60_digest", Path(__file__).resolve().parents[1] / "scripts/monitor_climb60_metrics.py")
+spec = importlib.util.spec_from_file_location(
+  "climb60_digest", Path(__file__).resolve().parents[1] / "scripts/monitor_climb60_metrics.py"
+)
 monitor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(monitor)
 
@@ -39,11 +41,17 @@ def test_latest_resumed_iteration_wins():
 
 
 def test_digest_alerts_on_no_latches_and_nonfinite_without_claiming_mastery(tmp_path):
-  rows = [{"iteration": 100, "metrics": {
-    "Episode_Metrics/microspine_engage_event_rate_hz": 0.0,
-    "Train/mean_reward": math.nan, "Episode_Termination/lost_support": 2,
-    "Episode_Termination/bad_tracking": 4,
-  }}]
+  rows = [
+    {
+      "iteration": 100,
+      "metrics": {
+        "Episode_Metrics/microspine_engage_event_rate_hz": 0.0,
+        "Train/mean_reward": math.nan,
+        "Episode_Termination/lost_support": 2,
+        "Episode_Termination/bad_tracking": 4,
+      },
+    }
+  ]
   (tmp_path / "model_25.pt").touch()
   (tmp_path / "model_100.pt").touch()
   report = monitor.digest(rows, tmp_path, "test")

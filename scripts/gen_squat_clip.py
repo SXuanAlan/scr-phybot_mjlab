@@ -109,24 +109,28 @@ def _build_curves(
   """
   ramp = _smootherstep(np.arange(descent_frames) / max(descent_frames - 1, 1))
   reach_ramp = _smootherstep(np.arange(reach_frames) / max(reach_frames - 1, 1))
-  depth = np.concatenate([
-    np.zeros(stand_frames),
-    np.zeros(reach_frames),
-    ramp,
-    np.ones(hold_frames),
-    ramp[::-1],
-    np.zeros(reach_frames),
-    np.zeros(stand_frames),
-  ])
-  reach = np.concatenate([
-    np.zeros(stand_frames),
-    reach_ramp,
-    np.ones(descent_frames),
-    np.ones(hold_frames),
-    np.ones(descent_frames),
-    reach_ramp[::-1],
-    np.zeros(stand_frames),
-  ])
+  depth = np.concatenate(
+    [
+      np.zeros(stand_frames),
+      np.zeros(reach_frames),
+      ramp,
+      np.ones(hold_frames),
+      ramp[::-1],
+      np.zeros(reach_frames),
+      np.zeros(stand_frames),
+    ]
+  )
+  reach = np.concatenate(
+    [
+      np.zeros(stand_frames),
+      reach_ramp,
+      np.ones(descent_frames),
+      np.ones(hold_frames),
+      np.ones(descent_frames),
+      reach_ramp[::-1],
+      np.zeros(stand_frames),
+    ]
+  )
   return depth, reach
 
 
@@ -161,7 +165,9 @@ class _SquatIK:
 
     m = self.model
     self._qadr = {n: m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in _all_joint_names(m)}
-    self._range = {n: np.array(m.jnt_range[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)]) for n in _all_joint_names(m)}
+    self._range = {
+      n: np.array(m.jnt_range[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)]) for n in _all_joint_names(m)
+    }
     self._leg_dof = np.array(
       [m.jnt_dofadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in _LEG_JOINT_NAMES]
     )
@@ -255,9 +261,7 @@ class _SquatIK:
         break
       # Shifting the base back moves the CoM back; damp to keep it stable.
       x -= 0.8 * err_x
-    joints = np.array(
-      [self.data.qpos[self._qadr[n]] for n in PHYBOT_C2_POLICY_JOINT_NAMES], dtype=np.float32
-    )
+    joints = np.array([self.data.qpos[self._qadr[n]] for n in PHYBOT_C2_POLICY_JOINT_NAMES], dtype=np.float32)
     return joints, x, residual
 
 
@@ -368,9 +372,7 @@ def generate_clip(
     "root_position": root_position,
     "root_quaternion": root_quaternion,
     "foot_sites_list": list(_FOOT_SITE_NAMES),
-    "foot_positions": np.repeat(
-      np.asarray(ik.foot_pos_tar, dtype=np.float32)[None, :, :], frames, axis=0
-    ),
+    "foot_positions": np.repeat(np.asarray(ik.foot_pos_tar, dtype=np.float32)[None, :, :], frames, axis=0),
     "fps": np.float32(fps),
   }
   output.parent.mkdir(parents=True, exist_ok=True)
@@ -406,13 +408,9 @@ def main() -> None:
   )
   parser.add_argument("--descent-s", type=float, default=2.0, help="descend (and ascend) duration (s)")
   parser.add_argument("--hold-s", type=float, default=1.0, help="hold at squat bottom (s)")
-  parser.add_argument(
-    "--reach-s", type=float, default=1.0, help="arm raise (and lower) duration (s)"
-  )
+  parser.add_argument("--reach-s", type=float, default=1.0, help="arm raise (and lower) duration (s)")
   parser.add_argument("--fps", type=float, default=50.0)
-  parser.add_argument(
-    "--torso-lean", type=float, default=0.35, help="forward torso pitch at squat bottom (rad)"
-  )
+  parser.add_argument("--torso-lean", type=float, default=0.35, help="forward torso pitch at squat bottom (rad)")
   parser.add_argument(
     "--no-balance",
     dest="balance",

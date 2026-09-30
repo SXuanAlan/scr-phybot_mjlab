@@ -82,9 +82,7 @@ def _to_base_frame(quat_w: torch.Tensor, vec_w: torch.Tensor) -> torch.Tensor:
 # -- absolute stance / scene ------------------------------------------------
 
 
-def root_pose_world(
-  env: ManagerBasedRlEnv, entity_name: str = "robot"
-) -> torch.Tensor:
+def root_pose_world(env: ManagerBasedRlEnv, entity_name: str = "robot") -> torch.Tensor:
   """Robot root pose in the ENV-LOCAL world frame, (E, 7) = pos + quat.
   Deploy: base state estimation plus the calibrated task origin."""
   robot = env.scene[entity_name]
@@ -92,9 +90,7 @@ def root_pose_world(
   return torch.cat([pos, robot.data.root_link_quat_w], dim=-1)
 
 
-def wall_face_corners(
-  env: ManagerBasedRlEnv, entity_name: str = "wall"
-) -> torch.Tensor:
+def wall_face_corners(env: ManagerBasedRlEnv, entity_name: str = "wall") -> torch.Tensor:
   """The climbing face's four corners in the ENV-LOCAL world frame, (E, 12)
   = (BL, BR, TL, TR) x (x, y, z).
 
@@ -114,9 +110,7 @@ def wall_face_corners(
   return (rotated + pos.unsqueeze(1)).reshape(num_envs, -1)
 
 
-def microspine_pad_center_world(
-  env: ManagerBasedRlEnv, command_name: str = "microspine_affordance"
-) -> torch.Tensor:
+def microspine_pad_center_world(env: ManagerBasedRlEnv, command_name: str = "microspine_affordance") -> torch.Tensor:
   """The four pad FACE centers in the ENV-LOCAL world frame, (E, 12), order
   (LH, RH, LF, RF) x (x, y, z) — the contact law's own point. Deploy: FK
   off the base state estimate."""
@@ -129,24 +123,18 @@ def microspine_pad_center_world(
 # -- reference (BeyondMimic) ------------------------------------------------
 
 
-def motion_ref_joint_pos_rel(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def motion_ref_joint_pos_rel(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Reference joint positions minus the default pose, (E, 21) — the same
   basis as ``joint_pos_rel`` so the residual is a subtraction away."""
   return env.command_manager.get_term(command_name).ref_joint_pos_rel
 
 
-def motion_ref_joint_vel(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def motion_ref_joint_vel(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Reference joint velocities (clip finite differences), (E, 21)."""
   return env.command_manager.get_term(command_name).ref_joint_vel
 
 
-def motion_anchor_pos_b(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def motion_anchor_pos_b(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Reference root position in the robot ROOT frame, (E, 3)
   (mjlab tracking ``motion_anchor_pos_b`` verbatim)."""
   command = env.command_manager.get_term(command_name)
@@ -159,9 +147,7 @@ def motion_anchor_pos_b(
   return pos.view(pos.shape[0], -1)
 
 
-def motion_anchor_ori_b(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def motion_anchor_ori_b(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Reference root orientation relative to the robot root, (E, 6) = the
   first two columns of the relative rotation matrix (mjlab verbatim)."""
   command = env.command_manager.get_term(command_name)
@@ -175,9 +161,7 @@ def motion_anchor_ori_b(
   return mat[..., :2].reshape(mat.shape[0], -1)
 
 
-def motion_pad_center_relative(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def motion_pad_center_relative(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Reference pad FACE center minus the robot's, per EE, in the BASE frame,
   (E, 12), order (LH, RH, LF, RF) x (x, y, z). While a pad is scheduled
   engaged this equals the anchor vector; while it swings it is the
@@ -187,9 +171,7 @@ def motion_pad_center_relative(
   return _to_base_frame(motion.robot_anchor_quat_w, rel_w)
 
 
-def motion_anchor_relative(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def motion_anchor_relative(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Per-EE pad-center -> scheduled-anchor vectors in the BASE frame,
   (E, 12), order (LH, RH, LF, RF) x (x, y, z). The mount anchors are
   task-frame constants at deploy (computed from the calibrated wall pose),
@@ -202,9 +184,7 @@ def motion_anchor_relative(
 # -- critic only ----------------------------------------------------------------
 
 
-def robot_body_pos_b(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def robot_body_pos_b(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Tracked body positions in the robot ROOT frame, (E, 3B) (mjlab
   tracking critic lane verbatim; B = the tracked set)."""
   command = env.command_manager.get_term(command_name)
@@ -218,9 +198,7 @@ def robot_body_pos_b(
   return pos_b.reshape(pos_b.shape[0], -1)
 
 
-def robot_body_ori_b(
-  env: ManagerBasedRlEnv, command_name: str = "climb_motion"
-) -> torch.Tensor:
+def robot_body_ori_b(env: ManagerBasedRlEnv, command_name: str = "climb_motion") -> torch.Tensor:
   """Tracked body orientations relative to the robot root, (E, 6B) — two
   rotation-matrix columns per body (mjlab verbatim)."""
   command = env.command_manager.get_term(command_name)
@@ -235,9 +213,7 @@ def robot_body_ori_b(
   return mat[..., :2].reshape(mat.shape[0], -1)
 
 
-def microspine_pad_shear_down(
-  env: ManagerBasedRlEnv, command_name: str = "microspine_affordance"
-) -> torch.Tensor:
+def microspine_pad_shear_down(env: ManagerBasedRlEnv, command_name: str = "microspine_affordance") -> torch.Tensor:
   """Per-EE whole-pad down-wall shear through live contacts [N], (E, 4) —
   the touch+drag weld engine's own trigger quantity. Critic only."""
   affordance = env.command_manager.get_term(command_name)

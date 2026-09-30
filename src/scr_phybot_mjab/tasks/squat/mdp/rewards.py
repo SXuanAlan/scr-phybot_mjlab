@@ -114,33 +114,20 @@ def track_joint_pos_cauchy(
   incorrect joint in the arithmetic mean.
   """
   if not 0.0 <= worst_joint_weight <= 1.0:
-    raise ValueError(
-      f"worst_joint_weight must be in [0, 1], got {worst_joint_weight}."
-    )
-  error = _selected_joint_error(
-    env, command_name, joint_names, velocity=False
-  )
+    raise ValueError(f"worst_joint_weight must be in [0, 1], got {worst_joint_weight}.")
+  error = _selected_joint_error(env, command_name, joint_names, velocity=False)
   squared_error = torch.square(error)
   rmse = torch.sqrt(torch.mean(squared_error, dim=1))
   env.extras["log"][f"Metrics/motion/{metric_prefix}_pos_rmse"] = rmse.mean()
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_pos_error_max"] = (
-    torch.abs(error).max()
-  )
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_pos_error_max"] = torch.abs(error).max()
   mean_absolute_error = torch.abs(error).mean(dim=0)
   for joint_id, joint_name in enumerate(joint_names):
-    env.extras["log"][
-      f"Metrics/motion/{metric_prefix}_{joint_name}_pos_mae"
-    ] = mean_absolute_error[joint_id]
+    env.extras["log"][f"Metrics/motion/{metric_prefix}_{joint_name}_pos_mae"] = mean_absolute_error[joint_id]
   joint_score = 1.0 / (1.0 + squared_error / std**2)
   mean_score = torch.mean(joint_score, dim=1)
   worst_score = torch.min(joint_score, dim=1).values
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_worst_joint_score"] = (
-    worst_score.mean()
-  )
-  return (
-    (1.0 - worst_joint_weight) * mean_score
-    + worst_joint_weight * worst_score
-  )
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_worst_joint_score"] = worst_score.mean()
+  return (1.0 - worst_joint_weight) * mean_score + worst_joint_weight * worst_score
 
 
 def joint_pos_tracking_huber_error(
@@ -155,9 +142,7 @@ def joint_pos_tracking_huber_error(
   Its linear tail keeps pulling heavily displaced joints back toward the motion
   after bounded similarity rewards have become small.
   """
-  error = torch.abs(
-    _selected_joint_error(env, command_name, joint_names, velocity=False)
-  )
+  error = torch.abs(_selected_joint_error(env, command_name, joint_names, velocity=False))
   loss = _smooth_l1(error, beta)
   if reduction == "mean":
     return torch.mean(loss, dim=1)
@@ -176,9 +161,7 @@ def track_joint_vel_cauchy(
   """Dense independent velocity tracking for selected motion joints."""
   error = _selected_joint_error(env, command_name, joint_names, velocity=True)
   squared_error = torch.square(error)
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_vel_rmse"] = torch.sqrt(
-    torch.mean(squared_error)
-  )
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_vel_rmse"] = torch.sqrt(torch.mean(squared_error))
   return torch.mean(1.0 / (1.0 + squared_error / std**2), dim=1)
 
 
@@ -198,17 +181,12 @@ def joint_action_limit_cost(
     device=env.device,
   )
   if len(max_abs_actions) != len(joint_names):
-    raise ValueError(
-      f"max_abs_actions has {len(max_abs_actions)} values for "
-      f"{len(joint_names)} joints."
-    )
+    raise ValueError(f"max_abs_actions has {len(max_abs_actions)} values for {len(joint_names)} joints.")
   limits = torch.tensor(max_abs_actions, device=env.device)
   action = action_term.raw_action[:, action_ids]
   excess = torch.clamp(torch.abs(action) - limits, min=0.0)
 
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_abs_max"] = (
-    torch.abs(action).max()
-  )
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_abs_max"] = torch.abs(action).max()
   env.extras["log"][f"Metrics/motion/{metric_prefix}_action_limit_fraction"] = (
     (torch.abs(action) > limits).float().mean()
   )
@@ -219,8 +197,8 @@ def joint_action_limit_cost(
   if env.action_manager.total_action_dim != len(action_term.target_names):
     raise ValueError("joint_action_limit_cost requires a single action term.")
   previous_action = env.action_manager.prev_action[:, action_ids]
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_rate_rms"] = (
-    torch.sqrt(torch.mean(torch.square(action - previous_action)))
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_rate_rms"] = torch.sqrt(
+    torch.mean(torch.square(action - previous_action))
   )
   cost = torch.square(excess)
   if reduction == "mean":
@@ -258,9 +236,7 @@ def _selected_joint_action_and_reference(
   if isinstance(offset, torch.Tensor):
     offset = offset[:, action_ids]
   encoder_bias = command.robot.data.encoder_bias[:, robot_ids]
-  reference_action = (
-    command.joint_pos_ref[:, ref_ids] - offset + encoder_bias
-  ) / scale
+  reference_action = (command.joint_pos_ref[:, ref_ids] - offset + encoder_bias) / scale
   return action_term.raw_action[:, action_ids], reference_action
 
 
@@ -275,22 +251,15 @@ def joint_action_reference_tube_cost(
 ) -> torch.Tensor:
   """Keep selected actions near the current motion target, with correction room."""
   if len(max_abs_deviation) != len(joint_names):
-    raise ValueError(
-      f"max_abs_deviation has {len(max_abs_deviation)} values for "
-      f"{len(joint_names)} joints."
-    )
-  action, reference_action = _selected_joint_action_and_reference(
-    env, command_name, action_name, joint_names
-  )
+    raise ValueError(f"max_abs_deviation has {len(max_abs_deviation)} values for {len(joint_names)} joints.")
+  action, reference_action = _selected_joint_action_and_reference(env, command_name, action_name, joint_names)
   deviation = torch.abs(action - reference_action)
   tolerance = torch.tensor(max_abs_deviation, device=env.device)
   excess = torch.clamp(deviation - tolerance, min=0.0)
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_reference_rmse"] = (
-    torch.sqrt(torch.mean(torch.square(action - reference_action)))
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_reference_rmse"] = torch.sqrt(
+    torch.mean(torch.square(action - reference_action))
   )
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_tube_fraction"] = (
-    (deviation > tolerance).float().mean()
-  )
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_tube_fraction"] = (deviation > tolerance).float().mean()
   return torch.sum(_smooth_l1(excess, beta), dim=1)
 
 
@@ -305,15 +274,11 @@ def joint_pair_symmetry_huber_error(
   """Penalize left/right position-error differences relative to the motion."""
   if len(left_joint_names) != len(right_joint_names):
     raise ValueError("Left and right joint groups must have equal length.")
-  left_error = _selected_joint_error(
-    env, command_name, left_joint_names, velocity=False
-  )
-  right_error = _selected_joint_error(
-    env, command_name, right_joint_names, velocity=False
-  )
+  left_error = _selected_joint_error(env, command_name, left_joint_names, velocity=False)
+  right_error = _selected_joint_error(env, command_name, right_joint_names, velocity=False)
   symmetry_error = torch.abs(left_error - right_error)
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_pos_symmetry_rmse"] = (
-    torch.sqrt(torch.mean(torch.square(symmetry_error)))
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_pos_symmetry_rmse"] = torch.sqrt(
+    torch.mean(torch.square(symmetry_error))
   )
   return torch.sum(_smooth_l1(symmetry_error, beta), dim=1)
 
@@ -330,17 +295,13 @@ def joint_action_pair_symmetry_huber_error(
   """Penalize asymmetric action corrections around symmetric motion targets."""
   if len(left_joint_names) != len(right_joint_names):
     raise ValueError("Left and right joint groups must have equal length.")
-  left_action, left_reference = _selected_joint_action_and_reference(
-    env, command_name, action_name, left_joint_names
-  )
+  left_action, left_reference = _selected_joint_action_and_reference(env, command_name, action_name, left_joint_names)
   right_action, right_reference = _selected_joint_action_and_reference(
     env, command_name, action_name, right_joint_names
   )
-  symmetry_error = torch.abs(
-    (left_action - left_reference) - (right_action - right_reference)
-  )
-  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_symmetry_rmse"] = (
-    torch.sqrt(torch.mean(torch.square(symmetry_error)))
+  symmetry_error = torch.abs((left_action - left_reference) - (right_action - right_reference))
+  env.extras["log"][f"Metrics/motion/{metric_prefix}_action_symmetry_rmse"] = torch.sqrt(
+    torch.mean(torch.square(symmetry_error))
   )
   return torch.sum(_smooth_l1(symmetry_error, beta), dim=1)
 
@@ -392,12 +353,8 @@ def track_feet_stationary(
   both_in_contact = (sensor.data.found > 0).all(dim=1).float()
   foot_speed = torch.sqrt(squared_speed)
   env.extras["log"]["Metrics/motion/foot_speed_xy_mean"] = foot_speed.mean()
-  env.extras["log"]["Metrics/motion/foot_speed_xy_worst_mean"] = (
-    foot_speed.max(dim=1).values.mean()
-  )
-  env.extras["log"]["Metrics/motion/both_feet_contact_fraction"] = (
-    both_in_contact.mean()
-  )
+  env.extras["log"]["Metrics/motion/foot_speed_xy_worst_mean"] = foot_speed.max(dim=1).values.mean()
+  env.extras["log"]["Metrics/motion/both_feet_contact_fraction"] = both_in_contact.mean()
   score = torch.mean(1.0 / (1.0 + squared_speed / std**2), dim=1)
   return score * both_in_contact
 
@@ -433,9 +390,7 @@ def track_feet_anchor(
   error_xy = torch.norm(foot_xy - reference_xy, dim=-1)
   env.extras["log"]["Metrics/motion/error_foot_xy_mean"] = error_xy.mean()
   env.extras["log"]["Metrics/motion/error_foot_xy_max"] = error_xy.max()
-  return torch.mean(
-    1.0 / (1.0 + torch.square(error_xy) / std**2), dim=1
-  )
+  return torch.mean(1.0 / (1.0 + torch.square(error_xy) / std**2), dim=1)
 
 
 def feet_xy_anchor_huber_error(

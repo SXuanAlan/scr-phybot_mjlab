@@ -46,9 +46,7 @@ def test_weld_rotational_conversion_includes_quaternion_residual_jacobian():
     torquescale=1.0,
   )
 
-  torch.testing.assert_close(
-    moment, torch.tensor([[[0.8660254, 0.5, 0.0]]]), atol=1.0e-6, rtol=1.0e-6
-  )
+  torch.testing.assert_close(moment, torch.tensor([[[0.8660254, 0.5, 0.0]]]), atol=1.0e-6, rtol=1.0e-6)
 
 
 def test_moments_fold_into_worst_edge_forces_with_compression_credit():
@@ -88,9 +86,7 @@ def test_per_unit_distribution_reproduces_the_pad_wrench():
   m_l = torch.tensor([[-0.70]])
   m_n = torch.tensor([[0.25]])
 
-  a, b, c = distribute_wrench_to_units(
-    f_t, f_l, f_n, m_t, m_l, m_n, x, y, sxx, syy, sxx + syy
-  )
+  a, b, c = distribute_wrench_to_units(f_t, f_l, f_n, m_t, m_l, m_n, x, y, sxx, syy, sxx + syy)
 
   # Force totals recover the pad wrench...
   torch.testing.assert_close(a.sum(dim=-1), f_t)
@@ -113,9 +109,7 @@ def test_per_unit_two_row_grid_reproduces_the_worst_edge_fold():
   m_l = torch.tensor([[-0.20]])
   zero = torch.zeros_like(f_n)
 
-  _, _, c = distribute_wrench_to_units(
-    zero, zero, f_n, zero, m_l, zero, x, y, sxx, syy, sxx + syy
-  )
+  _, _, c = distribute_wrench_to_units(zero, zero, f_n, zero, m_l, zero, x, y, sxx, syy, sxx + syy)
 
   folded = f_n + m_l.abs() / (span_r / 2.0)
   torch.testing.assert_close(c.max(dim=-1).values * 4.0, folded)
@@ -129,9 +123,7 @@ def test_per_unit_three_row_grid_bills_the_discrete_row_arm():
   m_l = torch.tensor([[0.30]])
   zero = torch.zeros_like(m_l)
 
-  _, _, c = distribute_wrench_to_units(
-    zero, zero, zero, zero, m_l, zero, x, y, sxx, syy, sxx + syy
-  )
+  _, _, c = distribute_wrench_to_units(zero, zero, zero, zero, m_l, zero, x, y, sxx, syy, sxx + syy)
 
   n_units = x.shape[-1]
   expected = m_l / (span_r / 3.0)

@@ -44,9 +44,7 @@ def projected_gravity_from_framequat_sensor(
   return quat_apply_inverse(quat_w, asset.data.gravity_vec_w)
 
 
-def foot_height(
-  env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG
-) -> torch.Tensor:
+def foot_height(env: ManagerBasedRlEnv, asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG) -> torch.Tensor:
   asset: Entity = env.scene[asset_cfg.name]
   return asset.data.site_pos_w[:, asset_cfg.site_ids, 2]  # (num_envs, num_sites)
 

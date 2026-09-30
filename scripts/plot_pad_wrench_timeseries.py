@@ -91,9 +91,7 @@ def parse_args() -> argparse.Namespace:
       "(stage 0 is 12-15 deg)."
     ),
   )
-  p.add_argument(
-    "--replot", type=Path, default=None, help="re-render from a saved .npz"
-  )
+  p.add_argument("--replot", type=Path, default=None, help="re-render from a saved .npz")
   args = p.parse_args()
   if args.replot is None and args.ckpt is None:
     p.error("a checkpoint (or --replot <npz>) is required")
@@ -119,18 +117,14 @@ def rollout(args: argparse.Namespace) -> dict:
   env_cfg = load_env_cfg(args.task, play=True)
   agent_cfg = load_rl_cfg(args.task)
   if "wall_angle" in env_cfg.curriculum:
-    env_cfg.curriculum["wall_angle"].params["angle_stages"] = [
-      {"iter": 0, "angle_deg": args.angle}
-    ]
+    env_cfg.curriculum["wall_angle"].params["angle_stages"] = [{"iter": 0, "angle_deg": args.angle}]
   env_cfg.curriculum.pop("gravity_ladder", None)
   if args.tilt_band is not None:
     lo, hi = (float(x) for x in args.tilt_band.split(","))
     _ls = env_cfg.commands[args.aff_term].microspine_cfg.limit_surface
     _ls.tilt_peel_max_deg_range = (lo, hi)
     if "tilt_peel" in env_cfg.curriculum:
-      env_cfg.curriculum["tilt_peel"].params["stages"] = [
-        {"iter": 0, "deg_range": (lo, hi)}
-      ]
+      env_cfg.curriculum["tilt_peel"].params["stages"] = [{"iter": 0, "deg_range": (lo, hi)}]
     print(f"[tilt-band] tilt-peel release band pinned to {lo}-{hi} deg")
   env_cfg.scene.num_envs = 1
 
@@ -148,9 +142,7 @@ def rollout(args: argparse.Namespace) -> dict:
   runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
   runner = runner_cls(env, asdict(agent_cfg), device=device)
   policy_set = "student" if hasattr(agent_cfg, "student") else "actor"
-  runner.load(
-    str(ckpt), load_cfg={policy_set: True}, strict=True, map_location=device
-  )
+  runner.load(str(ckpt), load_cfg={policy_set: True}, strict=True, map_location=device)
   policy = runner.get_inference_policy(device=device)
 
   # Robot mass for the weight-support sanity line.
@@ -163,9 +155,7 @@ def rollout(args: argparse.Namespace) -> dict:
   if robot_mass <= 0.0:
     robot_mass = float(
       sum(
-        float(mj.body_mass[i])
-        for i in range(mj.nbody)
-        if "wall" not in mj.body(i).name and mj.body(i).name != "world"
+        float(mj.body_mass[i]) for i in range(mj.nbody) if "wall" not in mj.body(i).name and mj.body(i).name != "world"
       )
     )
   g = float(np.linalg.norm(np.asarray(env_cfg.sim.mujoco.gravity)))
@@ -291,7 +281,10 @@ def make_figure(rec: dict):
     }
   )
   fig, axes = plt.subplots(
-    H + 1, 2, figsize=(17, 2.55 * (H + 1)), sharex=True,
+    H + 1,
+    2,
+    figsize=(17, 2.55 * (H + 1)),
+    sharex=True,
     constrained_layout=True,
   )
 
@@ -314,6 +307,7 @@ def make_figure(rec: dict):
     axm.plot(time_s, M[:, h, 1], color=C_LAT, lw=1.5)
     axm.plot(time_s, M[:, h, 2], color=C_IN, lw=1.5)
     axm.axhline(0.0, color="#b8b7b0", lw=0.8)
+
     # A single impact spike (a fall landing on a pad, a solver transient)
     # must not squash the whole trace: clip the y-range to the 99.5th
     # percentile when the peak is an outlier, and say so in the title.
@@ -325,9 +319,7 @@ def make_figure(rec: dict):
         return f"   (y clipped at p99.5; peak |{sym}| = {v_max:.3g} {unit})"
       return ""
 
-    clipped_f = _clip(
-      axf, np.concatenate([F[:, h].ravel(), press[:, h]]), "N", "F"
-    )
+    clipped_f = _clip(axf, np.concatenate([F[:, h].ravel(), press[:, h]]), "N", "F")
     clipped = _clip(axm, M[:, h], "N·m", "M")
     # Forced releases: a tick at the top of both panels.
     ts = np.where(forced[:, h])[0]
@@ -335,8 +327,13 @@ def make_figure(rec: dict):
       for ax in (axf, axm):
         y_top = ax.get_ylim()[1]
         ax.plot(
-          ts * dt, np.full(len(ts), y_top), "v", color=C_RELEASE, ms=5,
-          ls="none", clip_on=False,
+          ts * dt,
+          np.full(len(ts), y_top),
+          "v",
+          color=C_RELEASE,
+          ms=5,
+          ls="none",
+          clip_on=False,
         )
     axf.set_ylabel("F wall→pad [N]")
     axm.set_ylabel("M wall→pad [N·m]")
@@ -357,7 +354,9 @@ def make_figure(rec: dict):
   axs.legend(loc="lower right", fontsize=8.5)
 
   axc.step(time_s, engaged.sum(axis=1), where="post", color=C_UP, lw=1.5, label="policy: pads latched")
-  axc.step(time_s, rec["ref_engaged"].sum(axis=1), where="post", color=C_CONTACT, lw=1.1, ls="--", label="reference schedule")
+  axc.step(
+    time_s, rec["ref_engaged"].sum(axis=1), where="post", color=C_CONTACT, lw=1.1, ls="--", label="reference schedule"
+  )
   axc.set_ylim(-0.2, H + 0.4)
   axc.set_yticks(range(H + 1))
   axc.set_ylabel("# latched")
@@ -374,7 +373,9 @@ def make_figure(rec: dict):
     Line2D([], [], color=C_UP, lw=2, label="along / about  û = −t̂  (up the wall, anti-rake)"),
     Line2D([], [], color=C_LAT, lw=2, label="along / about  l̂  (lateral)"),
     Line2D([], [], color=C_IN, lw=2, label="along / about  n̂_in = −n̂_out  (into the wall)"),
-    Line2D([], [], color=C_CONTACT, lw=1.5, ls="--", label="sphere-grid contact compression  −press  (wall pushes pad out)"),
+    Line2D(
+      [], [], color=C_CONTACT, lw=1.5, ls="--", label="sphere-grid contact compression  −press  (wall pushes pad out)"
+    ),
     Patch(facecolor=C_ENGAGED, alpha=0.25, label="pad latched (weld active)"),
     Line2D([], [], marker="v", color=C_RELEASE, ls="none", label="forced release (limit surface)"),
   ]
@@ -428,9 +429,7 @@ def summarize(rec: dict) -> None:
   n_forced = int(rec["forced"].sum())
   hist = {}
   for r in rec["reason"][rec["forced"]]:
-    hist[REASON_NAMES.get(int(r), str(int(r)))] = hist.get(
-      REASON_NAMES.get(int(r), str(int(r))), 0
-    ) + 1
+    hist[REASON_NAMES.get(int(r), str(int(r)))] = hist.get(REASON_NAMES.get(int(r), str(int(r))), 0) + 1
   print(f"forced releases={n_forced} reasons={hist}")
   print(
     f"height gained (last)={rec['height'][-1]:.3f} m; resets at"
@@ -456,10 +455,7 @@ def main() -> None:
       prefix = args.out
     else:
       run_name = args.ckpt.resolve().parent.name
-      prefix = (
-        REPO / "logs" / "eval" / run_name
-        / f"padwrench_{args.angle:.0f}deg_{args.ckpt.stem}"
-      )
+      prefix = REPO / "logs" / "eval" / run_name / f"padwrench_{args.angle:.0f}deg_{args.ckpt.stem}"
     prefix.parent.mkdir(parents=True, exist_ok=True)
     np.savez(prefix.with_suffix(".npz"), **rec)
     print(f"wrote {prefix.with_suffix('.npz')}")

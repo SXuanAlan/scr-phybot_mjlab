@@ -124,9 +124,7 @@ def tilt_peel_schedule(
   return torch.tensor([current["deg_range"][0]], device=env.device)
 
 
-def resolve_wall_stage(
-  current_iter: int, angle_stages: list[WallAngleStage]
-) -> WallAngleStage:
+def resolve_wall_stage(current_iter: int, angle_stages: list[WallAngleStage]) -> WallAngleStage:
   """Resolve the active wall-angle curriculum stage by stepwise lookup."""
   if not angle_stages:
     raise ValueError("angle_stages must contain at least one stage.")
@@ -216,15 +214,11 @@ def pin_curricula_to_final_stage(cfg: ManagerBasedRlEnvCfg) -> None:
   runs execute a HARD single angle.
   """
   final_angle = cfg.curriculum["wall_angle"].params["angle_stages"][-1]
-  cfg.curriculum["wall_angle"].params["angle_stages"] = [
-    {"iter": 0, "angle_deg": final_angle["angle_deg"]}
-  ]
+  cfg.curriculum["wall_angle"].params["angle_stages"] = [{"iter": 0, "angle_deg": final_angle["angle_deg"]}]
   # Gimbal-era cfgs carry no tilt-peel ladder (angle release retired).
   if "tilt_peel" in cfg.curriculum:
     final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
-    cfg.curriculum["tilt_peel"].params["stages"] = [
-      {"iter": 0, "deg_range": final_tilt["deg_range"]}
-    ]
+    cfg.curriculum["tilt_peel"].params["stages"] = [{"iter": 0, "deg_range": final_tilt["deg_range"]}]
 
 
 def resolve_climb_velocity_ranges(
@@ -249,9 +243,7 @@ def resolve_climb_velocity_ranges(
   return cast(ClimbVelocityRangeStage, resolved)
 
 
-def _stage_range(
-  stage: ClimbVelocityRangeStage, *keys: str
-) -> tuple[float, float] | None:
+def _stage_range(stage: ClimbVelocityRangeStage, *keys: str) -> tuple[float, float] | None:
   for key in keys:
     if key in stage:
       value = stage[key]  # type: ignore[literal-required]
@@ -287,9 +279,7 @@ def sample_wall_angles(
   """
   if jitter_deg <= 0.0 or base_deg >= jitter_below_deg:
     return torch.full((count,), base_deg, device=device)
-  return torch.empty(count, device=device).uniform_(
-    base_deg - jitter_deg, base_deg + jitter_deg
-  )
+  return torch.empty(count, device=device).uniform_(base_deg - jitter_deg, base_deg + jitter_deg)
 
 
 def wall_pose_for_angle(
@@ -398,10 +388,7 @@ def climb_velocity_command_ranges(
   command_term = env.command_manager.get_term(command_name)
   cfg = command_term.cfg
   if not isinstance(cfg, ClimbVelocityCommandCfg):
-    raise TypeError(
-      f"Command term '{command_name}' must use ClimbVelocityCommandCfg, "
-      f"got {type(cfg).__name__}."
-    )
+    raise TypeError(f"Command term '{command_name}' must use ClimbVelocityCommandCfg, got {type(cfg).__name__}.")
   _apply_climb_velocity_range_stage(cfg, stage)
 
   return {

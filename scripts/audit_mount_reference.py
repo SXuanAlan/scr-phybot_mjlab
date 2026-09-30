@@ -6,6 +6,7 @@ already attached to the wall. This is a kinematic audit, not a force/preload
 or policy rollout certificate. Collision clearance uses the actual mesh
 vertices, not their conservative bounding boxes.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,10 +36,13 @@ def audit_motion_file(path: Path) -> dict:
   frames = len(clip["joint_positions"])
   names = list(clip["joints_list"]) + list(clip.get("passive_joint_names", ()))
   qadr = [int(model.joint(n).qposadr[0]) for n in names]
-  joint_pos = np.concatenate([
-    clip["joint_positions"],
-    clip.get("passive_joint_positions", np.zeros((frames, 0))),
-  ], axis=1)
+  joint_pos = np.concatenate(
+    [
+      clip["joint_positions"],
+      clip.get("passive_joint_positions", np.zeros((frames, 0))),
+    ],
+    axis=1,
+  )
   signs = np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)])
   geoms = []
   for g in range(model.ngeom):
@@ -48,7 +52,7 @@ def audit_motion_file(path: Path) -> dict:
     if kind == mujoco.mjtGeom.mjGEOM_MESH:
       mid = model.geom_dataid[g]
       start, count = model.mesh_vertadr[mid], model.mesh_vertnum[mid]
-      points = model.mesh_vert[start:start + count].astype(np.float64)
+      points = model.mesh_vert[start : start + count].astype(np.float64)
     elif kind == mujoco.mjtGeom.mjGEOM_BOX:
       points = signs * model.geom_size[g]
     else:
@@ -60,7 +64,8 @@ def audit_motion_file(path: Path) -> dict:
   def record(key: str, gap: float, frame: int, geom: int) -> None:
     if key not in clearances or gap * 1000 < clearances[key]["gap_mm"]:
       clearances[key] = {
-        "gap_mm": float(gap * 1000), "frame": frame,
+        "gap_mm": float(gap * 1000),
+        "frame": frame,
         "geom": model.geom(geom).name,
         "segment": clip["segment_names"][int(clip["phase_segment"][frame])],
       }
@@ -97,7 +102,9 @@ def audit_motion_file(path: Path) -> dict:
       elif kind == mujoco.mjtGeom.mjGEOM_CAPSULE:
         support = -model.geom_size[g, 0] - model.geom_size[g, 1] * np.abs(directions[2])
       elif kind == mujoco.mjtGeom.mjGEOM_CYLINDER:
-        support = -model.geom_size[g, 0] * np.linalg.norm(directions[:2], axis=0) - model.geom_size[g, 1] * np.abs(directions[2])
+        support = -model.geom_size[g, 0] * np.linalg.norm(directions[:2], axis=0) - model.geom_size[g, 1] * np.abs(
+          directions[2]
+        )
       else:
         raise ValueError(f"Unsupported collision primitive: {model.geom(g).name} ({kind})")
       floor_gap = data.geom_xpos[g, 2] + support[0]
@@ -123,13 +130,15 @@ def audit_motion_file(path: Path) -> dict:
     "clip": path.name,
     "clip_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
     "asset_xml_sha256": xml_hash,
-    "frames": frames, "fps": float(clip["fps"]),
+    "frames": frames,
+    "fps": float(clip["fps"]),
     "wall_angle_deg": float(clip["wall_angle"]),
     "body_fk_max_mm": fk_error * 1000,
     "contact_c_fk_max_mm": center_error * 1000,
     "quaternion_dot_error": rotation_error,
     "engaged_anchor_drift_max_mm": drift * 1000,
-    "checks": checks, "passed": all(checks.values()),
+    "checks": checks,
+    "passed": all(checks.values()),
     "scope": "Saved-frame FK, wall and floor collision geometry; excludes self-collision, force/preload feasibility and dynamic policy tracking.",
     "clearances": clearances,
   }

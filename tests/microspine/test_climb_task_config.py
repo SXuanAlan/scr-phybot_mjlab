@@ -43,6 +43,7 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.engage_min_total_normal_force == 0.0
   assert microspine.engage_unit_preload_n == 10.0
   from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
+
   sensor = next(s for s in cfg.scene.sensors if isinstance(s, WrenchContactSensorCfg))
   assert {"force", "torque", "pos"}.issubset(sensor.fields)
   assert sensor.history_length == cfg.decimation
@@ -101,7 +102,7 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.limit_surface.unit_layout == "all"
   assert microspine.limit_surface.unit_rows_rake == 3
   assert microspine.limit_surface.unit_cols_lateral == 4
-  assert microspine.limit_surface.f_t_max_range == (360.,360.)
+  assert microspine.limit_surface.f_t_max_range == (360.0, 360.0)
   if PHYBOT_C2_PAD_GIMBAL:
     # Gimbal-era weld: rotationally RIGID — the passive wrist gimbal owns
     # compliance and angle-based release is retired (moment billing only).
@@ -116,9 +117,7 @@ def test_climb_microspine_contract_and_command_ordering():
     "microspine_affordance",
     "climb_motion",
   )
-  assert cfg.metrics["microspine_engage_event_rate_hz"].params == {
-    "command_name": "microspine_affordance"
-  }
+  assert cfg.metrics["microspine_engage_event_rate_hz"].params == {"command_name": "microspine_affordance"}
 
 
 @pytest.mark.parametrize("play", [False, True])
@@ -157,7 +156,8 @@ def test_corner_climbing_60_task_has_full_training_and_play_configs(play):
   motion = cfg.commands["climb_motion"]
   assert motion.motion_file == str(CAD_CLIMB_CORNERS60_MOTION)
   assert cfg.commands["climb_velocity"].ranges.lin_vel_z == pytest.approx(
-    (clip_average_climb_rate(CAD_CLIMB_CORNERS60_MOTION),) * 2)
+    (clip_average_climb_rate(CAD_CLIMB_CORNERS60_MOTION),) * 2
+  )
   assert cfg.scene.num_envs == main.scene.num_envs
   assert cfg.episode_length_s == main.episode_length_s
   assert cfg.actions == main.actions
@@ -165,7 +165,8 @@ def test_corner_climbing_60_task_has_full_training_and_play_configs(play):
   assert tuple(cfg.observations["actor"].terms) == tuple(main.observations["actor"].terms)
   assert tuple(cfg.observations["critic"].terms) == tuple(main.observations["critic"].terms)
   assert {key: term.weight for key, term in cfg.rewards.items()} == {
-    key: term.weight for key, term in main.rewards.items()}
+    key: term.weight for key, term in main.rewards.items()
+  }
   assert tuple(cfg.terminations) == tuple(main.terminations)
   wall = cfg.curriculum["wall_angle"].params
   if play:
@@ -194,37 +195,38 @@ def test_corner_climbing_curriculum_cannot_mutate_the_main_task():
   corner = phybot_c2_climb_wall_corners60_env_cfg()
   corner.curriculum["wall_angle"].params["angle_stages"][0]["angle_deg"] = 10.0
   assert CORNERS60_WALL_ANGLE_STAGES[0]["angle_deg"] == 45.0
-  assert phybot_c2_climb_wall_corners60_env_cfg().curriculum["wall_angle"].params[
-    "angle_stages"][0]["angle_deg"] == 45.0
-  assert phybot_c2_climb_wall_env_cfg().curriculum["wall_angle"].params[
-    "angle_stages"][-1]["angle_deg"] == 90.0
+  assert (
+    phybot_c2_climb_wall_corners60_env_cfg().curriculum["wall_angle"].params["angle_stages"][0]["angle_deg"] == 45.0
+  )
+  assert phybot_c2_climb_wall_env_cfg().curriculum["wall_angle"].params["angle_stages"][-1]["angle_deg"] == 90.0
 
 
 @pytest.mark.parametrize("play", [False, True])
 def test_corner_climbing_80_task_keeps_its_angle_in_training_and_play(play):
   from mjlab.tasks.registry import load_env_cfg
   from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS80_MOTION
+
   cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A80", play=play)
   microspine = cfg.commands["microspine_affordance"].microspine_cfg
   assert microspine.limit_surface.unit_layout == "corners"
   assert microspine.engage_unit_preload_n == 10.0
   wall = cfg.curriculum["wall_angle"].params
-  assert wall["angle_stages"] == [{"iter":0, "angle_deg":80.0}]
+  assert wall["angle_stages"] == [{"iter": 0, "angle_deg": 80.0}]
   assert wall["angle_jitter_deg"] == 0.0
   assert cfg.events["microspine_grip"].params["microspine_cfg"].limit_surface.unit_layout == "corners"
   assert cfg.commands["climb_motion"].motion_file == str(CAD_CLIMB_CORNERS80_MOTION)
 
 
-@pytest.mark.parametrize("wall_angle,layout", [(60., "corners"), (80., "corners"), (90., "all")])
+@pytest.mark.parametrize("wall_angle,layout", [(60.0, "corners"), (80.0, "corners"), (90.0, "all")])
 def test_empirical_climbing_rewards_unloaded_release_at_each_angle_and_layout(wall_angle, layout):
   cfg = phybot_c2_climb_wall_env_cfg(wall_angle_deg=wall_angle, unit_layout=layout)
   release = cfg.rewards["microspine_release_load"]
-  assert callable(release.func) and release.weight == 1.
-  assert release.params["shear_scale_n"] == release.params["lateral_scale_n"] == 2.
+  assert callable(release.func) and release.weight == 1.0
+  assert release.params["shear_scale_n"] == release.params["lateral_scale_n"] == 2.0
   assert release.params["shear_cost"] > release.params["lateral_cost"] > 0
   assert release.params["minimum_supports"] == 3
   assert cfg.rewards["unsafe_microspine_release"].weight < 0
-  assert cfg.commands["microspine_affordance"].microspine_cfg.engage_unit_preload_n == 10.
+  assert cfg.commands["microspine_affordance"].microspine_cfg.engage_unit_preload_n == 10.0
 
 
 def test_release_load_reward_requires_empirical_unit_telemetry():
@@ -233,10 +235,10 @@ def test_release_load_reward_requires_empirical_unit_telemetry():
 
 
 def test_full_array_comparison_and_legacy_wang_remain_available():
-  for kwargs in ({"unit_layout":"all"}, {"contact_model":"wang2017"}):
+  for kwargs in ({"unit_layout": "all"}, {"contact_model": "wang2017"}):
     cfg = phybot_c2_climb_wall_env_cfg(**kwargs)
     ls = cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
-    assert (ls.unit_layout,ls.unit_rows_rake,ls.unit_cols_lateral) == ("all",3,4)
+    assert (ls.unit_layout, ls.unit_rows_rake, ls.unit_cols_lateral) == ("all", 3, 4)
 
 
 def test_climb_motion_command_is_rsi_over_the_ik_cycle():
@@ -328,12 +330,8 @@ def test_legacy_wang_reward_contract_remains_deepmimic_split():
   # its ceiling must stay strictly below the mismatch bill so pressing
   # without latching never profits.
   assert cfg.rewards["motion_scheduled_press"].weight == 0.4
-  assert (
-    cfg.rewards["motion_scheduled_press"].params["regrip_lead_time_s"] == 0.3
-  )
-  assert cfg.rewards["motion_scheduled_press"].weight < abs(
-    cfg.rewards["motion_engage_mismatch"].weight
-  )
+  assert cfg.rewards["motion_scheduled_press"].params["regrip_lead_time_s"] == 0.3
+  assert cfg.rewards["motion_scheduled_press"].weight < abs(cfg.rewards["motion_engage_mismatch"].weight)
   # -1.0: schedule adherence must be priced against the budgeted task income
   # (motionref1 ignored the schedule at -0.25). The bill ramps in over the
   # outer 30% of the violated window around a scheduled flip — the countdown
@@ -341,9 +339,7 @@ def test_legacy_wang_reward_contract_remains_deepmimic_split():
   # compliance impossible; as a window fraction the weld-through price
   # survives clip retiming (motionref17).
   assert cfg.rewards["motion_engage_mismatch"].weight == -1.0
-  assert (
-    cfg.rewards["motion_engage_mismatch"].params["grace_fraction"] == 0.3
-  )
+  assert cfg.rewards["motion_engage_mismatch"].params["grace_fraction"] == 0.3
   assert "grace_time_s" not in cfg.rewards["motion_engage_mismatch"].params
 
   # The climbing drive IS an imitation term (motionref8): income follows the
@@ -368,9 +364,7 @@ def test_legacy_wang_reward_contract_remains_deepmimic_split():
   # mismatch bill so hovering released never profits.
   assert cfg.rewards["motion_swing_approach"].weight == 0.5
   assert cfg.rewards["motion_swing_approach"].params["std"] == 0.05
-  assert cfg.rewards["motion_swing_approach"].weight < abs(
-    cfg.rewards["motion_engage_mismatch"].weight
-  )
+  assert cfg.rewards["motion_swing_approach"].weight < abs(cfg.rewards["motion_engage_mismatch"].weight)
 
   # The commanded-gait battery is gone with the state machine.
   for legacy in (
@@ -479,10 +473,7 @@ def test_climb_curriculum_retrains_from_scratch():
     # before the wall gets steep (3000 < 3550).
     tilt_term = cfg.curriculum["tilt_peel"]
     tilt_stages = tilt_term.params["stages"]
-    assert [
-      (s["iter"], s["deg_range"], s["tax_threshold_deg"], s["tax_scale_deg"])
-      for s in tilt_stages
-    ] == [
+    assert [(s["iter"], s["deg_range"], s["tax_threshold_deg"], s["tax_scale_deg"]) for s in tilt_stages] == [
       (0, (12.0, 15.0), 10.0, 8.0),
       (1200, (8.0, 10.0), 6.5, 6.0),
       (2400, (5.0, 7.0), 4.0, 5.0),

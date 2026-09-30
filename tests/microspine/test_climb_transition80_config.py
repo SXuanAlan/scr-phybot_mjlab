@@ -42,9 +42,7 @@ from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionCommandCfg
 
-_ASSETS = (
-  Path(__file__).resolve().parents[2] / "src/scr_phybot_mjab/assets/motions"
-)
+_ASSETS = Path(__file__).resolve().parents[2] / "src/scr_phybot_mjab/assets/motions"
 _A80 = _ASSETS / "climb_mount_prologue_a80.npy"
 
 _EXPECTED_REWARDS = {
@@ -99,9 +97,7 @@ def test_transition80_observation_contract() -> None:
   # The reference lanes read the motion command; the pad lanes the affordance.
   for name in TRANSITION80_ACTOR_TERMS[11:17]:
     assert actor.terms[name].params == {"command_name": "climb_motion"}, name
-  assert actor.terms["microspine_pad_center_world"].params == {
-    "command_name": "microspine_affordance"
-  }
+  assert actor.terms["microspine_pad_center_world"].params == {"command_name": "microspine_affordance"}
   assert actor.terms["motion_command"].func.__name__ == "generated_commands"
   assert actor.terms["motion_command"].params["command_name"] == "climb_motion"
   for name, scale in (
@@ -191,9 +187,7 @@ def test_transition80_reward_table_is_beyondmimic_minimal() -> None:
   negatives = [n for n, w in _EXPECTED_REWARDS.items() if w < 0]
   assert negatives == ["anchor_rip_penalty", "action_rate_l2", "dof_pos_limits"]
   phi = cfg.rewards["engage_progress"].params
-  assert phi["anchor_radius_m"] == pytest.approx(
-    TRANSITION80_ANCHOR_RADIUS_STAGES[0]["value"]
-  )
+  assert phi["anchor_radius_m"] == pytest.approx(TRANSITION80_ANCHOR_RADIUS_STAGES[0]["value"])
   assert phi["edge_lead_time_s"] == pytest.approx(2.0)
   assert cfg.rewards["motion_pad_pos"].func.__name__ == "motion_pad_center_error_exp"
   assert cfg.rewards["motion_pad_pos"].params["std"] == pytest.approx(0.08)
@@ -285,8 +279,10 @@ def test_transition80_termination_table() -> None:
   handup = [w for w in wins if w[1] - w[0] == 30]
   assert len(handup) == 3  # v6g: hand_up_right + the left hand's two steps
   import numpy as np
+
   data = np.load(motion.motion_file, allow_pickle=True).item()
-  names = list(data["segment_names"]); labels = np.asarray(data["phase_segment"])
+  names = list(data["segment_names"])
+  labels = np.asarray(data["phase_segment"])
   for seg, (a0, b0) in zip(("hand_up_right", "hand_up_left_mid", "hand_up_left"), sorted(handup)):
     start = int(np.flatnonzero(labels == names.index(seg))[0])
     assert (a0, b0) == (start, start + 30), seg
@@ -310,9 +306,7 @@ def test_transition80_curriculum_table() -> None:
   assert "engage_gate_anneal" not in names
   for name, term in cfg.curriculum.items():
     assert term.params.get("steps_per_iter") == 96, name
-  assert cfg.curriculum["wall_angle"].params["angle_stages"] == [
-    {"iter": 0, "angle_deg": 80.0}
-  ]
+  assert cfg.curriculum["wall_angle"].params["angle_stages"] == [{"iter": 0, "angle_deg": 80.0}]
   assert cfg.curriculum["wall_angle"].params["angle_jitter_deg"] == 0.0
   ladder = cfg.curriculum["engage_shear_ladder"].params
   assert ladder["param_name"] == "engage_shear_threshold_n"
@@ -328,12 +322,9 @@ def test_transition80_curriculum_table() -> None:
   assert ladder["stages"] == TRANSITION80_SHEAR_LADDER
   # Phi's anchor radius anneals in lockstep with the contact law.
   assert (
-    cfg.curriculum["engage_progress_radius"].params["stages"]
-    == cfg.curriculum["contact_law_radius"].params["stages"]
+    cfg.curriculum["engage_progress_radius"].params["stages"] == cfg.curriculum["contact_law_radius"].params["stages"]
   )
-  assert cfg.curriculum["constraint_tilt"].params["termination_name"] == (
-    "engage_constraint"
-  )
+  assert cfg.curriculum["constraint_tilt"].params["termination_name"] == ("engage_constraint")
 
 
 def test_transition80_plant_flags() -> None:
@@ -366,12 +357,8 @@ def test_play_overrides() -> None:
   assert play.terminations["engage_constraint"].params["mode"] == "off"
   assert tuple(play.curriculum) == ("wall_angle", "engage_shear_ladder", "engage_antirake_ladder")
   assert play.curriculum["engage_antirake_ladder"].params["stages"] == [{"iter": 0, "value": 0.02}]
-  assert play.curriculum["engage_shear_ladder"].params["stages"] == [
-    {"iter": 0, "value": 10.0}
-  ]
-  assert play.curriculum["wall_angle"].params["angle_stages"] == [
-    {"iter": 0, "angle_deg": 80.0}
-  ]
+  assert play.curriculum["engage_shear_ladder"].params["stages"] == [{"iter": 0, "value": 10.0}]
+  assert play.curriculum["wall_angle"].params["angle_stages"] == [{"iter": 0, "angle_deg": 80.0}]
   assert play.scene.num_envs == 1
 
 
@@ -419,16 +406,12 @@ def test_fk_tables_match_the_clip_ee_positions() -> None:
   data = np.load(_A80, allow_pickle=True).item()
   model = get_spec().compile()
   assert int(model.joint("floating_base_joint").qposadr[0]) == 0
-  joint_qadr = np.array(
-    [int(model.joint(n).qposadr[0]) for n in data["joints_list"]]
-  )
+  joint_qadr = np.array([int(model.joint(n).qposadr[0]) for n in data["joints_list"]])
   body_ids = np.array([model.body(n).id for n in data["ee_list"]])
   root_pos = np.asarray(data["root_position"], np.float64)
   root_quat = np.asarray(data["root_quaternion"], np.float64)[:, [3, 0, 1, 2]]
   joint_pos = np.asarray(data["joint_positions"], np.float64)
-  passive_qadr = np.array(
-    [int(model.joint(n).qposadr[0]) for n in data["passive_joint_names"]]
-  )
+  passive_qadr = np.array([int(model.joint(n).qposadr[0]) for n in data["passive_joint_names"]])
   pos, quat = build_fk_tables(
     model,
     np.array(model.qpos0, dtype=np.float64),
@@ -477,15 +460,12 @@ def test_cfg_survives_cloudpickle_for_multi_gpu_launch() -> None:
     assert tuple(back.terminations) == tuple(cfg.terminations)
     assert tuple(back.rewards) == tuple(cfg.rewards)
     assert tuple(back.observations["actor"].terms) == TRANSITION80_ACTOR_TERMS
-    assert tuple(back.observations["critic"].terms) == (
-      TRANSITION80_ACTOR_TERMS + TRANSITION80_CRITIC_TAIL
-    )
+    assert tuple(back.observations["critic"].terms) == (TRANSITION80_ACTOR_TERMS + TRANSITION80_CRITIC_TAIL)
 
 
 def _gains(cfg) -> dict[str, tuple[float, float]]:
   return {
-    act.target_names_expr[0]: (act.stiffness, act.damping)
-    for act in cfg.scene.entities["robot"].articulation.actuators
+    act.target_names_expr[0]: (act.stiffness, act.damping) for act in cfg.scene.entities["robot"].articulation.actuators
   }
 
 

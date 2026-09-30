@@ -286,11 +286,7 @@ def make_velocity_env_cfg() -> ManagerBasedRlEnvCfg:
     "ankle_torque": RewardTermCfg(
       func=mdp.joint_torques_l2,
       weight=-5e-5,
-      params={
-        "asset_cfg": SceneEntityCfg(
-          "robot", actuator_names=(".*_ankle_pitch", ".*_ankle_roll")
-        )
-      },
+      params={"asset_cfg": SceneEntityCfg("robot", actuator_names=(".*_ankle_pitch", ".*_ankle_roll"))},
     ),
     "dof_acc_l2": RewardTermCfg(func=mdp.joint_acc_l2, weight=-1.5e-8),
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-20.0),

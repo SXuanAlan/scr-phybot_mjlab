@@ -59,8 +59,7 @@ class AmpReferenceResetCommand(CommandTerm):
       velocity_representation=VelocityRepresentation(cfg.velocity_representation),
     )
     self._vel_is_body = (
-      VelocityRepresentation(cfg.velocity_representation)
-      == VelocityRepresentation.BODY_FIXED_REPRESENTATION
+      VelocityRepresentation(cfg.velocity_representation) == VelocityRepresentation.BODY_FIXED_REPRESENTATION
     )
     # Not observed; exists only to trigger _resample_command on reset.
     self._null_command = torch.zeros(self.num_envs, 1, device=self.device)
@@ -76,13 +75,9 @@ class AmpReferenceResetCommand(CommandTerm):
     pass
 
   def _resample_command(self, env_ids: torch.Tensor) -> None:
-    quat, joint_pos, joint_vel, base_lin_vel, base_ang_vel = (
-      self.amp_data.get_state_for_reset(len(env_ids))
-    )
+    quat, joint_pos, joint_vel, base_lin_vel, base_ang_vel = self.amp_data.get_state_for_reset(len(env_ids))
 
-    self.robot.write_joint_state_to_sim(
-      joint_pos, joint_vel, env_ids=env_ids, joint_ids=self.joint_ids
-    )
+    self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids, joint_ids=self.joint_ids)
 
     # get_state_for_reset omits root position: place the base at the env origin at
     # a fixed height (exact for standing, close for walking samples).

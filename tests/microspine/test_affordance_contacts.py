@@ -80,8 +80,9 @@ def test_sensor_rows_permuted_to_ee_major_order():
 def test_netforce_projects_total_block_force_in_a_tilted_wall_frame():
   term = object.__new__(MicrospineAffordance)
   term._num_ee = 1
-  term._mcfg = SimpleNamespace(spheres_per_ee_rows=1, spheres_per_ee_cols=1,
-                              ee_body_names=("paw",), spring_field_enabled=True)
+  term._mcfg = SimpleNamespace(
+    spheres_per_ee_rows=1, spheres_per_ee_cols=1, ee_body_names=("paw",), spring_field_enabled=True
+  )
   term.cfg = SimpleNamespace(contact_sensor_name="contact")
   term._sensor_row_perm = None
   inward = torch.tensor([[0.6, 0.0, 0.8]])
@@ -92,8 +93,9 @@ def test_netforce_projects_total_block_force_in_a_tilted_wall_frame():
   history = torch.stack([torch.zeros_like(force), force], dim=2)
   sensor = SimpleNamespace(
     cfg=SimpleNamespace(reduce="netforce", global_frame=False),
-    data=SimpleNamespace(found=torch.zeros(1, 1), force=torch.zeros_like(force),
-                         force_history=history, normal=None, tangent=None),
+    data=SimpleNamespace(
+      found=torch.zeros(1, 1), force=torch.zeros_like(force), force_history=history, normal=None, tangent=None
+    ),
     primary_names=["robot/paw_c_0_0"],
   )
   term._env = SimpleNamespace(num_envs=1, device="cpu", scene={"contact": sensor})
@@ -142,7 +144,5 @@ def test_sphere_geom_ids_resolve_per_ee_in_ee_major_order():
   assert len(set(flat)) == 4
   for ee_name, ee_geoms in zip(cfg.ee_body_names, ids):
     for sphere_i, gid in enumerate(ee_geoms):
-      expected = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_GEOM, f"robot/{ee_name}_c_0_{sphere_i}"
-      )
+      expected = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, f"robot/{ee_name}_c_0_{sphere_i}")
       assert gid == expected

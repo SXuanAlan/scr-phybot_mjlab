@@ -73,6 +73,7 @@ def vertical_height_spawn_offset(
   vertical = wall_quat[:, 0] >= 1.0 - 1.0e-9
   return torch.where(vertical, torch.zeros_like(shift), shift)
 
+
 # Nominal cycle climb rate (m/s) used only when the clip file is absent at
 # config-build time (fresh checkout before ``gen_climb_clip.py`` ran). Env
 # construction still fails loudly without the file — this fallback exists so
@@ -185,9 +186,7 @@ def _cycle_frames(data: dict) -> int:
   return int(np.sum((cycles == 0) & (labels != end_id)))
 
 
-def clip_average_climb_rate(
-  motion_file: str | Path, fallback: float = _FALLBACK_CLIMB_RATE
-) -> float:
+def clip_average_climb_rate(motion_file: str | Path, fallback: float = _FALLBACK_CLIMB_RATE) -> float:
   """Average upward base speed of one reference cycle (m/s).
 
   Used at config-build time to point the climb velocity command at the rate
@@ -235,16 +234,12 @@ class ClimbMotionClip:
   tail_root_quat: torch.Tensor | None = None
 
   @classmethod
-  def from_file(
-    cls, motion_file: str | Path, step_dt: float, device: str
-  ) -> ClimbMotionClip:
+  def from_file(cls, motion_file: str | Path, step_dt: float, device: str) -> ClimbMotionClip:
     data = np.load(Path(motion_file), allow_pickle=True).item()
     return cls.from_dict(data, step_dt=step_dt, device=device)
 
   @classmethod
-  def from_dict(
-    cls, data: dict, step_dt: float, device: str
-  ) -> ClimbMotionClip:
+  def from_dict(cls, data: dict, step_dt: float, device: str) -> ClimbMotionClip:
     required = (
       "joints_list",
       "joint_positions",
@@ -267,25 +262,20 @@ class ClimbMotionClip:
     target_fps = 1.0 / step_dt
     joint_pos = np.asarray(data["joint_positions"], dtype=np.float64)
     passive_names = tuple(data.get("passive_joint_names", ()))
-    passive_pos = np.asarray(data.get("passive_joint_positions",
-      np.zeros((len(joint_pos), 0))), dtype=np.float64)
+    passive_pos = np.asarray(data.get("passive_joint_positions", np.zeros((len(joint_pos), 0))), dtype=np.float64)
     if passive_pos.shape != (len(joint_pos), len(passive_names)):
       raise ValueError("Passive reference joint names/frames do not match")
     if set(passive_names) & set(data["joints_list"]):
       raise ValueError("A reference joint cannot be both actuated and passive")
     root_pos = np.asarray(data["root_position"], dtype=np.float64)
     # The AMP/motion schema stores xyzw; mjlab is wxyz throughout.
-    root_quat = np.asarray(data["root_quaternion"], dtype=np.float64)[
-      :, [3, 0, 1, 2]
-    ]
+    root_quat = np.asarray(data["root_quaternion"], dtype=np.float64)[:, [3, 0, 1, 2]]
     ee_pos = np.asarray(data["ee_positions"], dtype=np.float64)
     engaged = np.asarray(data["ee_engaged"]) != 0
     # Foot-toe wall-brace schedule (gen_climb_clip 2026-07-29). Older clips
     # predate the bracing toes; they never schedule a brace.
     toe_braced = (
-      np.asarray(data["toe_braced"]) != 0
-      if "toe_braced" in data
-      else np.zeros((engaged.shape[0], 2), dtype=bool)
+      np.asarray(data["toe_braced"]) != 0 if "toe_braced" in data else np.zeros((engaged.shape[0], 2), dtype=bool)
     )
     # Scheduled anchor positions (clip world frame): the weld target while
     # engaged, the upcoming landing target while swinging. Consumed by the
@@ -341,9 +331,7 @@ class ClimbMotionClip:
     axis = q_rel[:, 1:4] / np.maximum(vec_norm, 1.0e-12)[:, None]
     root_ang_vel = axis * (angle * target_fps)[:, None]
 
-    ee_pos_r = _np_quat_rotate_inverse(
-      root_quat[:cycle], ee_pos[:cycle] - root_pos[:cycle, None, :]
-    )
+    ee_pos_r = _np_quat_rotate_inverse(root_quat[:cycle], ee_pos[:cycle] - root_pos[:cycle, None, :])
 
     # Countdown to the next release/regrip edge (normalized: the obs chart)
     # plus the symmetric distance to the NEAREST edge, past or future (the
@@ -354,9 +342,7 @@ class ClimbMotionClip:
     engaged_cycle = engaged[:cycle]
     future = _edge_frame_countdowns(engaged_cycle)
     past = _edge_frame_countdowns(engaged_cycle[::-1])[::-1]
-    edge_distance = (
-      np.minimum(future.min(axis=-1), past.min(axis=-1) - 1) / cycle
-    ).astype(np.float32)
+    edge_distance = (np.minimum(future.min(axis=-1), past.min(axis=-1) - 1) / cycle).astype(np.float32)
     edge_distance[:, future.min(axis=(0, -1)) >= cycle] = 1.0
     run_time = (_run_lengths(engaged_cycle) / cycle).astype(np.float32)
 
@@ -384,13 +370,12 @@ class ClimbMotionClip:
       ee_anchor_pos=_t(ee_anchor[:cycle]),
       passive_joint_names=passive_names,
       passive_joint_pos=_t(passive_pos[:cycle]),
-      passive_joint_vel=_t((passive_pos[1:cycle+1]-passive_pos[:cycle])*target_fps),
-      tail_joint_pos=_t(joint_pos[cycle:cycle+1]),
-      tail_passive_joint_pos=_t(passive_pos[cycle:cycle+1]),
-      tail_root_pos=_t(root_pos[cycle:cycle+1]),
-      tail_root_quat=_t(root_quat[cycle:cycle+1]),
+      passive_joint_vel=_t((passive_pos[1 : cycle + 1] - passive_pos[:cycle]) * target_fps),
+      tail_joint_pos=_t(joint_pos[cycle : cycle + 1]),
+      tail_passive_joint_pos=_t(passive_pos[cycle : cycle + 1]),
+      tail_root_pos=_t(root_pos[cycle : cycle + 1]),
+      tail_root_quat=_t(root_quat[cycle : cycle + 1]),
     )
-
 
 
 class ClimbMotionCommand(CommandTerm):
@@ -408,43 +393,28 @@ class ClimbMotionCommand(CommandTerm):
   def __init__(self, cfg: ClimbMotionCommandCfg, env: ManagerBasedRlEnv):
     super().__init__(cfg, env)
     self.robot: Entity = env.scene[cfg.entity_name]
-    self.clip = ClimbMotionClip.from_file(
-      cfg.motion_file, step_dt=env.step_dt, device=str(self.device)
-    )
+    self.clip = ClimbMotionClip.from_file(cfg.motion_file, step_dt=env.step_dt, device=str(self.device))
     if tuple(cfg.ee_body_names) != self.clip.ee_names:
       raise ValueError(
-        f"Clip EE order {self.clip.ee_names} does not match the configured "
-        f"microspine order {tuple(cfg.ee_body_names)}."
+        f"Clip EE order {self.clip.ee_names} does not match the configured microspine order {tuple(cfg.ee_body_names)}."
       )
 
-    joint_ids, joint_names = self.robot.find_joints(
-      list(self.clip.joint_names), preserve_order=True
-    )
+    joint_ids, joint_names = self.robot.find_joints(list(self.clip.joint_names), preserve_order=True)
     if tuple(joint_names) != self.clip.joint_names:
       raise ValueError(
-        "Clip joints could not be mapped onto the robot in order: "
-        f"{joint_names} vs {self.clip.joint_names}."
+        f"Clip joints could not be mapped onto the robot in order: {joint_names} vs {self.clip.joint_names}."
       )
-    self._joint_ids = torch.tensor(
-      joint_ids, dtype=torch.long, device=self.device
-    )
+    self._joint_ids = torch.tensor(joint_ids, dtype=torch.long, device=self.device)
     passive_ids = []
     if self.clip.passive_joint_names:
-      passive_ids, passive_names = self.robot.find_joints(
-        list(self.clip.passive_joint_names), preserve_order=True)
+      passive_ids, passive_names = self.robot.find_joints(list(self.clip.passive_joint_names), preserve_order=True)
       if tuple(passive_names) != self.clip.passive_joint_names:
         raise ValueError("Passive reference joints do not match this robot")
     self._passive_joint_ids = torch.tensor(passive_ids, dtype=torch.long, device=self.device)
-    ee_body_ids = [
-      self.robot.find_bodies([name])[0][0] for name in cfg.ee_body_names
-    ]
-    self._ee_body_ids = torch.tensor(
-      ee_body_ids, dtype=torch.long, device=self.device
-    )
+    ee_body_ids = [self.robot.find_bodies([name])[0][0] for name in cfg.ee_body_names]
+    self._ee_body_ids = torch.tensor(ee_body_ids, dtype=torch.long, device=self.device)
 
-    self.time_steps = torch.zeros(
-      self.num_envs, dtype=torch.long, device=self.device
-    )
+    self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
     # Offset from clip-frame root position to this env's reference position
     # in the CANONICAL clip frame (vertical wall, no env origin): reset
     # height jitter plus one step height per completed loop. World placement
@@ -459,9 +429,7 @@ class ClimbMotionCommand(CommandTerm):
     # the wall base line; at identity the transform is a bit-exact no-op.
     self.wall_quat = torch.zeros(self.num_envs, 4, device=self.device)
     self.wall_quat[:, 0] = 1.0
-    self._pivot_local = torch.tensor(
-      [WALL_PIVOT_X, 0.0, 0.0], device=self.device
-    )
+    self._pivot_local = torch.tensor([WALL_PIVOT_X, 0.0, 0.0], device=self.device)
     self.spawn_pos = torch.zeros(self.num_envs, 3, device=self.device)
     self._order_checked = False
     self._ghost_model = None
@@ -470,9 +438,13 @@ class ClimbMotionCommand(CommandTerm):
     self.phase_sampler = None
     if cfg.sampling_mode == "adaptive":
       self.phase_sampler = AdaptivePhaseSampler(
-        self.clip.cycle_frames, self.clip.fps, self.device,
-        bin_time_s=cfg.adaptive_bin_time_s, alpha=cfg.adaptive_alpha,
-        uniform_ratio=cfg.adaptive_uniform_ratio)
+        self.clip.cycle_frames,
+        self.clip.fps,
+        self.device,
+        bin_time_s=cfg.adaptive_bin_time_s,
+        alpha=cfg.adaptive_alpha,
+        uniform_ratio=cfg.adaptive_uniform_ratio,
+      )
       self.metrics["sampling_entropy"] = torch.zeros(self.num_envs, device=self.device)
       self.metrics["sampling_top1_prob"] = torch.zeros(self.num_envs, device=self.device)
     if cfg.tracking_body_names:
@@ -480,9 +452,7 @@ class ClimbMotionCommand(CommandTerm):
       for name in ("error_body_pos", "error_body_ori", "error_body_lin_vel", "error_body_ang_vel"):
         self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
 
-    self.metrics["error_joint_pos"] = torch.zeros(
-      self.num_envs, device=self.device
-    )
+    self.metrics["error_joint_pos"] = torch.zeros(self.num_envs, device=self.device)
     self.metrics["error_ee_pos"] = torch.zeros(self.num_envs, device=self.device)
     self.metrics["engage_match"] = torch.zeros(self.num_envs, device=self.device)
 
@@ -500,9 +470,7 @@ class ClimbMotionCommand(CommandTerm):
     playhead. The trailing pair flags the foot-toe wall-brace windows (the
     released foot's support during its own regrip).
     """
-    phase = (
-      self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
-    )
+    phase = self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
     edges = self.clip.ee_edge_times[self.time_steps]
     return torch.cat(
       [
@@ -541,13 +509,17 @@ class ClimbMotionCommand(CommandTerm):
       return torch.cat((values, tail)).cpu().numpy().astype(np.float64)
 
     pos, quat = build_body_pose_tables(
-      model, base, indexing.free_joint_q_adr.cpu().numpy(),
-      joint_qadr[clip_ids], global_ids,
+      model,
+      base,
+      indexing.free_joint_q_adr.cpu().numpy(),
+      joint_qadr[clip_ids],
+      global_ids,
       with_tail(self.clip.root_pos, self.clip.tail_root_pos),
       with_tail(self.clip.root_quat, self.clip.tail_root_quat),
       with_tail(self.clip.joint_pos, self.clip.tail_joint_pos),
       joint_qadr[passive_ids],
-      with_tail(self.clip.passive_joint_pos, self.clip.tail_passive_joint_pos))
+      with_tail(self.clip.passive_joint_pos, self.clip.tail_passive_joint_pos),
+    )
     pos = torch.tensor(pos, device=self.device, dtype=torch.float32)
     quat = torch.tensor(quat, device=self.device, dtype=torch.float32)
     self._body_lin_vel, self._body_ang_vel = body_velocities_from_poses(pos, quat, self.clip.fps)
@@ -574,8 +546,13 @@ class ClimbMotionCommand(CommandTerm):
 
   def aligned_body_reference(self):
     return align_body_reference(
-      self.ref_body_pos_w, self.ref_body_quat_w, self.ref_root_pos_w,
-      self.ref_root_quat_w, self.robot.data.root_link_pos_w, self.robot_root_quat_w)
+      self.ref_body_pos_w,
+      self.ref_body_quat_w,
+      self.ref_root_pos_w,
+      self.ref_root_quat_w,
+      self.robot.data.root_link_pos_w,
+      self.robot_root_quat_w,
+    )
 
   @property
   def robot_body_pos_w(self):
@@ -619,9 +596,7 @@ class ClimbMotionCommand(CommandTerm):
     mapped through the per-env wall frame (+ env origin), i.e. exactly the
     ghost's anchor ladder. While an EE swings this is its upcoming landing
     target."""
-    return self._to_world_point(
-      self.clip.ee_anchor_pos[self.time_steps] + self.root_offset.unsqueeze(1)
-    )
+    return self._to_world_point(self.clip.ee_anchor_pos[self.time_steps] + self.root_offset.unsqueeze(1))
 
   @property
   def ref_edge_distance(self) -> torch.Tensor:
@@ -679,9 +654,7 @@ class ClimbMotionCommand(CommandTerm):
     quat = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
     return quat[:, 0] >= 1.0 - 1.0e-9
 
-  def _to_world_point(
-    self, points: torch.Tensor, env_ids: torch.Tensor | None = None
-  ) -> torch.Tensor:
+  def _to_world_point(self, points: torch.Tensor, env_ids: torch.Tensor | None = None) -> torch.Tensor:
     """Canonical clip-frame points -> world: rotate about the base line, add
     the env origin. Accepts (N, 3) or (N, H, 3)."""
     quat = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
@@ -699,16 +672,12 @@ class ClimbMotionCommand(CommandTerm):
     out = torch.where(vertical.view(-1, 1), points, rotated)
     return out + origins
 
-  def _to_world_quat(
-    self, quats: torch.Tensor, env_ids: torch.Tensor | None = None
-  ) -> torch.Tensor:
+  def _to_world_quat(self, quats: torch.Tensor, env_ids: torch.Tensor | None = None) -> torch.Tensor:
     wall = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
     vertical = self._vertical_mask(env_ids)
     return torch.where(vertical.view(-1, 1), quats, quat_mul(wall, quats))
 
-  def _to_world_vec(
-    self, vecs: torch.Tensor, env_ids: torch.Tensor | None = None
-  ) -> torch.Tensor:
+  def _to_world_vec(self, vecs: torch.Tensor, env_ids: torch.Tensor | None = None) -> torch.Tensor:
     wall = self.wall_quat if env_ids is None else self.wall_quat[env_ids]
     # quat_apply with an identity quaternion is exact — no fast path needed.
     return quat_apply(wall, vecs)
@@ -716,9 +685,7 @@ class ClimbMotionCommand(CommandTerm):
   @property
   def ref_root_pos_w(self) -> torch.Tensor:
     """Ghost/RSI-only global reference position (untracked by rewards)."""
-    return self._to_world_point(
-      self.clip.root_pos[self.time_steps] + self.root_offset
-    )
+    return self._to_world_point(self.clip.root_pos[self.time_steps] + self.root_offset)
 
   # -- robot side -------------------------------------------------------------
 
@@ -767,11 +734,7 @@ class ClimbMotionCommand(CommandTerm):
     if self._order_checked:
       return
     names = self._env.command_manager.active_terms
-    own = next(
-      name
-      for name in names
-      if self._env.command_manager.get_term(name) is self
-    )
+    own = next(name for name in names if self._env.command_manager.get_term(name) is self)
     if names.index(self.cfg.affordance_command_name) > names.index(own):
       raise RuntimeError(
         f"Command '{self.cfg.affordance_command_name}' must be registered "
@@ -786,15 +749,9 @@ class ClimbMotionCommand(CommandTerm):
       self.metrics["error_body_ori"] = quat_error_magnitude(orientation, self.robot_body_quat_w).mean(-1)
       self.metrics["error_body_lin_vel"] = (self.ref_body_lin_vel_w - self.robot_body_lin_vel_w).norm(dim=-1).mean(-1)
       self.metrics["error_body_ang_vel"] = (self.ref_body_ang_vel_w - self.robot_body_ang_vel_w).norm(dim=-1).mean(-1)
-    self.metrics["error_joint_pos"] = (
-      self.ref_joint_pos - self.robot_joint_pos
-    ).abs().mean(dim=-1)
-    self.metrics["error_ee_pos"] = (
-      (self.ref_ee_pos_r - self.robot_ee_pos_r).norm(dim=-1).mean(dim=-1)
-    )
-    self.metrics["engage_match"] = (
-      (self.ref_engaged == self.robot_engaged).float().mean(dim=-1)
-    )
+    self.metrics["error_joint_pos"] = (self.ref_joint_pos - self.robot_joint_pos).abs().mean(dim=-1)
+    self.metrics["error_ee_pos"] = (self.ref_ee_pos_r - self.robot_ee_pos_r).norm(dim=-1).mean(dim=-1)
+    self.metrics["engage_match"] = (self.ref_engaged == self.robot_engaged).float().mean(dim=-1)
 
   def _record_phase_failures(self, env_ids: torch.Tensor) -> None:
     if self.phase_sampler is not None:
@@ -812,9 +769,7 @@ class ClimbMotionCommand(CommandTerm):
     elif self.phase_sampler is not None:
       frames = self.phase_sampler.sample(count)
     else:
-      frames = torch.randint(
-        0, self.clip.cycle_frames, (count,), device=self.device
-      )
+      frames = torch.randint(0, self.clip.cycle_frames, (count,), device=self.device)
     self.time_steps[env_ids] = frames
     self._fresh[env_ids] = True
 
@@ -823,9 +778,7 @@ class ClimbMotionCommand(CommandTerm):
     # pose into the wall's default_root_state earlier in this reset pass
     # (identity when no wall_angle term is installed — vertical wall).
     wall: Entity = self._env.scene[self.cfg.wall_entity_name]
-    self.wall_quat[env_ids] = wall.data.default_root_state[
-      env_ids, 3:7
-    ].clone()
+    self.wall_quat[env_ids] = wall.data.default_root_state[env_ids, 3:7].clone()
     # Canonical-frame offset: spawn-height jitter (along the wall) plus the
     # vertical-height compensation; env origins are applied by the world
     # transform.
@@ -843,9 +796,7 @@ class ClimbMotionCommand(CommandTerm):
         float(self._pivot_local[0].item()),
       )
     self.root_offset[env_ids] = offset
-    root_pos = self._to_world_point(
-      self.clip.root_pos[frames] + offset, env_ids
-    )
+    root_pos = self._to_world_point(self.clip.root_pos[frames] + offset, env_ids)
     self.spawn_pos[env_ids] = root_pos
 
     joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
@@ -904,9 +855,7 @@ class ClimbMotionCommand(CommandTerm):
       hold = hold | self._fresh | (not self._advance_time)
     next_steps = torch.where(hold, self.time_steps, self.time_steps + 1)
     wrapped = next_steps >= self.clip.cycle_frames
-    self.time_steps = torch.where(
-      wrapped, torch.zeros_like(next_steps), next_steps
-    )
+    self.time_steps = torch.where(wrapped, torch.zeros_like(next_steps), next_steps)
     # The loop's state-5-equals-state-1 closure is one step height up; keep
     # the ghost/RSI reference continuous across the wrap.
     self.root_offset[wrapped, 2] += self.clip.step_height
@@ -951,9 +900,7 @@ class ClimbMotionCommand(CommandTerm):
       if self.clip.passive_joint_names:
         full_joint_pos[self._passive_joint_ids] = self.clip.passive_joint_pos[self.time_steps[batch]]
       qpos[joint_q_adr] = full_joint_pos.cpu().numpy()
-      visualizer.add_ghost_mesh(
-        qpos, model=self._ghost_model, label=f"ghost_{batch}"
-      )
+      visualizer.add_ghost_mesh(qpos, model=self._ghost_model, label=f"ghost_{batch}")
 
 
 @dataclass(kw_only=True)

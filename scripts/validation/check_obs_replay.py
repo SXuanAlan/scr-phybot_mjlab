@@ -35,8 +35,7 @@ if str(_REPO / "scripts") not in sys.path:
 
 import real_log  # noqa: E402
 
-_TERMS = (("ang_vel", 3), ("gravity", 3), ("pos", 21), ("vel", 21),
-          ("action", 21), ("command", 3))
+_TERMS = (("ang_vel", 3), ("gravity", 3), ("pos", 21), ("vel", 21), ("action", 21), ("command", 3))
 
 
 def load_walk_amp_params(path: Path) -> dict:
@@ -66,9 +65,7 @@ def quantize_command(vx: float, wz: float, p: dict) -> np.ndarray:
 def gravity_from_zyx(zyx: np.ndarray) -> np.ndarray:
   """Port of core/include/phybot/gravity.h (yaw-independent)."""
   a1, a2 = zyx[1], zyx[2]
-  return np.array([
-    np.sin(a1), -np.cos(a1) * np.sin(a2), -np.cos(a1) * np.cos(a2)
-  ])
+  return np.array([np.sin(a1), -np.cos(a1) * np.sin(a2), -np.cos(a1) * np.cos(a2)])
 
 
 class WalkAmpObsBuilder:
@@ -93,45 +90,46 @@ class WalkAmpObsBuilder:
     return np.concatenate([self.buf[name].reshape(-1) for name, _ in _TERMS])
 
 
-def build_observations(log: real_log.RealLog, rows: np.ndarray,
-                       actions: np.ndarray, p: dict) -> np.ndarray:
+def build_observations(log: real_log.RealLog, rows: np.ndarray, actions: np.ndarray, p: dict) -> np.ndarray:
   builder = WalkAmpObsBuilder(p["history_len"])
   obs = np.zeros((len(rows), 720), np.float32)
   for k, r in enumerate(rows):
-    builder.push({
-      "ang_vel": log.imu_gyro[r],
-      "gravity": gravity_from_zyx(log.imu_zyx[r]),
-      "pos": log.q[r] - p["default_dof_pos"],
-      "vel": log.dq[r],
-      # obs carries the PREVIOUS step's raw action (zero right after entry).
-      "action": actions[k - 1] if k > 0 else np.zeros(real_log.N_DOFS),
-      "command": quantize_command(log.js[r, 0], log.js[r, 2], p),
-    })
+    builder.push(
+      {
+        "ang_vel": log.imu_gyro[r],
+        "gravity": gravity_from_zyx(log.imu_zyx[r]),
+        "pos": log.q[r] - p["default_dof_pos"],
+        "vel": log.dq[r],
+        # obs carries the PREVIOUS step's raw action (zero right after entry).
+        "action": actions[k - 1] if k > 0 else np.zeros(real_log.N_DOFS),
+        "command": quantize_command(log.js[r, 0], log.js[r, 2], p),
+      }
+    )
     obs[k] = builder.obs()
   return obs
 
 
 def main() -> None:
-  parser = argparse.ArgumentParser(
-    description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-  )
+  parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   src = parser.add_mutually_exclusive_group(required=True)
   src.add_argument("--run-dir", type=Path, help="robot_logs run dir (data.lcmlog)")
   src.add_argument("--csv", type=Path, help="pre-exported state.csv")
-  parser.add_argument("--deploy-repo", type=Path,
-                      default=real_log.default_deploy_repo(_REPO))
-  parser.add_argument("--policy", type=Path, default=None,
-                      help="default: <deploy-repo>/tasks/walk_amp/model/policy.pt")
-  parser.add_argument("--params", type=Path, default=None,
-                      help="default: <deploy-repo>/tasks/walk_amp/config/walk_amp.yaml")
+  parser.add_argument("--deploy-repo", type=Path, default=real_log.default_deploy_repo(_REPO))
+  parser.add_argument("--policy", type=Path, default=None, help="default: <deploy-repo>/tasks/walk_amp/model/policy.pt")
+  parser.add_argument(
+    "--params", type=Path, default=None, help="default: <deploy-repo>/tasks/walk_amp/config/walk_amp.yaml"
+  )
   parser.add_argument("--task-code", type=int, default=None)
-  parser.add_argument("--warmup", type=int, default=None,
-                      help="policy steps excluded from the pass/fail stats; "
-                      "default 0 when the log captured the task entry, else 10 "
-                      "(history is unknown until 10 in-log frames)")
+  parser.add_argument(
+    "--warmup",
+    type=int,
+    default=None,
+    help="policy steps excluded from the pass/fail stats; "
+    "default 0 when the log captured the task entry, else 10 "
+    "(history is unknown until 10 in-log frames)",
+  )
   parser.add_argument("--max-steps", type=int, default=0, help="0 = all")
-  parser.add_argument("--atol", type=float, default=1e-3,
-                      help="max |predicted - executed| action to PASS")
+  parser.add_argument("--atol", type=float, default=1e-3, help="max |predicted - executed| action to PASS")
   parser.add_argument("--plot", action="store_true")
   parser.add_argument("--output-dir", type=Path, default=None)
   args = parser.parse_args()
@@ -143,17 +141,15 @@ def main() -> None:
 
   csv = real_log.ensure_state_csv(args.run_dir or args.csv, deploy)
   log = real_log.load_state_csv(csv)
-  seg = real_log.find_walk_segment(log, p["default_dof_pos"],
-                                   task_code=args.task_code)
+  seg = real_log.find_walk_segment(log, p["default_dof_pos"], task_code=args.task_code)
   rows = seg.infer_rows
   if args.max_steps:
-    rows = rows[:args.max_steps]
-  warmup = args.warmup if args.warmup is not None else (
-    0 if seg.true_task_start else 10
+    rows = rows[: args.max_steps]
+  warmup = args.warmup if args.warmup is not None else (0 if seg.true_task_start else 10)
+  print(
+    f"walk segment: rows [{seg.start}, {seg.end}), task_code={seg.task_code}, "
+    f"{len(rows)} policy steps" + ("" if seg.true_task_start else " (log starts mid-task)")
   )
-  print(f"walk segment: rows [{seg.start}, {seg.end}), task_code={seg.task_code}, "
-        f"{len(rows)} policy steps"
-        + ("" if seg.true_task_start else " (log starts mid-task)"))
 
   # Executed actions, recovered from the logged PD targets.
   actions = (log.q_des[rows] - p["default_dof_pos"]) / p["action_scale"]
@@ -178,22 +174,24 @@ def main() -> None:
   d = np.abs(delta[eval_mask])
   per_joint_max = d.max(axis=0)
   worst = np.argsort(per_joint_max)[::-1][:5]
-  print(f"\nevaluated {n_eval} steps (skipped {warmup} warmup, "
-        f"{int(guard.sum())} guard/zero-action rows)")
-  print(f"max |pred - executed| action: {d.max():.3e}   "
-        f"p99.9: {np.quantile(d, 0.999):.3e}   rms: {np.sqrt((d ** 2).mean()):.3e}")
+  print(f"\nevaluated {n_eval} steps (skipped {warmup} warmup, {int(guard.sum())} guard/zero-action rows)")
+  print(
+    f"max |pred - executed| action: {d.max():.3e}   "
+    f"p99.9: {np.quantile(d, 0.999):.3e}   rms: {np.sqrt((d**2).mean()):.3e}"
+  )
   print("worst joints:")
   for i in worst:
     print(f"  {real_log.JOINT_NAMES[i]:<20} max {per_joint_max[i]:.3e}")
 
   ok = d.max() <= args.atol
-  print(f"\n{'PASS' if ok else 'FAIL'}: max action mismatch "
-        f"{d.max():.3e} {'<=' if ok else '>'} atol {args.atol:g}")
+  print(f"\n{'PASS' if ok else 'FAIL'}: max action mismatch {d.max():.3e} {'<=' if ok else '>'} atol {args.atol:g}")
 
   if args.plot:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     run_name = csv.parent.name if csv.name == "state.csv" else csv.stem
     out_dir = args.output_dir or (_REPO / "results" / "sim2real" / run_name)
     out_dir.mkdir(parents=True, exist_ok=True)

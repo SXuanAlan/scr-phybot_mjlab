@@ -38,8 +38,6 @@ def random_microspine_release(
     return
   mask = torch.zeros_like(engaged)
   rows = eligible.nonzero(as_tuple=True)[0]
-  choice = torch.multinomial(
-    engaged[rows].float(), num_samples=max_release_per_env
-  )
+  choice = torch.multinomial(engaged[rows].float(), num_samples=max_release_per_env)
   mask[rows.unsqueeze(1), choice] = True
   affordance.force_release(env_ids, mask)

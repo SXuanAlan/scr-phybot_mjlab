@@ -225,13 +225,9 @@ def run(task_id: str, cfg: Cfg):
       if not resume_path.exists():
         raise FileNotFoundError(resume_path)
     elif cfg.wandb_run_path:
-      resume_path, _ = get_wandb_checkpoint_path(
-        log_root, Path(cfg.wandb_run_path), cfg.wandb_checkpoint_name
-      )
+      resume_path, _ = get_wandb_checkpoint_path(log_root, Path(cfg.wandb_run_path), cfg.wandb_checkpoint_name)
     else:
-      raise ValueError(
-        "trained agent requires --checkpoint-file or --wandb-run-path"
-      )
+      raise ValueError("trained agent requires --checkpoint-file or --wandb-run-path")
 
   if cfg.agent == "trained" or cfg.wall_angle_deg is not None:
     _apply_climb_wall_angle(
@@ -278,9 +274,7 @@ def run(task_id: str, cfg: Cfg):
     limit = torch.maximum(limit_hi, limit_lo)  # (num_envs, n_act)
     limit_per_actuator = limit[0]
   else:
-    limit_per_actuator = (
-      torch.as_tensor(fr[ctrl_ids], device=device).abs().amax(dim=-1)
-    )
+    limit_per_actuator = torch.as_tensor(fr[ctrl_ids], device=device).abs().amax(dim=-1)
     limit = limit_per_actuator.unsqueeze(0).expand(cfg.num_envs, -1)
 
   n_act = len(names)
@@ -290,10 +284,7 @@ def run(task_id: str, cfg: Cfg):
   total = 0
   plot_env_idx = min(max(cfg.plot_env_idx, 0), cfg.num_envs - 1)
   if plot_env_idx != cfg.plot_env_idx:
-    print(
-      f"[WARN]: plot_env_idx {cfg.plot_env_idx} is out of range for "
-      f"{cfg.num_envs} envs; using {plot_env_idx}."
-    )
+    print(f"[WARN]: plot_env_idx {cfg.plot_env_idx} is out of range for {cfg.num_envs} envs; using {plot_env_idx}.")
   torque_env_history: list[torch.Tensor] = []
   ratio_max_history: list[torch.Tensor] = []
 
@@ -314,13 +305,9 @@ def run(task_id: str, cfg: Cfg):
 
   mean_ratio = (sum_abs / total) / limit_per_actuator.clamp(min=1e-6)
 
-  print(
-    f"\n[{cfg.agent} agent | {cfg.num_envs} envs × {cfg.steps} steps "
-    f"= {total} samples per actuator]"
-  )
+  print(f"\n[{cfg.agent} agent | {cfg.num_envs} envs × {cfg.steps} steps = {total} samples per actuator]")
   header = (
-    f"{'actuator':<40}{'limit':>10}{'mean|τ|/lim':>14}"
-    f"{'max|τ|/lim':>14}{'sat≥' + f'{cfg.sat_threshold:.2f}':>14}"
+    f"{'actuator':<40}{'limit':>10}{'mean|τ|/lim':>14}{'max|τ|/lim':>14}{'sat≥' + f'{cfg.sat_threshold:.2f}':>14}"
   )
   print(header)
   print("-" * len(header))
@@ -340,10 +327,7 @@ def run(task_id: str, cfg: Cfg):
   for _, n, lim, mr, mx, sf in rows:
     print(f"{n:<40}{lim:>10.2f}{mr:>14.3f}{mx:>14.3f}{sf:>14.2%}")
 
-  print(
-    f"\nany-actuator any-step max ratio: {abs_max.max().item():.3f}  "
-    f"(>=1.0 means hit forcerange)"
-  )
+  print(f"\nany-actuator any-step max ratio: {abs_max.max().item():.3f}  (>=1.0 means hit forcerange)")
 
   if cfg.save_plots:
     out_dir = _default_output_dir(task_id, cfg, resume_path)

@@ -60,7 +60,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         "joint_pos_rel": ObservationTermCfg(func=mdp.joint_pos_rel),
         "joint_vel_rel": ObservationTermCfg(func=mdp.joint_vel_rel),
         "last_action": ObservationTermCfg(func=mdp.last_action),
-        "prev_action": ObservationTermCfg(func=mdp.prev_action),       # a_{t-1}
+        "prev_action": ObservationTermCfg(func=mdp.prev_action),  # a_{t-1}
         "prev_prev_action": ObservationTermCfg(func=mdp.prev_prev_action),  # a_{t-2}
         # Robot z above spawn — critic needs this to value climbing.
         "height_above_spawn": ObservationTermCfg(func=mdp.height_above_spawn),
@@ -72,7 +72,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         ),
       },
       concatenate_terms=True,  # Concatenate all terms into a single vector.
-      enable_corruption=False, # Enable observation corruption (e.g., adding noise).
+      enable_corruption=False,  # Enable observation corruption (e.g., adding noise).
     ),
   }
 

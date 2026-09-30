@@ -39,8 +39,10 @@ __all__ = (
 
 
 def _persist(
-  state: dict[str, torch.Tensor | None], env: ManagerBasedRlEnv,
-  condition: torch.Tensor, persist_steps: int,
+  state: dict[str, torch.Tensor | None],
+  env: ManagerBasedRlEnv,
+  condition: torch.Tensor,
+  persist_steps: int,
 ) -> torch.Tensor:
   """Consecutive-step counter with the reset-safe ``fresh`` idiom."""
   count = state.get("count")
@@ -119,9 +121,7 @@ def bad_motion_body_pos_termination():
       idx = cmd.pad_slots
     else:
       idx = cmd.tracking_body_indices(body_names)
-    error = (
-      cmd.body_pos_target_w[:, idx] - cmd.robot_body_pos_w[:, idx]
-    ).norm(dim=-1)
+    error = (cmd.body_pos_target_w[:, idx] - cmd.robot_body_pos_w[:, idx]).norm(dim=-1)
     return _persist(state, env, (error > threshold).any(dim=-1), persist_steps)
 
   return call
@@ -214,9 +214,7 @@ def illegal_wall_contact_termination():
       mj = env.sim.mj_model
       ids = [mj.geom(f"{entity_name}/{name}").id for name in geom_names]
       state["ids"] = ids
-      state["half"] = torch.tensor(
-        [float(mj.geom_size[g, 0]) for g in ids], device=env.device
-      )
+      state["half"] = torch.tensor([float(mj.geom_size[g, 0]) for g in ids], device=env.device)
     pos = env.sim.data.geom_xpos[:, state["ids"], :]  # (E, G, 3)
     n_local = torch.zeros_like(pos[:, 0])
     n_local[:, 0] = -1.0
@@ -358,12 +356,7 @@ def engage_constraint_termination():
     v_grind = _over(v_tan, grind_limit_mps) * touching.float()
     v_slam = _over(impact, slam_limit_mps) * (rising & free).float()
     v_force = _over(press, force_limit_n) * free.float()
-    v_unsched = (
-      (touch | (press > touch_force_n))
-      & ~motion.ref_engaged
-      & ~regrip_soon
-      & free
-    ).float()
+    v_unsched = ((touch | (press > touch_force_n)) & ~motion.ref_engaged & ~regrip_soon & free).float()
 
     # Persistence: a violation bills only once it has held persist_steps
     # consecutive steps on that pad (counters reset on a clean step and at
@@ -415,9 +408,7 @@ def engage_constraint_termination():
     if mode == "off":
       return torch.zeros_like(delta, dtype=torch.bool)
     if mode == "hard":
-      return (
-        torch.stack(list(violations.values()), dim=0).amax(dim=(0, 2)) > 0.0
-      )
+      return torch.stack(list(violations.values()), dim=0).amax(dim=(0, 2)) > 0.0
     if mode != "cat":
       raise ValueError(f"Unknown constraint mode {mode!r}.")
     return torch.rand_like(delta) < delta

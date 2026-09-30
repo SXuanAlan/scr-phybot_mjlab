@@ -91,9 +91,7 @@ class GamepadReceiver:
     self._server = server
     self._thread = threading.Thread(target=self._serve, name="gamepad-rx", daemon=True)
     self._thread.start()
-    self._status_thread = threading.Thread(
-      target=self._status_loop, name="gamepad-status", daemon=True
-    )
+    self._status_thread = threading.Thread(target=self._status_loop, name="gamepad-status", daemon=True)
     self._status_thread.start()
     print(
       f"[INFO]: Gamepad receiver listening on {self._host}:{self._port} "
@@ -109,8 +107,7 @@ class GamepadReceiver:
         got = self._got_packet
       vx, vy, wz = self.command()
       print(
-        f"[gamepad] connected={connected} data={got} "
-        f"cmd: vx={vx:+.2f} vy={vy:+.2f} wz={wz:+.2f}",
+        f"[gamepad] connected={connected} data={got} cmd: vx={vx:+.2f} vy={vy:+.2f} wz={wz:+.2f}",
         flush=True,
       )
 

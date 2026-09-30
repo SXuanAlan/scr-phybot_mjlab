@@ -31,8 +31,7 @@ def main():
   spec.visual.global_.fovy = 32
   spec.visual.headlight.ambient = [0.35, 0.35, 0.35]
   spec.visual.headlight.diffuse = [0.6, 0.6, 0.6]
-  spec.worldbody.add_light(pos=[-0.2, -0.4, 0.5], dir=[0.2, 0.4, -0.5],
-                           diffuse=[0.35, 0.35, 0.35])
+  spec.worldbody.add_light(pos=[-0.2, -0.4, 0.5], dir=[0.2, 0.4, -0.5], diffuse=[0.35, 0.35, 0.35])
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
@@ -65,9 +64,13 @@ def main():
   draw.text((1024, 20), "4 corner box contacts (blue)", font=font, fill="#25313d")
   box = model.geom("left_hand_spine_c_0_0")
   c = model.site("left_hand_spine_contact_center").pos
-  dimensions = " x ".join(f"{v:.2f}" for v in 2000*box.size)
-  draw.text((24, 1091), f"Box: {dimensions} mm | Contact plane y = {1000*c[1]:.2f} mm | Array: 4 x 3 units",
-            font=font, fill="#25313d")
+  dimensions = " x ".join(f"{v:.2f}" for v in 2000 * box.size)
+  draw.text(
+    (24, 1091),
+    f"Box: {dimensions} mm | Contact plane y = {1000 * c[1]:.2f} mm | Array: 4 x 3 units",
+    font=font,
+    fill="#25313d",
+  )
   output = root / "docs/figures/phybot_c2_pad_box_collisions.png"
   canvas.save(output)
   print(output)

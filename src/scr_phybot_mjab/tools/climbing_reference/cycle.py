@@ -1,4 +1,5 @@
 """Offline climbing cycle synthesis using the shared IK tools."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,20 +8,31 @@ import numpy as np
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
 from .kinematics import (
-  ClimbIK, IKTask, IKResidual, WALL_SURFACE_X, PAD_TOUCH_X, FOOT_SITE_NAMES,
-  smootherstep, bezier, slerp_matrix, rotation_angle, weld_task, toe_task, base_task,
+  ClimbIK,
+  IKTask,
+  IKResidual,
+  WALL_SURFACE_X,
+  PAD_TOUCH_X,
+  FOOT_SITE_NAMES,
+  smootherstep,
+  bezier,
+  slerp_matrix,
+  rotation_angle,
+  weld_task,
+  toe_task,
+  base_task,
 )
 
 SEGMENT_NAMES = (
-  "hold_start",         # state 1
-  "left_foot_swing",    # 1 -> 2
-  "foot_transfer_hold", # state 2
-  "right_foot_swing",   # 2 -> 3
-  "seat_hold",          # state 3
-  "left_hand_swing",    # 3 -> 4
-  "regrip_hold",        # state 4
-  "right_hand_swing",   # 4 -> 5
-  "end_hold",           # state 5 == state 1 + step height
+  "hold_start",  # state 1
+  "left_foot_swing",  # 1 -> 2
+  "foot_transfer_hold",  # state 2
+  "right_foot_swing",  # 2 -> 3
+  "seat_hold",  # state 3
+  "left_hand_swing",  # 3 -> 4
+  "regrip_hold",  # state 4
+  "right_hand_swing",  # 4 -> 5
+  "end_hold",  # state 5 == state 1 + step height
 )
 
 
@@ -48,8 +60,7 @@ def generate_clip(
   limit_weight: float = 3.0,
   initial_state: dict | None = None,
 ) -> None:
-  ik = ClimbIK(limit_margin_frac=limit_margin_frac, limit_weight=limit_weight,
-               initial_state=initial_state)
+  ik = ClimbIK(limit_margin_frac=limit_margin_frac, limit_weight=limit_weight, initial_state=initial_state)
   height = ik.default_step_height if step_height is None else float(step_height)
   if cycles < 1:
     raise ValueError("cycles must be >= 1")
@@ -75,15 +86,10 @@ def generate_clip(
   ):
     if n[seg_name] - n_rake < 2:
       raise ValueError(
-        f"--rake-s leaves fewer than two arc frames in '{seg_name}'; "
-        "shorten the rake or lengthen the segment."
+        f"--rake-s leaves fewer than two arc frames in '{seg_name}'; shorten the rake or lengthen the segment."
       )
-  if n_hand_load_transfer >= min(
-    n["left_hand_swing"], n["right_hand_swing"]
-  ):
-    raise ValueError(
-      "--hand-load-transfer-s must be shorter than each hand swing."
-    )
+  if n_hand_load_transfer >= min(n["left_hand_swing"], n["right_hand_swing"]):
+    raise ValueError("--hand-load-transfer-s must be shorter than each hand swing.")
   rake_vec = np.array([0.0, 0.0, float(rake_dist)])
   # Support handoff clearance: a dwelling toe hovers this far off the wall
   # (zero force, no fight with its own latched pad) and closes the gap only
@@ -96,9 +102,7 @@ def generate_clip(
     n_arc = n_seg - n_rake
     return float(smootherstep(min(t / (n_arc - 1), 1.0)))
 
-  def _swing_target(
-    t: int, n_seg: int, p0: np.ndarray, p1: np.ndarray, p2: np.ndarray
-  ) -> np.ndarray:
+  def _swing_target(t: int, n_seg: int, p0: np.ndarray, p1: np.ndarray, p2: np.ndarray) -> np.ndarray:
     """Swing-pad position: arc to ``rake_dist`` above the anchor, then the
     pre-engage rake — drag straight down the wall onto the anchor."""
     n_arc = n_seg - n_rake
@@ -116,10 +120,7 @@ def generate_clip(
   base_z1 = float(ik.init_base_pos[2])
   anchors = {ee: ik.pad_pose(ee) for ee in ik.ee_names}
   state1_pad_rot = {ee: anchors[ee][1].copy() for ee in ik.ee_names}
-  posture_ref = {
-    name: ik.init_joint_pos[name]
-    for name in PHYBOT_C2_POLICY_JOINT_NAMES
-  }
+  posture_ref = {name: ik.init_joint_pos[name] for name in PHYBOT_C2_POLICY_JOINT_NAMES}
 
   # Per-frame records for one cycle.
   qpos_frames: list[np.ndarray] = []
@@ -138,13 +139,9 @@ def generate_clip(
   def push(segment: str, engaged: dict[str, bool]) -> None:
     qpos_frames.append(ik.data.qpos.copy())
     labels.append(seg_id[segment])
-    engaged_frames.append(
-      np.array([engaged[ee] for ee in ik.ee_names], dtype=np.uint8)
-    )
+    engaged_frames.append(np.array([engaged[ee] for ee in ik.ee_names], dtype=np.uint8))
     anchor_frames.append(np.stack([anchor_now[ee] for ee in ik.ee_names]))
-    toe_frames.append(
-      np.array([toe_braced_now[ee] for ee in ik.toes], dtype=np.uint8)
-    )
+    toe_frames.append(np.array([toe_braced_now[ee] for ee in ik.toes], dtype=np.uint8))
 
   def hold(segment: str, engaged: dict[str, bool]) -> None:
     for _ in range(n[segment]):
@@ -156,20 +153,11 @@ def generate_clip(
   # Ankle joints per bracing toe ("left_ankle_roll" -> left_ankle_*): the
   # only DOFs the toe work moves.
   ankle_joints = {
-    ee: tuple(
-      nm
-      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      if nm.startswith(toe.body_name.removesuffix("_roll"))
-    )
+    ee: tuple(nm for nm in PHYBOT_C2_POLICY_JOINT_NAMES if nm.startswith(toe.body_name.removesuffix("_roll")))
     for ee, toe in ik.toes.items()
   }
   stance_toe_clear = {
-    ee: float(
-      WALL_SURFACE_X
-      - ik.data.site_xpos[ik.toe_sid[ee]][0]
-      - toe.radius
-    )
-    for ee, toe in ik.toes.items()
+    ee: float(WALL_SURFACE_X - ik.data.site_xpos[ik.toe_sid[ee]][0] - toe.radius) for ee, toe in ik.toes.items()
   }
   toe_report: dict[str, dict[str, float]] = {}
 
@@ -193,10 +181,7 @@ def generate_clip(
     base_rot_hold = np.zeros(9)
     mujoco.mju_quat2Mat(base_rot_hold, ik.data.qpos[3:7])
     base_rot_hold = base_rot_hold.reshape(3, 3)
-    posture_hold = {
-      nm: float(ik.data.qpos[ik.qpos_addresses[nm]])
-      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_hold = {nm: float(ik.data.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     overrides: dict[str, float] = {}
     retract_from: dict[str, float] = {}
     if retract_ee is not None:
@@ -244,11 +229,7 @@ def generate_clip(
             w_pos=(300.0, 3.0, 10.0),
           )
         )
-      tasks.append(
-        base_task(
-          ik, base_hold, (30.0, 30.0, 30.0), rot=base_rot_hold, w_rot=8.0
-        )
-      )
+      tasks.append(base_task(ik, base_hold, (30.0, 30.0, 30.0), rot=base_rot_hold, w_rot=8.0))
       for nm, start in retract_from.items():
         posture_hold[nm] = (1.0 - s) * start + s * posture_ref[nm]
       res = ik.solve_frame(
@@ -272,13 +253,9 @@ def generate_clip(
   base_z2 = base_z1 + height
 
   step_vec = np.array([0.0, 0.0, height])
-  foot_target = {
-    ee: (anchors[ee][0] + step_vec, state1_pad_rot[ee]) for ee in feet
-  }
+  foot_target = {ee: (anchors[ee][0] + step_vec, state1_pad_rot[ee]) for ee in feet}
   landing_report: dict[str, tuple[float, float]] = {}
-  for foot_index, (segment, swing_ee) in enumerate(
-    (("left_foot_swing", lf), ("right_foot_swing", rf))
-  ):
+  for foot_index, (segment, swing_ee) in enumerate((("left_foot_swing", lf), ("right_foot_swing", rf))):
     # Shift toward the opposite, still-anchored foot: left swing -> right
     # (negative y), right swing -> left (positive y). This removes the yaw
     # couple that otherwise concentrates the normal load on one hand.
@@ -306,9 +283,7 @@ def generate_clip(
     n_press_in = max(int(round(0.06 * fps)), 2)
     press_end = n[segment] - n_rake
     toe_report[swing_ee] = {
-      "plant_gap": float(
-        WALL_SURFACE_X - toe_plant[0] - ik.toes[swing_ee].radius
-      ),
+      "plant_gap": float(WALL_SURFACE_X - toe_plant[0] - ik.toes[swing_ee].radius),
       "wall_gap": 0.0,
       "glide": 0.0,
     }
@@ -323,17 +298,10 @@ def generate_clip(
         base_z1 + height * (foot_index + 1) / len(feet),
       ]
     )
-    posture_start = {
-      nm: float(ik.data.qpos[ik.qpos_addresses[nm]])
-      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(ik.data.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     for t in range(n[segment]):
       s = float(smootherstep(t / (n[segment] - 1)))
-      tasks = [
-        weld_task(ik, ee, anchors[ee])
-        for ee in ik.ee_names
-        if ee != swing_ee
-      ]
+      tasks = [weld_task(ik, ee, anchors[ee]) for ee in ik.ee_names if ee != swing_ee]
       tasks.append(
         IKTask(
           kind="site",
@@ -364,19 +332,14 @@ def generate_clip(
           (100.0, 30.0, 50.0),
         )
       )
-      posture_t = {
-        nm: (1.0 - s) * posture_start[nm] + s * posture_ref[nm]
-        for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_t = {nm: (1.0 - s) * posture_start[nm] + s * posture_ref[nm] for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       res = ik.solve_frame(tasks, sel_all, posture_t, posture_weight=0.3)
       seg_residual[segment].merge(res)
       toe_now = ik.data.site_xpos[ik.toe_sid[swing_ee]]
       if n_press_in <= t < press_end:
         toe_report[swing_ee]["wall_gap"] = max(
           toe_report[swing_ee]["wall_gap"],
-          float(
-            WALL_SURFACE_X - toe_now[0] - ik.toes[swing_ee].radius
-          ),
+          float(WALL_SURFACE_X - toe_now[0] - ik.toes[swing_ee].radius),
         )
       toe_report[swing_ee]["glide"] = max(
         toe_report[swing_ee]["glide"],
@@ -429,9 +392,7 @@ def generate_clip(
     # these first frames; after the transfer dwell the outgoing hand releases
     # and its recorded anchor changes from the old grip to the upcoming one.
     anchor_now[swing_ee] = p0.copy()
-    p1 = 0.5 * (p0 + p2) + np.array(
-      [-swing_bulge, lateral_sign * swing_lateral, 0.0]
-    )
+    p1 = 0.5 * (p0 + p2) + np.array([-swing_bulge, lateral_sign * swing_lateral, 0.0])
     # Releasing the swing hand's weld changes the soft-task stiffness balance;
     # with CONSTANT posture / base-rotation references the very first solve
     # would jump straight to the new equilibrium (measured: 0.018 rad hip +
@@ -442,21 +403,14 @@ def generate_clip(
     base_rot_start = np.zeros(9)
     mujoco.mju_quat2Mat(base_rot_start, ik.data.qpos[3:7])
     base_rot_start = base_rot_start.reshape(3, 3)
-    posture_start = {
-      nm: float(ik.data.qpos[ik.qpos_addresses[nm]])
-      for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    }
+    posture_start = {nm: float(ik.data.qpos[ik.qpos_addresses[nm]]) for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
     for t in range(n[segment]):
       engaged = all_on if t < n_hand_load_transfer else engaged_swing
       if t == n_hand_load_transfer:
         anchor_now[swing_ee] = p2.copy()
       s = float(smootherstep(t / (n[segment] - 1)))
       s_arc = _arc_progress(t, n[segment])
-      tasks = [
-        weld_task(ik, ee, anchors[ee])
-        for ee in ik.ee_names
-        if ee != swing_ee
-      ]
+      tasks = [weld_task(ik, ee, anchors[ee]) for ee in ik.ee_names if ee != swing_ee]
       # The released hand starts strongly constrained and fades to swing
       # weights over the first 30% of the arc. An abrupt stiffness drop
       # released the limit-spring stress stored in the anchored arm
@@ -469,9 +423,7 @@ def generate_clip(
           sid=ik.pad_sid[swing_ee],
           pos=_swing_target(t, n[segment], p0, p1, p2),
           rot=rot0,  # anchor orientation held; weight ramps toward landing
-          w_pos=np.full(
-            3, 500.0 + 1500.0 * max(1.0 - w_fade, s_arc * s_arc)
-          ),
+          w_pos=np.full(3, 500.0 + 1500.0 * max(1.0 - w_fade, s_arc * s_arc)),
           # A near-free mid-swing orientation (old floor 2.0) let the
           # wristless arm resolve its null space by whipping shoulder_yaw
           # and tilting the pad corners through the wall (10.9 deg rot
@@ -484,11 +436,7 @@ def generate_clip(
       # Keep the wall press through the first hand transfer; unwind it only
       # while the second hand returns the system to the vertically tiled
       # cycle-closure pose.
-      base_target_x = (
-        base_xy[0] + body_press
-        if segment == "left_hand_swing"
-        else base_xy[0]
-      )
+      base_target_x = base_xy[0] + body_press if segment == "left_hand_swing" else base_xy[0]
       support_side = -1.0 if swing_ee == lh else 1.0
       base_target = (1.0 - s) * base_swing_start + s * np.array(
         [
@@ -501,21 +449,14 @@ def generate_clip(
         base_task(
           ik,
           base_target,
-          (
-            (100.0, 30.0, 50.0)
-            if segment == "right_hand_swing"
-            else (100.0, 30.0, 30.0)
-          ),
+          ((100.0, 30.0, 50.0) if segment == "right_hand_swing" else (100.0, 30.0, 30.0)),
           # State 3 is already square, so
           # this is a hold, not a mid-swing righting maneuver.
           rot=slerp_matrix(base_rot_start, np.eye(3), s),
           w_rot=50.0 if segment == "right_hand_swing" else 8.0,
         )
       )
-      posture_t = {
-        nm: (1.0 - s) * posture_start[nm] + s * posture_ref[nm]
-        for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-      }
+      posture_t = {nm: (1.0 - s) * posture_start[nm] + s * posture_ref[nm] for nm in PHYBOT_C2_POLICY_JOINT_NAMES}
       # The OTHER hand is still anchored one step BELOW its stance-relative
       # height, so the canonical stance angles are unreachable for that arm
       # while its weld holds. Blending it toward them anyway made the DLS
@@ -617,9 +558,7 @@ def generate_clip(
   for t, q in enumerate(frames_qpos):
     d.qpos[:] = q
     mujoco.mj_forward(ik.model, d)
-    joint_positions[t] = [
-      d.qpos[ik.qpos_addresses[nm]] for nm in PHYBOT_C2_POLICY_JOINT_NAMES
-    ]
+    joint_positions[t] = [d.qpos[ik.qpos_addresses[nm]] for nm in PHYBOT_C2_POLICY_JOINT_NAMES]
     root_position[t] = q[0:3]
     root_quaternion[t] = (q[4], q[5], q[6], q[3])  # wxyz -> xyzw
     for i, ee in enumerate(ik.ee_names):
@@ -636,12 +575,12 @@ def generate_clip(
       else:
         for bid_s in ik.sphere_bids[ee]:
           gid = int(m.body_geomadr[bid_s])
-          extent = (np.abs(d.geom_xmat[gid].reshape(3, 3)[0]) @ m.geom_size[gid]
-                    if m.geom_type[gid] == mujoco.mjtGeom.mjGEOM_BOX
-                    else m.geom_size[gid, 0])
-          max_wall_pen = max(
-            max_wall_pen, float(d.geom_xpos[gid, 0] + extent - WALL_SURFACE_X)
+          extent = (
+            np.abs(d.geom_xmat[gid].reshape(3, 3)[0]) @ m.geom_size[gid]
+            if m.geom_type[gid] == mujoco.mjtGeom.mjGEOM_BOX
+            else m.geom_size[gid, 0]
           )
+          max_wall_pen = max(max_wall_pen, float(d.geom_xpos[gid, 0] + extent - WALL_SURFACE_X))
     for i, sid in enumerate(ik.foot_sid):
       foot_positions[t, i] = d.site_xpos[sid]
 
@@ -683,10 +622,7 @@ def generate_clip(
     "right_hand_swing",
   ):
     r = seg_residual[name]
-    print(
-      f"  {name:18s} IK residual: pos {r.pos * 1000.0:6.2f} mm, "
-      f"rot {np.degrees(r.rot):5.2f} deg"
-    )
+    print(f"  {name:18s} IK residual: pos {r.pos * 1000.0:6.2f} mm, rot {np.degrees(r.rot):5.2f} deg")
   # Peak speeds are an actuation sanity check; every swing retains three
   # engaged pads.
   joint_speed = np.abs(np.diff(joint_positions, axis=0)) * fps
@@ -698,10 +634,7 @@ def generate_clip(
     f"peak base speed {base_speed:.3f} m/s, minimum engaged pads 3"
   )
   for ee, (pos_err, rot_err) in landing_report.items():
-    print(
-      f"  {ee:18s} landing vs scheduled anchor: "
-      f"{pos_err * 1000.0:6.2f} mm, {np.degrees(rot_err):5.2f} deg"
-    )
+    print(f"  {ee:18s} landing vs scheduled anchor: {pos_err * 1000.0:6.2f} mm, {np.degrees(rot_err):5.2f} deg")
   # Toe-brace quality: hover gap is the swing-start toe-to-wall standoff
   # (should be ~= the 1.5 mm handoff hover), wall gap the worst
   # toe-surface-to-wall distance inside the press window (must stay ~0 —
@@ -728,9 +661,7 @@ def generate_clip(
     last = frames_in_seg[frames_in_seg < per_cycle][-1]
     for i in ee_indices:
       drop = float(pad_positions[last - n_rake, i, 2] - pad_positions[last, i, 2])
-      off_wall = float(
-        np.abs(pad_positions[last - n_rake : last + 1, i, 0] - anchor_arr[last, i, 0]).max()
-      )
+      off_wall = float(np.abs(pad_positions[last - n_rake : last + 1, i, 0] - anchor_arr[last, i, 0]).max())
       print(
         f"  rake {ik.ee_names[i]:18s} ({seg_name}): down "
         f"{drop * 1000.0:5.2f} mm, off-anchor-plane max {off_wall * 1000.0:5.2f} mm"
@@ -757,14 +688,8 @@ def generate_clip(
     if margin < worst_margin:
       worst_name, worst_margin = nm, margin
     if margin < 0.05:
-      flagged.append(
-        f"{nm} [{jmin:+.3f}, {jmax:+.3f}] range [{lo:+.3f}, {hi:+.3f}] "
-        f"margin {margin * 100.0:.1f}%"
-      )
-  print(
-    f"  joint-limit clearance min       {worst_margin * 100.0:6.2f}% of range "
-    f"({worst_name})"
-  )
+      flagged.append(f"{nm} [{jmin:+.3f}, {jmax:+.3f}] range [{lo:+.3f}, {hi:+.3f}] margin {margin * 100.0:.1f}%")
+  print(f"  joint-limit clearance min       {worst_margin * 100.0:6.2f}% of range ({worst_name})")
   for line in flagged:
     print("  LOW LIMIT MARGIN: " + line)
   if max_weld_drift > 5.0e-3 or max_wall_pen > 2.0e-3:

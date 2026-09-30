@@ -95,9 +95,7 @@ _WALK_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
 
 def _apply_real_pd_actuator_damping(cfg: ManagerBasedRlEnvCfg) -> None:
   robot_cfg = copy.deepcopy(cfg.scene.entities["robot"])
-  damping_by_target_expr = {
-    (f".*_{group}",): damping for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()
-  }
+  damping_by_target_expr = {(f".*_{group}",): damping for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()}
 
   updated = set()
   for actuator in robot_cfg.articulation.actuators:
@@ -138,9 +136,7 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
   # Keep policy action dimensions and joint observations in the same joint order.
   for term_name in ("joint_pos", "joint_vel"):
     actor_terms[term_name].params = {
-      "asset_cfg": SceneEntityCfg(
-        "robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True
-      )
+      "asset_cfg": SceneEntityCfg("robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True)
     }
 
   critic_terms = cfg.observations["critic"].terms
@@ -163,9 +159,7 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   cfg.rewards["feet_flat"].params["asset_cfg"].body_names = (_FEET_ROOT_BODIES,)
   # Penalize only policy joints when standing; the PD-held neck is not ours.
-  cfg.rewards["stand_still"].params["asset_cfg"] = SceneEntityCfg(
-    "robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES
-  )
+  cfg.rewards["stand_still"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES)
 
   cfg.viewer.body_name = _TORSO_BODY
   twist_cmd = cfg.commands["twist"]
@@ -268,9 +262,7 @@ def phybot_c2_velocity_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg
 
   body_friction = cfg.events["body_friction"]
   # Exclude the feet: they get their own (wider) friction DR below.
-  body_friction.params["asset_cfg"].geom_names = (
-    r"^(?!(left|right)_ankle_roll_collision$).*_collision$",
-  )
+  body_friction.params["asset_cfg"].geom_names = (r"^(?!(left|right)_ankle_roll_collision$).*_collision$",)
   # MJLab exposes MuJoCo geom friction here; official C2 also randomizes
   # dynamic friction/restitution buckets, which do not have a direct DR hook.
   body_friction.params["ranges"] = (0.6, 1.0)
@@ -366,18 +358,14 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   reset_joints.func = mdp.reset_joints_by_offset
   reset_joints.params["position_range"] = (-0.05, 0.05)
   reset_joints.params["velocity_range"] = (-0.05, 0.05)
-  reset_joints.params["asset_cfg"] = SceneEntityCfg(
-    "robot", joint_names=leg_joint_names, preserve_order=True
-  )
+  reset_joints.params["asset_cfg"] = SceneEntityCfg("robot", joint_names=leg_joint_names, preserve_order=True)
   cfg.events["reset_robot_upper_joints"] = EventTermCfg(
     func=mdp.reset_joints_by_offset,
     mode="reset",
     params={
       "position_range": (-0.15, 0.15),
       "velocity_range": (-0.10, 0.10),
-      "asset_cfg": SceneEntityCfg(
-        "robot", joint_names=upper_joint_names, preserve_order=True
-      ),
+      "asset_cfg": SceneEntityCfg("robot", joint_names=upper_joint_names, preserve_order=True),
     },
   )
   reset_base = cfg.events["reset_base"]
@@ -420,9 +408,7 @@ def phybot_c2_stand_default_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
       "drift_scale": 0.05,
       "max_scaled_cost": 4.0,
       "missing_contact_cost": 4.0,
-      "asset_cfg": SceneEntityCfg(
-        "robot", site_names=_FOOT_SITE_NAMES, preserve_order=True
-      ),
+      "asset_cfg": SceneEntityCfg("robot", site_names=_FOOT_SITE_NAMES, preserve_order=True),
     },
   )
   cfg.rewards["stand_base_motion"] = RewardTermCfg(

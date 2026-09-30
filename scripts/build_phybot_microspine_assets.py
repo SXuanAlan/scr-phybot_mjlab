@@ -19,7 +19,10 @@ from scipy.spatial.transform import Rotation
 import mjlab  # noqa: F401  # Initialize plugins before project tool imports.
 
 from scr_phybot_mjab.tools.microspine.cad import (
-  CAD_DIRECTORY, CAD_STEP, CadPadAssembly, load_cad_pad_assembly,
+  CAD_DIRECTORY,
+  CAD_STEP,
+  CadPadAssembly,
+  load_cad_pad_assembly,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,8 +73,12 @@ def forearms_without_hands(original):
     # redistributing it over the retained geometry as a provisional estimate.
     props["inertia_com_kg_m2"] = (np.array(props["inertia_com_kg_m2"]) * old_mass / props["mass_kg"]).tolist()
     props["mass_kg"] = old_mass
-    result[side] = {"forearm_end_z_m": end_z, "inertial": props,
-                    "retained_components": len(kept), "removed_components": len(components) - len(kept)}
+    result[side] = {
+      "forearm_end_z_m": end_z,
+      "inertial": props,
+      "retained_components": len(kept),
+      "removed_components": len(components) - len(kept),
+    }
   return result
 
 
@@ -87,9 +94,9 @@ def normalize_geometry():
   unit.apply_translation(-assembly.unit_centres[0])
   backplate = next(m for _, f, m in parts if f == "Part_1_4.gltf")
   connector = next(m for _, f, m in parts if f == "Part_1_6.gltf")
-  brackets = trimesh.util.concatenate([
-    m for _, f, m in parts if f not in ("Part_1_1.gltf", "Part_1_4.gltf", "Part_1_6.gltf")
-  ])
+  brackets = trimesh.util.concatenate(
+    [m for _, f, m in parts if f not in ("Part_1_1.gltf", "Part_1_4.gltf", "Part_1_6.gltf")]
+  )
   moving_meshes = [m for _, f, m in parts if f != "Part_1_6.gltf"]
   outputs = {"unit": unit, "backplate": backplate, "brackets": brackets, "forearm_mount": connector}
   for name, mesh in outputs.items():
@@ -102,18 +109,44 @@ def normalize_geometry():
 
 def add_inertial(body: ET.Element, props: dict):
   inertia = np.array(props["inertia_com_kg_m2"])
-  ET.SubElement(body, "inertial", pos=numbers(props["com_m"]), mass=numbers(props["mass_kg"]),
-                fullinertia=numbers(inertia[[0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2]]))
+  ET.SubElement(
+    body,
+    "inertial",
+    pos=numbers(props["com_m"]),
+    mass=numbers(props["mass_kg"]),
+    fullinertia=numbers(inertia[[0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2]]),
+  )
 
 
 def visual(body, name, mesh, color, pos=(0, 0, 0)):
-  return ET.SubElement(body, "geom", name=name, type="mesh", mesh=mesh, pos=numbers(pos),
-                       contype="0", conaffinity="0", density="0", group="1", rgba=color)
+  return ET.SubElement(
+    body,
+    "geom",
+    name=name,
+    type="mesh",
+    mesh=mesh,
+    pos=numbers(pos),
+    contype="0",
+    conaffinity="0",
+    density="0",
+    group="1",
+    rgba=color,
+  )
 
 
 def collision(body, name, size, pos, kind="box"):
-  return ET.SubElement(body, "geom", name=name, type=kind, size=numbers(size), pos=numbers(pos),
-                       mass="0", density="0", group="3", rgba="0.25 0.55 0.85 0.25")
+  return ET.SubElement(
+    body,
+    "geom",
+    name=name,
+    type=kind,
+    size=numbers(size),
+    pos=numbers(pos),
+    mass="0",
+    density="0",
+    group="3",
+    rgba="0.25 0.55 0.85 0.25",
+  )
 
 
 def pad_body(name: str, pos, quat, props: dict, meshes, assembly: CadPadAssembly) -> ET.Element:
@@ -125,12 +158,15 @@ def pad_body(name: str, pos, quat, props: dict, meshes, assembly: CadPadAssembly
   for index, center in enumerate(centres):
     row, col = divmod(index, 4)
     visual(body, f"{name}_unit_{row}_{col}_visual", "microspine_unit", assembly.colour, center)
-    ET.SubElement(body, "site", name=f"{name}_unit_{row}_{col}", pos=numbers(center),
-                  size="0.0015", group="4", rgba="1 0.55 0.1 1")
+    ET.SubElement(
+      body, "site", name=f"{name}_unit_{row}_{col}", pos=numbers(center), size="0.0015", group="4", rgba="1 0.55 0.1 1"
+    )
   bounds = meshes["backplate"].bounds
-  collision(body, f"{name}_collision", np.diff(bounds, axis=0)[0]/2, bounds.mean(axis=0))
-  for label, point, color in (("ball_center", [0, 0, 0], "0.1 0.5 1 1"),
-                              ("contact_center", assembly.contact_center, "1 0.25 0.1 1")):
+  collision(body, f"{name}_collision", np.diff(bounds, axis=0)[0] / 2, bounds.mean(axis=0))
+  for label, point, color in (
+    ("ball_center", [0, 0, 0], "0.1 0.5 1 1"),
+    ("contact_center", assembly.contact_center, "1 0.25 0.1 1"),
+  ):
     ET.SubElement(body, "site", name=f"{name}_{label}", pos=numbers(point), size="0.003", group="4", rgba=color)
   # Only the four corner units collide. Their boxes use the printed unit's
   # actual bounds and CAD placement. No fabricated pin/ball visual is added.
@@ -140,10 +176,25 @@ def pad_body(name: str, pos, quat, props: dict, meshes, assembly: CadPadAssembly
   for row, source_row in enumerate((0, 2)):
     for col, source_col in enumerate((0, 3)):
       contact_name = f"{name}_c_{row}_{col}"
-      child = ET.SubElement(body, "body", name=contact_name, pos=numbers(centres[source_row*4+source_col] + box_offset))
-      ET.SubElement(child, "geom", name=contact_name, type="box", size=numbers(half_size), contype="1",
-                    conaffinity="1", condim="6", priority="1", friction="30.0 0.01 0.01",
-                    solref="0.02 1.5", solimp="0.9 0.99 0.001 0.5 2", rgba="0.9 0.7 0.5 0", mass="0")
+      child = ET.SubElement(
+        body, "body", name=contact_name, pos=numbers(centres[source_row * 4 + source_col] + box_offset)
+      )
+      ET.SubElement(
+        child,
+        "geom",
+        name=contact_name,
+        type="box",
+        size=numbers(half_size),
+        contype="1",
+        conaffinity="1",
+        condim="6",
+        priority="1",
+        friction="30.0 0.01 0.01",
+        solref="0.02 1.5",
+        solimp="0.9 0.99 0.001 0.5 2",
+        rgba="0.9 0.7 0.5 0",
+        mass="0",
+      )
   return body
 
 
@@ -154,14 +205,19 @@ def mount_body(side, pos, quat, props, meshes, assembly):
   visual(body, f"{name}_visual", "microspine_forearm_mount", assembly.colour)
   features = assembly.features
   mouth, stop = np.asarray(features["sleeve_mouth_m"]), np.asarray(features["sleeve_shoulder_m"])
-  collision(body, f"{name}_sleeve_collision", [features["sleeve_outer_radius_m"], (stop[2]-mouth[2])/2],
-            (mouth+stop)/2-assembly.pivot, "cylinder")
+  collision(
+    body,
+    f"{name}_sleeve_collision",
+    [features["sleeve_outer_radius_m"], (stop[2] - mouth[2]) / 2],
+    (mouth + stop) / 2 - assembly.pivot,
+    "cylinder",
+  )
   # Conservative envelope of the solid connector below the insertion sleeve.
   raw = meshes["forearm_mount"].vertices
-  web = raw[raw[:, 2] >= stop[2]-assembly.pivot[2]-1e-8]
+  web = raw[raw[:, 2] >= stop[2] - assembly.pivot[2] - 1e-8]
   bounds = np.array([web.min(axis=0), web.max(axis=0)])
-  collision(body, f"{name}_web_collision", np.diff(bounds, axis=0)[0]/2, bounds.mean(axis=0))
-  ET.SubElement(body, "site", name=f"{side}_forearm_end", pos=numbers(stop-assembly.pivot), size="0.002", group="4")
+  collision(body, f"{name}_web_collision", np.diff(bounds, axis=0)[0] / 2, bounds.mean(axis=0))
+  ET.SubElement(body, "site", name=f"{side}_forearm_end", pos=numbers(stop - assembly.pivot), size="0.002", group="4")
   return body
 
 
@@ -181,12 +237,12 @@ def replace_named(text: str, tag: str, name: str, replacement: str, required=Tru
       raise ValueError(f"Missing {tag}: {name}")
     return text
   depth = 0
-  for token in re.finditer(rf'</?{tag}\b[^>]*>', text[start.start():]):
+  for token in re.finditer(rf"</?{tag}\b[^>]*>", text[start.start() :]):
     raw = token.group()
     depth += -1 if raw.startswith("</") else (0 if raw.endswith("/>") else 1)
     if depth == 0:
       stop = start.start() + token.end()
-      return text[:start.start()] + replacement + text[stop:]
+      return text[: start.start()] + replacement + text[stop:]
   raise ValueError(f"Unclosed {tag}: {name}")
 
 
@@ -288,8 +344,11 @@ def main():
       end = np.array([0, 0, end_z])
       stop = np.asarray(assembly.features["sleeve_shoulder_m"])
       pos = end + rotation.apply(assembly.pivot - stop)
-      origins[side] = {"forearm_end_z_m": end_z, "ball_center_in_elbow_m": pos.tolist(),
-                       "contact_center_in_elbow_m": (pos + rotation.apply(assembly.contact_center)).tolist()}
+      origins[side] = {
+        "forearm_end_z_m": end_z,
+        "ball_center_in_elbow_m": pos.tolist(),
+        "contact_center_in_elbow_m": (pos + rotation.apply(assembly.contact_center)).tolist(),
+      }
       mounts.append(mount_body(side, pos, quat, mount_inertia, outputs, assembly))
     else:
       # Preserve the OLD leg pivot, including its original normal offset.
@@ -332,8 +391,7 @@ def main():
       motor.attrib.pop("pos")
       motor.set("fromto", "0 0 -0.040 0 0 0")
     text = replace_named(text, "body", name, element_text(body, 8))
-    text = re.sub(rf'<mesh name="{name}"[^>]*/>',
-                  f'<mesh name="{name}" file="{side}_forearm_no_hand.stl"/>', text)
+    text = re.sub(rf'<mesh name="{name}"[^>]*/>', f'<mesh name="{name}" file="{side}_forearm_no_hand.stl"/>', text)
   ET.fromstring(text)
   text = re.sub(r"(?m)^[ \t]+$", "", text)
   text = re.sub(r"\n{3,}", "\n\n", text)
@@ -352,8 +410,7 @@ def main():
     "contact_center_in_pad_m": assembly.contact_center.tolist(),
     "unit_centers_in_pad_m": (assembly.unit_centres - assembly.pivot).tolist(),
     "unit_reference": "Frontmost printed unit plane, centered laterally and vertically; not a measured spine-tip offset.",
-    "contact_proxy": {"type": "box", "count_per_pad": 4,
-                      "unit_local_bounds_m": outputs["unit"].bounds.tolist()},
+    "contact_proxy": {"type": "box", "count_per_pad": 4, "unit_local_bounds_m": outputs["unit"].bounds.tolist()},
     "forearm_extension_m": float(assembly.pivot[2] - assembly.features["sleeve_shoulder_m"][2]),
     "cad_adjustment": "None: all CAD solids retain their original shape and relative pose. The assembly is rigidly seated on the forearm tube at the CAD sleeve stop.",
     "source_solid_count": len(assembly.parts),

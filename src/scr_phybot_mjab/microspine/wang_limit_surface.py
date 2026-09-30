@@ -70,9 +70,7 @@ if TYPE_CHECKING:
 _DEG = math.pi / 180.0
 
 
-def _population_integral(
-  lo: torch.Tensor, hi: torch.Tensor, base_lo: float, delta_psi: float
-) -> torch.Tensor:
+def _population_integral(lo: torch.Tensor, hi: torch.Tensor, base_lo: float, delta_psi: float) -> torch.Tensor:
   """Integral of the eq-9 linear slope density over [lo, hi] (degrees)."""
 
   def cdf(x: torch.Tensor) -> torch.Tensor:
@@ -114,9 +112,7 @@ def _unnormalized_capacity(
 
   # Channel slip factor (eqs 4, 19).
   atan_mu_s = math.degrees(math.atan(mu_channel))
-  cc_raw = torch.sin((beta_eff_deg + 90.0 - phi_deg - atan_mu_s) * _DEG) * (
-    1.0 + mu_channel**2
-  )
+  cc_raw = torch.sin((beta_eff_deg + 90.0 - phi_deg - atan_mu_s) * _DEG) * (1.0 + mu_channel**2)
   cc = torch.where(
     phi_deg <= beta_eff_deg + atan_mu_s,
     torch.ones_like(cc_raw),
@@ -125,9 +121,7 @@ def _unnormalized_capacity(
   return cc * strength
 
 
-def build_capacity_lut(
-  cfg: MicrospineLimitSurfaceCfg, device: torch.device | str
-) -> torch.Tensor:
+def build_capacity_lut(cfg: MicrospineLimitSurfaceCfg, device: torch.device | str) -> torch.Tensor:
   """Normalized capacity table R[theta_bin, phi_bin] in [0, 1], R[0, 0] = 1.
 
   Rows span azimuth theta in [0, 180] deg, columns elevation phi in [0, 90]
@@ -142,15 +136,9 @@ def build_capacity_lut(
   )
   theta = torch.linspace(0.0, 180.0, cfg.wang_lut_theta_bins, dtype=torch.float64)
   phi = torch.linspace(0.0, 90.0, cfg.wang_lut_phi_bins, dtype=torch.float64)
-  beta_eff = torch.rad2deg(
-    torch.arcsin(math.sin(cfg.wang_beta_deg * _DEG) * torch.cos(theta * _DEG))
-  )
-  n = _unnormalized_capacity(
-    phi.unsqueeze(0), beta_eff.unsqueeze(1), **kwargs
-  )
-  n0 = _unnormalized_capacity(
-    torch.zeros(()), torch.full((), float(cfg.wang_beta_deg)), **kwargs
-  )
+  beta_eff = torch.rad2deg(torch.arcsin(math.sin(cfg.wang_beta_deg * _DEG) * torch.cos(theta * _DEG)))
+  n = _unnormalized_capacity(phi.unsqueeze(0), beta_eff.unsqueeze(1), **kwargs)
+  n0 = _unnormalized_capacity(torch.zeros(()), torch.full((), float(cfg.wang_beta_deg)), **kwargs)
   return (n / n0).clamp(0.0, 1.0).to(device=device, dtype=torch.float32)
 
 
@@ -182,12 +170,7 @@ def capacity_ratio(
   r01 = lut[t0, p0 + 1]
   r10 = lut[t0 + 1, p0]
   r11 = lut[t0 + 1, p0 + 1]
-  return (
-    r00 * (1 - tw) * (1 - pw)
-    + r01 * (1 - tw) * pw
-    + r10 * tw * (1 - pw)
-    + r11 * tw * pw
-  )
+  return r00 * (1 - tw) * (1 - pw) + r01 * (1 - tw) * pw + r10 * tw * (1 - pw) + r11 * tw * pw
 
 
 def effective_capacity(

@@ -13,11 +13,7 @@ from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 
 def sphere_names(ee_body_name: str, rows: int, cols: int) -> list[str]:
   """Return contact body/geom names (legacy API name; boxes or spheres)."""
-  return [
-    f"{ee_body_name}_c_{row}_{col}"
-    for row in range(rows)
-    for col in range(cols)
-  ]
+  return [f"{ee_body_name}_c_{row}_{col}" for row in range(rows) for col in range(cols)]
 
 
 def contact_face_offset(geom_type, size, face_axis, quat=(1, 0, 0, 0)) -> np.ndarray:
@@ -44,8 +40,7 @@ def contact_face_offset(geom_type, size, face_axis, quat=(1, 0, 0, 0)) -> np.nda
   raise ValueError(f"Unsupported microspine contact geom type: {geom_type}")
 
 
-def pad_contact_face_centers(source, cfg: MicrospineCfg, ee: str,
-                             robot_prefix: str = "robot") -> np.ndarray:
+def pad_contact_face_centers(source, cfg: MicrospineCfg, ee: str, robot_prefix: str = "robot") -> np.ndarray:
   """Nominal corner surface centers in the pad body frame, from spec or model."""
   prefix = f"{robot_prefix}/" if robot_prefix else ""
   points = []
@@ -60,8 +55,7 @@ def pad_contact_face_centers(source, cfg: MicrospineCfg, ee: str,
   return np.asarray(points)
 
 
-def pad_contact_center(source, cfg: MicrospineCfg, ee: str,
-                       robot_prefix: str = "robot") -> np.ndarray:
+def pad_contact_center(source, cfg: MicrospineCfg, ee: str, robot_prefix: str = "robot") -> np.ndarray:
   """Use the authored array centre C; legacy proxy-only rigs use their mean."""
   prefix = f"{robot_prefix}/" if robot_prefix else ""
   try:
@@ -94,12 +88,15 @@ def pad_grid_spans(
   scalar pair parameterizes the billing model.
   """
   prefix = f"{robot_prefix}/" if robot_prefix else ""
-  if any(site.name and site.name.startswith(f"{prefix}{cfg.ee_body_names[0]}_unit_")
-         for site in spec.sites):
-    return matching_pad_geometry(spec, cfg.ee_body_names, robot_prefix,
+  if any(site.name and site.name.startswith(f"{prefix}{cfg.ee_body_names[0]}_unit_") for site in spec.sites):
+    return matching_pad_geometry(
+      spec,
+      cfg.ee_body_names,
+      robot_prefix,
       rake_local_axis=cfg.limit_surface.ee_rake_local_axis,
       face_local_axis=cfg.face_local_axis,
-      unit_layout=cfg.limit_surface.unit_layout).spans
+      unit_layout=cfg.limit_surface.unit_layout,
+    ).spans
 
   rake = np.asarray(cfg.limit_surface.ee_rake_local_axis, dtype=float)
   rake = rake / max(float(np.linalg.norm(rake)), 1.0e-9)
@@ -111,16 +108,12 @@ def pad_grid_spans(
   prefix = f"{robot_prefix}/" if robot_prefix else ""
   spans: list[tuple[float, float]] = []
   for ee in cfg.ee_body_names:
-    unit_sites = [
-      site for site in spec.sites
-      if site.name and site.name.startswith(f"{prefix}{ee}_unit_")
-    ]
+    unit_sites = [site for site in spec.sites if site.name and site.name.startswith(f"{prefix}{ee}_unit_")]
     centers = np.asarray(
-      [site.pos for site in unit_sites] if unit_sites else [
-        spec.body(f"{prefix}{name}").pos
-        for name in sphere_names(
-          ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols
-        )
+      [site.pos for site in unit_sites]
+      if unit_sites
+      else [
+        spec.body(f"{prefix}{name}").pos for name in sphere_names(ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols)
       ],
       dtype=float,
     )
@@ -289,9 +282,11 @@ def add_contact_pairs(
   so no high-friction or external-adhesion approximation is needed.
   """
   surfaces = cfg.ordered_surfaces()
-  target_geoms = [
-    s.scoped_geom for s in surfaces for _ in range(get_spheres_per_ee(cfg))
-  ] if surfaces else [cfg.wall_geom_name] * len(get_sphere_geom_names(cfg))
+  target_geoms = (
+    [s.scoped_geom for s in surfaces for _ in range(get_spheres_per_ee(cfg))]
+    if surfaces
+    else [cfg.wall_geom_name] * len(get_sphere_geom_names(cfg))
+  )
   for geom_name, target_geom in zip(get_sphere_geom_names(cfg), target_geoms):
     pair = spec.add_pair()
     pair.geomname1 = f"{robot_prefix}/{geom_name}"
@@ -321,12 +316,8 @@ def resolve_sphere_geom_ids(
   out: list[list[int]] = []
   for ee in cfg.ee_body_names:
     ee_ids: list[int] = []
-    for name in sphere_names(
-      ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols
-    ):
-      gid = mujoco.mj_name2id(
-        mj_model, mujoco.mjtObj.mjOBJ_GEOM, f"{robot_prefix}/{name}"
-      )
+    for name in sphere_names(ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols):
+      gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, f"{robot_prefix}/{name}")
       if gid < 0:
         gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, name)
       if gid < 0:
@@ -409,14 +400,7 @@ def virtual_spine_fraction(
   w01 = ((1.0 - uu) * vv).reshape_as(w00)
   w10 = (uu * (1.0 - vv)).reshape_as(w00)
   w11 = (uu * vv).reshape_as(w00)
-  points = (
-    w00 * p00.unsqueeze(-2)
-    + w01 * p01.unsqueeze(-2)
-    + w10 * p10.unsqueeze(-2)
-    + w11 * p11.unsqueeze(-2)
-  )
-  dist = (
-    (points - wall_point.unsqueeze(-2)) * wall_normal.unsqueeze(-2)
-  ).sum(dim=-1)
+  points = w00 * p00.unsqueeze(-2) + w01 * p01.unsqueeze(-2) + w10 * p10.unsqueeze(-2) + w11 * p11.unsqueeze(-2)
+  dist = ((points - wall_point.unsqueeze(-2)) * wall_normal.unsqueeze(-2)).sum(dim=-1)
   hooked = (dist - sphere_radius) <= travel
   return hooked.float().mean(dim=-1)

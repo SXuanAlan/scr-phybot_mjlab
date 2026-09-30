@@ -41,8 +41,14 @@ def main(argv: list[str] | None = None) -> None:
   args = parser.parse_args(argv)
   configure_determinism()
   record_rollout(
-    args.task, mode=args.mode, actions=args.actions, steps=args.steps,
-    num_envs=args.num_envs, seed=args.seed, segment_steps=args.segment_steps, out=args.out,
+    args.task,
+    mode=args.mode,
+    actions=args.actions,
+    steps=args.steps,
+    num_envs=args.num_envs,
+    seed=args.seed,
+    segment_steps=args.segment_steps,
+    out=args.out,
   )
 
 
@@ -67,8 +73,13 @@ def record_rollout(
       env.step(next_action(step))
       recorder.capture_step()
   meta = {
-    "task": task, "mode": mode, "actions": actions, "steps": steps,
-    "num_envs": num_envs, "seed": seed, "segment_steps": segment_steps,
+    "task": task,
+    "mode": mode,
+    "actions": actions,
+    "steps": steps,
+    "num_envs": num_envs,
+    "seed": seed,
+    "segment_steps": segment_steps,
   }
   recorder.save(out, meta)
   env.close()
@@ -117,7 +128,7 @@ class _ReferenceActions:
     reference = self._motion.ref_joint_pos
     for start, term, columns, in_clip in self._terms:
       target = (reference[:, columns] - term._offset) / term._scale
-      action[:, start:start + term.action_dim] = torch.where(in_clip, target, 0.0)
+      action[:, start : start + term.action_dim] = torch.where(in_clip, target, 0.0)
     return action
 
 

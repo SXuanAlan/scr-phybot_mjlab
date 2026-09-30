@@ -41,10 +41,17 @@ def main():
   for light in spec.lights:
     light.diffuse = [0.25, 0.25, 0.25]
     light.specular = [0.05, 0.05, 0.05]
-  spec.worldbody.add_geom(name="asset_display_floor", type=mujoco.mjtGeom.mjGEOM_PLANE,
-                          size=[4, 4, 0.1], rgba=[0.86, 0.88, 0.90, 1], contype=0, conaffinity=0)
-  spec.worldbody.add_light(name="asset_key_light", pos=[-2, -3, 4], dir=[2, 3, -4],
-                           diffuse=[0.4, 0.4, 0.4], castshadow=True)
+  spec.worldbody.add_geom(
+    name="asset_display_floor",
+    type=mujoco.mjtGeom.mjGEOM_PLANE,
+    size=[4, 4, 0.1],
+    rgba=[0.86, 0.88, 0.90, 1],
+    contype=0,
+    conaffinity=0,
+  )
+  spec.worldbody.add_light(
+    name="asset_key_light", pos=[-2, -3, 4], dir=[2, 3, -4], diffuse=[0.4, 0.4, 0.4], castshadow=True
+  )
   model = spec.compile()
   data = mujoco.MjData(model)
   data.qpos[:7] = [0, 0, 0.726, 1, 0, 0, 0]
@@ -75,7 +82,7 @@ def main():
   face = pad_rotation @ np.array([0, -1, 0])
   # Pick the actual contact side from the live pad frame, rather than a
   # fixed world azimuth that previously displayed the back of the assembly.
-  forward = -(face + [0, .18, .08])
+  forward = -(face + [0, 0.18, 0.08])
   azimuth = np.degrees(np.arctan2(forward[1], forward[0]))
   elevation = np.degrees(np.arctan2(forward[2], np.linalg.norm(forward[:2])))
   detail = render(azimuth, elevation, 0.72, lookat)
@@ -99,8 +106,13 @@ def main():
   print("Total robot mass (kg)", model.body_mass.sum())
   for side in ("left", "right"):
     name = f"{side}_hand_spine"
-    print(name, "B world", data.site_xpos[model.site(name + "_ball_center").id],
-          "C world", data.site_xpos[model.site(name + "_contact_center").id])
+    print(
+      name,
+      "B world",
+      data.site_xpos[model.site(name + "_ball_center").id],
+      "C world",
+      data.site_xpos[model.site(name + "_contact_center").id],
+    )
 
 
 if __name__ == "__main__":

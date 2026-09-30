@@ -45,13 +45,11 @@ class EmpiricalLimitSurface:
     self.dl = float(a["lateral_n"][1] - a["lateral_n"][0])
     # Schema 1 mislabeled the seating protocol as a lower normal-force bound.
     # Read old tables as protocol metadata without restoring that hold limit.
-    self.protocol_preload_n = (float(a["protocol_preload_n"]) if schema == 2
-                               else -float(a["normal_min_n"]))
+    self.protocol_preload_n = float(a["protocol_preload_n"]) if schema == 2 else -float(a["normal_min_n"])
     if not np.isfinite(self.protocol_preload_n) or self.protocol_preload_n <= 0:
       raise ValueError("Empirical protocol preload must be finite and positive")
     self.ns, self.nl, self.nq = a["normal_quantile_n"].shape
-    if not (np.allclose(np.diff(a["shear_n"]), self.ds)
-            and np.allclose(np.diff(a["lateral_n"]), self.dl)):
+    if not (np.allclose(np.diff(a["shear_n"]), self.ds) and np.allclose(np.diff(a["lateral_n"]), self.dl)):
       raise ValueError("Runtime lookup requires regular shear/lateral axes")
     valid = a["supported"].astype(bool)
     if not np.all(np.isfinite(a["normal_quantile_n"][valid])):
@@ -78,13 +76,19 @@ class EmpiricalLimitSurface:
     us, ul = s - i, l - j
     k = (strength_u.clamp(0, 1) * self.nq).long().clamp(max=self.nq - 1)
     cap, early = torch.zeros_like(s), torch.zeros_like(s)
-    support = ((shear >= self.s_min) & (shear <= self.s_max)
-               & (lateral.abs() <= self.l_max)
-               & torch.isfinite(shear) & torch.isfinite(lateral))
+    support = (
+      (shear >= self.s_min)
+      & (shear <= self.s_max)
+      & (lateral.abs() <= self.l_max)
+      & torch.isfinite(shear)
+      & torch.isfinite(lateral)
+    )
     tail = torch.zeros_like(support)
     for di, dj, weight in (
-      (0, 0, (1 - us) * (1 - ul)), (1, 0, us * (1 - ul)),
-      (0, 1, (1 - us) * ul), (1, 1, us * ul),
+      (0, 0, (1 - us) * (1 - ul)),
+      (1, 0, us * (1 - ul)),
+      (0, 1, (1 - us) * ul),
+      (1, 1, us * ul),
     ):
       ii, jj = i + di, j + dj
       cap = cap + weight * self.q[ii, jj, k]
@@ -104,13 +108,14 @@ class EmpiricalLimitSurface:
     us, ul = s - i, l - j
     k = np.minimum((np.clip(u, 0, 1) * self.nq).astype(int), self.nq - 1)
     cap, early = np.zeros_like(s), np.zeros_like(s)
-    support = ((shear >= self.s_min) & (shear <= self.s_max)
-               & (np.abs(lateral) <= self.l_max))
+    support = (shear >= self.s_min) & (shear <= self.s_max) & (np.abs(lateral) <= self.l_max)
     tail = np.zeros_like(support)
     a = self.arrays
     for di, dj, weight in (
-      (0, 0, (1 - us) * (1 - ul)), (1, 0, us * (1 - ul)),
-      (0, 1, (1 - us) * ul), (1, 1, us * ul),
+      (0, 0, (1 - us) * (1 - ul)),
+      (1, 0, us * (1 - ul)),
+      (0, 1, (1 - us) * ul),
+      (1, 1, us * ul),
     ):
       ii, jj = i + di, j + dj
       cap += weight * a["normal_quantile_n"][ii, jj, k]

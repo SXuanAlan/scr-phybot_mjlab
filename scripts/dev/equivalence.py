@@ -139,10 +139,24 @@ def _record_rollouts(out: Path, args: argparse.Namespace) -> list[str]:
     target = out / "rollout" / f"{task}__{mode}__{actions}.npz"
     num_envs = args.num_envs if mode == "train" else args.play_num_envs
     argv = [
-      sys.executable, "-m", "scr_phybot_mjab.tools.equivalence.rollout", task,
-      "--mode", mode, "--actions", actions, "--steps", str(args.steps),
-      "--num-envs", str(num_envs), "--seed", str(args.seed),
-      "--segment-steps", str(args.segment_steps), "--out", str(target),
+      sys.executable,
+      "-m",
+      "scr_phybot_mjab.tools.equivalence.rollout",
+      task,
+      "--mode",
+      mode,
+      "--actions",
+      actions,
+      "--steps",
+      str(args.steps),
+      "--num-envs",
+      str(num_envs),
+      "--seed",
+      str(args.seed),
+      "--segment-steps",
+      str(args.segment_steps),
+      "--out",
+      str(target),
     ]
     started = time.time()
     result = subprocess.run(argv, cwd=REPO, env=env, capture_output=True, text=True)
@@ -191,7 +205,8 @@ def _manifest(args: argparse.Namespace) -> dict:
   versions = {name: metadata.version(name) for name in ("torch", "warp-lang", "mujoco", "mujoco-warp", "mjlab")}
   gpu = subprocess.run(
     ["nvidia-smi", f"--id={args.gpu}", "--query-gpu=name,driver_version", "--format=csv,noheader"],
-    capture_output=True, text=True,
+    capture_output=True,
+    text=True,
   ).stdout.strip()
   return {
     "created": time.strftime("%Y-%m-%d %H:%M:%S"),

@@ -4,6 +4,7 @@ The nominal ladder stays iteration based. A supervisor may postpone future
 boundaries and approve the next stage after checkpoint/visual evaluation.
 Missing, malformed or stale control cannot silently advance the wall.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,7 +16,8 @@ from .curriculums import CORNERS60_WALL_ANGLE_STAGES, wall_angle
 
 def initial_control() -> dict:
   return {
-    "schema_version": 1, "max_stage": 0,
+    "schema_version": 1,
+    "max_stage": 0,
     "angle_stages": [dict(s) for s in CORNERS60_WALL_ANGLE_STAGES],
     "note": "Hold the current stage until checkpoint metrics and visual review pass.",
   }
@@ -67,7 +69,7 @@ class LiveCurriculumControl:
       candidate = validate_control(json.loads(self.path.read_text()))
       if candidate["max_stage"] < self.active_stage:
         raise ValueError("Cannot withdraw a stage that is already active")
-      if candidate["angle_stages"][:self.active_stage + 1] != self.control["angle_stages"][:self.active_stage + 1]:
+      if candidate["angle_stages"][: self.active_stage + 1] != self.control["angle_stages"][: self.active_stage + 1]:
         raise ValueError("Cannot retime stages that have already started")
       self.control = candidate
       self.last_error = None
@@ -89,10 +91,13 @@ class LiveCurriculumControl:
         self.stage_started_iter = iteration
     stage = self.control["angle_stages"][self.active_stage]
     report = {
-      "iteration": iteration, "stage_index": self.active_stage,
+      "iteration": iteration,
+      "stage_index": self.active_stage,
       "stage_started_iter": self.stage_started_iter,
-      "angle_deg": stage["angle_deg"], "jitter_deg": stage["jitter_deg"],
-      "max_stage": self.control["max_stage"], "scheduled_stage_index": scheduled,
+      "angle_deg": stage["angle_deg"],
+      "jitter_deg": stage["jitter_deg"],
+      "max_stage": self.control["max_stage"],
+      "scheduled_stage_index": scheduled,
       "waiting_for_review": scheduled > self.active_stage,
       "control_error": self.last_error,
     }
@@ -106,15 +111,28 @@ class LiveCurriculumControl:
     return dict(stage)
 
 
-def file_controlled_wall_angle(env, env_ids, *, control_file: str,
-                              angle_stages, steps_per_iter=96,
-                              angle_jitter_deg=0., jitter_below_deg=90., wall_entity_name="wall"):
+def file_controlled_wall_angle(
+  env,
+  env_ids,
+  *,
+  control_file: str,
+  angle_stages,
+  steps_per_iter=96,
+  angle_jitter_deg=0.0,
+  jitter_below_deg=90.0,
+  wall_entity_name="wall",
+):
   del angle_stages  # The run-local control contains the validated full ladder.
   controller = getattr(env, "_live_climb_curriculum", None)
   if controller is None:
     controller = env._live_climb_curriculum = LiveCurriculumControl(control_file)
   stage = controller.resolve(env.common_step_counter // steps_per_iter)
   return wall_angle(
-    env, env_ids, angle_stages=[{**stage, "iter": 0}], steps_per_iter=steps_per_iter,
-    angle_jitter_deg=angle_jitter_deg, jitter_below_deg=jitter_below_deg,
-    wall_entity_name=wall_entity_name)
+    env,
+    env_ids,
+    angle_stages=[{**stage, "iter": 0}],
+    steps_per_iter=steps_per_iter,
+    angle_jitter_deg=angle_jitter_deg,
+    jitter_below_deg=jitter_below_deg,
+    wall_entity_name=wall_entity_name,
+  )

@@ -90,9 +90,7 @@ def _rip_term(env: ManagerBasedRlEnv, reward_name: str):
     return None
 
 
-def scheduled_anchor_rips(
-  env: ManagerBasedRlEnv, reward_name: str = "anchor_rip_penalty"
-) -> torch.Tensor:
+def scheduled_anchor_rips(env: ManagerBasedRlEnv, reward_name: str = "anchor_rip_penalty") -> torch.Tensor:
   """(E,) number of scheduled-anchor RIP events this step (the v5 rip bill's
   event lane; its episode mean x steps = rips per episode)."""
   term = _rip_term(env, reward_name)
@@ -102,9 +100,7 @@ def scheduled_anchor_rips(
   return rips.sum(dim=-1).float()
 
 
-def scheduled_anchor_ripped_pads(
-  env: ManagerBasedRlEnv, reward_name: str = "anchor_rip_penalty"
-) -> torch.Tensor:
+def scheduled_anchor_ripped_pads(env: ManagerBasedRlEnv, reward_name: str = "anchor_rip_penalty") -> torch.Tensor:
   """(E,) pads currently flagged ripped-and-not-re-welded (the bill's base)."""
   term = _rip_term(env, reward_name)
   flags = getattr(term, "last_flags", None) if term else None

@@ -25,7 +25,12 @@ import torch
 from matplotlib.lines import Line2D
 
 from plot_empirical_pad_limit_surface import (
-  DEFAULT_DATA, ROOT, EmpiricalPad, Geometry, load_data, verify_model,
+  DEFAULT_DATA,
+  ROOT,
+  EmpiricalPad,
+  Geometry,
+  load_data,
+  verify_model,
 )
 from plot_pad_limit_surface import RC_PARAMS, PadSurface, load_limit_surface_cfg, save_three
 from plot_wang_limit_surface import surface_metrics
@@ -39,8 +44,7 @@ def optional_float(value):
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
-  parser.add_argument("--out", type=Path,
-                      default=ROOT / "docs/figures/fig_empirical_vs_wang")
+  parser.add_argument("--out", type=Path, default=ROOT / "docs/figures/fig_empirical_vs_wang")
   args = parser.parse_args()
   torch.set_num_threads(4)
   cfg = load_limit_surface_cfg(False)
@@ -49,8 +53,7 @@ def main():
   preloads = {float(r["fn_n"]) for r in trials}
   if len(preloads) != 1:
     raise ValueError("Compare preload strata separately.")
-  geom = Geometry(cfg.unit_rows_rake, cfg.unit_cols_lateral,
-                  cfg.pad_span_rake_m, cfg.pad_span_lateral_m)
+  geom = Geometry(cfg.unit_rows_rake, cfg.unit_cols_lateral, cfg.pad_span_rake_m, cfg.pad_span_lateral_m)
   pad = EmpiricalPad(cells, geom, next(iter(preloads)))
   checks = verify_model(pad)
   f0s = cfg.f_t_max_range
@@ -60,16 +63,14 @@ def main():
   for c in cells:
     row = dict(c)
     for f0 in f0s:
-      row[f"wang_pad_F0_{f0:g}_unit_tension_limit_n"] = optional_float(
-        wang.normal_boundary(c["s_n"], c["l_n"], f0))
+      row[f"wang_pad_F0_{f0:g}_unit_tension_limit_n"] = optional_float(wang.normal_boundary(c["s_n"], c["l_n"], f0))
     cell_table.append(row)
 
   pitch_arm = geom.sxx / (geom.n * np.max(np.abs(geom.x)))
   pad_table = []
   for ft in (70, 120, 180, 200, 240, 300, 360):
     empirical_fn = float(pad.normal_boundary(ft))
-    row = {"pad_shear_n": ft, "empirical_normal_n": empirical_fn,
-           "empirical_peel_nm": pitch_arm * empirical_fn}
+    row = {"pad_shear_n": ft, "empirical_normal_n": empirical_fn, "empirical_peel_nm": pitch_arm * empirical_fn}
     for f0 in f0s:
       normal = geom.n * float(wang.normal_boundary(ft / geom.n, 0, f0))
       row[f"wang_F0_{f0:g}_normal_n"] = normal
@@ -111,28 +112,51 @@ def main():
       if c["n_terminal"] == 1:
         ax.plot(x, y, "D", ms=4, mfc="white", mec=red, zorder=5)
       else:
-        ax.errorbar(x, y, yerr=[[y - c["terminal_command_q25_n"]],
-                                [c["terminal_command_q75_n"] - y]],
-                    fmt="o", color=red, ms=3.6, capsize=2, lw=1.0, zorder=4)
+        ax.errorbar(
+          x,
+          y,
+          yerr=[[y - c["terminal_command_q25_n"]], [c["terminal_command_q75_n"] - y]],
+          fmt="o",
+          color=red,
+          ms=3.6,
+          capsize=2,
+          lw=1.0,
+          zorder=4,
+        )
     for r in trials:
       signed = int(r["side"]) * float(r["s_n"])
       fields = {"s_n": signed, "l_n": float(r["l_n"])}
       if fields[condition] == fixed and r["result"] == "held":
-        ax.plot(fields[column], float(r["fz_cmd_n"]), "^", color=red,
-                mfc="white", ms=5, zorder=5)
-        ax.annotate("held at test ceiling", (fields[column], float(r["fz_cmd_n"])),
-                    xytext=(3, 2), textcoords="offset points", fontsize=6, color=red)
+        ax.plot(fields[column], float(r["fz_cmd_n"]), "^", color=red, mfc="white", ms=5, zorder=5)
+        ax.annotate(
+          "held at test ceiling",
+          (fields[column], float(r["fz_cmd_n"])),
+          xytext=(3, 2),
+          textcoords="offset points",
+          fontsize=6,
+          color=red,
+        )
     mesh_data[f"{column}_grid"] = grid
     for f0, values in zip(f0s, limits):
       mesh_data[f"{column}_F0_{f0:g}_normal"] = values
 
   draw_unit(axes[0], "s_n", 0, np.linspace(-15, 56, 1001))
-  axes[0].set(title="(a) unit: zero lateral load", xlabel=r"unit rake shear $s$ [N]",
-              ylabel=r"unit normal limit $f_n$ [N] (tension +)", xlim=(-16, 56), ylim=(-5.5, 11.5))
+  axes[0].set(
+    title="(a) unit: zero lateral load",
+    xlabel=r"unit rake shear $s$ [N]",
+    ylabel=r"unit normal limit $f_n$ [N] (tension +)",
+    xlim=(-16, 56),
+    ylim=(-5.5, 11.5),
+  )
   axes[0].axvline(30, color=gray, ls=":", lw=0.8)
   draw_unit(axes[1], "l_n", 20, np.linspace(0, 35, 701))
-  axes[1].set(title="(b) unit: rake shear = 20 N", xlabel=r"unit lateral load $l$ [N]",
-              ylabel=r"unit normal limit $f_n$ [N] (tension +)", xlim=(-1, 35), ylim=(-5.5, 11.5))
+  axes[1].set(
+    title="(b) unit: rake shear = 20 N",
+    xlabel=r"unit lateral load $l$ [N]",
+    ylabel=r"unit normal limit $f_n$ [N] (tension +)",
+    xlim=(-1, 35),
+    ylim=(-5.5, 11.5),
+  )
 
   ft = np.linspace(0, f0s[1], 1001)
   old = [geom.n * wang.normal_boundary(ft / geom.n, 0, f0) * pitch_arm for f0 in f0s]
@@ -146,14 +170,18 @@ def main():
   axes[2].plot(new_ft, new_peel, color=red, lw=1.4)
   for c in cells:
     if c["l_n"] == 0 and c["s_n"] >= 0 and c["n_terminal"] == 1:
-      axes[2].plot(c["s_n"] * geom.n,
-                    geom.n * c["terminal_command_median_n"] * pitch_arm,
-                    "D", ms=4, mfc="white", mec=red)
+      axes[2].plot(
+        c["s_n"] * geom.n, geom.n * c["terminal_command_median_n"] * pitch_arm, "D", ms=4, mfc="white", mec=red
+      )
   axes[2].axvline(geom.n * pad.smax, color=gray, ls=":", lw=0.8)
-  axes[2].set(title="(c) pad prediction: peeling limit", xlabel=r"pad rake shear $F_t$ [N]",
-              ylabel=r"$|M_l|$ [N$\cdot$m] at $F_n=F_l=0$", xlim=(-10, 660), ylim=(0, 2.15))
-  mesh_data.update(pad_ft=ft, pad_old_peel=np.array(old), empirical_ft=new_ft,
-                   empirical_peel=new_peel)
+  axes[2].set(
+    title="(c) pad prediction: peeling limit",
+    xlabel=r"pad rake shear $F_t$ [N]",
+    ylabel=r"$|M_l|$ [N$\cdot$m] at $F_n=F_l=0$",
+    xlim=(-10, 660),
+    ylim=(0, 2.15),
+  )
+  mesh_data.update(pad_ft=ft, pad_old_peel=np.array(old), empirical_ft=new_ft, empirical_peel=new_peel)
   legend = [
     Line2D([], [], color=blue, lw=1.4, label=f"old implementation: pad F0 = {f0s[0]:g} N"),
     Line2D([], [], color=blue, ls="--", lw=1.4, label=f"old implementation: pad F0 = {f0s[1]:g} N"),
@@ -166,11 +194,14 @@ def main():
   np.savez_compressed(args.out.with_suffix(".npz"), **mesh_data)
 
   audit = {
-    "source": str(args.data.resolve()), "source_sha256": source_hash,
+    "source": str(args.data.resolve()),
+    "source_sha256": source_hash,
     "outcomes": dict(Counter(r["result"] for r in trials)),
     "baseline": "Current local Wang-inspired implementation; not original paper data",
-    "baseline_cfg": dataclasses.asdict(cfg), "baseline_normalized_metrics": surface_metrics(wang.lut),
-    "geometry": dataclasses.asdict(geom), "empirical_checks": checks,
+    "baseline_cfg": dataclasses.asdict(cfg),
+    "baseline_normalized_metrics": surface_metrics(wang.lut),
+    "geometry": dataclasses.asdict(geom),
+    "empirical_checks": checks,
     "unit_tables": "Conditional median/IQR of all detached_normal command observations; no outlier removal",
     "pad_tables": "Identical fully engaged units, rigid equal-stiffness allocation, first characteristic unit limit",
     "missing_baseline": "Blank when fixed S,L already exceed the zero-tension baseline; negative-Fn release not modeled",
@@ -202,10 +233,16 @@ def main():
     "The empirical 360 N shear edge is the end of the measured unit domain, not ultimate "
     "pad shear capacity. This descriptive comparison is not held-out validation. "
     "The local baseline approximates selected paper features and is not a faithful digitization "
-    "of the original Fig. 8; see the audit for its lateral/reverse anchor discrepancy.\n")
+    "of the original Fig. 8; see the audit for its lateral/reverse anchor discrepancy.\n"
+  )
   assert hashlib.sha256(args.data.read_bytes()).hexdigest() == source_hash
-  print(json.dumps({"zero_lateral_cells": [c for c in cell_table if c["l_n"] == 0],
-                    "pad_examples": pad_table}, indent=2, allow_nan=False))
+  print(
+    json.dumps(
+      {"zero_lateral_cells": [c for c in cell_table if c["l_n"] == 0], "pad_examples": pad_table},
+      indent=2,
+      allow_nan=False,
+    )
+  )
 
 
 if __name__ == "__main__":

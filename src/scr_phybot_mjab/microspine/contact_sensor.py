@@ -45,9 +45,7 @@ class WrenchContactSensor(ContactSensor):
   cfg: WrenchContactSensorCfg
 
   def __init__(self, cfg: WrenchContactSensorCfg):
-    if cfg.reduce != "netforce" or cfg.num_slots != 1 or not {
-      "found", "force", "torque", "pos"
-    }.issubset(cfg.fields):
+    if cfg.reduce != "netforce" or cfg.num_slots != 1 or not {"found", "force", "torque", "pos"}.issubset(cfg.fields):
       raise ValueError("WrenchContactSensor requires netforce, one slot and found/force/torque/pos")
     super().__init__(cfg)
 
@@ -55,7 +53,8 @@ class WrenchContactSensor(ContactSensor):
     super().initialize(mj_model, model, data, device)
     self._reference_site_ids = torch.tensor(
       [mj_model.site(self.cfg.reference_sites[name]).id for name in self.primary_names],
-      dtype=torch.long, device=device,
+      dtype=torch.long,
+      device=device,
     )
     if self._history_state is not None:
       # The base reset clears every entry, including both position histories.
@@ -65,9 +64,7 @@ class WrenchContactSensor(ContactSensor):
   def _extract_sensor_data(self) -> WrenchContactData:
     data = super()._extract_sensor_data()
     assert self._data is not None
-    return WrenchContactData(
-      **vars(data), reference_pos=self._data.site_xpos[:, self._reference_site_ids]
-    )
+    return WrenchContactData(**vars(data), reference_pos=self._data.site_xpos[:, self._reference_site_ids])
 
   def _update_history(self) -> None:
     assert self._history_state is not None

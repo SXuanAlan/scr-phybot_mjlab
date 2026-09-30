@@ -78,9 +78,7 @@ def test_highwater_progress_follows_settling_then_rewards_only_new_height():
 
   env.episode_length_buf[:] = 26
   env.scene["robot"].data.root_link_pos_w[:, 2] += 0.0016
-  assert reward(env, asset_cfg=asset_cfg, command_name="climb").item() == pytest.approx(
-    1.0, abs=1.0e-4
-  )
+  assert reward(env, asset_cfg=asset_cfg, command_name="climb").item() == pytest.approx(1.0, abs=1.0e-4)
 
   env.episode_length_buf[:] = 27
   env.scene["robot"].data.root_link_pos_w[:, 2] -= 0.01
@@ -201,17 +199,13 @@ def test_ref_height_tracking_pays_on_profile_and_decays_both_ways():
   # Reference climbs one std further, robot stalls: exp(-1) — behind decays.
   env.episode_length_buf[:] = 27
   motion.ref_root_pos_w[:, 2] += 0.05
-  assert reward(env, **kw).item() == pytest.approx(
-    torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
-  )
+  assert reward(env, **kw).item() == pytest.approx(torch.exp(torch.tensor(-1.0)).item(), rel=1e-4)
 
   # Robot overshoots to one std AHEAD: same exp(-1) — scrambling past the
   # ghost earns exactly as little as lagging it.
   env.episode_length_buf[:] = 28
   env.scene["robot"].data.root_link_pos_w[:, 2] += 0.10
-  assert reward(env, **kw).item() == pytest.approx(
-    torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
-  )
+  assert reward(env, **kw).item() == pytest.approx(torch.exp(torch.tensor(-1.0)).item(), rel=1e-4)
 
 
 def test_signed_progress_reference_budget_tracks_the_clip_profile():
@@ -321,9 +315,7 @@ def test_release_cost_distinguishes_controlled_and_failed_release():
     ),
   )
   env = SimpleNamespace(
-    command_manager=FakeCommandManager(
-      torch.tensor([[0.0, 0.0, 0.08]]), affordance
-    ),
+    command_manager=FakeCommandManager(torch.tensor([[0.0, 0.0, 0.08]]), affordance),
     step_dt=0.02,
     episode_length_buf=torch.full((3,), 100, dtype=torch.long),
   )
@@ -337,8 +329,11 @@ def test_empirical_domain_and_early_failures_are_not_free_unhooks():
     forced_release_this_step=torch.tensor([[True, False, False, False]] * 2),
     release_reason=torch.tensor([[7, 0, 0, 0], [8, 0, 0, 0]]),
   )
-  env = SimpleNamespace(command_manager=FakeCommandManager(torch.zeros(2, 3), affordance),
-    step_dt=.02, episode_length_buf=torch.full((2,), 100, dtype=torch.long))
+  env = SimpleNamespace(
+    command_manager=FakeCommandManager(torch.zeros(2, 3), affordance),
+    step_dt=0.02,
+    episode_length_buf=torch.full((2,), 100, dtype=torch.long),
+  )
   cost = unsafe_microspine_release_penalty(env)
   assert torch.all(cost > 0)
 
@@ -370,9 +365,7 @@ def test_motion_tracking_kernels_peak_at_reference_and_decay_with_error():
   # 0.1 m error on every EE at std 0.1 -> exp(-1); root-relative on both
   # sides, so a pure base translation moves BOTH tensors and costs nothing.
   motion.robot_ee_pos_r = torch.full((1, 4, 3), 0.1 / 3**0.5)
-  assert motion_ee_pos_error_exp(env, std=0.1).item() == pytest.approx(
-    torch.exp(torch.tensor(-1.0)).item(), rel=1e-4
-  )
+  assert motion_ee_pos_error_exp(env, std=0.1).item() == pytest.approx(torch.exp(torch.tensor(-1.0)).item(), rel=1e-4)
 
 
 def test_scheduled_press_pays_only_unlatched_pads_in_their_seating_window():
@@ -383,14 +376,10 @@ def test_scheduled_press_pays_only_unlatched_pads_in_their_seating_window():
     # EE3: schedule says anchored AND latched -> payment stopped at latch.
     ref_engaged=torch.tensor([[True, False, False, True]]),
     robot_engaged=torch.tensor([[False, False, False, True]]),
-    ref_edge_countdowns=torch.tensor(
-      [[[0.5, 0.9], [0.5, 0.05], [0.5, 0.5], [0.5, 0.9]]]
-    ),
+    ref_edge_countdowns=torch.tensor([[[0.5, 0.9], [0.5, 0.05], [0.5, 0.5], [0.5, 0.9]]]),
     cycle_time_s=4.0,
   )
-  affordance = SimpleNamespace(
-    pad_press_force=torch.tensor([[6.0, 24.0, 24.0, 24.0]])
-  )
+  affordance = SimpleNamespace(pad_press_force=torch.tensor([[6.0, 24.0, 24.0, 24.0]]))
   motion._affordance = lambda: affordance
   env = _make_motion_env(motion)
 
@@ -402,9 +391,7 @@ def test_scheduled_press_pays_only_unlatched_pads_in_their_seating_window():
 
 def _no_pending_affordance(num_ee: int = 4):
   """R4 stub: no dr-forced reseat pending (the mismatch exemption no-ops)."""
-  return SimpleNamespace(
-    dr_release_pending=torch.zeros(1, num_ee, dtype=torch.bool)
-  )
+  return SimpleNamespace(dr_release_pending=torch.zeros(1, num_ee, dtype=torch.bool))
 
 
 def test_motion_engage_mismatch_counts_per_ee_disagreements():
@@ -429,9 +416,7 @@ def test_motion_engage_mismatch_grace_discounts_near_schedule_edges():
   env = _make_motion_env(motion)
   # Full price deep in a segment, half price at half the grace window, free
   # at the flip itself; the matched EE bills nothing regardless of distance.
-  assert motion_engage_mismatch(env, grace_time_s=0.5).item() == pytest.approx(
-    1.5
-  )
+  assert motion_engage_mismatch(env, grace_time_s=0.5).item() == pytest.approx(1.5)
 
 
 def test_motion_engage_mismatch_grace_fraction_scales_with_window():
@@ -490,9 +475,7 @@ def test_unsafe_release_bills_scheduled_reverse_unhooks():
       return self._terms[name]
 
   env = SimpleNamespace(
-    command_manager=_NamedManager(
-      {"microspine_affordance": affordance, "climb_motion": motion}
-    ),
+    command_manager=_NamedManager({"microspine_affordance": affordance, "climb_motion": motion}),
     step_dt=0.02,
     episode_length_buf=torch.full((3,), 100, dtype=torch.long),
   )
@@ -523,9 +506,7 @@ def test_motion_swing_approach_pays_released_swings_toward_the_anchor():
   motion._affordance = lambda: affordance
   env = _make_motion_env(motion)
   expected = 1.0 + torch.exp(torch.tensor(-1.0)).item()
-  assert motion_swing_approach(env, std=0.05).item() == pytest.approx(
-    expected, rel=1e-4
-  )
+  assert motion_swing_approach(env, std=0.05).item() == pytest.approx(expected, rel=1e-4)
 
 
 def test_motion_tracking_divergence_fires_only_far_from_reference():
@@ -570,9 +551,7 @@ def test_no_progress_stall_ignores_settling_and_resets_on_one_cm_gain():
 
 def test_engage_event_metric_counts_affordance_regrips_not_reset_anchors():
   affordance = SimpleNamespace(
-    engaged_this_step=torch.tensor(
-      [[False, True, False, False], [False, False, False, False]]
-    )
+    engaged_this_step=torch.tensor([[False, True, False, False], [False, False, False, False]])
   )
   env = SimpleNamespace(
     command_manager=FakeCommandManager(torch.zeros(2, 3), affordance),
@@ -599,26 +578,20 @@ def test_engage_gate_scales_pose_income_by_schedule_adherence():
 
   # Full match -> full pay.
   env = _make_motion_env(motion_with([True, True, True, True], 0.5))
-  assert motion_joint_pos_error_exp(
-    env, engage_gate_floor=0.25
-  ).item() == pytest.approx(1.0)
+  assert motion_joint_pos_error_exp(env, engage_gate_floor=0.25).item() == pytest.approx(1.0)
 
   # Half the limbs welded off-schedule, far from any edge: match 0.5 ->
   # gate = 0.25 + 0.75 * 0.5 (the statue keeps 62.5%, not 100%).
   env = _make_motion_env(motion_with([True, True, False, False], 0.5))
-  assert motion_joint_pos_error_exp(
-    env, engage_gate_floor=0.25
-  ).item() == pytest.approx(0.625)
+  assert motion_joint_pos_error_exp(env, engage_gate_floor=0.25).item() == pytest.approx(0.625)
 
   # Same mismatch right at a scheduled flip (edge 0.125 s of a 0.25 s
   # grace): half forgiven -> billed 0.25 -> gate 0.8125. Same ramp as the
   # mismatch bill: physically impossible instant compliance is not taxed.
-  env = _make_motion_env(
-    motion_with([True, True, False, False], 0.125 / 4.0)
+  env = _make_motion_env(motion_with([True, True, False, False], 0.125 / 4.0))
+  assert motion_joint_pos_error_exp(env, engage_gate_floor=0.25, engage_gate_grace_s=0.25).item() == pytest.approx(
+    0.25 + 0.75 * 0.75
   )
-  assert motion_joint_pos_error_exp(
-    env, engage_gate_floor=0.25, engage_gate_grace_s=0.25
-  ).item() == pytest.approx(0.25 + 0.75 * 0.75)
 
   # Gate disabled (default None): mismatch does not touch pose income.
   env = _make_motion_env(motion_with([False, False, False, False], 0.5))

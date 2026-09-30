@@ -75,12 +75,8 @@ def load_limit_surface_cfg(use_defaults: bool):
 
 def unit_grid(cfg) -> tuple[torch.Tensor, torch.Tensor, float, float, float]:
   """Mirror of the affordance's per-unit grid construction (CPU float32)."""
-  xs = (
-    torch.linspace(-0.5, 0.5, cfg.unit_rows_rake) * cfg.pad_span_rake_m
-  )
-  ys = (
-    torch.linspace(-0.5, 0.5, cfg.unit_cols_lateral) * cfg.pad_span_lateral_m
-  )
+  xs = torch.linspace(-0.5, 0.5, cfg.unit_rows_rake) * cfg.pad_span_rake_m
+  ys = torch.linspace(-0.5, 0.5, cfg.unit_cols_lateral) * cfg.pad_span_lateral_m
   gx, gy = torch.meshgrid(xs, ys, indexing="ij")
   ux, uy = gx.reshape(-1), gy.reshape(-1)
   sxx = float((ux**2).sum())
@@ -112,32 +108,31 @@ class PadSurface:
     Positively homogeneous of degree 1: the boundary point along ray w is
     exactly w / occupancy(w).
     """
-    f_t, f_l, f_n, m_t, m_l, m_n = torch.broadcast_tensors(
-      f_t, f_l, f_n, m_t, m_l, m_n
-    )
+    f_t, f_l, f_n, m_t, m_l, m_n = torch.broadcast_tensors(f_t, f_l, f_n, m_t, m_l, m_n)
     a, b, c = distribute_wrench_to_units(
-      f_t, f_l, f_n, m_t, m_l, m_n,
-      self.ux, self.uy, self.sxx, self.syy, self.srr,
+      f_t,
+      f_l,
+      f_n,
+      m_t,
+      m_l,
+      m_n,
+      self.ux,
+      self.uy,
+      self.sxx,
+      self.syy,
+      self.srr,
     )
-    cap = (self.f0 / self.n_units) * capacity_ratio(
-      self.lut, a, b, c
-    ).clamp_min(self.cfg.wang_r_floor)
+    cap = (self.f0 / self.n_units) * capacity_ratio(self.lut, a, b, c).clamp_min(self.cfg.wang_r_floor)
     load = torch.sqrt(a**2 + b**2 + c.clamp_min(0.0) ** 2)
     return (load / cap).amax(dim=-1)
 
   def occupancy6(self, w: torch.Tensor) -> torch.Tensor:
     """Occupancy of stacked wrenches (..., 6) ordered (t, l, n, mt, ml, mn)."""
-    return self.occupancy(
-      w[..., 0], w[..., 1], w[..., 2], w[..., 3], w[..., 4], w[..., 5]
-    )
+    return self.occupancy(w[..., 0], w[..., 1], w[..., 2], w[..., 3], w[..., 4], w[..., 5])
 
-  def occupancy_aggregate(
-    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
-  ) -> torch.Tensor:
+  def occupancy_aggregate(self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor) -> torch.Tensor:
     """Force-only aggregate radial test (the pre-per_unit envelope)."""
-    cap = self.f0 * capacity_ratio(self.lut, f_t, f_l, f_n).clamp_min(
-      self.cfg.wang_r_floor
-    )
+    cap = self.f0 * capacity_ratio(self.lut, f_t, f_l, f_n).clamp_min(self.cfg.wang_r_floor)
     load = torch.sqrt(f_t**2 + f_l**2 + f_n.clamp_min(0.0) ** 2)
     return load / cap
 
@@ -162,15 +157,17 @@ class PadSurface:
     wrench = {"m_t": zeros, "m_l": zeros, "m_n": zeros}
     wrench[axis] = m2
     occ = self.occupancy(
-      ft2, zeros, torch.full_like(ft2, float(f_n)), wrench["m_t"],
-      wrench["m_l"], wrench["m_n"],
+      ft2,
+      zeros,
+      torch.full_like(ft2, float(f_n)),
+      wrench["m_t"],
+      wrench["m_l"],
+      wrench["m_n"],
     )
     admissible = occ <= 1.0
     lead = admissible.long().cumprod(dim=1)  # leading admissible run
     cap = m[lead.sum(dim=1).clamp(min=1) - 1] * admissible[:, 0]
-    islands = int(
-      ((admissible.long() - lead) > 0).any(dim=1).sum()
-    )
+    islands = int(((admissible.long() - lead) > 0).any(dim=1).sum())
     return cap, m, islands
 
 
@@ -208,18 +205,12 @@ def compute_theory(surf: PadSurface) -> dict:
   a_fn = torch.linspace(-0.22 * f0, 0.16 * f0, 560)
   ft2, fn2 = torch.meshgrid(a_ft, a_fn, indexing="ij")
   zeros = torch.zeros_like(ft2)
-  a_occ = [
-    surf.occupancy(ft2, zeros, fn2, zeros, torch.full_like(ft2, m), zeros)
-    for m in family
-  ]
+  a_occ = [surf.occupancy(ft2, zeros, fn2, zeros, torch.full_like(ft2, m), zeros) for m in family]
 
   c_m = torch.linspace(-1.35 * peak_ml, 1.35 * peak_ml, 480)
   ml2, mt2 = torch.meshgrid(c_m, c_m, indexing="ij")
   zeros = torch.zeros_like(ml2)
-  c_occ = [
-    surf.occupancy(torch.full_like(ml2, lv), zeros, zeros, mt2, ml2, zeros)
-    for lv in BEND_LEVELS
-  ]
+  c_occ = [surf.occupancy(torch.full_like(ml2, lv), zeros, zeros, mt2, ml2, zeros) for lv in BEND_LEVELS]
   return {
     "ft_grid": ft_grid,
     "axes_scan": axes_scan,
@@ -249,26 +240,32 @@ def draw_theory_panels(axs, th: dict, f0: float) -> None:
   label_x = [0.30 * f0, 0.425 * f0, 0.55 * f0, 0.675 * f0]
   for m_val, occ, color, lx in zip(th["family"], th["a_occ"], ORDINAL, label_x):
     cs = ax.contour(
-      th["a_ft"].numpy(), th["a_fn"].numpy(), occ.numpy().T,
-      levels=[1.0], colors=[color], linewidths=1.1,
+      th["a_ft"].numpy(),
+      th["a_fn"].numpy(),
+      occ.numpy().T,
+      levels=[1.0],
+      colors=[color],
+      linewidths=1.1,
     )
     verts = np.concatenate([p.vertices for p in cs.get_paths()])
     near = verts[np.abs(verts[:, 0] - lx) < 0.02 * f0]
-    top = near[near[:, 1].argmax()] if len(near) else verts[
-      verts[:, 1].argmax()
-    ]
+    top = near[near[:, 1].argmax()] if len(near) else verts[verts[:, 1].argmax()]
     ax.annotate(
       f"{m_val:g}",
-      xy=tuple(top), xytext=(top[0], top[1] + 0.008 * f0),
-      ha="center", va="bottom", fontsize=6.0, color=SEC,
+      xy=tuple(top),
+      xytext=(top[0], top[1] + 0.008 * f0),
+      ha="center",
+      va="bottom",
+      fontsize=6.0,
+      color=SEC,
     )
-  ax.plot(
-    [HANG_FT], [HANG_FN], marker="x", ms=4.5, mew=1.1, color=INK, ls="none"
-  )
+  ax.plot([HANG_FT], [HANG_FN], marker="x", ms=4.5, mew=1.1, color=INK, ls="none")
   ax.annotate(
     "hang load",
-    xy=(HANG_FT, HANG_FN), xytext=(-0.12 * f0, 0.125 * f0),
-    fontsize=6.0, color=SEC,
+    xy=(HANG_FT, HANG_FN),
+    xytext=(-0.12 * f0, 0.125 * f0),
+    fontsize=6.0,
+    color=SEC,
     arrowprops=dict(arrowstyle="-", lw=0.5, color=SEC, shrinkB=2.5),
   )
   ax.axhline(0.0, color=SEC, lw=0.5, alpha=0.5)
@@ -286,22 +283,37 @@ def draw_theory_panels(axs, th: dict, f0: float) -> None:
   }
   for axis in ("m_l", "m_t", "m_n"):
     ax.plot(
-      th["ft_grid"].numpy(), th["axes_scan"][axis].numpy(),
-      color=CAT[axis.replace("_", "")], lw=1.4, label=labels[axis],
+      th["ft_grid"].numpy(),
+      th["axes_scan"][axis].numpy(),
+      color=CAT[axis.replace("_", "")],
+      lw=1.4,
+      label=labels[axis],
     )
   # Unambiguous direct labels: m_l/m_t nearly coincide, so tag the pair
   # above/below at different shears; m_n beside its rising branch.
   ax.annotate(
-    "$|m_n|$ twist", xy=(0.15 * f0, 0.0), xytext=(0.135 * f0, 4.35),
-    ha="right", fontsize=6.5, color="#199e70",
+    "$|m_n|$ twist",
+    xy=(0.15 * f0, 0.0),
+    xytext=(0.135 * f0, 4.35),
+    ha="right",
+    fontsize=6.5,
+    color="#199e70",
   )
   ax.annotate(
-    "$|m_t|$ roll", xy=(0.26 * f0, 0.0), xytext=(0.26 * f0, 1.62),
-    ha="center", fontsize=6.5, color=CAT["mt"],
+    "$|m_t|$ roll",
+    xy=(0.26 * f0, 0.0),
+    xytext=(0.26 * f0, 1.62),
+    ha="center",
+    fontsize=6.5,
+    color=CAT["mt"],
   )
   ax.annotate(
-    "$|m_l|$ pitch", xy=(0.66 * f0, 0.0), xytext=(0.66 * f0, 0.52),
-    ha="center", fontsize=6.5, color=CAT["ml"],
+    "$|m_l|$ pitch",
+    xy=(0.66 * f0, 0.0),
+    xytext=(0.66 * f0, 0.52),
+    ha="center",
+    fontsize=6.5,
+    color=CAT["ml"],
   )
   ax.set_xlabel("$f_t$ [N]  (rake-shear preload)")
   ax.set_ylabel("moment capacity [N·m]")
@@ -312,12 +324,14 @@ def draw_theory_panels(axs, th: dict, f0: float) -> None:
 
   # (c) bending-moment interaction at two shear preloads.
   ax = axs[2]
-  for lv, occ, color, above in zip(
-    BEND_LEVELS, th["c_occ"], (MUT, SEC), (False, True)
-  ):
+  for lv, occ, color, above in zip(BEND_LEVELS, th["c_occ"], (MUT, SEC), (False, True)):
     cs = ax.contour(
-      th["c_m"].numpy(), th["c_m"].numpy(), occ.numpy().T,
-      levels=[1.0], colors=[color], linewidths=1.1,
+      th["c_m"].numpy(),
+      th["c_m"].numpy(),
+      occ.numpy().T,
+      levels=[1.0],
+      colors=[color],
+      linewidths=1.1,
     )
     verts = np.concatenate([p.vertices for p in cs.get_paths()])
     apex = verts[verts[:, 1].argmax() if above else verts[:, 1].argmin()]
@@ -325,8 +339,10 @@ def draw_theory_panels(axs, th: dict, f0: float) -> None:
       f"$f_t$ = {lv:g} N",
       xy=tuple(apex),
       xytext=(apex[0], apex[1] + (0.035 if above else -0.035)),
-      ha="center", va="bottom" if above else "top",
-      fontsize=6.0, color=SEC,
+      ha="center",
+      va="bottom" if above else "top",
+      fontsize=6.0,
+      color=SEC,
     )
   ax.axhline(0.0, color=SEC, lw=0.5, alpha=0.5)
   ax.axvline(0.0, color=SEC, lw=0.5, alpha=0.5)
@@ -394,8 +410,7 @@ def main() -> int:
   collapse = check_zero_moment_collapse(surf)
   ok = collapse < 1.0e-3
   print(
-    f"[{'PASS' if ok else 'FAIL'}] zero-moment collapse onto aggregate "
-    f"F0*R: max |occ_pad - occ_agg| = {collapse:.2e}"
+    f"[{'PASS' if ok else 'FAIL'}] zero-moment collapse onto aggregate F0*R: max |occ_pad - occ_agg| = {collapse:.2e}"
   )
 
   th = compute_theory(surf)
@@ -404,17 +419,17 @@ def main() -> int:
       print(f"note: {axis} scan found {isl} non-contiguous rows")
   hang_occ = float(
     surf.occupancy(
-      torch.tensor(HANG_FT), torch.tensor(0.0), torch.tensor(HANG_FN),
-      torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0),
+      torch.tensor(HANG_FT),
+      torch.tensor(0.0),
+      torch.tensor(HANG_FN),
+      torch.tensor(0.0),
+      torch.tensor(0.0),
+      torch.tensor(0.0),
     )
   )
-  hang_ml, _, _ = surf.moment_capacity(
-    "m_l", torch.tensor([HANG_FT]), f_n=HANG_FN
-  )
+  hang_ml, _, _ = surf.moment_capacity("m_l", torch.tensor([HANG_FT]), f_n=HANG_FN)
 
-  print("\nequivalent pad capacities (at F0 = %g N; x%.3f for F0 = %g N):" % (
-    f0, f0_hi / f0, f0_hi
-  ))
+  print("\nequivalent pad capacities (at F0 = %g N; x%.3f for F0 = %g N):" % (f0, f0_hi / f0, f0_hi))
   print(f"  pure rake shear        {f0:7.1f} N")
   phis = torch.linspace(0.0, 90.0, 361)
   rr = capacity_ratio(
@@ -425,20 +440,9 @@ def main() -> int:
   )
   fn_lobe = f0 * rr * torch.sin(torch.deg2rad(phis))
   i_pk = int(fn_lobe.argmax())
-  print(
-    f"  peak tension (w/ shear){fn_lobe[i_pk]:7.1f} N at elevation "
-    f"{float(phis[i_pk]):.1f} deg"
-  )
-  lat = f0 * float(
-    capacity_ratio(
-      surf.lut, torch.tensor(0.0), torch.tensor(1.0), torch.tensor(0.0)
-    )
-  )
-  rev = f0 * float(
-    capacity_ratio(
-      surf.lut, torch.tensor(-1.0), torch.tensor(0.0), torch.tensor(0.0)
-    )
-  )
+  print(f"  peak tension (w/ shear){fn_lobe[i_pk]:7.1f} N at elevation {float(phis[i_pk]):.1f} deg")
+  lat = f0 * float(capacity_ratio(surf.lut, torch.tensor(0.0), torch.tensor(1.0), torch.tensor(0.0)))
+  rev = f0 * float(capacity_ratio(surf.lut, torch.tensor(-1.0), torch.tensor(0.0), torch.tensor(0.0)))
   print(f"  pure lateral shear     {lat:7.1f} N")
   print(f"  reverse shear (unhook) {rev:7.1f} N")
   for axis, label in (
@@ -448,10 +452,7 @@ def main() -> int:
   ):
     cap = th["axes_scan"][axis]
     i = int(cap.argmax())
-    print(
-      f"  {label}: {cap[0]:5.2f} N*m at f_t=0, peak {cap[i]:5.2f} N*m "
-      f"at f_t = {float(th['ft_grid'][i]):5.1f} N"
-    )
+    print(f"  {label}: {cap[0]:5.2f} N*m at f_t=0, peak {cap[i]:5.2f} N*m at f_t = {float(th['ft_grid'][i]):5.1f} N")
   print(
     f"  hang point (f_t={HANG_FT:g}, f_n={HANG_FN:g} N): occupancy "
     f"{hang_occ:.3f} (capacity multiple {1.0 / hang_occ:.2f}), "

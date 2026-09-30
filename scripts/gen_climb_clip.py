@@ -97,10 +97,7 @@ def main() -> None:
   parser.add_argument(
     "--output",
     type=Path,
-    default=(
-      _REPO
-      / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"
-    ),
+    default=(_REPO / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"),
   )
   parser.add_argument(
     "--step-height",
@@ -116,9 +113,7 @@ def main() -> None:
     default=0.9,
     help="duration of each single-foot regrip; the other three pads stay engaged",
   )
-  parser.add_argument(
-    "--swing-s", type=float, default=1.2, help="single hand regrip duration"
-  )
+  parser.add_argument("--swing-s", type=float, default=1.2, help="single hand regrip duration")
   parser.add_argument("--hold-start-s", type=float, default=0.5)
   parser.add_argument(
     "--foot-transfer-hold-s",

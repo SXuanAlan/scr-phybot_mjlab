@@ -11,7 +11,8 @@ from mjlab.managers.command_manager import CommandTerm
 from mjlab.utils.lab_api.math import quat_apply
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
 from scr_phybot_mjab.microspine.empirical_limit_surface import (
-  DEFAULT_TABLE, EmpiricalLimitSurface,
+  DEFAULT_TABLE,
+  EmpiricalLimitSurface,
 )
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, pad_face_vertices, rotate
@@ -62,10 +63,7 @@ def moment_adjusted_loads(
   arm_rake = float(pad_span_rake_m) * float(moment_arm_fraction)
   arm_lateral = float(pad_span_lateral_m) * float(moment_arm_fraction)
   if arm_rake <= 0.0 or arm_lateral <= 0.0:
-    raise ValueError(
-      "Microspine moment arms must be positive; got "
-      f"rake={arm_rake:g} m, lateral={arm_lateral:g} m."
-    )
+    raise ValueError(f"Microspine moment arms must be positive; got rake={arm_rake:g} m, lateral={arm_lateral:g} m.")
   f_n_eff = f_n + m_l.abs() / arm_rake + m_t.abs() / arm_lateral
   f_l_eff = f_l.abs() + m_n.abs() / arm_rake
   return f_t, f_l_eff, f_n_eff
@@ -100,17 +98,11 @@ class MicrospineAffordance(CommandTerm):
       dtype=torch.bool,
       device=self.device,
     )
-    self._engaged = self._initial_engaged.expand(
-      self.num_envs, self._num_ee
-    ).clone()
+    self._engaged = self._initial_engaged.expand(self.num_envs, self._num_ee).clone()
     # Consecutive-step counters implement hysteresis/debouncing for noisy contact
     # signals. Cooldown prevents immediate re-engage after a forced release.
-    self._engage_count = torch.zeros(
-      self.num_envs, self._num_ee, dtype=torch.long, device=self.device
-    )
-    self._cooldown_steps = torch.zeros(
-      self.num_envs, self._num_ee, dtype=torch.long, device=self.device
-    )
+    self._engage_count = torch.zeros(self.num_envs, self._num_ee, dtype=torch.long, device=self.device)
+    self._cooldown_steps = torch.zeros(self.num_envs, self._num_ee, dtype=torch.long, device=self.device)
 
     self._asset = env.scene[cfg.asset_name]
     self._surfaces = MicrospineSurfaces(env, self._mcfg) if self._mcfg.surfaces else None
@@ -130,9 +122,7 @@ class MicrospineAffordance(CommandTerm):
 
     # ``face_local_axis`` is the end-effector direction expected to point into
     # the wall. Normalizing once keeps the per-step dot product numerically clean.
-    face_axis = torch.tensor(
-      self._mcfg.face_local_axis, dtype=torch.float32, device=self.device
-    )
+    face_axis = torch.tensor(self._mcfg.face_local_axis, dtype=torch.float32, device=self.device)
     face_norm = torch.linalg.norm(face_axis).clamp_min(1.0e-6)
     self._face_local_axis = face_axis / face_norm
 
@@ -143,19 +133,15 @@ class MicrospineAffordance(CommandTerm):
     self._ls_cfg = self._mcfg.limit_surface
     if self._ls_cfg.model not in ("wedge", "wang2017", "empirical_unit"):
       raise ValueError(
-        f"Unknown limit-surface model '{self._ls_cfg.model}' "
-        "(expected 'wedge', 'wang2017', or 'empirical_unit')."
+        f"Unknown limit-surface model '{self._ls_cfg.model}' (expected 'wedge', 'wang2017', or 'empirical_unit')."
       )
     # Normalized closed capacity surface R(theta, phi), built once. None in
     # legacy wedge mode.
-    self._wang_lut = (
-      build_capacity_lut(self._ls_cfg, self.device)
-      if self._ls_cfg.model == "wang2017"
-      else None
-    )
+    self._wang_lut = build_capacity_lut(self._ls_cfg, self.device) if self._ls_cfg.model == "wang2017" else None
     self._empirical = (
       EmpiricalLimitSurface(self._ls_cfg.empirical_table_path or DEFAULT_TABLE, self.device)
-      if self._ls_cfg.model == "empirical_unit" else None
+      if self._ls_cfg.model == "empirical_unit"
+      else None
     )
     if self._empirical is not None and (
       self._ls_cfg.moment_billing_mode != "per_unit"
@@ -167,9 +153,11 @@ class MicrospineAffordance(CommandTerm):
       or self._ls_cfg.capacity_ramp_time_s > 0
       or self._ls_cfg.redraw_f_t_max_per_latch
     ):
-      raise ValueError("empirical_unit requires per_unit billing, ee_local rake -z, "
-                       "pad face -y, and no legacy "
-                       "spring tickets, seat scaling, capacity ramp or F0 redraw")
+      raise ValueError(
+        "empirical_unit requires per_unit billing, ee_local rake -z, "
+        "pad face -y, and no legacy "
+        "spring tickets, seat scaling, capacity ramp or F0 redraw"
+      )
     self._executor = None
     self._gravity_view: torch.Tensor | None = None
     # Sensor-row permutation: ContactSensor expands its primary pattern via
@@ -194,29 +182,19 @@ class MicrospineAffordance(CommandTerm):
     # 0 where not engaged. The suspension-travel usage the tilt-peel check
     # and the engaged-tilt reward read.
     self.tilt_from_capture = torch.zeros(shape, device=self.device)
-    self._violation_count = torch.zeros(
-      shape, dtype=torch.long, device=self.device
-    )
-    self._steps_since_engage = torch.zeros(
-      shape, dtype=torch.long, device=self.device
-    )
-    self.anchor_load_tnl = torch.zeros(
-      self.num_envs, self._num_ee, 3, device=self.device
-    )
+    self._violation_count = torch.zeros(shape, dtype=torch.long, device=self.device)
+    self._steps_since_engage = torch.zeros(shape, dtype=torch.long, device=self.device)
+    self.anchor_load_tnl = torch.zeros(self.num_envs, self._num_ee, 3, device=self.device)
     self.anchor_moment_tnl = torch.zeros_like(self.anchor_load_tnl)
     self.anchor_effective_load_tnl = torch.zeros_like(self.anchor_load_tnl)
     self.hold_margin = torch.ones(shape, device=self.device)
     # Force-only margin (moment billing excluded); see _limit_surface_release.
     self.hold_margin_raw = torch.ones(shape, device=self.device)
-    self.forced_release_this_step = torch.zeros(
-      shape, dtype=torch.bool, device=self.device
-    )
+    self.forced_release_this_step = torch.zeros(shape, dtype=torch.bool, device=self.device)
     # True only for a debounced OFF -> ON affordance transition. Unlike the
     # constraint executor's rising edge, this deliberately excludes reset-time
     # placement of initially engaged anchors.
-    self.engaged_this_step = torch.zeros(
-      shape, dtype=torch.bool, device=self.device
-    )
+    self.engaged_this_step = torch.zeros(shape, dtype=torch.bool, device=self.device)
     # HUD/debug readouts (pure GPU writes; no host syncs in the step path).
     # release_reason: which envelope face fired on a forced release —
     # 0 none, 1 reverse-shear, 2 normal threshold, 3 lateral, 4 ultimate-shear,
@@ -233,9 +211,7 @@ class MicrospineAffordance(CommandTerm):
     # at full price while the rip-bill holiday keeps subsidizing the
     # policy's own experimental welds.
     self._seeded = torch.zeros(shape, dtype=torch.bool, device=self.device)
-    self.released_was_seeded = torch.zeros(
-      shape, dtype=torch.bool, device=self.device
-    )
+    self.released_was_seeded = torch.zeros(shape, dtype=torch.bool, device=self.device)
     # R4 reseat hold (2026-08-03): a dr-forced release (reason 6, report=True)
     # arms the pending bit until that EE re-latches, the hold times out
     # (dr_reseat_hold_timeout_steps), or the env resets. The motion command
@@ -243,9 +219,7 @@ class MicrospineAffordance(CommandTerm):
     # engage-mismatch bill exempts pending EEs — unplanned-release recovery
     # trains as a first-class skill instead of a race against the schedule.
     self.dr_release_pending = torch.zeros(shape, dtype=torch.bool, device=self.device)
-    self._reseat_hold_steps = torch.zeros(
-      shape[0], dtype=torch.long, device=self.device
-    )
+    self._reseat_hold_steps = torch.zeros(shape[0], dtype=torch.long, device=self.device)
     self.face_cos = torch.zeros(shape, device=self.device)
     self.contact_count = torch.zeros(shape, device=self.device)
     # Per-EE total pad compression against the wall (N). A contact fact, not a
@@ -266,41 +240,32 @@ class MicrospineAffordance(CommandTerm):
     self._spine_sphere_offsets: torch.Tensor | None = None
     self._spine_corner_radii: torch.Tensor | None = None
     self._wall_geom_id: int | None = None
-    rake_axis = torch.tensor(
-      self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device
-    )
-    self._rake_local_axis = rake_axis / torch.linalg.norm(rake_axis).clamp_min(
-      1.0e-6
-    )
+    rake_axis = torch.tensor(self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device)
+    self._rake_local_axis = rake_axis / torch.linalg.norm(rake_axis).clamp_min(1.0e-6)
     # Per-unit moment billing: unit grid spanning the pad, precomputed once.
     if self._ls_cfg.moment_billing_mode not in ("worst_edge", "per_unit"):
       raise ValueError(
-        "Unknown moment_billing_mode "
-        f"'{self._ls_cfg.moment_billing_mode}' (expected 'worst_edge' or "
-        "'per_unit')."
+        f"Unknown moment_billing_mode '{self._ls_cfg.moment_billing_mode}' (expected 'worst_edge' or 'per_unit')."
       )
     self._unit_x: torch.Tensor | None = None
     self._unit_y: torch.Tensor | None = None
     self.unit_site_names: tuple[str, ...] = ()
     if self._ls_cfg.unit_layout != "all" and self._empirical is None:
       raise ValueError("Active unit selection requires the empirical unit model")
-    if (
-      self._ls_cfg.model in ("wang2017", "empirical_unit")
-      and self._ls_cfg.moment_billing_mode == "per_unit"
-    ):
+    if self._ls_cfg.model in ("wang2017", "empirical_unit") and self._ls_cfg.moment_billing_mode == "per_unit":
       rows = self._ls_cfg.unit_rows_rake
       cols = self._ls_cfg.unit_cols_lateral
       if rows < 2 or cols < 2:
-        raise ValueError(
-          "per_unit moment billing needs a >=2x2 unit grid to carry "
-          f"moments; got {rows}x{cols}."
-        )
+        raise ValueError(f"per_unit moment billing needs a >=2x2 unit grid to carry moments; got {rows}x{cols}.")
       if self._empirical is not None:
         geometry = matching_pad_geometry(
-          env.sim.mj_model, self._mcfg.ee_body_names, cfg.asset_name,
+          env.sim.mj_model,
+          self._mcfg.ee_body_names,
+          cfg.asset_name,
           rake_local_axis=self._ls_cfg.ee_rake_local_axis,
           face_local_axis=self._mcfg.face_local_axis,
-          unit_layout=self._ls_cfg.unit_layout)
+          unit_layout=self._ls_cfg.unit_layout,
+        )
         if (rows, cols) != (geometry.rows, geometry.cols):
           raise ValueError("Empirical unit rows/cols disagree with the asset sites")
         self._unit_x = torch.tensor(geometry.x.copy(), dtype=torch.float32, device=self.device)
@@ -325,9 +290,7 @@ class MicrospineAffordance(CommandTerm):
       self._unit_fv = cc.repeat(rows) / max(cols - 1, 1)
     if not np.isfinite(self._mcfg.engage_unit_preload_n) or self._mcfg.engage_unit_preload_n < 0:
       raise ValueError("engage_unit_preload_n must be finite and nonnegative")
-    if self._mcfg.engage_unit_preload_n > 0 and (
-      self._unit_x is None or self._mcfg.spring_field_enabled
-    ):
+    if self._mcfg.engage_unit_preload_n > 0 and (self._unit_x is None or self._mcfg.spring_field_enabled):
       raise ValueError("Unit preload engagement requires per_unit billing without the legacy spring field")
     preload_units = self._unit_x.numel() if self._unit_x is not None else 1
     # Pre-latch contact estimates, separate from the latched anchor loads.
@@ -356,9 +319,7 @@ class MicrospineAffordance(CommandTerm):
     self._unit_quality = torch.zeros(ushape, device=self.device)
     # Whole-pad down-wall shear [N] transmitted through the live contacts —
     # the spring-mode WELD trigger (touch + drag = catch).
-    self.pad_shear_down = torch.zeros(
-      self.num_envs, self._num_ee, device=self.device
-    )
+    self.pad_shear_down = torch.zeros(self.num_envs, self._num_ee, device=self.device)
     self._sphere_force_world: torch.Tensor | None = None
     empirical_shape = (*shape, int(self._unit_x.numel()) if self._empirical is not None else 1)
     self.unit_strength_quantile = torch.zeros(empirical_shape, device=self.device)
@@ -378,17 +339,11 @@ class MicrospineAffordance(CommandTerm):
       # stiffness are properties of THIS pad's wear state, not of a latch.
       u = (len(env_ids), self._num_ee, self._spring_units)
       f_lo, f_hi = self._mcfg.spring_free_length_range
-      self._unit_free_len[env_ids] = (
-        torch.rand(u, device=self.device) * (f_hi - f_lo) + f_lo
-      )
+      self._unit_free_len[env_ids] = torch.rand(u, device=self.device) * (f_hi - f_lo) + f_lo
       k_lo, k_hi = self._mcfg.spring_k_unit_range
-      self._unit_k[env_ids] = (
-        torch.rand(u, device=self.device) * (k_hi - k_lo) + k_lo
-      )
+      self._unit_k[env_ids] = torch.rand(u, device=self.device) * (k_hi - k_lo) + k_lo
       c_lo, c_hi = self._mcfg.spring_damping_range
-      self._unit_c[env_ids] = (
-        torch.rand(u, device=self.device) * (c_hi - c_lo) + c_lo
-      )
+      self._unit_c[env_ids] = torch.rand(u, device=self.device) * (c_hi - c_lo) + c_lo
       self._unit_comp_prev[env_ids] = 0.0
       self._unit_compression[env_ids] = 0.0
       self._unit_ticket[env_ids] = 0.0
@@ -397,9 +352,7 @@ class MicrospineAffordance(CommandTerm):
 
     def sample(value_range: tuple[float, float]) -> torch.Tensor:
       low, high = value_range
-      return torch.empty(
-        (len(env_ids), self._num_ee), device=self.device
-      ).uniform_(low, high)
+      return torch.empty((len(env_ids), self._num_ee), device=self.device).uniform_(low, high)
 
     if self._empirical is not None:
       shape = (len(env_ids), self._num_ee, self._unit_x.numel())
@@ -425,16 +378,12 @@ class MicrospineAffordance(CommandTerm):
       self.limit_f_n0[env_ids] = sample(ls.f_n0_range)
       self.limit_mu_lateral[env_ids] = sample(ls.mu_lateral_range)
       self.limit_f_l0[env_ids] = sample(ls.f_l0_range)
-    self.limit_tilt_peel_max[env_ids] = torch.deg2rad(
-      sample(ls.tilt_peel_max_deg_range)
-    )
+    self.limit_tilt_peel_max[env_ids] = torch.deg2rad(sample(ls.tilt_peel_max_deg_range))
 
   def _get_executor(self):
     """Lazily fetch the physics executor (built after command terms)."""
     if self._executor is None:
-      term_cfg = self._env.event_manager.get_term_cfg(
-        self.cfg.physics_event_name
-      )
+      term_cfg = self._env.event_manager.get_term_cfg(self.cfg.physics_event_name)
       self._executor = term_cfg.func
       if not hasattr(self._executor, "compute_anchor_loads"):
         raise ValueError(
@@ -465,24 +414,16 @@ class MicrospineAffordance(CommandTerm):
   def set_initial_engaged_mask(self, mask: tuple[bool, ...]) -> None:
     """Set the latch mask used by subsequent episode resets."""
     if len(mask) != self._num_ee:
-      raise ValueError(
-        f"Initial mask has {len(mask)} entries; expected {self._num_ee}."
-      )
-    self._initial_engaged.copy_(
-      torch.tensor(mask, dtype=torch.bool, device=self.device)
-    )
+      raise ValueError(f"Initial mask has {len(mask)} entries; expected {self._num_ee}.")
+    self._initial_engaged.copy_(torch.tensor(mask, dtype=torch.bool, device=self.device))
 
   def set_initial_engaged_ee_names(self, names: tuple[str, ...]) -> None:
     """Select reset latches by configured EE name."""
     selected = set(names)
     unknown = selected.difference(self._mcfg.ee_body_names)
     if unknown:
-      raise ValueError(
-        "Unknown initial microspine EEs: " + ", ".join(sorted(unknown))
-      )
-    self.set_initial_engaged_mask(
-      tuple(name in selected for name in self._mcfg.ee_body_names)
-    )
+      raise ValueError("Unknown initial microspine EEs: " + ", ".join(sorted(unknown)))
+    self.set_initial_engaged_mask(tuple(name in selected for name in self._mcfg.ee_body_names))
 
   def seed_engaged(self, env_ids: torch.Tensor, engaged: torch.Tensor) -> None:
     """Overwrite per-env latch state during a reset (motion-clip RSI).
@@ -495,9 +436,7 @@ class MicrospineAffordance(CommandTerm):
     if not self._mcfg.grip_enabled:
       return
     if engaged.shape[-1] != self._num_ee:
-      raise ValueError(
-        f"Seed mask has {engaged.shape[-1]} EEs; expected {self._num_ee}."
-      )
+      raise ValueError(f"Seed mask has {engaged.shape[-1]} EEs; expected {self._num_ee}.")
     self._engaged[env_ids] = engaged.to(device=self.device, dtype=torch.bool)
     self._seeded[env_ids] = self._engaged[env_ids]
     self.released_was_seeded[env_ids] = False
@@ -558,9 +497,7 @@ class MicrospineAffordance(CommandTerm):
     if not self._mcfg.grip_enabled:
       return
     if ee_mask.shape[-1] != self._num_ee:
-      raise ValueError(
-        f"Release mask has {ee_mask.shape[-1]} EEs; expected {self._num_ee}."
-      )
+      raise ValueError(f"Release mask has {ee_mask.shape[-1]} EEs; expected {self._num_ee}.")
     mask = ee_mask.to(device=self.device, dtype=torch.bool)
     mask = mask & self._engaged[env_ids]
     if not bool(mask.any()):
@@ -587,15 +524,18 @@ class MicrospineAffordance(CommandTerm):
       self._cooldown_steps[env_ids],
     )
     self._engage_count[env_ids] = torch.where(
-      mask, torch.zeros_like(self._engage_count[env_ids]),
+      mask,
+      torch.zeros_like(self._engage_count[env_ids]),
       self._engage_count[env_ids],
     )
     self._violation_count[env_ids] = torch.where(
-      mask, torch.zeros_like(self._violation_count[env_ids]),
+      mask,
+      torch.zeros_like(self._violation_count[env_ids]),
       self._violation_count[env_ids],
     )
     self._steps_since_engage[env_ids] = torch.where(
-      mask, torch.zeros_like(self._steps_since_engage[env_ids]),
+      mask,
+      torch.zeros_like(self._steps_since_engage[env_ids]),
       self._steps_since_engage[env_ids],
     )
     if report:
@@ -606,11 +546,13 @@ class MicrospineAffordance(CommandTerm):
         self.release_reason[env_ids],
       )
     self._seat_scale[env_ids] = torch.where(
-      mask, torch.ones_like(self._seat_scale[env_ids]),
+      mask,
+      torch.ones_like(self._seat_scale[env_ids]),
       self._seat_scale[env_ids],
     )
     self._seat_charge[env_ids] = torch.where(
-      mask, torch.zeros_like(self._seat_charge[env_ids]),
+      mask,
+      torch.zeros_like(self._seat_charge[env_ids]),
       self._seat_charge[env_ids],
     )
     self._sync_latched_contact_margins()
@@ -638,36 +580,24 @@ class MicrospineAffordance(CommandTerm):
 
     if self._sphere_geom_ids is None:
       geom_lists = resolve_sphere_geom_ids(self._env.sim.mj_model, self._mcfg)
-      self._sphere_geom_ids = torch.tensor(
-        geom_lists, dtype=torch.long, device=self.device
-      ).reshape(-1)  # (H*S,), EE-major
+      self._sphere_geom_ids = torch.tensor(geom_lists, dtype=torch.long, device=self.device).reshape(
+        -1
+      )  # (H*S,), EE-major
       pos = wp.to_torch(self._env.sim.wp_model.geom_pos)
       self._sphere_pos_default = pos[0, self._sphere_geom_ids].clone()
       # Contact child bodies share the pad's orientation, so the pad-frame
       # face axis retracts them straight away from the wall face.
       self._sphere_pos_retracted = (
-        self._sphere_pos_default
-        - self._face_local_axis.unsqueeze(0)
-        * self._mcfg.latched_contact_retract
+        self._sphere_pos_default - self._face_local_axis.unsqueeze(0) * self._mcfg.latched_contact_retract
       )
       if pos.shape[0] != self.num_envs:
         self._env.sim.expand_model_fields(("geom_pos",))
 
     view = wp.to_torch(self._env.sim.wp_model.geom_pos)  # (E, ngeom, 3)
-    spheres = (
-      self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-    )
-    latched = (
-      self._engaged.unsqueeze(-1)
-      .expand(-1, self._num_ee, spheres)
-      .reshape(self.num_envs, -1, 1)
-    )
-    defaults = self._sphere_pos_default.unsqueeze(0).expand(
-      self.num_envs, -1, -1
-    )
-    retracted = self._sphere_pos_retracted.unsqueeze(0).expand(
-      self.num_envs, -1, -1
-    )
+    spheres = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
+    latched = self._engaged.unsqueeze(-1).expand(-1, self._num_ee, spheres).reshape(self.num_envs, -1, 1)
+    defaults = self._sphere_pos_default.unsqueeze(0).expand(self.num_envs, -1, -1)
+    retracted = self._sphere_pos_retracted.unsqueeze(0).expand(self.num_envs, -1, -1)
     view[:, self._sphere_geom_ids] = torch.where(latched, retracted, defaults)
 
   def _update_metrics(self) -> None:
@@ -676,9 +606,7 @@ class MicrospineAffordance(CommandTerm):
   def _resample_command(self, env_ids: torch.Tensor) -> None:
     # Command terms are resampled on reset. Reset all latch bookkeeping alongside
     # the command so old contact history cannot leak into the new episode.
-    self._engaged[env_ids] = (
-      self._initial_engaged if self._mcfg.grip_enabled else False
-    )
+    self._engaged[env_ids] = self._initial_engaged if self._mcfg.grip_enabled else False
     self._engage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
@@ -752,15 +680,11 @@ class MicrospineAffordance(CommandTerm):
         # In-place view of the warp gravity array (the curriculum writes it
         # in place too, so caching the view once is safe), shape (N, 3).
         self._gravity_view = wp.to_torch(self._env.sim.wp_model.opt.gravity)
-      raw = self._gravity_view.unsqueeze(1).expand(
-        self.num_envs, self._num_ee, 3
-      )
+      raw = self._gravity_view.unsqueeze(1).expand(self.num_envs, self._num_ee, 3)
     t = raw - (raw * n).sum(dim=-1, keepdim=True) * n
     t_norm = torch.linalg.norm(t, dim=-1, keepdim=True)
     # Degenerate rake (load axis ⟂ wall plane): fall back to world -z projected.
-    fallback = torch.tensor(
-      [0.0, 0.0, -1.0], device=self.device
-    ).expand_as(t)
+    fallback = torch.tensor([0.0, 0.0, -1.0], device=self.device).expand_as(t)
     fb = fallback - (fallback * n).sum(dim=-1, keepdim=True) * n
     fb = fb / torch.linalg.norm(fb, dim=-1, keepdim=True).clamp_min(1.0e-6)
     t_hat = torch.where(t_norm > 1.0e-6, t / t_norm.clamp_min(1.0e-9), fb)
@@ -818,8 +742,8 @@ class MicrospineAffordance(CommandTerm):
     if self._empirical is not None:
       zeros = torch.zeros_like(f_t)
       moments = per_unit_moments or (zeros, zeros, zeros)
-      margin, soft_cond, instant_cond, reason, worst_pad_scale = (
-        self._empirical_envelope_per_unit(f_t, f_l, f_n, *moments)
+      margin, soft_cond, instant_cond, reason, worst_pad_scale = self._empirical_envelope_per_unit(
+        f_t, f_l, f_n, *moments
       )
       self.anchor_effective_load_tnl = worst_pad_scale
       # Same unit draws for the force-only ablation; never resample here.
@@ -828,11 +752,12 @@ class MicrospineAffordance(CommandTerm):
         f_t.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
         f_l.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
         f_n.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
-        self.unit_strength_quantile, self.unit_loading_quantile,
+        self.unit_strength_quantile,
+        self.unit_loading_quantile,
       )[0].amin(-1)
     elif per_unit_moments is not None:
-      margin, soft_cond, instant_cond, reason, worst_pad_scale = (
-        self._wang_envelope_per_unit(f_t, f_l, f_n, *per_unit_moments)
+      margin, soft_cond, instant_cond, reason, worst_pad_scale = self._wang_envelope_per_unit(
+        f_t, f_l, f_n, *per_unit_moments
       )
       self.anchor_effective_load_tnl = worst_pad_scale
       # Force-only margin (moment billing excluded): with moments zeroed
@@ -842,30 +767,18 @@ class MicrospineAffordance(CommandTerm):
       # worst_edge path (diagnostics).
       margin_raw = self._wang_margin(f_t, f_l, f_n)
     elif self._wang_lut is not None:
-      self.anchor_effective_load_tnl = torch.stack(
-        [f_t_eff, f_l_eff, f_n_eff], dim=-1
-      )
-      margin, soft_cond, instant_cond, reason = self._wang_envelope(
-        f_t_eff, f_l_eff, f_n_eff
-      )
+      self.anchor_effective_load_tnl = torch.stack([f_t_eff, f_l_eff, f_n_eff], dim=-1)
+      margin, soft_cond, instant_cond, reason = self._wang_envelope(f_t_eff, f_l_eff, f_n_eff)
       # Force-only margin (moment billing excluded): the gap to the billed
       # margin is the moment tax, and a release with margin_raw > 0 was
       # caused by the moment fold alone. Diagnostics only.
       margin_raw = self._wang_margin(f_t, f_l, f_n)
     else:
-      self.anchor_effective_load_tnl = torch.stack(
-        [f_t_eff, f_l_eff, f_n_eff], dim=-1
-      )
-      margin, soft_cond, instant_cond, reason = self._wedge_envelope(
-        f_t_eff, f_l_eff, f_n_eff
-      )
+      self.anchor_effective_load_tnl = torch.stack([f_t_eff, f_l_eff, f_n_eff], dim=-1)
+      margin, soft_cond, instant_cond, reason = self._wedge_envelope(f_t_eff, f_l_eff, f_n_eff)
       margin_raw = margin
-    self.hold_margin = torch.where(
-      self._engaged, margin, torch.ones_like(margin)
-    )
-    self.hold_margin_raw = torch.where(
-      self._engaged, margin_raw, torch.ones_like(margin_raw)
-    )
+    self.hold_margin = torch.where(self._engaged, margin, torch.ones_like(margin))
+    self.hold_margin_raw = torch.where(self._engaged, margin_raw, torch.ones_like(margin_raw))
 
     # The constraint only produces force one decimation after engaging, so
     # hold checks wait exactly the readout settling. There is no immunity
@@ -891,13 +804,8 @@ class MicrospineAffordance(CommandTerm):
       self._violation_count + 1,
       torch.zeros_like(self._violation_count),
     )
-    release = (active & instant_cond) | (
-      self._violation_count
-      >= max(1, self._ls_cfg.violation_consecutive_steps)
-    )
-    self.release_reason = torch.where(
-      release, reason, torch.zeros_like(reason)
-    )
+    release = (active & instant_cond) | (self._violation_count >= max(1, self._ls_cfg.violation_consecutive_steps))
+    self.release_reason = torch.where(release, reason, torch.zeros_like(reason))
 
     # Tilt-peel (reason 5): engaged-pad rotation from the engage-capture
     # orientation beyond the per-grip suspension-travel draw. Geometric and
@@ -906,13 +814,9 @@ class MicrospineAffordance(CommandTerm):
     # transient. Judged from the same guard window as the force envelope.
     if self._ls_cfg.tilt_peel_max_deg_range[1] > 0.0:
       pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids, :]
-      dot = (
-        (pad_quat * executor.anchor_quat_w).sum(dim=-1).abs().clamp(max=1.0)
-      )
+      dot = (pad_quat * executor.anchor_quat_w).sum(dim=-1).abs().clamp(max=1.0)
       tilt = 2.0 * torch.acos(dot)
-      self.tilt_from_capture = torch.where(
-        self._engaged, tilt, torch.zeros_like(tilt)
-      )
+      self.tilt_from_capture = torch.where(self._engaged, tilt, torch.zeros_like(tilt))
       tilt_cond = active & (tilt > self.limit_tilt_peel_max)
       release = release | tilt_cond
       self.release_reason = torch.where(
@@ -940,9 +844,7 @@ class MicrospineAffordance(CommandTerm):
     m_tension = (cap_n - f_n) / (cap_n + eps)
     m_lateral = (cap_l - f_l.abs()) / (cap_l + eps)
     m_ultimate = (self.limit_f_t_max - f_t) / (self.limit_f_t_max + eps)
-    margin = torch.minimum(
-      torch.minimum(m_rev, m_tension), torch.minimum(m_lateral, m_ultimate)
-    )
+    margin = torch.minimum(torch.minimum(m_rev, m_tension), torch.minimum(m_lateral, m_ultimate))
 
     # Which face fired (HUD/debug). Priority by overwrite order: lateral <
     # reverse < tension < ultimate, masked to actual releases by the caller.
@@ -975,9 +877,7 @@ class MicrospineAffordance(CommandTerm):
       f0 = f0 * ramp
     return f0
 
-  def _wang_margin(
-    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
-  ) -> torch.Tensor:
+  def _wang_margin(self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor) -> torch.Tensor:
     """Normalized signed envelope distance for one load triple."""
     ls = self._ls_cfg
     tension = f_n.clamp_min(0.0)
@@ -1010,12 +910,8 @@ class MicrospineAffordance(CommandTerm):
     reverse = f_t < 0.0
     lateral_dominant = f_l.abs() > f_t
     reason = torch.full_like(self.release_reason, 4)
-    reason = torch.where(
-      lateral_dominant, torch.full_like(reason, 3), reason
-    )
-    reason = torch.where(
-      tension_dominant, torch.full_like(reason, 2), reason
-    )
+    reason = torch.where(lateral_dominant, torch.full_like(reason, 3), reason)
+    reason = torch.where(tension_dominant, torch.full_like(reason, 2), reason)
     reason = torch.where(reverse, torch.full_like(reason, 1), reason)
 
     # All violations go through the counted path; the count threshold is
@@ -1036,9 +932,7 @@ class MicrospineAffordance(CommandTerm):
     m_t: torch.Tensor,
     m_l: torch.Tensor,
     m_n: torch.Tensor,
-  ) -> tuple[
-    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
-  ]:
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Per-unit Wang billing: weakest unit of the spine-unit grid rules.
 
     The pad's 6D wrench is distributed onto the unit grid
@@ -1070,14 +964,12 @@ class MicrospineAffordance(CommandTerm):
       )
       ramp = torch.ones_like(f_t)
       if ls.capacity_ramp_time_s > 0.0:
-        ramp = ls.capacity_ramp_floor + (
-          1.0 - ls.capacity_ramp_floor
-        ) * (self._seat_charge / ls.capacity_ramp_time_s).clamp(0.0, 1.0)
+        ramp = ls.capacity_ramp_floor + (1.0 - ls.capacity_ramp_floor) * (
+          self._seat_charge / ls.capacity_ramp_time_s
+        ).clamp(0.0, 1.0)
       ratio = capacity_ratio(self._wang_lut, ft_u, fl_u, fn_u)
       cap = w * ramp.unsqueeze(-1) * ratio.clamp_min(ls.wang_r_floor)
-      f0_ref = (
-        self.limit_f_t_max.clamp_min(1.0) / n_units
-      ).unsqueeze(-1)
+      f0_ref = (self.limit_f_t_max.clamp_min(1.0) / n_units).unsqueeze(-1)
       tension = fn_u.clamp_min(0.0)
       load_mag = torch.sqrt(ft_u**2 + fl_u**2 + tension**2)
       margins = (cap - load_mag) / (cap + ls.wang_margin_eps * f0_ref)
@@ -1115,19 +1007,13 @@ class MicrospineAffordance(CommandTerm):
     tension_w = c_w.clamp_min(0.0)
     in_plane = torch.sqrt(a_w**2 + b_w**2)
     reason = torch.full_like(self.release_reason, 4)
-    reason = torch.where(
-      b_w.abs() > a_w, torch.full_like(reason, 3), reason
-    )
-    reason = torch.where(
-      tension_w >= in_plane, torch.full_like(reason, 2), reason
-    )
+    reason = torch.where(b_w.abs() > a_w, torch.full_like(reason, 3), reason)
+    reason = torch.where(tension_w >= in_plane, torch.full_like(reason, 2), reason)
     reason = torch.where(a_w < 0.0, torch.full_like(reason, 1), reason)
 
     # Same counted-release semantics as the aggregate wang path.
     instant_cond = torch.zeros_like(violation)
-    worst_load_tnl = (
-      torch.stack([a_w, b_w, c_w], dim=-1) * float(n_units)
-    )
+    worst_load_tnl = torch.stack([a_w, b_w, c_w], dim=-1) * float(n_units)
     return margin, violation, instant_cond, reason, worst_load_tnl
 
   def _redraw_empirical_latches(self, engage_transition: torch.Tensor) -> None:
@@ -1136,25 +1022,27 @@ class MicrospineAffordance(CommandTerm):
       return
     on = engage_transition.unsqueeze(-1)
     self.unit_strength_quantile = torch.where(
-      on, torch.rand_like(self.unit_strength_quantile), self.unit_strength_quantile)
+      on, torch.rand_like(self.unit_strength_quantile), self.unit_strength_quantile
+    )
     self.unit_loading_quantile = torch.where(
-      on, torch.rand_like(self.unit_loading_quantile), self.unit_loading_quantile)
+      on, torch.rand_like(self.unit_loading_quantile), self.unit_loading_quantile
+    )
 
   def _empirical_envelope_per_unit(self, ft, fl, fn, mt, ml, mn):
     a, b, c = distribute_wrench_to_units(
-      ft, fl, fn, mt, ml, mn, self._unit_x, self._unit_y,
-      self._unit_sxx, self._unit_syy, self._unit_srr)
+      ft, fl, fn, mt, ml, mn, self._unit_x, self._unit_y, self._unit_sxx, self._unit_syy, self._unit_srr
+    )
     self.unit_load_tln = torch.stack((a, b, c), dim=-1)
     margins, cap, domain, early, tail = self._empirical.margins(
-      a, b, c, self.unit_strength_quantile, self.unit_loading_quantile)
+      a, b, c, self.unit_strength_quantile, self.unit_loading_quantile
+    )
     self.unit_normal_capacity = cap
     self.unit_empirical_supported = domain
     self.unit_empirical_early_failed = early
     self.unit_empirical_tail_capped = tail
     margin, worst = margins.min(-1)
     idx = worst.unsqueeze(-1)
-    worst_load = self.unit_load_tln.gather(
-      -2, idx.unsqueeze(-1).expand(*idx.shape, 3)).squeeze(-2)
+    worst_load = self.unit_load_tln.gather(-2, idx.unsqueeze(-1).expand(*idx.shape, 3)).squeeze(-2)
     reason = torch.full_like(self.release_reason, 2)  # conditional normal release
     reason = torch.where(early.gather(-1, idx).squeeze(-1), 8, reason)
     # Domain rejection is explicitly distinct from a measured strength failure.
@@ -1180,26 +1068,24 @@ class MicrospineAffordance(CommandTerm):
     if self._surface_corners is None:
       model = self._env.sim.mj_model
       tensor = lambda a: torch.tensor(np.asarray(a), dtype=torch.float32, device=self.device)
-      self._surface_corners = tensor([
-        pad_contact_face_centers(model, self._mcfg, ee, self.cfg.asset_name)
-        for ee in self._mcfg.ee_body_names
-      ])
-      self._surface_vertices = tensor([
-        pad_face_vertices(model, self._mcfg, ee, self.cfg.asset_name)
-        for ee in self._mcfg.ee_body_names
-      ])
-      self._surface_centers = tensor([
-        pad_contact_center(model, self._mcfg, ee, self.cfg.asset_name)
-        for ee in self._mcfg.ee_body_names
-      ])
+      self._surface_corners = tensor(
+        [pad_contact_face_centers(model, self._mcfg, ee, self.cfg.asset_name) for ee in self._mcfg.ee_body_names]
+      )
+      self._surface_vertices = tensor(
+        [pad_face_vertices(model, self._mcfg, ee, self.cfg.asset_name) for ee in self._mcfg.ee_body_names]
+      )
+      self._surface_centers = tensor(
+        [pad_contact_center(model, self._mcfg, ee, self.cfg.asset_name) for ee in self._mcfg.ee_body_names]
+      )
     pos = self._asset.data.body_link_pos_w[:, self._ee_body_ids]
     quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
     corners = pos.unsqueeze(2) + rotate(quat.unsqueeze(2), self._surface_corners)
     vertices = pos.unsqueeze(2) + rotate(quat.unsqueeze(2), self._surface_vertices)
     point, normal, _, _ = self._surfaces.frame()
     self.surface_covered = self._surfaces.contains(vertices)
-    fraction = virtual_spine_fraction(corners, point, normal, 0.0,
-      self._mcfg.virtual_spine_grid, self._mcfg.virtual_spine_travel)
+    fraction = virtual_spine_fraction(
+      corners, point, normal, 0.0, self._mcfg.virtual_spine_grid, self._mcfg.virtual_spine_travel
+    )
     return fraction * self.surface_covered
 
   def _virtual_spine_fraction(self) -> torch.Tensor:
@@ -1227,8 +1113,7 @@ class MicrospineAffordance(CommandTerm):
       cols = self._mcfg.spheres_per_ee_cols
       if rows < 2 or cols < 2:
         raise ValueError(
-          "The virtual spine field needs a >=2x2 contact-sphere grid to span "
-          f"the pad face; got {rows}x{cols}."
+          f"The virtual spine field needs a >=2x2 contact-sphere grid to span the pad face; got {rows}x{cols}."
         )
       corner_ids: list[int] = []
       offsets, sphere_offsets, radii = [], [], []
@@ -1246,26 +1131,20 @@ class MicrospineAffordance(CommandTerm):
           rotation = np.empty(9)
           mujoco.mju_quat2Mat(rotation, mj_model.body_quat[mj_model.geom_bodyid[gid]])
           face_local = rotation.reshape(3, 3).T @ np.asarray(self._mcfg.face_local_axis)
-          offset = contact_face_offset(mj_model.geom_type[gid], mj_model.geom_size[gid],
-                                       face_local, mj_model.geom_quat[gid])
+          offset = contact_face_offset(
+            mj_model.geom_type[gid], mj_model.geom_size[gid], face_local, mj_model.geom_quat[gid]
+          )
           offsets.append(mj_model.geom_pos[gid] + offset)
           is_sphere = mj_model.geom_type[gid] == mujoco.mjtGeom.mjGEOM_SPHERE
           sphere_offsets.append(offset if is_sphere else np.zeros(3))
           radii.append(float(mj_model.geom_size[gid, 0]) if is_sphere else 0.0)
-      self._spine_corner_body_ids = torch.tensor(
-        corner_ids, dtype=torch.long, device=self.device
-      )
+      self._spine_corner_body_ids = torch.tensor(corner_ids, dtype=torch.long, device=self.device)
       self._spine_corner_offsets = torch.tensor(np.asarray(offsets), dtype=torch.float32, device=self.device)
       self._spine_sphere_offsets = torch.tensor(np.asarray(sphere_offsets), dtype=torch.float32, device=self.device)
       self._spine_corner_radii = torch.tensor(radii, dtype=torch.float32, device=self.device)
-      wall_gid = mujoco.mj_name2id(
-        mj_model, mujoco.mjtObj.mjOBJ_GEOM, self._mcfg.wall_geom_name
-      )
+      wall_gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, self._mcfg.wall_geom_name)
       if wall_gid < 0:
-        raise ValueError(
-          f"Wall geom '{self._mcfg.wall_geom_name}' not found for the "
-          "virtual spine field."
-        )
+        raise ValueError(f"Wall geom '{self._mcfg.wall_geom_name}' not found for the virtual spine field.")
       self._wall_geom_id = wall_gid
       # The climbable surface: a plane's surface passes through its frame
       # origin; a box's is the face half-extent out along the wall normal
@@ -1276,10 +1155,7 @@ class MicrospineAffordance(CommandTerm):
       if gtype == int(mujoco.mjtGeom.mjGEOM_PLANE):
         self._wall_surface_offset = 0.0
       elif gtype == int(mujoco.mjtGeom.mjGEOM_BOX):
-        rot = (
-          wp.to_torch(self._env.sim.wp_data.geom_xmat)[0, wall_gid]
-          .reshape(3, 3)
-        )
+        rot = wp.to_torch(self._env.sim.wp_data.geom_xmat)[0, wall_gid].reshape(3, 3)
         n0 = -self._wall_inward_normal()[0]
         local = rot.T @ n0
         axis = int(torch.argmax(torch.abs(local)).item())
@@ -1297,10 +1173,7 @@ class MicrospineAffordance(CommandTerm):
     # surface point is the wall geom's origin pushed out by the type-resolved
     # face offset (0 for a plane, the half-extent for a box).
     n_out = -self._wall_inward_normal()
-    wall_point = (
-      wp.to_torch(self._env.sim.wp_data.geom_xpos)[:, self._wall_geom_id]
-      + self._wall_surface_offset * n_out
-    )
+    wall_point = wp.to_torch(self._env.sim.wp_data.geom_xpos)[:, self._wall_geom_id] + self._wall_surface_offset * n_out
     return virtual_spine_fraction(
       corners,
       wall_point.unsqueeze(1).expand(-1, self._num_ee, -1),
@@ -1337,14 +1210,10 @@ class MicrospineAffordance(CommandTerm):
     ls = self._ls_cfg
     lo, hi = ls.unit_catch_capacity_range
     draw = torch.rand(shape, device=self.device) * (hi - lo) + lo
-    empty = (
-      torch.rand(shape, device=self.device) < ls.unit_catch_empty_prob
-    )
+    empty = torch.rand(shape, device=self.device) < ls.unit_catch_empty_prob
     return torch.where(empty, torch.zeros_like(draw), draw)
 
-  def _seed_spring_state(
-    self, env_ids: torch.Tensor, engaged: torch.Tensor
-  ) -> None:
+  def _seed_spring_state(self, env_ids: torch.Tensor, engaged: torch.Tensor) -> None:
     """Mature-grip spring state for latches that exist at birth (RSI seeds,
     reset-mask engagements): fully seated (quality 1, compression = free
     length) with an honestly drawn ticket set. Pad F0 becomes the
@@ -1356,22 +1225,12 @@ class MicrospineAffordance(CommandTerm):
     tickets = self._ticket_lottery(mask.shape)
     zeros = torch.zeros_like(tickets)
     self._unit_ticket[env_ids] = torch.where(mask, tickets, zeros)
-    self._unit_quality[env_ids] = torch.where(
-      mask, torch.ones_like(tickets), zeros
-    )
-    self._unit_compression[env_ids] = torch.where(
-      mask, self._unit_free_len[env_ids], zeros
-    )
-    pad_total = (
-      self._unit_ticket[env_ids] * self._unit_quality[env_ids]
-    ).sum(-1)
-    self.limit_f_t_max[env_ids] = torch.where(
-      engaged, pad_total, self.limit_f_t_max[env_ids]
-    )
+    self._unit_quality[env_ids] = torch.where(mask, torch.ones_like(tickets), zeros)
+    self._unit_compression[env_ids] = torch.where(mask, self._unit_free_len[env_ids], zeros)
+    pad_total = (self._unit_ticket[env_ids] * self._unit_quality[env_ids]).sum(-1)
+    self.limit_f_t_max[env_ids] = torch.where(engaged, pad_total, self.limit_f_t_max[env_ids])
 
-  def _update_spring_field(
-    self, t_hat: torch.Tensor, n_hat_out: torch.Tensor
-  ) -> None:
+  def _update_spring_field(self, t_hat: torch.Tensor, n_hat_out: torch.Tensor) -> None:
     """Per-unit spring geometry, wrench application, and the down-shear
     weld-trigger readout (spring-field mode, every policy step).
 
@@ -1396,16 +1255,10 @@ class MicrospineAffordance(CommandTerm):
       faces.append(_quat_rotate(hquat, self._face_local_axis))
     face_in = torch.stack(faces, dim=1)  # (E, H, 3)
     t_pad = t_hat - (t_hat * face_in).sum(-1, keepdim=True) * face_in
-    t_pad = t_pad / torch.linalg.norm(
-      t_pad, dim=-1, keepdim=True
-    ).clamp_min(1.0e-6)
-    tilt = torch.deg2rad(
-      torch.tensor(self._mcfg.spring_axis_tilt_deg, device=self.device)
-    )
+    t_pad = t_pad / torch.linalg.norm(t_pad, dim=-1, keepdim=True).clamp_min(1.0e-6)
+    tilt = torch.deg2rad(torch.tensor(self._mcfg.spring_axis_tilt_deg, device=self.device))
     u_hat = torch.cos(tilt) * face_in + torch.sin(tilt) * t_pad
-    u_hat = u_hat / torch.linalg.norm(
-      u_hat, dim=-1, keepdim=True
-    ).clamp_min(1.0e-6)
+    u_hat = u_hat / torch.linalg.norm(u_hat, dim=-1, keepdim=True).clamp_min(1.0e-6)
     # Unit roots: bilinear over the corner contact-face centers at the unit-grid
     # fractions (row-major k = r*cols + c, the _unit_x flattening). No additional
     # radius or box half-depth offset is needed. Corner order matches
@@ -1416,16 +1269,10 @@ class MicrospineAffordance(CommandTerm):
     p01 = corners[:, :, 1].unsqueeze(2)
     p10 = corners[:, :, 2].unsqueeze(2)
     p11 = corners[:, :, 3].unsqueeze(2)
-    roots = (
-      (1.0 - fu) * (1.0 - fv) * p00
-      + (1.0 - fu) * fv * p01
-      + fu * (1.0 - fv) * p10
-      + fu * fv * p11
-    )
+    roots = (1.0 - fu) * (1.0 - fv) * p00 + (1.0 - fu) * fv * p01 + fu * (1.0 - fv) * p10 + fu * fv * p11
     n_out_env = -self._wall_inward_normal()  # (E, 3)
     wall_point = (
-      wp.to_torch(self._env.sim.wp_data.geom_xpos)[:, self._wall_geom_id]
-      + self._wall_surface_offset * n_out_env
+      wp.to_torch(self._env.sim.wp_data.geom_xpos)[:, self._wall_geom_id] + self._wall_surface_offset * n_out_env
     )
     n_in = -n_out_env.view(E, 1, 1, 3)
     gap_num = ((wall_point.view(E, 1, 1, 3) - roots) * n_in).sum(-1)
@@ -1434,24 +1281,16 @@ class MicrospineAffordance(CommandTerm):
     axial_gap = gap_num / denom.clamp_min(0.05)
     raw_comp = (self._unit_free_len - axial_gap).clamp(min=0.0)
     raw_comp = torch.minimum(raw_comp, self._unit_free_len)
-    raw_comp = torch.where(
-      reachable.expand_as(raw_comp), raw_comp, torch.zeros_like(raw_comp)
-    )
+    raw_comp = torch.where(reachable.expand_as(raw_comp), raw_comp, torch.zeros_like(raw_comp))
     # Compression rate rides the RAW geometry so the field never sees a
     # phantom velocity step when a masked phase (weld / cooldown) ends.
-    comp_rate = (raw_comp - self._unit_comp_prev) / max(
-      float(self._env.step_dt), 1.0e-6
-    )
+    comp_rate = (raw_comp - self._unit_comp_prev) / max(float(self._env.step_dt), 1.0e-6)
     self._unit_comp_prev = raw_comp
     # Retraction: a latched pad's field is owned by the weld; a RELEASED
     # pad's field stays down until the re-engage cooldown clears (user
     # call, 08-19 evening — the torn suspension gets a recovery beat, and
     # the field returns on the same step weld eligibility does).
-    blocked = (
-      (self._engaged | (self._cooldown_steps > 0))
-      .unsqueeze(-1)
-      .expand_as(raw_comp)
-    )
+    blocked = (self._engaged | (self._cooldown_steps > 0)).unsqueeze(-1).expand_as(raw_comp)
     comp = torch.where(blocked, torch.zeros_like(raw_comp), raw_comp)
     rate = torch.where(blocked, torch.zeros_like(comp_rate), comp_rate)
     self._unit_compression = comp
@@ -1467,16 +1306,12 @@ class MicrospineAffordance(CommandTerm):
     body_pos = self._asset.data.body_link_pos_w[:, self._ee_body_ids]
     arm = roots - body_pos.unsqueeze(2)
     torques = torch.cross(arm, per_unit_f, dim=-1).sum(2)
-    self._asset.write_external_wrench_to_sim(
-      forces, torques, body_ids=self._ee_body_ids
-    )
+    self._asset.write_external_wrench_to_sim(forces, torques, body_ids=self._ee_body_ids)
     # Down-shear weld trigger: world-frame contact forces on the sphere
     # grid projected on the rake axis. Positive = the pad drags the wall
     # down (the catch direction); sign validated by the touch-drag probe.
     if self._sphere_force_world is not None:
-      spheres_per_ee = (
-        self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-      )
+      spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
       f_pad = self._sphere_force_world.view(E, H, spheres_per_ee, 3).sum(2)
       self.pad_shear_down = -(f_pad * t_hat).sum(-1)
     else:
@@ -1500,8 +1335,10 @@ class MicrospineAffordance(CommandTerm):
     values = [data.force, data.torque, data.pos, data.reference_pos]
     if data.force_history is not None:
       values = [
-        data.force_history, data.torque_history,
-        getattr(data, "pos_history", None), getattr(data, "reference_pos_history", None),
+        data.force_history,
+        data.torque_history,
+        getattr(data, "pos_history", None),
+        getattr(data, "reference_pos_history", None),
       ]
       if any(v is None or v.shape != values[0].shape for v in values):
         raise ValueError("Unit preload engagement needs synchronized force/torque/pos/reference_pos histories")
@@ -1509,9 +1346,7 @@ class MicrospineAffordance(CommandTerm):
       values = [v.unsqueeze(2) for v in values]
     perm = self._sensor_row_permutation(sensor)
     proxies = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-    force, torque, position, center = (
-      v[:, perm].reshape(self.num_envs, self._num_ee, proxies, -1, 3) for v in values
-    )
+    force, torque, position, center = (v[:, perm].reshape(self.num_envs, self._num_ee, proxies, -1, 3) for v in values)
     moment = torque + torch.linalg.cross(position - center, force, dim=-1)
     force = force.sum(dim=2).mean(dim=2)
     moment = moment.sum(dim=2).mean(dim=2)
@@ -1520,13 +1355,15 @@ class MicrospineAffordance(CommandTerm):
       force = torch.where(self._engaged[..., None], 0.0, force)
       moment = torch.where(self._engaged[..., None], 0.0, moment)
     basis = self._engage_frame()
-    components = [
-      (vector * axis).sum(-1) for vector in (force, moment) for axis in basis
-    ]
+    components = [(vector * axis).sum(-1) for vector in (force, moment) for axis in basis]
     self.pad_contact_wrench_tln = torch.stack(components, dim=-1)
     _, _, normal = distribute_wrench_to_units(
-      *components, self._unit_x, self._unit_y,
-      self._unit_sxx, self._unit_syy, self._unit_srr,
+      *components,
+      self._unit_x,
+      self._unit_y,
+      self._unit_sxx,
+      self._unit_syy,
+      self._unit_srr,
     )
     self.unit_preload_n = (-normal).clamp_min(0.0)
     return (
@@ -1556,9 +1393,7 @@ class MicrospineAffordance(CommandTerm):
     for h in range(self._num_ee):
       s_start = h * spheres_per_ee
       s_end = s_start + spheres_per_ee
-      above = (
-        compression[:, s_start:s_end] >= self._mcfg.engage_normal_force_threshold
-      )
+      above = compression[:, s_start:s_end] >= self._mcfg.engage_normal_force_threshold
       # Use either an absolute sphere count or a fraction of the EE grid. Count
       # mode is useful for small grids where a single sphere matters.
       if min_count > 0:
@@ -1588,6 +1423,7 @@ class MicrospineAffordance(CommandTerm):
         f"{tuple(force.shape)} does not match expected "
         f"({self.num_envs}, {expected_spheres}, 3)."
       )
+
   def _sensor_row_permutation(self, sensor) -> torch.Tensor:
     """Map the sensor's actual row order onto the EE-major sphere order."""
     if self._sensor_row_perm is None:
@@ -1598,9 +1434,7 @@ class MicrospineAffordance(CommandTerm):
         # Older ContactSensor API (this mjlab): row order lives in the
         # slot list — one row per unique primary, in slot order
         # (num_slots=1 for this sensor). Dedup preserves that order.
-        names = list(
-          dict.fromkeys(slot.primary_name for slot in sensor._slots)
-        )
+        names = list(dict.fromkeys(slot.primary_name for slot in sensor._slots))
       actual = [name.split("/")[-1] for name in names]
       expected = list(get_sphere_geom_names(self._mcfg))
       try:
@@ -1611,9 +1445,7 @@ class MicrospineAffordance(CommandTerm):
           f"{actual} cannot be mapped onto the expected sphere order "
           f"{expected}."
         ) from exc
-      self._sensor_row_perm = torch.tensor(
-        perm, dtype=torch.long, device=self.device
-      )
+      self._sensor_row_perm = torch.tensor(perm, dtype=torch.long, device=self.device)
     return self._sensor_row_perm
 
   def _sensor_contact_features(
@@ -1622,16 +1454,10 @@ class MicrospineAffordance(CommandTerm):
     sensor = self._env.scene[self.cfg.contact_sensor_name]
     data = sensor.data
     if data.found is None or data.force is None:
-      raise ValueError(
-        f"Contact sensor '{self.cfg.contact_sensor_name}' must provide "
-        "'found' and 'force' fields."
-      )
+      raise ValueError(f"Contact sensor '{self.cfg.contact_sensor_name}' must provide 'found' and 'force' fields.")
     sensor_cfg = getattr(sensor, "cfg", None)
-    world_force = (getattr(sensor_cfg, "reduce", None) == "netforce"
-                   or getattr(sensor_cfg, "global_frame", False))
-    if self._mcfg.spring_field_enabled and not world_force and (
-      data.normal is None or data.tangent is None
-    ):
+    world_force = getattr(sensor_cfg, "reduce", None) == "netforce" or getattr(sensor_cfg, "global_frame", False)
+    if self._mcfg.spring_field_enabled and not world_force and (data.normal is None or data.tangent is None):
       raise ValueError(
         "spring_field_enabled needs the microspine contact sensor to "
         "output 'normal' and 'tangent' fields (world frame) for the "
@@ -1670,12 +1496,9 @@ class MicrospineAffordance(CommandTerm):
 
     # Netforce sums every box-wall contact and returns a world-frame vector
     # directed primary -> secondary. Legacy sensors use contact coordinates.
-    normal_component = ((engage_force * inward).sum(-1)
-                        if world_force else engage_force[..., 0])
+    normal_component = (engage_force * inward).sum(-1) if world_force else engage_force[..., 0]
     normal_force = normal_component.clamp(min=0.0)
-    normal_force = torch.where(
-      found_mask, normal_force, torch.zeros_like(normal_force)
-    )
+    normal_force = torch.where(found_mask, normal_force, torch.zeros_like(normal_force))
 
     # Spring-field mode: reconstruct the world-frame contact force per
     # sphere from the contact-frame components and the sensor's world-frame
@@ -1690,9 +1513,7 @@ class MicrospineAffordance(CommandTerm):
         t2 = torch.cross(n_c, t1, dim=-1)
         f = engage_force
         fw = f[..., 0:1] * n_c + f[..., 1:2] * t1 + f[..., 2:3] * t2
-      self._sphere_force_world = torch.where(
-        found_mask.unsqueeze(-1), fw, torch.zeros_like(fw)
-      )
+      self._sphere_force_world = torch.where(found_mask.unsqueeze(-1), fw, torch.zeros_like(fw))
 
     found_count = torch.zeros(self.num_envs, self._num_ee, device=self.device)
     spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
@@ -1760,29 +1581,15 @@ class MicrospineAffordance(CommandTerm):
       # Latched pads' spheres are retracted — they physically have no wall
       # contact. The substep-history recovery (meant to bridge sampling
       # aliasing of real contacts) must not replay stale pre-latch forces.
-      spheres_per_ee_mask = (
-        self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-      )
+      spheres_per_ee_mask = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
       latched_spheres = (
-        self._engaged.unsqueeze(-1)
-        .expand(-1, self._num_ee, spheres_per_ee_mask)
-        .reshape(self.num_envs, -1)
+        self._engaged.unsqueeze(-1).expand(-1, self._num_ee, spheres_per_ee_mask).reshape(self.num_envs, -1)
       )
-      normal_forces = torch.where(
-        latched_spheres, torch.zeros_like(normal_forces), normal_forces
-      )
-      found_count = torch.where(
-        self._engaged, torch.zeros_like(found_count), found_count
-      )
+      normal_forces = torch.where(latched_spheres, torch.zeros_like(normal_forces), normal_forces)
+      found_count = torch.where(self._engaged, torch.zeros_like(found_count), found_count)
     self.contact_count = found_count
-    spheres_per_ee = (
-      self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-    )
-    self.pad_press_force = (
-      normal_forces.clamp(min=0.0)
-      .view(self.num_envs, self._num_ee, spheres_per_ee)
-      .sum(dim=2)
-    )
+    spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
+    self.pad_press_force = normal_forces.clamp(min=0.0).view(self.num_envs, self._num_ee, spheres_per_ee).sum(dim=2)
     self.engaged_this_step.zero_()
     self.released_was_seeded.zero_()
 
@@ -1831,29 +1638,18 @@ class MicrospineAffordance(CommandTerm):
       # when dragged down their rake under contact, not when pressed).
       t_hat_sf, _, n_hat_sf = self._engage_frame()
       self._update_spring_field(t_hat_sf, n_hat_sf)
-      engage_condition &= found_count >= max(
-        1, self._mcfg.engage_min_spheres
-      )
-      engage_condition &= (
-        self.pad_shear_down >= self._mcfg.engage_shear_threshold_n
-      )
+      engage_condition &= found_count >= max(1, self._mcfg.engage_min_spheres)
+      engage_condition &= self.pad_shear_down >= self._mcfg.engage_shear_threshold_n
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
-      engage_condition &= (
-        face_cos >= self._mcfg.engage_parallel_cos_threshold
-      )
+      engage_condition &= face_cos >= self._mcfg.engage_parallel_cos_threshold
     if self._mcfg.engage_min_total_normal_force > 0.0:
       engage_condition &= self.pad_press_force >= self._mcfg.engage_min_total_normal_force
-    if (
-      self._mcfg.engage_min_spine_fraction > 0.0
-      and not self._mcfg.spring_field_enabled
-    ):
+    if self._mcfg.engage_min_spine_fraction > 0.0 and not self._mcfg.spring_field_enabled:
       # The seating gate: enough of the virtual spine field must be able to
       # reach the wall. Replaces the 2-rigid-sphere count as the 'actually
       # seated' judgement (a rigid pad generically touches a flat wall with
       # one sphere; demanding two demanded sub-degree parallelism).
-      engage_condition &= (
-        self.spine_fraction >= self._mcfg.engage_min_spine_fraction
-      )
+      engage_condition &= self.spine_fraction >= self._mcfg.engage_min_spine_fraction
     if self._mcfg.engage_max_antirake_vel > 0.0:
       # Rake-direction gate (Wang 2017 §2): spines hook under along-rake
       # loading only. A pad sliding against its rake (up-wall) cannot
@@ -1881,9 +1677,7 @@ class MicrospineAffordance(CommandTerm):
       self._engage_count + 1,
       torch.zeros_like(self._engage_count),
     )
-    engage_transition = engage_count >= max(
-      1, self._mcfg.engage_consecutive_steps
-    )
+    engage_transition = engage_count >= max(1, self._mcfg.engage_consecutive_steps)
     self.engaged_this_step.copy_(engage_transition)
 
     # The limit surface owns release. It runs on the pre-transition latch state,
@@ -1947,13 +1741,8 @@ class MicrospineAffordance(CommandTerm):
       torch.zeros_like(self.dr_release_pending),
       self.dr_release_pending,
     )
-    self._reseat_hold_steps = torch.where(
-      expired, torch.zeros_like(self._reseat_hold_steps), self._reseat_hold_steps
-    )
-    if (
-      self._mcfg.seat_quality_scales_capacity
-      and not self._mcfg.spring_field_enabled
-    ):
+    self._reseat_hold_steps = torch.where(expired, torch.zeros_like(self._reseat_hold_steps), self._reseat_hold_steps)
+    if self._mcfg.seat_quality_scales_capacity and not self._mcfg.spring_field_enabled:
       # This latch's capacity is set by how much of the spine field could
       # reach at the seat step (Wang 2017 Sec 2.4: pad capacity is the sum of
       # engaged spines' contributions). Release restores full scale so the
@@ -1974,9 +1763,7 @@ class MicrospineAffordance(CommandTerm):
       # Recruitment: rake-shear-loaded time charges the young anchor toward
       # full capacity (dragging the loaded array seats more spines). Fresh
       # transitions restart from zero; releases clear.
-      shear_loaded = self._engaged & (
-        self.anchor_load_tnl[..., 0] >= self._ls_cfg.capacity_ramp_shear_n
-      )
+      shear_loaded = self._engaged & (self.anchor_load_tnl[..., 0] >= self._ls_cfg.capacity_ramp_shear_n)
       self._seat_charge = torch.where(
         shear_loaded,
         self._seat_charge + self._env.step_dt,
@@ -1995,22 +1782,14 @@ class MicrospineAffordance(CommandTerm):
       # Releases clear both; seat_scale stays 1 (quality lives per unit).
       on = engage_transition.unsqueeze(-1)
       off = disengage_transition.unsqueeze(-1)
-      q = (
-        self._unit_compression / self._unit_free_len.clamp_min(1.0e-6)
-      ).clamp(0.0, 1.0)
+      q = (self._unit_compression / self._unit_free_len.clamp_min(1.0e-6)).clamp(0.0, 1.0)
       self._unit_quality = torch.where(on, q, self._unit_quality)
       tickets = self._ticket_lottery(self._unit_ticket.shape)
       self._unit_ticket = torch.where(on, tickets, self._unit_ticket)
-      self._unit_quality = torch.where(
-        off, torch.zeros_like(self._unit_quality), self._unit_quality
-      )
-      self._unit_ticket = torch.where(
-        off, torch.zeros_like(self._unit_ticket), self._unit_ticket
-      )
+      self._unit_quality = torch.where(off, torch.zeros_like(self._unit_quality), self._unit_quality)
+      self._unit_ticket = torch.where(off, torch.zeros_like(self._unit_ticket), self._unit_ticket)
       pad_total = (self._unit_ticket * self._unit_quality).sum(-1)
-      self.limit_f_t_max = torch.where(
-        engage_transition, pad_total, self.limit_f_t_max
-      )
+      self.limit_f_t_max = torch.where(engage_transition, pad_total, self.limit_f_t_max)
       self._seat_scale = torch.where(
         engage_transition | disengage_transition,
         torch.ones_like(self._seat_scale),
@@ -2025,24 +1804,16 @@ class MicrospineAffordance(CommandTerm):
         # Spring mode replaced the pad draw with the unit-ticket sum above.
         lo, hi = self._ls_cfg.f_t_max_range
         draw = lo + (hi - lo) * torch.rand_like(self.limit_f_t_max)
-        self.limit_f_t_max = torch.where(
-          engage_transition, draw, self.limit_f_t_max
-        )
+        self.limit_f_t_max = torch.where(engage_transition, draw, self.limit_f_t_max)
       # Same lottery for the tilt-peel travel headroom: which asperities the
       # spines caught decides how much chassis rotation the patch tolerates.
       t_lo, t_hi = self._ls_cfg.tilt_peel_max_deg_range
       if t_hi > 0.0:
-        t_draw = torch.deg2rad(
-          t_lo + (t_hi - t_lo) * torch.rand_like(self.limit_tilt_peel_max)
-        )
-        self.limit_tilt_peel_max = torch.where(
-          engage_transition, t_draw, self.limit_tilt_peel_max
-        )
+        t_draw = torch.deg2rad(t_lo + (t_hi - t_lo) * torch.rand_like(self.limit_tilt_peel_max))
+        self.limit_tilt_peel_max = torch.where(engage_transition, t_draw, self.limit_tilt_peel_max)
     self._engage_count = engage_count
     # After an engage transition, clear its counter.
-    self._engage_count = torch.where(
-      engage_transition, torch.zeros_like(self._engage_count), self._engage_count
-    )
+    self._engage_count = torch.where(engage_transition, torch.zeros_like(self._engage_count), self._engage_count)
 
     self._cooldown_steps = (self._cooldown_steps - 1).clamp(min=0)
     cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
@@ -2056,9 +1827,7 @@ class MicrospineAffordance(CommandTerm):
       )
 
     # Once engaged, stale engage counts are irrelevant.
-    self._engage_count = torch.where(
-      self._engaged, torch.zeros_like(self._engage_count), self._engage_count
-    )
+    self._engage_count = torch.where(self._engaged, torch.zeros_like(self._engage_count), self._engage_count)
     # Contact pairs follow the (possibly just-changed) latch mask: latched
     # pads hand their load path to the anchor, released pads get their
     # contacts back for seating and push-off.
@@ -2076,6 +1845,4 @@ class MicrospineAffordance(CommandTerm):
       ),
       torch.zeros_like(self._steps_since_engage),
     )
-    self._violation_count = torch.where(
-      self._engaged, self._violation_count, torch.zeros_like(self._violation_count)
-    )
+    self._violation_count = torch.where(self._engaged, self._violation_count, torch.zeros_like(self._violation_count))

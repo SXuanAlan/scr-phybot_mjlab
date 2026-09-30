@@ -26,9 +26,7 @@ def origin_transform(origin: ET.Element | None) -> np.ndarray:
   result = np.eye(4)
   if origin is not None:
     result[:3, 3] = np.fromstring(origin.get("xyz", "0 0 0"), sep=" ")
-    result[:3, :3] = Rotation.from_euler(
-      "xyz", np.fromstring(origin.get("rpy", "0 0 0"), sep=" ")
-    ).as_matrix()
+    result[:3, :3] = Rotation.from_euler("xyz", np.fromstring(origin.get("rpy", "0 0 0"), sep=" ")).as_matrix()
   return result
 
 
@@ -42,8 +40,8 @@ def cad_parts(directory: Path = CAD_DIRECTORY) -> list[tuple[str, str, trimesh.T
     if not ready:
       raise ValueError("Disconnected CAD assembly")
     for joint in ready:
-      poses[joint.find("child").get("link")] = (
-        poses[joint.find("parent").get("link")] @ origin_transform(joint.find("origin"))
+      poses[joint.find("child").get("link")] = poses[joint.find("parent").get("link")] @ origin_transform(
+        joint.find("origin")
       )
       pending.remove(joint)
   to_connector = np.linalg.inv(origin_transform(robot.find("link[@name='root']/visual/origin")))

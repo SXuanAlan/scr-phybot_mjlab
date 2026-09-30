@@ -1,4 +1,5 @@
 """Shared whole-body IK and task construction for offline climbing references."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -6,11 +7,17 @@ import mujoco
 import numpy as np
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
-  PHYBOT_C2_FOOT_SITES, PHYBOT_C2_FOOT_TOES, get_spec,
+  PHYBOT_C2_FOOT_SITES,
+  PHYBOT_C2_FOOT_TOES,
+  get_spec,
 )
 from scr_phybot_mjab.assets.wall.wall_constants import WALL_HALF_SIZE, WALL_OFFSET
 from scr_phybot_mjab.microspine.contact import (
-  ToeContact, add_toe_geoms, pad_contact_center, sphere_names, toe_site_name,
+  ToeContact,
+  add_toe_geoms,
+  pad_contact_center,
+  sphere_names,
+  toe_site_name,
 )
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
 
@@ -18,7 +25,6 @@ WALL_SURFACE_X = float(WALL_OFFSET[0] - WALL_HALF_SIZE[0])
 PAD_TOUCH_X = WALL_SURFACE_X  # IK pad sites now represent the contact face C.
 
 FOOT_SITE_NAMES = tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
-
 
 
 def smootherstep(x: float | np.ndarray) -> float | np.ndarray:
@@ -136,23 +142,17 @@ class ClimbIK:
     for ee in self.ee_names:
       center = pad_contact_center(spec, microspine_cfg, ee, robot_prefix="")
       site_name = f"{ee}_pad_center"
-      spec.body(ee).add_site(
-        name=site_name, pos=center, size=[0.005, 0.005, 0.005]
-      )
+      spec.body(ee).add_site(name=site_name, pos=center, size=[0.005, 0.005, 0.005])
       self.pad_site_names[ee] = site_name
 
     # Foot toes: the bracing tips a released foot presses against the wall
     # instead of sliding its spine pad (same definition the climb env's
     # spec_fn instantiates for the physical contact pairs).
     self.toes = {
-      ee: ToeContact(
-        ee_body_name=ee, body_name=body, pos=pos, radius=radius
-      )
+      ee: ToeContact(ee_body_name=ee, body_name=body, pos=pos, radius=radius)
       for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
     }
-    add_toe_geoms(
-      spec, tuple(self.toes.values()), robot_prefix="", with_sites=True
-    )
+    add_toe_geoms(spec, tuple(self.toes.values()), robot_prefix="", with_sites=True)
 
     self.model = spec.compile()
     self.data = mujoco.MjData(self.model)
@@ -173,25 +173,14 @@ class ClimbIK:
     self.root_bid = int(m.jnt_bodyid[free_jid])
     self.base_dofs = np.arange(6) + int(m.jnt_dofadr[free_jid])
 
-    self.pad_sid = {
-      ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, s)
-      for ee, s in self.pad_site_names.items()
-    }
+    self.pad_sid = {ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, s) for ee, s in self.pad_site_names.items()}
     self.toe_sid = {
-      ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, toe_site_name(toe))
-      for ee, toe in self.toes.items()
+      ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, toe_site_name(toe)) for ee, toe in self.toes.items()
     }
-    self.ee_bid = {
-      ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, ee) for ee in self.ee_names
-    }
-    self.foot_sid = [
-      mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, s) for s in FOOT_SITE_NAMES
-    ]
+    self.ee_bid = {ee: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, ee) for ee in self.ee_names}
+    self.foot_sid = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, s) for s in FOOT_SITE_NAMES]
     self.sphere_bids = {
-      ee: [
-        mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, n)
-        for n in sphere_names(ee, rows, cols)
-      ]
+      ee: [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, n) for n in sphere_names(ee, rows, cols)]
       for ee in self.ee_names
     }
 
@@ -214,9 +203,7 @@ class ClimbIK:
     )
 
   def dof_selection(self, joint_names: tuple[str, ...]) -> np.ndarray:
-    return np.concatenate(
-      [self.base_dofs, [self.dof_addresses[n] for n in joint_names]]
-    ).astype(int)
+    return np.concatenate([self.base_dofs, [self.dof_addresses[n] for n in joint_names]]).astype(int)
 
   # -- solver ----------------------------------------------------------------
 
@@ -239,11 +226,7 @@ class ClimbIK:
     jacp = np.zeros((3, nv))
     jacr = np.zeros((3, nv))
     sel_set = set(sel.tolist())
-    sel_joints = [
-      (name, self.dof_addresses[name])
-      for name in posture_ref
-      if self.dof_addresses[name] in sel_set
-    ]
+    sel_joints = [(name, self.dof_addresses[name]) for name in posture_ref if self.dof_addresses[name] in sel_set]
     sel_index = {dof: i for i, dof in enumerate(sel.tolist())}
 
     residual = IKResidual()
@@ -336,11 +319,7 @@ class ClimbIK:
       # Converged only when the tracked (hard) errors are met AND the soft
       # tasks are stationary. Checking the hard errors alone would freeze the
       # base whenever the welds are already satisfied by the warm start.
-      if (
-        residual.pos < tol_pos
-        and residual.rot < tol_rot
-        and float(np.abs(dq).max()) < tol_dq
-      ):
+      if residual.pos < tol_pos and residual.rot < tol_rot and float(np.abs(dq).max()) < tol_dq:
         break
       peak = float(np.abs(dq).max())
       if peak > max_step:

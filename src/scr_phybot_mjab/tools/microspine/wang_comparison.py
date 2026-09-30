@@ -1,7 +1,9 @@
 """Legacy Wang unit-boundary calculations for offline empirical comparisons."""
+
 import numpy as np
 import torch
 from scr_phybot_mjab.microspine.wang_limit_surface import build_capacity_lut, capacity_ratio
+
 
 class WangUnit:
   def __init__(self, cfg):
@@ -35,4 +37,3 @@ class WangUnit:
     if residual.numel():
       assert float(residual.max()) < 1e-7
     return torch.where(valid, lower, torch.full_like(lower, float("nan"))).numpy()
-

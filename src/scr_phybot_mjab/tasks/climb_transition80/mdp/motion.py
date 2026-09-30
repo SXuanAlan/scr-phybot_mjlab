@@ -169,9 +169,7 @@ def rebuild_acyclic_schedule(clip: ClimbMotionClip) -> None:
   clip.ee_run_time = _t(run_time)
 
 
-def resolve_segment_window(
-  motion_file: str, segments: tuple[str, ...]
-) -> tuple[float, float] | None:
+def resolve_segment_window(motion_file: str, segments: tuple[str, ...]) -> tuple[float, float] | None:
   """Frame-fraction window [lo, hi) of the named clip segments (None when
   the file is absent or no frame matches)."""
   path = Path(motion_file)
@@ -264,9 +262,7 @@ def build_fk_tables(
   return pos, quat
 
 
-def finite_difference_velocities(
-  pos: np.ndarray, quat: np.ndarray, fps: float
-) -> tuple[np.ndarray, np.ndarray]:
+def finite_difference_velocities(pos: np.ndarray, quat: np.ndarray, fps: float) -> tuple[np.ndarray, np.ndarray]:
   """Forward-difference linear (C, B, 3) and angular (C, B, 3) velocities;
   the last row is zero (the clip ends in a static hold the clock clamps on)."""
   lin = np.zeros_like(pos)
@@ -293,9 +289,7 @@ def adaptive_bin_probabilities(
   n = bin_failed.shape[0]
   probs = bin_failed + uniform_ratio / float(n)
   if kernel is not None and kernel.numel() > 1:
-    padded = torch.nn.functional.pad(
-      probs.view(1, 1, -1), (0, kernel.numel() - 1), mode="replicate"
-    )
+    padded = torch.nn.functional.pad(probs.view(1, 1, -1), (0, kernel.numel() - 1), mode="replicate")
     probs = torch.nn.functional.conv1d(padded, kernel.view(1, 1, -1)).view(-1)
   probs = probs / probs.sum()
   if max_bin_prob is not None and max_bin_prob * n > 1.0 and max_bin_prob < 1.0:
@@ -315,9 +309,7 @@ def adaptive_bin_probabilities(
 # --- the command ------------------------------------------------------------------
 
 
-def birth_mask_from_ranges(
-  cycle_frames: int, ranges: tuple[tuple[int, int], ...]
-) -> torch.Tensor:
+def birth_mask_from_ranges(cycle_frames: int, ranges: tuple[tuple[int, int], ...]) -> torch.Tensor:
   """(C,) bool: frames RSI may birth into. ``ranges`` are (start, end)
   with end exclusive; raises if nothing stays allowed."""
   allowed = torch.ones(int(cycle_frames), dtype=torch.bool)
@@ -330,9 +322,7 @@ def birth_mask_from_ranges(
   return allowed
 
 
-def rake_windows_from_engaged(
-  engaged: "np.ndarray | torch.Tensor", rake_frames: int
-) -> tuple[tuple[int, int], ...]:
+def rake_windows_from_engaged(engaged: "np.ndarray | torch.Tensor", rake_frames: int) -> tuple[tuple[int, int], ...]:
   """Classroom windows [edge - rake_frames, edge) for every engage rising
   edge of every EE (sorted, may overlap across EEs)."""
   arr = engaged.detach().cpu().numpy() if torch.is_tensor(engaged) else np.asarray(engaged)
@@ -355,20 +345,14 @@ class TransitionMotionCommand(ClimbMotionCommand):
     rebuild_acyclic_schedule(self.clip)
     # First frame with any scheduled engagement: the boundary of the
     # standing stretch (stand -> raise -> place).
-    self._first_engage_frame = int(
-      self.clip.ee_engaged.any(dim=-1).int().argmax().item()
-    )
-    self._bias_window = self._bias_window_for(
-      cfg, self.clip, self._first_engage_frame, cfg.motion_file
-    )
+    self._first_engage_frame = int(self.clip.ee_engaged.any(dim=-1).int().argmax().item())
+    self._bias_window = self._bias_window_for(cfg, self.clip, self._first_engage_frame, cfg.motion_file)
     self._bias_segments_active: tuple[str, ...] | None = None
 
     names = tuple(cfg.body_names) or DEFAULT_TRACKING_BODY_NAMES
     missing = [n for n in cfg.ee_body_names if n not in names]
     if missing:
-      raise ValueError(
-        f"Tracking body set must contain every pad body; missing {missing}."
-      )
+      raise ValueError(f"Tracking body set must contain every pad body; missing {missing}.")
     self._tracking_body_names = names
     ids = [self.robot.find_bodies([name])[0][0] for name in names]
     self._body_ids = torch.tensor(ids, dtype=torch.long, device=self.device)
@@ -398,12 +382,8 @@ class TransitionMotionCommand(ClimbMotionCommand):
       device=self.device,
     )
     self._adaptive_kernel = kernel / kernel.sum()
-    self._birth_freeze_left = torch.zeros(
-      self.num_envs, dtype=torch.long, device=self.device
-    )
-    self._birth_allowed = birth_mask_from_ranges(
-      self.clip.cycle_frames, cfg.birth_exclude_frames
-    ).to(self.device)
+    self._birth_freeze_left = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+    self._birth_allowed = birth_mask_from_ranges(self.clip.cycle_frames, cfg.birth_exclude_frames).to(self.device)
     # Per-bin tables of allowed frames (adaptive draws stay inside the bin).
     bins_of = torch.arange(self.clip.cycle_frames) * self._bin_count // max(self.clip.cycle_frames, 1)
     rows = []
@@ -445,9 +425,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
   def _load_pad_centers(self, motion_file: str, step_dt: float) -> torch.Tensor:
     data = np.load(Path(motion_file), allow_pickle=True).item()
     if "pad_positions" not in data:
-      raise KeyError(
-        f"{motion_file} carries no 'pad_positions' (gen_mount_clip writes them)."
-      )
+      raise KeyError(f"{motion_file} carries no 'pad_positions' (gen_mount_clip writes them).")
     pads = np.asarray(data["pad_positions"], dtype=np.float64)
     src_fps = float(data["fps"])
     target_fps = 1.0 / step_dt
@@ -532,15 +510,11 @@ class TransitionMotionCommand(ClimbMotionCommand):
     failed = manager.terminated[env_ids]
     if not bool(failed.any()):
       return
-    source = (
-      self._birth_frames if self.cfg.adaptive_attribution == "birth" else self.time_steps
-    )
+    source = self._birth_frames if self.cfg.adaptive_attribution == "birth" else self.time_steps
     frames = source[env_ids][failed]
     bins = (frames * self._bin_count) // max(self.clip.cycle_frames, 1)
     bins = bins.clamp(0, self._bin_count - 1)
-    self._current_bin_failed += torch.bincount(
-      bins, minlength=self._bin_count
-    ).float()
+    self._current_bin_failed += torch.bincount(bins, minlength=self._bin_count).float()
 
   def _adaptive_draw(self, count: int) -> torch.Tensor:
     probs = adaptive_bin_probabilities(
@@ -561,9 +535,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
     entropy = -(probs * (probs + 1.0e-12).log()).sum()
     norm = math.log(self._bin_count) if self._bin_count > 1 else 1.0
     self.metrics["sampling_entropy"][:] = entropy / norm
-    self.metrics["sampling_top1_bin"][:] = (
-      probs.argmax().float() / self._bin_count
-    )
+    self.metrics["sampling_top1_bin"][:] = probs.argmax().float() / self._bin_count
     return frames.clamp(0, self.clip.cycle_frames - 1)
 
   # -- lifecycle -------------------------------------------------------------------
@@ -666,9 +638,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
     self.metrics["birth_frozen"][:] = frozen.to(self.metrics["birth_frozen"].dtype)
     if self.cfg.sampling_mode == "adaptive":
       alpha = self.cfg.adaptive_alpha
-      self._bin_failed = (
-        alpha * self._current_bin_failed + (1.0 - alpha) * self._bin_failed
-      )
+      self._bin_failed = alpha * self._current_bin_failed + (1.0 - alpha) * self._bin_failed
       self._current_bin_failed.zero_()
 
   @property
@@ -702,13 +672,8 @@ class TransitionMotionCommand(ClimbMotionCommand):
     joint_qadr_clip = joint_qadr_all[self._joint_ids.cpu().numpy()]
     passive_qadr = joint_qadr_all[self._passive_joint_ids.cpu().numpy()]
     base_qpos = np.array(mj_model.qpos0, dtype=np.float64, copy=True)
-    base_qpos[joint_qadr_all] = (
-      self.robot.data.default_joint_pos[0].detach().cpu().numpy()
-    )
-    body_ids = [
-      mj_model.body(f"{self.cfg.entity_name}/{name}").id
-      for name in self._tracking_body_names
-    ]
+    base_qpos[joint_qadr_all] = self.robot.data.default_joint_pos[0].detach().cpu().numpy()
+    body_ids = [mj_model.body(f"{self.cfg.entity_name}/{name}").id for name in self._tracking_body_names]
     pos, quat = build_fk_tables(
       mj_model,
       base_qpos,
@@ -720,8 +685,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
       self.clip.joint_pos.detach().cpu().numpy().astype(np.float64),
       passive_qadr=passive_qadr if len(passive_qadr) else None,
       passive_pos=(
-        self.clip.passive_joint_pos.detach().cpu().numpy().astype(np.float64)
-        if len(passive_qadr) else None
+        self.clip.passive_joint_pos.detach().cpu().numpy().astype(np.float64) if len(passive_qadr) else None
       ),
     )
     lin, ang = finite_difference_velocities(pos, quat, self.clip.fps)
@@ -789,9 +753,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
   @property
   def ref_pad_center_w(self) -> torch.Tensor:
     """Reference pad FACE centers, world (E, 4, 3)."""
-    return self._to_world_point(
-      self._pad_center_canon[self.time_steps] + self.root_offset.unsqueeze(1)
-    )
+    return self._to_world_point(self._pad_center_canon[self.time_steps] + self.root_offset.unsqueeze(1))
 
   @property
   def robot_pad_center_w(self) -> torch.Tensor:
@@ -833,13 +795,13 @@ class TransitionMotionCommand(ClimbMotionCommand):
     robot_quat = self.robot_anchor_quat_w.unsqueeze(1).expand(-1, num_bodies, -1)
     delta_pos = robot_pos.clone()
     delta_pos[..., 2] = anchor_pos[..., 2]
-    delta_ori = yaw_quat(
-      quat_mul(robot_quat.reshape(-1, 4), quat_inv(anchor_quat.reshape(-1, 4)))
-    ).reshape(-1, num_bodies, 4)
+    delta_ori = yaw_quat(quat_mul(robot_quat.reshape(-1, 4), quat_inv(anchor_quat.reshape(-1, 4)))).reshape(
+      -1, num_bodies, 4
+    )
     quat_rel = quat_mul(delta_ori.reshape(-1, 4), body_quat.reshape(-1, 4)).reshape(body_quat.shape)
-    pos_rel = delta_pos + quat_apply(
-      delta_ori.reshape(-1, 4), (body_pos - anchor_pos).reshape(-1, 3)
-    ).reshape(body_pos.shape)
+    pos_rel = delta_pos + quat_apply(delta_ori.reshape(-1, 4), (body_pos - anchor_pos).reshape(-1, 3)).reshape(
+      body_pos.shape
+    )
     return pos_rel, quat_rel
 
   @property
@@ -888,9 +850,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
     self.metrics["error_anchor_pos"] = (self.anchor_pos_w - self.robot_anchor_pos_w).norm(dim=-1)
     body_err = (self.body_pos_target_w - self.robot_body_pos_w).norm(dim=-1)
     self.metrics["error_body_pos"] = body_err.mean(dim=-1)
-    self.metrics["error_pad_pos"] = (
-      (self.ref_pad_center_w - self.robot_pad_center_w).norm(dim=-1).mean(dim=-1)
-    )
+    self.metrics["error_pad_pos"] = (self.ref_pad_center_w - self.robot_pad_center_w).norm(dim=-1).mean(dim=-1)
 
 
 @dataclass(kw_only=True)

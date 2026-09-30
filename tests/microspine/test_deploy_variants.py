@@ -19,8 +19,7 @@ _DR_EVENTS = ("body_friction", "base_mass")
 
 def _gains(cfg):
   return {
-    act.target_names_expr[0]: (act.stiffness, act.damping)
-    for act in cfg.scene.entities["robot"].articulation.actuators
+    act.target_names_expr[0]: (act.stiffness, act.damping) for act in cfg.scene.entities["robot"].articulation.actuators
   }
 
 
@@ -202,17 +201,13 @@ def test_random_release_guard_is_a_correctness_requirement():
   # minimum_supports=2 with a reason-blind unsafe_support penalty: an event
   # that could drop below 2 latches bills the policy for a DR fault.
   with pytest.raises(ValueError):
-    random_microspine_release(
-      env=None, env_ids=None, only_if_num_engaged_ge=2, max_release_per_env=1
-    )
+    random_microspine_release(env=None, env_ids=None, only_if_num_engaged_ge=2, max_release_per_env=1)
 
 
 def test_random_release_only_touches_eligible_envs():
   aff = _make_affordance_stub(num_envs=3)
   aff._engaged[1] = torch.tensor([True, True, False, False])  # only 2 latched
-  env = SimpleNamespace(
-    command_manager=SimpleNamespace(get_term=lambda name: aff)
-  )
+  env = SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda name: aff))
   torch.manual_seed(0)
   random_microspine_release(env, env_ids=torch.tensor([0, 1, 2]))
   # Envs 0 and 2 lose exactly one latch; env 1 (guard) keeps both.

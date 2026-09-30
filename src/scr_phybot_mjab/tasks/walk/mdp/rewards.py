@@ -133,9 +133,7 @@ def feet_lateral_distance(
   rel = pos_w - asset.data.root_link_pos_w.unsqueeze(1)
   num_envs, num_sites = rel.shape[:2]
   quat = asset.data.root_link_quat_w.unsqueeze(1).expand(num_envs, num_sites, 4)
-  pos_b = quat_apply_inverse(
-    quat.reshape(-1, 4), rel.reshape(-1, 3)
-  ).reshape(num_envs, num_sites, 3)
+  pos_b = quat_apply_inverse(quat.reshape(-1, 4), rel.reshape(-1, 3)).reshape(num_envs, num_sites, 3)
   separation = (pos_b[:, 0, 1] - pos_b[:, 1, 1]).abs()
   return (min_dist - separation).clamp(min=0)
 
@@ -244,9 +242,7 @@ def feet_air_time(
   reward = torch.sum(in_range.float(), dim=1)
   in_air = current_air_time > 0
   num_in_air = torch.sum(in_air.float())
-  mean_air_time = torch.sum(current_air_time * in_air.float()) / torch.clamp(
-    num_in_air, min=1
-  )
+  mean_air_time = torch.sum(current_air_time * in_air.float()) / torch.clamp(num_in_air, min=1)
   env.extras["log"]["Metrics/air_time_mean"] = mean_air_time
   if command_name is not None:
     command = env.command_manager.get_command(command_name)
@@ -290,9 +286,7 @@ class feet_swing_height:
   def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
     self.sensor_name = cfg.params["sensor_name"]
     self.site_names = cfg.params["asset_cfg"].site_names
-    self.peak_heights = torch.zeros(
-      (env.num_envs, len(self.site_names)), device=env.device, dtype=torch.float32
-    )
+    self.peak_heights = torch.zeros((env.num_envs, len(self.site_names)), device=env.device, dtype=torch.float32)
     self.step_dt = env.step_dt
 
   def __call__(
@@ -324,9 +318,7 @@ class feet_swing_height:
     cost = torch.sum(torch.square(error) * first_contact.float(), dim=1) * active
     num_landings = torch.sum(first_contact.float())
     peak_heights_at_landing = self.peak_heights * first_contact.float()
-    mean_peak_height = torch.sum(peak_heights_at_landing) / torch.clamp(
-      num_landings, min=1
-    )
+    mean_peak_height = torch.sum(peak_heights_at_landing) / torch.clamp(num_landings, min=1)
     env.extras["log"]["Metrics/peak_height_mean"] = mean_peak_height
     self.peak_heights = torch.where(
       first_contact,
@@ -375,9 +367,7 @@ def preset_forward_velocity_band(
   outside_band = (low - signed_actual).clamp(min=0.0) + (signed_actual - high).clamp(min=0.0)
   lateral_vel = asset.data.root_link_lin_vel_b[:, 1]
   env.extras["log"]["Metrics/preset_forward_actual"] = torch.mean(signed_actual * active)
-  return torch.exp(
-    -torch.square(outside_band) / std**2 - torch.square(lateral_vel) / lateral_std**2
-  ) * active
+  return torch.exp(-torch.square(outside_band) / std**2 - torch.square(lateral_vel) / lateral_std**2) * active
 
 
 def preset_yaw_velocity_band(
@@ -403,9 +393,7 @@ def preset_yaw_velocity_band(
   outside_band = (low - signed_actual).clamp(min=0.0) + (signed_actual - high).clamp(min=0.0)
   roll_pitch = torch.norm(asset.data.root_link_ang_vel_b[:, :2], dim=1)
   env.extras["log"]["Metrics/preset_yaw_actual"] = torch.mean(signed_actual * active)
-  return torch.exp(
-    -torch.square(outside_band) / std**2 - torch.square(roll_pitch) / roll_pitch_std**2
-  ) * active
+  return torch.exp(-torch.square(outside_band) / std**2 - torch.square(roll_pitch) / roll_pitch_std**2) * active
 
 
 class energy:
@@ -422,9 +410,7 @@ class energy:
     actuator_names = cfg.params["asset_cfg"].actuator_names or (".*",)
     actuator_ids, matched_names = asset.find_actuators(actuator_names)
     joint_ids, joint_names = asset.find_joints(matched_names, preserve_order=True)
-    assert list(joint_names) == list(matched_names), (
-      f"Actuator/joint name mismatch: {matched_names} vs {joint_names}"
-    )
+    assert list(joint_names) == list(matched_names), f"Actuator/joint name mismatch: {matched_names} vs {joint_names}"
     self.actuator_ids = torch.tensor(actuator_ids, device=env.device)
     self.joint_ids = torch.tensor(joint_ids, device=env.device)
 
@@ -462,9 +448,7 @@ def feet_slip(
   vel_xy_norm_sq = torch.square(vel_xy_norm)  # [B, N]
   cost = torch.sum(vel_xy_norm_sq * in_contact, dim=1) * active
   num_in_contact = torch.sum(in_contact)
-  mean_slip_vel = torch.sum(vel_xy_norm * in_contact) / torch.clamp(
-    num_in_contact, min=1
-  )
+  mean_slip_vel = torch.sum(vel_xy_norm * in_contact) / torch.clamp(num_in_contact, min=1)
   env.extras["log"]["Metrics/slip_velocity_mean"] = mean_slip_vel
   return cost
 
@@ -490,12 +474,12 @@ def feet_stationary_when_standing(
   assert contact_sensor.data.found is not None
   missing_contact = (contact_sensor.data.found == 0).float()
   contact_cost = missing_contact_cost * torch.sum(missing_contact, dim=1)
-  env.extras["log"]["Metrics/stand_foot_speed_mean"] = (
-    torch.sum(foot_speed * standing.unsqueeze(1)) / torch.clamp(standing.sum() * foot_speed.shape[1], min=1.0)
+  env.extras["log"]["Metrics/stand_foot_speed_mean"] = torch.sum(foot_speed * standing.unsqueeze(1)) / torch.clamp(
+    standing.sum() * foot_speed.shape[1], min=1.0
   )
-  env.extras["log"]["Metrics/stand_missing_contact_mean"] = (
-    torch.sum(missing_contact * standing.unsqueeze(1)) / torch.clamp(standing.sum() * missing_contact.shape[1], min=1.0)
-  )
+  env.extras["log"]["Metrics/stand_missing_contact_mean"] = torch.sum(
+    missing_contact * standing.unsqueeze(1)
+  ) / torch.clamp(standing.sum() * missing_contact.shape[1], min=1.0)
   return standing * (motion_cost + contact_cost)
 
 
@@ -570,33 +554,21 @@ class feet_lock_after_recovery:
     anchor_xy[newly_strict] = foot_xy[newly_strict]
     frozen[newly_strict] = True
 
-    foot_speed = torch.norm(
-      asset.data.site_lin_vel_w[:, asset_cfg.site_ids, :2], dim=-1
-    )
+    foot_speed = torch.norm(asset.data.site_lin_vel_w[:, asset_cfg.site_ids, :2], dim=-1)
     foot_drift = torch.norm(foot_xy - anchor_xy, dim=-1)
     speed_cost = torch.square(foot_speed / speed_scale).clamp(max=max_scaled_cost)
     drift_cost = torch.square(foot_drift / drift_scale).clamp(max=max_scaled_cost)
     missing_contact = (sensor.data.found == 0).float()
-    cost = torch.sum(
-      speed_cost + drift_cost + missing_contact_cost * missing_contact, dim=1
-    )
+    cost = torch.sum(speed_cost + drift_cost + missing_contact_cost * missing_contact, dim=1)
     strict_f = strict.float()
 
     denom = torch.clamp(strict_f.sum() * foot_speed.shape[1], min=1.0)
-    env.extras["log"]["Metrics/stand_foot_speed_mean"] = torch.sum(
-      foot_speed * strict_f.unsqueeze(1)
-    ) / denom
-    env.extras["log"]["Metrics/stand_foot_drift_mean"] = torch.sum(
-      foot_drift * strict_f.unsqueeze(1)
-    ) / denom
-    env.extras["log"]["Metrics/stand_missing_contact_mean"] = torch.sum(
-      missing_contact * strict_f.unsqueeze(1)
-    ) / denom
+    env.extras["log"]["Metrics/stand_foot_speed_mean"] = torch.sum(foot_speed * strict_f.unsqueeze(1)) / denom
+    env.extras["log"]["Metrics/stand_foot_drift_mean"] = torch.sum(foot_drift * strict_f.unsqueeze(1)) / denom
+    env.extras["log"]["Metrics/stand_missing_contact_mean"] = torch.sum(missing_contact * strict_f.unsqueeze(1)) / denom
     # Keep the per-step training diagnostic reduction cheap. The checkpoint
     # acceptance script computes the strict-window p95 over complete rollouts.
-    env.extras["log"]["Metrics/stand_foot_drift_max"] = torch.max(
-      foot_drift * strict_f.unsqueeze(1)
-    )
+    env.extras["log"]["Metrics/stand_foot_drift_max"] = torch.max(foot_drift * strict_f.unsqueeze(1))
     return strict_f * cost
 
   def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
@@ -665,9 +637,7 @@ class variable_posture:
       data=cfg.params["std_standing"],
       list_of_strings=joint_names,
     )
-    self.std_standing = torch.tensor(
-      std_standing, device=env.device, dtype=torch.float32
-    )
+    self.std_standing = torch.tensor(std_standing, device=env.device, dtype=torch.float32)
 
     _, _, std_walking = resolve_matching_names_values(
       data=cfg.params["std_walking"],
@@ -703,9 +673,7 @@ class variable_posture:
     total_speed = linear_speed + angular_speed
 
     standing_mask = (total_speed < walking_threshold).float()
-    walking_mask = (
-      (total_speed >= walking_threshold) & (total_speed < running_threshold)
-    ).float()
+    walking_mask = ((total_speed >= walking_threshold) & (total_speed < running_threshold)).float()
     running_mask = (total_speed >= running_threshold).float()
 
     std = (

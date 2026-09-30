@@ -37,16 +37,10 @@ ANCHORS = {
 
 def surface_metrics(lut: torch.Tensor) -> dict[str, float]:
   def r(ft: float, fl: float, fn: float) -> float:
-    return float(
-      capacity_ratio(
-        lut, torch.tensor(ft), torch.tensor(fl), torch.tensor(fn)
-      )
-    )
+    return float(capacity_ratio(lut, torch.tensor(ft), torch.tensor(fl), torch.tensor(fn)))
 
   phis = [p * 0.5 for p in range(181)]
-  fwd = [
-    r(math.cos(math.radians(p)), 0.0, math.sin(math.radians(p))) for p in phis
-  ]
+  fwd = [r(math.cos(math.radians(p)), 0.0, math.sin(math.radians(p))) for p in phis]
   z = [ri * math.sin(math.radians(p)) for ri, p in zip(fwd, phis)]
   i_peak = max(range(len(z)), key=z.__getitem__)
   return {
@@ -74,9 +68,7 @@ def main() -> int:
       phybot_c2_climb_wall_env_cfg,
     )
 
-    cfg = phybot_c2_climb_wall_env_cfg(
-      play=True
-    ).commands["microspine_affordance"].microspine_cfg.limit_surface
+    cfg = phybot_c2_climb_wall_env_cfg(play=True).commands["microspine_affordance"].microspine_cfg.limit_surface
   else:
     cfg = MicrospineLimitSurfaceCfg()
 
@@ -89,10 +81,7 @@ def main() -> int:
     got = metrics[name]
     good = abs(got - target) <= tol
     ok &= good
-    print(
-      f"  [{'PASS' if good else 'FAIL'}] {name}: {got:.3f} "
-      f"(paper ~{target:g} ± {tol:g})"
-    )
+    print(f"  [{'PASS' if good else 'FAIL'}] {name}: {got:.3f} (paper ~{target:g} ± {tol:g})")
 
   import matplotlib
 
@@ -129,9 +118,7 @@ def main() -> int:
       label="model boundary" if theta_az == 0.0 else None,
     )
   paper_tn = [(1.0, 0.0), (0.46, 0.13), (0.0, 0.0), (-0.045, 0.0)]
-  ax.scatter(
-    *zip(*paper_tn), color=anchor_c, zorder=3, s=45, label="paper anchors"
-  )
+  ax.scatter(*zip(*paper_tn), color=anchor_c, zorder=3, s=45, label="paper anchors")
   ax.axhline(0.0, color=ink, lw=0.6, alpha=0.4)
   ax.axvline(0.0, color=ink, lw=0.6, alpha=0.4)
   ax.set_xlabel("f_t / F0  (rake shear +)")
@@ -162,9 +149,7 @@ def main() -> int:
   ax.plot(x, y, color=model_c, lw=2, label="model boundary")
   ax.plot(x, -y, color=model_c, lw=2)
   paper_tl = [(1.0, 0.0), (0.0, 0.56), (0.0, -0.56), (-0.045, 0.0)]
-  ax.scatter(
-    *zip(*paper_tl), color=anchor_c, zorder=3, s=45, label="paper anchors"
-  )
+  ax.scatter(*zip(*paper_tl), color=anchor_c, zorder=3, s=45, label="paper anchors")
   ax.axhline(0.0, color=ink, lw=0.6, alpha=0.4)
   ax.axvline(0.0, color=ink, lw=0.6, alpha=0.4)
   ax.set_xlabel("f_t / F0  (rake shear +)")

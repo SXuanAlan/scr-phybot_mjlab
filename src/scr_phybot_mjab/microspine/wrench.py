@@ -36,8 +36,7 @@ def distribute_wrench_to_units(
   m_n = Σ (x b − y a)). Inputs (..., ) broadcast against unit_x/unit_y of
   shape (..., N) or (N,); returns per-unit (a, b, c), each (..., N).
   """
-  return _distribute_components(f_t, f_l, f_n, m_t, m_l, m_n,
-                                unit_x, unit_y, sxx, syy, srr)
+  return _distribute_components(f_t, f_l, f_n, m_t, m_l, m_n, unit_x, unit_y, sxx, syy, srr)
 
 
 def _distribute_components(f_t, f_l, f_n, m_t, m_l, m_n, unit_x, unit_y, sxx, syy, srr):
@@ -45,11 +44,7 @@ def _distribute_components(f_t, f_l, f_n, m_t, m_l, m_n, unit_x, unit_y, sxx, sy
   n_units = unit_x.shape[-1]
   ft_u = f_t[..., None] / n_units - m_n[..., None] * unit_y / srr
   fl_u = f_l[..., None] / n_units + m_n[..., None] * unit_x / srr
-  fn_u = (
-    f_n[..., None] / n_units
-    - m_l[..., None] * unit_x / sxx
-    + m_t[..., None] * unit_y / syy
-  )
+  fn_u = f_n[..., None] / n_units - m_l[..., None] * unit_x / sxx + m_t[..., None] * unit_y / syy
   return ft_u, fl_u, fn_u
 
 
@@ -82,9 +77,7 @@ def distribute_wrench_to_units_weighted(
   w = weights.clamp_min(0.0)
   sw = w.sum(dim=-1, keepdim=True)
   degenerate = sw <= 1.0e-6
-  w_safe = torch.where(
-    degenerate.expand_as(w), torch.ones_like(w), w
-  )
+  w_safe = torch.where(degenerate.expand_as(w), torch.ones_like(w), w)
   sw = w_safe.sum(dim=-1, keepdim=True)
   x = unit_x.expand_as(w_safe)
   y = unit_y.expand_as(w_safe)
@@ -104,11 +97,7 @@ def distribute_wrench_to_units_weighted(
   det = (sxx * syy - sxy * sxy).clamp_min(eps)
   beta = (m_l_c * syy - m_t_c * sxy) / det
   gamma = (m_t_c * sxx - m_l_c * sxy) / det
-  fn_u = w_safe * (
-    alpha[..., None]
-    + beta[..., None] * xc
-    + gamma[..., None] * yc
-  )
+  fn_u = w_safe * (alpha[..., None] + beta[..., None] * xc + gamma[..., None] * yc)
   # Tangential + twist: a_i = w_i (p - omega yc_i), b_i = w_i (q + omega
   # xc_i); the twist about the weighted centroid decouples the same way.
   srr = (sxx + syy).clamp_min(eps)
@@ -127,8 +116,8 @@ def distribute_wrench_to_units_numpy(wrench, geometry: PadGeometry):
   if w.shape[-1] != 6:
     raise ValueError("Expected [Ft, Fl, Fn, Mt, Ml, Mn] about C")
   components = _distribute_components(
-    *np.moveaxis(w, -1, 0), geometry.x, geometry.y,
-    geometry.sxx, geometry.syy, geometry.srr)
+    *np.moveaxis(w, -1, 0), geometry.x, geometry.y, geometry.sxx, geometry.syy, geometry.srr
+  )
   return np.stack(components, axis=-1)
 
 

@@ -98,9 +98,6 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
 )
 
 
-
-
-
 def _policy_joint_cfg() -> SceneEntityCfg:
   return SceneEntityCfg(
     "robot",
@@ -185,9 +182,13 @@ def phybot_c2_climb_wall_env_cfg(
   microspine_cfg.limit_surface.unit_layout = unit_layout
   # Billing spans come from the CAD unit-center sites at cfg-build time:
   # 63 mm along the rake and 84 mm laterally, independent of proxy dimensions.
-  pad_geometry = matching_pad_geometry(get_spec(), microspine_cfg.ee_body_names,
+  pad_geometry = matching_pad_geometry(
+    get_spec(),
+    microspine_cfg.ee_body_names,
     rake_local_axis=microspine_cfg.limit_surface.ee_rake_local_axis,
-    face_local_axis=microspine_cfg.face_local_axis, unit_layout=unit_layout)
+    face_local_axis=microspine_cfg.face_local_axis,
+    unit_layout=unit_layout,
+  )
   span_rake, span_lateral = pad_geometry.spans
   microspine_cfg.limit_surface.unit_rows_rake = pad_geometry.rows
   microspine_cfg.limit_surface.unit_cols_lateral = pad_geometry.cols
@@ -308,11 +309,23 @@ def phybot_c2_climb_wall_env_cfg(
     motion.synchronize_reset_phase = True
     motion.initialize_seeded_anchors = True
     motion.tracking_body_names = (
-      "torso", "torso_upper", "neck_pitch",
-      "left_shoulder_roll", "left_elbow_pitch", "left_hand_spine",
-      "right_shoulder_roll", "right_elbow_pitch", "right_hand_spine",
-      "left_hip_yaw", "left_knee", "left_ankle_roll", "left_foot_spine",
-      "right_hip_yaw", "right_knee", "right_ankle_roll", "right_foot_spine",
+      "torso",
+      "torso_upper",
+      "neck_pitch",
+      "left_shoulder_roll",
+      "left_elbow_pitch",
+      "left_hand_spine",
+      "right_shoulder_roll",
+      "right_elbow_pitch",
+      "right_hand_spine",
+      "left_hip_yaw",
+      "left_knee",
+      "left_ankle_roll",
+      "left_foot_spine",
+      "right_hip_yaw",
+      "right_knee",
+      "right_ankle_roll",
+      "right_foot_spine",
     )
 
   ##
@@ -325,8 +338,7 @@ def phybot_c2_climb_wall_env_cfg(
   # resolve geom names against the entity; the wall PAIRS are scene-level
   # (_spec_fn below). (notes: toe geoms)
   toe_contacts = tuple(
-    ToeContact(ee_body_name=ee, body_name=body, pos=pos, radius=radius)
-    for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
+    ToeContact(ee_body_name=ee, body_name=body, pos=pos, radius=radius) for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
   )
 
   def _robot_spec_with_toes() -> mujoco.MjSpec:
@@ -377,11 +389,13 @@ def phybot_c2_climb_wall_env_cfg(
   )
   if contact_model == "empirical_unit" and _CLIMB_INITIAL_STATE_FILE.exists():
     import json
+
     initial = json.loads(_CLIMB_INITIAL_STATE_FILE.read_text())
     robot_cfg.init_state = EntityCfg.InitialStateCfg(
       pos=tuple(initial["root_position"]),
       rot=tuple(initial["root_quaternion_wxyz"]),
-      joint_pos=initial["joint_positions"], joint_vel={".*": 0.0},
+      joint_pos=initial["joint_positions"],
+      joint_vel={".*": 0.0},
     )
 
   # pd100 table: v3's training gains — full upper chain INCLUDING
@@ -397,15 +411,9 @@ def phybot_c2_climb_wall_env_cfg(
     PHYBOT_C2_ACTUATOR_ANKLE_PITCH,  # 50/5
     PHYBOT_C2_ACTUATOR_ANKLE_ROLL,
     dataclasses.replace(PHYBOT_C2_ACTUATOR_WAIST_YAW, stiffness=100.0, damping=10.0),
-    dataclasses.replace(
-      PHYBOT_C2_ACTUATOR_SHOULDER_PITCH, stiffness=100.0, damping=10.0
-    ),
-    dataclasses.replace(
-      PHYBOT_C2_ACTUATOR_SHOULDER_ROLL, stiffness=100.0, damping=10.0
-    ),
-    dataclasses.replace(
-      PHYBOT_C2_ACTUATOR_SHOULDER_YAW, stiffness=100.0, damping=10.0
-    ),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_SHOULDER_PITCH, stiffness=100.0, damping=10.0),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_SHOULDER_ROLL, stiffness=100.0, damping=10.0),
+    dataclasses.replace(PHYBOT_C2_ACTUATOR_SHOULDER_YAW, stiffness=100.0, damping=10.0),
     dataclasses.replace(PHYBOT_C2_ACTUATOR_ELBOW_PITCH, stiffness=100.0, damping=10.0),
     PHYBOT_C2_ACTUATOR_NECK,
   )
@@ -445,8 +453,7 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.sim.nconmax = max(cfg.sim.nconmax or 0, 256)
     cfg.sim.njmax = max(cfg.sim.njmax or 0, 512)
     pad_sensor_kwargs["reference_sites"] = {
-      name: f"robot/{name.rsplit('_c_', 1)[0]}_contact_center"
-      for name in get_sphere_geom_names(microspine_cfg)
+      name: f"robot/{name.rsplit('_c_', 1)[0]}_contact_center" for name in get_sphere_geom_names(microspine_cfg)
     }
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (
     pad_sensor_cfg(
@@ -460,9 +467,7 @@ def phybot_c2_climb_wall_env_cfg(
       # A flat box can generate several contacts: sum their forces instead
       # of keeping only the strongest point. Netforce is in world coordinates;
       # the affordance projects it onto the live wall normal.
-      fields=("found", "force", "normal", "tangent") + (
-        ("torque", "pos") if contact_model == "empirical_unit" else ()
-      ),
+      fields=("found", "force", "normal", "tangent") + (("torque", "pos") if contact_model == "empirical_unit" else ()),
       reduce="netforce",
       num_slots=1,
       global_frame=False,
@@ -488,10 +493,10 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.scene.sensors += (
       ContactSensorCfg(
         name="climb_undesired_contact",
-        primary=ContactMatch(
-          mode="body", pattern=".*", entity="robot",
-          exclude=(".*_spine.*", ".*_ankle_roll")),
-        fields=("found", "force"), reduce="maxforce", num_slots=1,
+        primary=ContactMatch(mode="body", pattern=".*", entity="robot", exclude=(".*_spine.*", ".*_ankle_roll")),
+        fields=("found", "force"),
+        reduce="maxforce",
+        num_slots=1,
         history_length=cfg.decimation,
       ),
     )
@@ -858,40 +863,57 @@ def phybot_c2_climb_wall_env_cfg(
     # BeyondMimic body tracking + the agreed climbing/contact adaptation.
     # Legacy Wang transition tasks retain their existing reward contract.
     pose_params = {
-      "command_name": MOTION_COMMAND, "engage_gate_floor": 0.25,
+      "command_name": MOTION_COMMAND,
+      "engage_gate_floor": 0.25,
       "engage_gate_grace_fraction": 0.3,
     }
     body_rewards = {
       "motion_body_pos": RewardTermCfg(
-        func=mdp.motion_body_position_error_exp, weight=1.0,
-        params={**pose_params, "std": 0.1}),
+        func=mdp.motion_body_position_error_exp, weight=1.0, params={**pose_params, "std": 0.1}
+      ),
       "motion_body_ori": RewardTermCfg(
-        func=mdp.motion_body_orientation_error_exp, weight=1.0,
-        params={**pose_params, "std": 0.3}),
+        func=mdp.motion_body_orientation_error_exp, weight=1.0, params={**pose_params, "std": 0.3}
+      ),
       "motion_body_lin_vel": RewardTermCfg(
-        func=mdp.motion_body_linear_velocity_error_exp, weight=1.0,
-        params={"command_name": MOTION_COMMAND, "std": 1.0}),
+        func=mdp.motion_body_linear_velocity_error_exp, weight=1.0, params={"command_name": MOTION_COMMAND, "std": 1.0}
+      ),
       "motion_body_ang_vel": RewardTermCfg(
-        func=mdp.motion_body_angular_velocity_error_exp, weight=1.0,
-        params={"command_name": MOTION_COMMAND, "std": 3.14}),
+        func=mdp.motion_body_angular_velocity_error_exp,
+        weight=1.0,
+        params={"command_name": MOTION_COMMAND, "std": 3.14},
+      ),
     }
     retained = (
-      "motion_root_ori", "motion_ref_height", "motion_anchor_landing", "motion_swing_approach",
-      "motion_engage_mismatch", "microspine_support_loss", "unsafe_microspine_release",
-      "microspine_release_load", "action_rate_l2", "dof_pos_limits", "termination_penalty",
+      "motion_root_ori",
+      "motion_ref_height",
+      "motion_anchor_landing",
+      "motion_swing_approach",
+      "motion_engage_mismatch",
+      "microspine_support_loss",
+      "unsafe_microspine_release",
+      "microspine_release_load",
+      "action_rate_l2",
+      "dof_pos_limits",
+      "termination_penalty",
     )
     cfg.rewards = {**body_rewards, **{name: cfg.rewards[name] for name in retained}}
     cfg.rewards["undesired_contacts"] = RewardTermCfg(
-      func=mdp.undesired_body_contacts, weight=-0.1,
-      params={"sensor_name": "climb_undesired_contact", "threshold": 1.0})
+      func=mdp.undesired_body_contacts, weight=-0.1, params={"sensor_name": "climb_undesired_contact", "threshold": 1.0}
+    )
     from mjlab.managers.termination_manager import TerminationTermCfg
+
     cfg.terminations["bad_tracking"] = TerminationTermCfg(
       func=mdp.motion_body_tracking_divergence,
-      params={"command_name": MOTION_COMMAND, "position_threshold": 0.3,
-              "orientation_threshold": 1.0, "height_threshold": 0.25})
+      params={
+        "command_name": MOTION_COMMAND,
+        "position_threshold": 0.3,
+        "orientation_threshold": 1.0,
+        "height_threshold": 0.25,
+      },
+    )
     cfg.terminations["lost_support"] = TerminationTermCfg(
-      func=mdp.prolonged_support_loss(),
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "timeout_s": 0.4})
+      func=mdp.prolonged_support_loss(), params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "timeout_s": 0.4}
+    )
 
   ##
   # Actions.
@@ -921,9 +943,7 @@ def phybot_c2_climb_wall_env_cfg(
     func=mdp.microspine_contact_fraction,
     params={
       "command_name": MICROSPINE_AFFORDANCE_COMMAND,
-      "spheres_per_ee": (
-        microspine_cfg.spheres_per_ee_rows * microspine_cfg.spheres_per_ee_cols
-      ),
+      "spheres_per_ee": (microspine_cfg.spheres_per_ee_rows * microspine_cfg.spheres_per_ee_cols),
     },
   )
   actor_terms["microspine_disengage_time"] = ObservationTermCfg(
@@ -984,8 +1004,7 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.commands[MOTION_COMMAND].height_offset_range = (0.0, 0.0)
 
   if wall_angle_deg is not None:
-    cfg.curriculum["wall_angle"].params["angle_stages"] = [
-      {"iter": 0, "angle_deg": float(wall_angle_deg)}]
+    cfg.curriculum["wall_angle"].params["angle_stages"] = [{"iter": 0, "angle_deg": float(wall_angle_deg)}]
     cfg.curriculum["wall_angle"].params["angle_jitter_deg"] = 0.0
 
   return cfg
@@ -1003,9 +1022,7 @@ def phybot_c2_climb_wall_corners60_env_cfg(play: bool = False) -> ManagerBasedRl
   cfg.commands[MOTION_COMMAND].motion_file = str(CAD_CLIMB_CORNERS60_MOTION)
   clip_vz = mdp.clip_average_climb_rate(CAD_CLIMB_CORNERS60_MOTION)
   cfg.commands[VELOCITY_COMMAND].ranges.lin_vel_z = (clip_vz, clip_vz)
-  cfg.curriculum["wall_angle"].params["angle_stages"] = [
-    dict(stage) for stage in mdp.CORNERS60_WALL_ANGLE_STAGES
-  ]
+  cfg.curriculum["wall_angle"].params["angle_stages"] = [dict(stage) for stage in mdp.CORNERS60_WALL_ANGLE_STAGES]
   if play:
     mdp.pin_curricula_to_final_stage(cfg)
   return cfg
@@ -1014,6 +1031,7 @@ def phybot_c2_climb_wall_corners60_env_cfg(play: bool = False) -> ManagerBasedRl
 def phybot_c2_climb_wall_corners80_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Four active CAD corner units on a fixed 80-degree wall."""
   from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS80_MOTION
-  cfg = phybot_c2_climb_wall_env_cfg(play=play,unit_layout="corners",wall_angle_deg=80.)
+
+  cfg = phybot_c2_climb_wall_env_cfg(play=play, unit_layout="corners", wall_angle_deg=80.0)
   cfg.commands[MOTION_COMMAND].motion_file = str(CAD_CLIMB_CORNERS80_MOTION)
   return cfg

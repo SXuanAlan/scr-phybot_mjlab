@@ -50,9 +50,7 @@ class FootRewardTest(unittest.TestCase):
   def _stand_env(self):
     robot = _ns(
       data=_ns(
-        site_pos_w=torch.tensor(
-          [[[0.0, 0.15, 0.0], [0.0, -0.15, 0.0]]], dtype=torch.float32
-        ),
+        site_pos_w=torch.tensor([[[0.0, 0.15, 0.0], [0.0, -0.15, 0.0]]], dtype=torch.float32),
         site_lin_vel_w=torch.zeros(1, 2, 3),
       )
     )
@@ -99,12 +97,8 @@ class FootRewardTest(unittest.TestCase):
     self.assertEqual(float(reward(env, **params)), 0.0)
 
   def test_squat_anchor_and_stationary_formulas(self) -> None:
-    actual = torch.tensor(
-      [[[0.01, 0.0, 0.0], [0.01, 0.30, 0.0]]], dtype=torch.float32
-    )
-    reference = torch.tensor(
-      [[[0.0, 0.0, 0.0], [0.0, 0.30, 0.0]]], dtype=torch.float32
-    )
+    actual = torch.tensor([[[0.01, 0.0, 0.0], [0.01, 0.30, 0.0]]], dtype=torch.float32)
+    reference = torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.30, 0.0]]], dtype=torch.float32)
     robot = _ns(data=_ns(site_pos_w=actual, site_lin_vel_w=torch.zeros(1, 2, 3)))
     command = _ns(robot=robot, foot_position_ref_w=reference)
     sensor = _ns(data=_ns(found=torch.ones(1, 2)))
@@ -160,9 +154,7 @@ class FootRewardTest(unittest.TestCase):
     )
     joints = ("arm_a", "arm_b")
 
-    position_score = track_joint_pos_cauchy(
-      env, "motion", 0.2, joints, "arm"
-    )
+    position_score = track_joint_pos_cauchy(env, "motion", 0.2, joints, "arm")
     self.assertAlmostEqual(float(position_score), 0.6, places=6)
     self.assertAlmostEqual(
       float(env.extras["log"]["Metrics/motion/arm_arm_a_pos_mae"]),
@@ -174,9 +166,7 @@ class FootRewardTest(unittest.TestCase):
     )
     huber = joint_pos_tracking_huber_error(env, "motion", 0.25, joints)
     self.assertAlmostEqual(float(huber), 0.1375, places=6)
-    velocity_score = track_joint_vel_cauchy(
-      env, "motion", 1.0, joints, "arm"
-    )
+    velocity_score = track_joint_vel_cauchy(env, "motion", 1.0, joints, "arm")
     self.assertAlmostEqual(float(velocity_score), 0.75, places=6)
     action_cost = joint_action_limit_cost(
       env=env,
@@ -200,9 +190,7 @@ class FootRewardTest(unittest.TestCase):
       "arm",
     )
     self.assertAlmostEqual(float(reference_action_cost), 0.79, places=6)
-    position_symmetry = joint_pair_symmetry_huber_error(
-      env, "motion", ("arm_a",), ("arm_b",), 0.25, "arm"
-    )
+    position_symmetry = joint_pair_symmetry_huber_error(env, "motion", ("arm_a",), ("arm_b",), 0.25, "arm")
     self.assertAlmostEqual(float(position_symmetry), 0.275, places=6)
     action_symmetry = joint_action_pair_symmetry_huber_error(
       env,

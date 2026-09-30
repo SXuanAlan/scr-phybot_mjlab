@@ -145,11 +145,7 @@ TRANSITION80_CLASSROOM_HANDUP_WINDOW_FRAMES = 30
 
 def _transition80_classroom_windows(motion_file: str) -> tuple[tuple[int, int], ...]:
   data = np.load(motion_file, allow_pickle=True).item()
-  windows = list(
-    mdp.rake_windows_from_engaged(
-      np.asarray(data["ee_engaged"]), TRANSITION80_CLASSROOM_RAKE_FRAMES
-    )
-  )
+  windows = list(mdp.rake_windows_from_engaged(np.asarray(data["ee_engaged"]), TRANSITION80_CLASSROOM_RAKE_FRAMES))
   names = list(data["segment_names"])
   labels = np.asarray(data["phase_segment"])
   segs = ["hand_up_right", "hand_up_left"]
@@ -157,10 +153,10 @@ def _transition80_classroom_windows(motion_file: str) -> tuple[tuple[int, int], 
     segs.append("hand_up_left_mid")  # v6g two-step walk-up
   for seg in segs:
     frames = np.flatnonzero(labels == names.index(seg))
-    windows.append(
-      (int(frames[0]), int(frames[0]) + TRANSITION80_CLASSROOM_HANDUP_WINDOW_FRAMES)
-    )
+    windows.append((int(frames[0]), int(frames[0]) + TRANSITION80_CLASSROOM_HANDUP_WINDOW_FRAMES))
   return tuple(sorted(windows))
+
+
 # v5e (2026-08-23, user decision: tighten the adaptive sampler, guard stays
 # 6): the failure-weighted start bins fed on the closing hand-up windows --
 # births there die in 0.2-0.5 s (seeds torn at the first judged step, head
@@ -170,7 +166,9 @@ def _transition80_classroom_windows(motion_file: str) -> tuple[tuple[int, int], 
 # 21 bins): the four hard bins can take at most ~32 % between them.
 TRANSITION80_ADAPTIVE_UNIFORM_RATIO = 0.5
 TRANSITION80_ADAPTIVE_MAX_BIN_PROB = 0.08
-TRANSITION80_CLASSROOM_RAKE_FRAMES = 25  # cross v3r6: hand rakes 0.5 s (feet 0.3-0.4 s -> window starts in the approach)
+TRANSITION80_CLASSROOM_RAKE_FRAMES = (
+  25  # cross v3r6: hand rakes 0.5 s (feet 0.3-0.4 s -> window starts in the approach)
+)
 # Birth-settle exemption shared by the rip law and the engage cone. 0.2 s
 # (10 steps) covers the step-2 landing impulse and the 6-step seed guard;
 # the 0.5 s window of v1c-v1f was a loophole — model_1550 window probes
@@ -454,9 +452,7 @@ def _floor_spec_fn(spec: mujoco.MjSpec, base_fn) -> None:
   configure_phybot_c2_floor_geom(spec, enable_contact=True)
 
 
-def _termination_anneal(
-  termination_name: str, param_name: str, stages: list[dict]
-) -> CurriculumTermCfg:
+def _termination_anneal(termination_name: str, param_name: str, stages: list[dict]) -> CurriculumTermCfg:
   return CurriculumTermCfg(
     func=mdp.termination_param_schedule,
     params={
@@ -466,6 +462,7 @@ def _termination_anneal(
       "steps_per_iter": _STEPS_PER_ITER,
     },
   )
+
 
 ##
 # Observation contract (v2, 2026-08-21) — written out in one place.
@@ -576,9 +573,7 @@ def transition80_observation_groups(
   actor_group = cfg.observations["actor"]
   old_actor = actor_group.terms
   old_critic = cfg.observations["critic"].terms
-  actor: dict[str, ObservationTermCfg] = {
-    name: old_actor[name] for name in _INHERITED_ACTOR_TERMS
-  }
+  actor: dict[str, ObservationTermCfg] = {name: old_actor[name] for name in _INHERITED_ACTOR_TERMS}
   motion_lanes = (
     ("motion_ref_joint_pos_rel", mdp.motion_ref_joint_pos_rel),
     ("motion_ref_joint_vel", mdp.motion_ref_joint_vel),
@@ -598,15 +593,9 @@ def transition80_observation_groups(
   assert tuple(actor) == TRANSITION80_ACTOR_TERMS
   actor_group.terms = actor
 
-  critic: dict[str, ObservationTermCfg] = {
-    name: dataclasses.replace(term, noise=None) for name, term in actor.items()
-  }
-  critic["robot_body_pos_b"] = ObservationTermCfg(
-    func=mdp.robot_body_pos_b, params={"command_name": motion_command}
-  )
-  critic["robot_body_ori_b"] = ObservationTermCfg(
-    func=mdp.robot_body_ori_b, params={"command_name": motion_command}
-  )
+  critic: dict[str, ObservationTermCfg] = {name: dataclasses.replace(term, noise=None) for name, term in actor.items()}
+  critic["robot_body_pos_b"] = ObservationTermCfg(func=mdp.robot_body_pos_b, params={"command_name": motion_command})
+  critic["robot_body_ori_b"] = ObservationTermCfg(func=mdp.robot_body_ori_b, params={"command_name": motion_command})
   for name in _INHERITED_CRITIC_TERMS:
     critic[name] = old_critic[name]
   critic["microspine_pad_normal_force"] = ObservationTermCfg(
@@ -724,9 +713,7 @@ def phybot_c2_climb_transition80_env_cfg(
   ##
   tracking_bodies = None
   if asym_arm_tracking:
-    tracking_bodies = tuple(
-      n for n in mdp.DEFAULT_TRACKING_BODY_NAMES if n not in mdp.ARM_TRACKING_BODY_NAMES
-    )
+    tracking_bodies = tuple(n for n in mdp.DEFAULT_TRACKING_BODY_NAMES if n not in mdp.ARM_TRACKING_BODY_NAMES)
   pad_bodies = tuple(cycle_motion.ee_body_names)
   gate = {
     "engage_gate_floor": engage_gate_floor,
@@ -816,9 +803,7 @@ def phybot_c2_climb_transition80_env_cfg(
         "command_name": "climb_motion",
         "affordance_command_name": "microspine_affordance",
         "weight_per_pad": (
-          _stage_final(TRANSITION80_RIP_PENALTY_STAGES)
-          if play
-          else _stage0(TRANSITION80_RIP_PENALTY_STAGES)
+          _stage_final(TRANSITION80_RIP_PENALTY_STAGES) if play else _stage0(TRANSITION80_RIP_PENALTY_STAGES)
         ),
         "release_lead_time_s": 0.5,
         "seed_settle_exempt_s": TRANSITION80_SEED_SETTLE_EXEMPT_S,
@@ -965,9 +950,7 @@ def phybot_c2_climb_transition80_env_cfg(
     ),
   }
   if not play:
-    curriculum["contact_law_grace"] = _termination_anneal(
-      "contact_loss", "grace_s", TRANSITION80_CONTACT_GRACE_STAGES
-    )
+    curriculum["contact_law_grace"] = _termination_anneal("contact_loss", "grace_s", TRANSITION80_CONTACT_GRACE_STAGES)
     curriculum["contact_law_radius"] = _termination_anneal(
       "contact_loss", "anchor_radius_m", TRANSITION80_ANCHOR_RADIUS_STAGES
     )
@@ -990,33 +973,19 @@ def phybot_c2_climb_transition80_env_cfg(
         "steps_per_iter": _STEPS_PER_ITER,
       },
     )
-    curriculum["anchor_pos_anneal"] = _termination_anneal(
-      "anchor_pos", "threshold", TRANSITION80_ANCHOR_POS_STAGES
-    )
-    curriculum["body_pos_anneal"] = _termination_anneal(
-      "body_pos", "threshold", TRANSITION80_PAD_POS_STAGES
-    )
-    curriculum["constraint_tilt"] = _termination_anneal(
-      "engage_constraint", "tilt_limit_deg", TRANSITION80_TILT_STAGES
-    )
+    curriculum["anchor_pos_anneal"] = _termination_anneal("anchor_pos", "threshold", TRANSITION80_ANCHOR_POS_STAGES)
+    curriculum["body_pos_anneal"] = _termination_anneal("body_pos", "threshold", TRANSITION80_PAD_POS_STAGES)
+    curriculum["constraint_tilt"] = _termination_anneal("engage_constraint", "tilt_limit_deg", TRANSITION80_TILT_STAGES)
     curriculum["constraint_grind"] = _termination_anneal(
       "engage_constraint", "grind_limit_mps", TRANSITION80_GRIND_STAGES
     )
-    curriculum["constraint_slam"] = _termination_anneal(
-      "engage_constraint", "slam_limit_mps", TRANSITION80_SLAM_STAGES
-    )
+    curriculum["constraint_slam"] = _termination_anneal("engage_constraint", "slam_limit_mps", TRANSITION80_SLAM_STAGES)
     curriculum["constraint_force"] = _termination_anneal(
       "engage_constraint", "force_limit_n", TRANSITION80_FORCE_STAGES
     )
-    curriculum["constraint_p_tilt"] = _termination_anneal(
-      "engage_constraint", "p_tilt", TRANSITION80_SOFT_P_STAGES
-    )
-    curriculum["constraint_p_vel"] = _termination_anneal(
-      "engage_constraint", "p_vel", TRANSITION80_SOFT_P_STAGES
-    )
-    curriculum["constraint_p_force"] = _termination_anneal(
-      "engage_constraint", "p_force", TRANSITION80_SOFT_P_STAGES
-    )
+    curriculum["constraint_p_tilt"] = _termination_anneal("engage_constraint", "p_tilt", TRANSITION80_SOFT_P_STAGES)
+    curriculum["constraint_p_vel"] = _termination_anneal("engage_constraint", "p_vel", TRANSITION80_SOFT_P_STAGES)
+    curriculum["constraint_p_force"] = _termination_anneal("engage_constraint", "p_force", TRANSITION80_SOFT_P_STAGES)
   if not play:
     # v6e: cover the 22.6 s clip + settle with margin (base 30 s; play 1e9).
     cfg.episode_length_s = 35.0

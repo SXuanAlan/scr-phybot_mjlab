@@ -31,30 +31,54 @@ def clip_jobs() -> list[ClipJob]:
     ClipJob(
       "climb_cad_empirical",
       "scripts/gen_cad_climb_reference.py",
-      ("--step-height", "0.02", "--output", "{out}/climb_cad_empirical.npy",
-       "--initial-output", "{out}/climb_cad_empirical_initial.json"),
+      (
+        "--step-height",
+        "0.02",
+        "--output",
+        "{out}/climb_cad_empirical.npy",
+        "--initial-output",
+        "{out}/climb_cad_empirical_initial.json",
+      ),
     ),
   ]
   for angle in (60, 80):
     name = f"climb_cad_empirical_corners_a{angle}"
-    jobs.append(ClipJob(
-      name,
-      "scripts/gen_cad_climb_reference.py",
-      ("--source-motion", cad_climb, "--output", f"{{out}}/{name}.npy",
-       "--initial-output", f"{{out}}/{name}_unused_initial.json",
-       "--wall-angle", str(angle), "--unit-layout", "corners"),
-    ))
-  jobs.append(ClipJob(
-    "climb_mount_prologue_a80",
-    "scripts/gen_mount_clip.py",
-    (*recipe_args("climb_mount_prologue_a80", "scripts/gen_mount_clip.py"),
-     "--output", "{out}/climb_mount_prologue_a80.npy"),
-  ))
-  jobs.append(ClipJob(
-    "brick_pick_place",
-    "scripts/gen_brick_reference.py",
-    ("--output", "{out}/brick_pick_place.npz"),
-  ))
+    jobs.append(
+      ClipJob(
+        name,
+        "scripts/gen_cad_climb_reference.py",
+        (
+          "--source-motion",
+          cad_climb,
+          "--output",
+          f"{{out}}/{name}.npy",
+          "--initial-output",
+          f"{{out}}/{name}_unused_initial.json",
+          "--wall-angle",
+          str(angle),
+          "--unit-layout",
+          "corners",
+        ),
+      )
+    )
+  jobs.append(
+    ClipJob(
+      "climb_mount_prologue_a80",
+      "scripts/gen_mount_clip.py",
+      (
+        *recipe_args("climb_mount_prologue_a80", "scripts/gen_mount_clip.py"),
+        "--output",
+        "{out}/climb_mount_prologue_a80.npy",
+      ),
+    )
+  )
+  jobs.append(
+    ClipJob(
+      "brick_pick_place",
+      "scripts/gen_brick_reference.py",
+      ("--output", "{out}/brick_pick_place.npz"),
+    )
+  )
   return jobs
 
 
@@ -63,9 +87,9 @@ def recipe_args(clip: str, script: str) -> tuple[str, ...]:
   for line in (MOTIONS_DIR / f"{clip}.recipe.txt").read_text().splitlines():
     tokens = shlex.split(line)
     if script in tokens:
-      args = list(tokens[tokens.index(script) + 1:])
+      args = list(tokens[tokens.index(script) + 1 :])
       if "--output" in args:
-        del args[args.index("--output"):args.index("--output") + 2]
+        del args[args.index("--output") : args.index("--output") + 2]
       return tuple(args)
   raise ValueError(f"No '{script}' command in the {clip} recipe")
 

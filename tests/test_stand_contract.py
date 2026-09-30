@@ -27,9 +27,8 @@ class StandContractTest(unittest.TestCase):
     self.assertEqual(reset_legs.params["velocity_range"], (-0.05, 0.05))
     self.assertEqual(reset_upper.params["position_range"], (-0.15, 0.15))
     self.assertEqual(reset_upper.params["velocity_range"], (-0.10, 0.10))
-    tracked_reset_joints = (
-      tuple(reset_legs.params["asset_cfg"].joint_names)
-      + tuple(reset_upper.params["asset_cfg"].joint_names)
+    tracked_reset_joints = tuple(reset_legs.params["asset_cfg"].joint_names) + tuple(
+      reset_upper.params["asset_cfg"].joint_names
     )
     self.assertEqual(tracked_reset_joints, PHYBOT_C2_POLICY_JOINT_NAMES)
 

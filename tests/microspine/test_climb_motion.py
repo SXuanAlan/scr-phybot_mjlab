@@ -25,9 +25,7 @@ def _synthetic_clip(fps: float = 50.0) -> dict:
   joint_positions = np.stack([0.1 * t, np.full(frames, -0.5)], axis=1)
   root_position = np.zeros((frames, 3), dtype=np.float32)
   root_position[:, 2] = 1.0 + 0.02 * t
-  root_quaternion = np.tile(
-    np.array(_YAW90_XYZW, dtype=np.float32), (frames, 1)
-  )
+  root_quaternion = np.tile(np.array(_YAW90_XYZW, dtype=np.float32), (frames, 1))
   # EEs sit one meter along world +x from the root.
   ee_positions = root_position[:, None, :] + np.array([1.0, 0.0, 0.0])
   ee_positions = np.repeat(ee_positions, 4, axis=1)
@@ -63,15 +61,11 @@ def test_loader_slices_one_cycle_and_derives_velocities():
   assert torch.allclose(clip.root_ang_vel, torch.zeros(4, 3), atol=1e-5)
 
   # xyzw -> wxyz conversion.
-  expected_wxyz = torch.tensor(
-    [np.cos(np.pi / 4.0), 0.0, 0.0, np.sin(np.pi / 4.0)], dtype=torch.float32
-  )
+  expected_wxyz = torch.tensor([np.cos(np.pi / 4.0), 0.0, 0.0, np.sin(np.pi / 4.0)], dtype=torch.float32)
   assert torch.allclose(clip.root_quat[0], expected_wxyz, atol=1e-6)
 
   # World +x offset expressed in a 90°-yawed root frame is body -y.
-  assert torch.allclose(
-    clip.ee_pos_r[0, 0], torch.tensor([0.0, -1.0, 0.0]), atol=1e-5
-  )
+  assert torch.allclose(clip.ee_pos_r[0, 0], torch.tensor([0.0, -1.0, 0.0]), atol=1e-5)
 
   assert clip.ee_engaged.dtype == torch.bool
   assert clip.ee_engaged[0].tolist() == [True, True, True, True]
@@ -81,15 +75,15 @@ def test_loader_slices_one_cycle_and_derives_velocities():
 def test_passive_reference_state_is_loaded_and_resampled_without_becoming_actions():
   data = _synthetic_clip()
   data["passive_joint_names"] = ["pad_gimbal_x"]
-  data["passive_joint_positions"] = np.arange(6, dtype=np.float32)[:, None] * .001
-  clip = ClimbMotionClip.from_dict(data, step_dt=.01, device="cpu")
+  data["passive_joint_positions"] = np.arange(6, dtype=np.float32)[:, None] * 0.001
+  clip = ClimbMotionClip.from_dict(data, step_dt=0.01, device="cpu")
   assert clip.joint_names == ("j0", "j1")
   assert clip.passive_joint_names == ("pad_gimbal_x",)
   assert clip.passive_joint_pos.shape[1] == 1
-  torch.testing.assert_close(clip.passive_joint_vel, torch.full_like(clip.passive_joint_vel, .05))
+  torch.testing.assert_close(clip.passive_joint_vel, torch.full_like(clip.passive_joint_vel, 0.05))
   data["passive_joint_names"] = ["j0"]
   with pytest.raises(ValueError, match="both actuated and passive"):
-    ClimbMotionClip.from_dict(data, step_dt=.02, device="cpu")
+    ClimbMotionClip.from_dict(data, step_dt=0.02, device="cpu")
 
 
 def test_loader_derives_schedule_edge_countdowns():
@@ -104,43 +98,31 @@ def test_loader_derives_schedule_edge_countdowns():
   # the release is 1 frame away (0.25) and the regrip 3 (0.75); from frame 1
   # (just released) the NEXT release is a full cycle out (1.0), etc.
   for foot in (2, 3):
-    assert torch.allclose(
-      clip.ee_edge_times[:, foot, 0], torch.tensor([0.25, 1.0, 0.75, 0.5])
-    )
-    assert torch.allclose(
-      clip.ee_edge_times[:, foot, 1], torch.tensor([0.75, 0.5, 0.25, 1.0])
-    )
+    assert torch.allclose(clip.ee_edge_times[:, foot, 0], torch.tensor([0.25, 1.0, 0.75, 0.5]))
+    assert torch.allclose(clip.ee_edge_times[:, foot, 1], torch.tensor([0.75, 0.5, 0.25, 1.0]))
   # Symmetric nearest-edge distance (for the graded mismatch bill): frames 1
   # and 3 ARE edges (distance 0); frames 0 and 2 sit one frame from one.
   # Edge-free hand rows read 1.0 — their mismatch always bills full price.
   assert torch.allclose(clip.ee_edge_distance[:, 0], torch.ones(4))
   assert torch.allclose(clip.ee_edge_distance[:, 1], torch.ones(4))
   for foot in (2, 3):
-    assert torch.allclose(
-      clip.ee_edge_distance[:, foot], torch.tensor([0.25, 0.0, 0.25, 0.0])
-    )
+    assert torch.allclose(clip.ee_edge_distance[:, foot], torch.tensor([0.25, 0.0, 0.25, 0.0]))
   # Containing-run lengths (window-proportional mismatch grace): hands are
   # one full-cycle ON run; feet split into a 2-frame OFF run (frames 1-2)
   # and a circular 2-frame ON run (frames 3 and 0), normalized by the cycle.
   assert torch.allclose(clip.ee_run_time[:, 0], torch.ones(4))
   assert torch.allclose(clip.ee_run_time[:, 1], torch.ones(4))
   for foot in (2, 3):
-    assert torch.allclose(
-      clip.ee_run_time[:, foot], torch.tensor([0.5, 0.5, 0.5, 0.5])
-    )
+    assert torch.allclose(clip.ee_run_time[:, foot], torch.tensor([0.5, 0.5, 0.5, 0.5]))
 
 
 def test_loader_resamples_other_fps_onto_the_policy_grid():
-  clip = ClimbMotionClip.from_dict(
-    _synthetic_clip(fps=25.0), step_dt=0.02, device="cpu"
-  )
+  clip = ClimbMotionClip.from_dict(_synthetic_clip(fps=25.0), step_dt=0.02, device="cpu")
   assert clip.fps == 50.0
   # Ramps stay ramps under lerp: 0.1 rad per 25fps frame = 2.5 rad/s, and
   # 0.02 m per 25fps frame = 0.5 m/s.
   assert torch.allclose(clip.joint_vel[:, 0], torch.full((clip.cycle_frames,), 2.5))
-  assert torch.allclose(
-    clip.root_lin_vel[:, 2], torch.full((clip.cycle_frames,), 0.5)
-  )
+  assert torch.allclose(clip.root_lin_vel[:, 2], torch.full((clip.cycle_frames,), 0.5))
 
 
 def test_loader_rejects_missing_climb_keys():
@@ -157,6 +139,4 @@ def test_average_climb_rate_reads_the_cycle_not_the_tail(tmp_path):
   assert clip_average_climb_rate(path) == pytest.approx(1.0)
   # Missing file falls back to the documented nominal rate (config builds
   # must not require the asset they are about to generate).
-  assert clip_average_climb_rate(tmp_path / "absent.npy") == pytest.approx(
-    0.06 / 4.3
-  )
+  assert clip_average_climb_rate(tmp_path / "absent.npy") == pytest.approx(0.06 / 4.3)

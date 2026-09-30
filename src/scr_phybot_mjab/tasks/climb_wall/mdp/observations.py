@@ -98,10 +98,8 @@ def projected_gravity_from_framequat_sensor(
   if gravity_w.shape[0] == 1:
     gravity_w = gravity_w.expand(env.num_envs, 3)
   else:
-    gravity_w = gravity_w[:env.num_envs]
-  gravity_dir_w = gravity_w / torch.linalg.norm(
-    gravity_w, dim=-1, keepdim=True
-  ).clamp_min(1.0e-6)
+    gravity_w = gravity_w[: env.num_envs]
+  gravity_dir_w = gravity_w / torch.linalg.norm(gravity_w, dim=-1, keepdim=True).clamp_min(1.0e-6)
   return quat_apply_inverse(quat_w, gravity_dir_w)
 
 
@@ -218,9 +216,7 @@ def microspine_pad_normal_force(
   """
   affordance = env.command_manager.get_term(command_name)
   anchor_compression = (-affordance.anchor_load_tnl[..., 2]).clamp(min=0.0)
-  return torch.where(
-    affordance.engaged, anchor_compression, affordance.pad_press_force
-  )
+  return torch.where(affordance.engaged, anchor_compression, affordance.pad_press_force)
 
 
 def microspine_engaged_state(
@@ -353,9 +349,7 @@ def privileged_critic_group(
   behavior — do not deep-copy). Call AFTER every actor-term edit so the
   copies pick them up.
   """
-  critic_terms = {
-    name: dataclasses.replace(term) for name, term in actor_group.terms.items()
-  }
+  critic_terms = {name: dataclasses.replace(term) for name, term in actor_group.terms.items()}
   critic_terms["microspine_hold_margin"] = ObservationTermCfg(
     func=microspine_hold_margin,
     params={"command_name": command_name},

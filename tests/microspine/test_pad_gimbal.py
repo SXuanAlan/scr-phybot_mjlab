@@ -8,11 +8,7 @@ import pytest
 
 from scr_phybot_mjab.assets.phybot_c2 import phybot_c2_constants as C
 
-GIMBAL_JOINTS = tuple(
-  f"{spine}_gimbal_{axis}"
-  for spine in C.SPINE_BODY_NAMES
-  for axis in ("x", "y", "z")
-)
+GIMBAL_JOINTS = tuple(f"{spine}_gimbal_{axis}" for spine in C.SPINE_BODY_NAMES for axis in ("x", "y", "z"))
 
 
 @pytest.fixture(scope="module")
@@ -30,9 +26,7 @@ def test_gimbal_joints_present_with_bench_params(model):
     assert j.stiffness[0] == pytest.approx(C.PHYBOT_C2_PAD_GIMBAL_STIFFNESS)
     assert j.damping[0] == pytest.approx(C.PHYBOT_C2_PAD_GIMBAL_DAMPING)
     assert model.jnt_limited[j.id] == 1
-    assert tuple(model.jnt_solref[j.id]) == pytest.approx(
-      C.PHYBOT_C2_PAD_GIMBAL_STOP_SOLREF
-    )
+    assert tuple(model.jnt_solref[j.id]) == pytest.approx(C.PHYBOT_C2_PAD_GIMBAL_STOP_SOLREF)
     # Spring zero IS the mounting orientation.
     assert model.qpos_spring[model.jnt_qposadr[j.id]] == pytest.approx(0.0)
   for spine in C.SPINE_BODY_NAMES:
@@ -43,9 +37,7 @@ def test_gimbal_joints_present_with_bench_params(model):
 
 def test_gimbal_pivot_and_contact_array_have_measured_offset(model):
   for spine in C.SPINE_BODY_NAMES:
-    spheres = [
-      model.body(f"{spine}_c_{i}_{j}") for i in range(2) for j in range(2)
-    ]
+    spheres = [model.body(f"{spine}_c_{i}_{j}") for i in range(2) for j in range(2)]
     centroid = np.mean([b.pos for b in spheres], axis=0)
     proxy = model.geom(f"{spine}_c_0_0")
     assert proxy.type[0] == mujoco.mjtGeom.mjGEOM_BOX
@@ -54,10 +46,7 @@ def test_gimbal_pivot_and_contact_array_have_measured_offset(model):
     assert np.allclose(pivot, 0, atol=1e-12)
     assert np.allclose(contact - pivot, C.PHYBOT_C2_PAD_GEOMETRY["contact_center_in_pad_m"], atol=5e-8)
     assert np.allclose(model.site(f"{spine}_contact_center").pos, contact, atol=5e-8)
-    units = np.array([
-      model.site(f"{spine}_unit_{row}_{col}").pos
-      for row in range(3) for col in range(4)
-    ])
+    units = np.array([model.site(f"{spine}_unit_{row}_{col}").pos for row in range(3) for col in range(4)])
     assert np.allclose(units.mean(axis=0), contact, atol=5e-8)
     grid = units.reshape(3, 4, 3)
     assert np.allclose(np.diff(grid[:, :, 0], axis=1), 0.028, atol=5e-8)
@@ -98,7 +87,8 @@ def test_contact_center_moves_about_fixed_ball_center(model):
   assert np.allclose(d.site_xpos[b_id], pivot, atol=1e-12)
   assert np.linalg.norm(d.site_xpos[c_id] - contact) > 0.004
   assert np.linalg.norm(d.site_xpos[c_id] - pivot) == pytest.approx(
-    np.linalg.norm(C.PHYBOT_C2_PAD_GEOMETRY["contact_center_in_pad_m"]))
+    np.linalg.norm(C.PHYBOT_C2_PAD_GEOMETRY["contact_center_in_pad_m"])
+  )
 
 
 def test_dummy_hand_is_removed_from_the_mesh_not_just_hidden():
@@ -120,11 +110,7 @@ def test_gimbal_zero_matches_legacy_fixed_pose(monkeypatch):
     m = C.get_spec().compile()
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
-    return {
-      m.body(b).name: d.xpos[b].copy()
-      for b in range(m.nbody)
-      if "_spine_c_" in m.body(b).name
-    }
+    return {m.body(b).name: d.xpos[b].copy() for b in range(m.nbody) if "_spine_c_" in m.body(b).name}
 
   legacy = sphere_positions(False)
   gimbal = sphere_positions(True)
@@ -136,9 +122,7 @@ def test_gimbal_zero_matches_legacy_fixed_pose(monkeypatch):
 def _bench_model() -> mujoco.MjModel:
   """Fresh model with gravity and contacts off: pure spring/stop dynamics."""
   m = C.get_spec().compile()
-  m.opt.disableflags = (
-    mujoco.mjtDisableBit.mjDSBL_GRAVITY | mujoco.mjtDisableBit.mjDSBL_CONTACT
-  )
+  m.opt.disableflags = mujoco.mjtDisableBit.mjDSBL_GRAVITY | mujoco.mjtDisableBit.mjDSBL_CONTACT
   return m
 
 

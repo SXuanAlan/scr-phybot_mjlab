@@ -28,6 +28,7 @@ class _SphereGeomCache:
   Wall pose is queried per-step from the wall entity's mocap state so that
   curriculum-driven tilts are reflected in the derived surface/normal maths.
   """
+
   _instance: _SphereGeomCache | None = None
   geom_ids: torch.Tensor
   sizes: torch.Tensor
@@ -131,9 +132,7 @@ def _graced_mismatch(
   mismatch = (motion.ref_engaged != motion.robot_engaged).float()
   if grace_fraction is not None and grace_fraction > 0.0:
     edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
-    grace_seconds = (
-      motion.ref_run_time * motion.cycle_time_s * grace_fraction
-    ).clamp(min=1.0e-6)
+    grace_seconds = (motion.ref_run_time * motion.cycle_time_s * grace_fraction).clamp(min=1.0e-6)
     return mismatch * (edge_seconds / grace_seconds).clamp(max=1.0)
   if grace_time_s is not None and grace_time_s > 0.0:
     edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
@@ -187,15 +186,17 @@ def motion_joint_pos_error_exp(
   error = (motion.ref_joint_pos - motion.robot_joint_pos).square().mean(dim=-1)
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
-    reward = reward * _engage_match_gate(
-      motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
-    )
+    reward = reward * _engage_match_gate(motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
   return reward
 
 
 def motion_body_position_error_exp(
-  env, command_name="climb_motion", std=0.1, engage_gate_floor=None,
-  engage_gate_grace_s=0.25, engage_gate_grace_fraction=None,
+  env,
+  command_name="climb_motion",
+  std=0.1,
+  engage_gate_floor=None,
+  engage_gate_grace_s=0.25,
+  engage_gate_grace_fraction=None,
 ):
   """BeyondMimic mean body-origin position error after XY/yaw alignment."""
   motion = _motion(env, command_name)
@@ -203,24 +204,27 @@ def motion_body_position_error_exp(
   error = (reference - motion.robot_body_pos_w).square().sum(-1).mean(-1)
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
-    reward *= _engage_match_gate(motion, engage_gate_floor,
-      engage_gate_grace_s, engage_gate_grace_fraction)
+    reward *= _engage_match_gate(motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
   return reward
 
 
 def motion_body_orientation_error_exp(
-  env, command_name="climb_motion", std=0.3, engage_gate_floor=None,
-  engage_gate_grace_s=0.25, engage_gate_grace_fraction=None,
+  env,
+  command_name="climb_motion",
+  std=0.3,
+  engage_gate_floor=None,
+  engage_gate_grace_s=0.25,
+  engage_gate_grace_fraction=None,
 ):
   """BeyondMimic mean squared geodesic body orientation error."""
   from mjlab.utils.lab_api.math import quat_error_magnitude
+
   motion = _motion(env, command_name)
   _, reference = motion.aligned_body_reference()
   error = quat_error_magnitude(reference, motion.robot_body_quat_w).square().mean(-1)
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
-    reward *= _engage_match_gate(motion, engage_gate_floor,
-      engage_gate_grace_s, engage_gate_grace_fraction)
+    reward *= _engage_match_gate(motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
   return reward
 
 
@@ -275,14 +279,10 @@ def motion_ee_pos_error_exp(
   trajectory. ``engage_gate_floor``: see ``_engage_match_gate``.
   """
   motion = _motion(env, command_name)
-  error = (
-    (motion.ref_ee_pos_r - motion.robot_ee_pos_r).square().sum(dim=-1).mean(dim=-1)
-  )
+  error = (motion.ref_ee_pos_r - motion.robot_ee_pos_r).square().sum(dim=-1).mean(dim=-1)
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
-    reward = reward * _engage_match_gate(
-      motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
-    )
+    reward = reward * _engage_match_gate(motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
   return reward
 
 
@@ -303,14 +303,10 @@ def motion_root_ori_error_exp(
   from mjlab.utils.lab_api.math import quat_error_magnitude
 
   motion = _motion(env, command_name)
-  error = quat_error_magnitude(
-    motion.ref_root_quat_w, motion.robot_root_quat_w
-  ).square()
+  error = quat_error_magnitude(motion.ref_root_quat_w, motion.robot_root_quat_w).square()
   reward = torch.exp(-error / std**2)
   if engage_gate_floor is not None:
-    reward = reward * _engage_match_gate(
-      motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
-    )
+    reward = reward * _engage_match_gate(motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
   return reward
 
 
@@ -389,9 +385,7 @@ def _toe_sensor_row_perm(sensor, toe_geom_names: tuple[str, ...]) -> "torch.Tens
     order = {name.split("/")[-1]: i for i, name in enumerate(names)}
     missing = [g for g in toe_geom_names if g not in order]
     if missing:
-      raise ValueError(
-        f"Toe contact sensor rows {names} are missing geoms {missing}."
-      )
+      raise ValueError(f"Toe contact sensor rows {names} are missing geoms {missing}.")
     perm = torch.tensor(
       [order[g] for g in toe_geom_names],
       dtype=torch.long,
@@ -447,10 +441,8 @@ def motion_anchor_landing():
     # The executor captures the weld anchor one step after the latch
     # decision, so judge the CURRENT pad center — the exact point the
     # capture will pin next step (anchor projection is off in this task).
-    error = (
-      executor.pad_center_world() - motion.ref_anchor_pos_w
-    ).norm(dim=-1)
-    pay = torch.exp(-(error / std) ** 2)
+    error = (executor.pad_center_world() - motion.ref_anchor_pos_w).norm(dim=-1)
+    pay = torch.exp(-((error / std) ** 2))
     state["paid"] = paid | landed
     return (pay * landed.float()).sum(dim=-1)
 
@@ -514,9 +506,7 @@ def motion_toe_brace_match(
   sensor = env.scene[sensor_name]
   data = sensor.data
   if data.found is None or data.force is None:
-    raise ValueError(
-      f"Contact sensor '{sensor_name}' must provide 'found' and 'force'."
-    )
+    raise ValueError(f"Contact sensor '{sensor_name}' must provide 'found' and 'force'.")
   perm = _toe_sensor_row_perm(sensor, toe_geom_names)
   found = data.found[:, perm] > 0
   # CONTACT sensor force is [normal, tangent1, tangent2].
@@ -565,9 +555,7 @@ def motion_ref_height_tracking():
     ref_z = (motion.ref_root_pos_w * up).sum(dim=-1)
 
     if state["fresh"] is None or state["fresh"].shape != z.shape[:1]:
-      state["fresh"] = torch.zeros(
-        z.shape[0], dtype=torch.bool, device=z.device
-      )
+      state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
       state["z_base"] = z.clone()
       state["ref_base"] = ref_z.clone()
       return torch.ones_like(z)
@@ -663,9 +651,7 @@ def climb_height_progress():
     active = cmd_z > command_threshold
     target_step = (cmd_z * env.step_dt).clamp_min(1.0e-6)
     progress = (progress_m / target_step).clamp(max=max_normalized_progress)
-    progress = torch.where(
-      active & ~initialize, progress, torch.zeros_like(progress)
-    )
+    progress = torch.where(active & ~initialize, progress, torch.zeros_like(progress))
     if rate_budget_scale is not None:
       # Cumulative income cap: total normalized progress paid per episode may
       # not exceed rate_budget_scale x the commanded climb distance over the
@@ -838,9 +824,7 @@ def wall_distance_band_l2(
   asset: Entity = env.scene[asset_cfg.name]
   wall_pos, outward_normal = _SphereGeomCache.wall_plane(env)
   base_offset = asset.data.root_link_pos_w - wall_pos
-  distance = (
-    (base_offset * outward_normal).sum(dim=-1) - wall_half_thickness
-  )
+  distance = (base_offset * outward_normal).sum(dim=-1) - wall_half_thickness
   error = (distance - target_distance).abs().sub(tolerance).clamp_min(0.0)
   return (error / distance_scale).square().clamp(max=max_error)
 
@@ -947,18 +931,14 @@ def ee_face_parallel_error(
   the mask, providing approach alignment without paying a constant positive
   reward for an already-static pose.
   """
-  scores = _ee_face_alignment_scores(
-    env, asset_cfg, ee_body_names, face_local_axis
-  )
+  scores = _ee_face_alignment_scores(env, asset_cfg, ee_body_names, face_local_axis)
   physics = env.event_manager.get_term_cfg(event_term_name).func
   mask = physics.engaged.clone()
   if command_name is not None:
     affordance = env.command_manager.get_term(command_name)
     mask |= affordance.contact_count > 0
   mask_f = mask.float()
-  return ((1.0 - scores) * mask_f).sum(dim=-1) / mask_f.sum(
-    dim=-1
-  ).clamp_min(1.0)
+  return ((1.0 - scores) * mask_f).sum(dim=-1) / mask_f.sum(dim=-1).clamp_min(1.0)
 
 
 def engaged_tilt_penalty(
@@ -1036,7 +1016,7 @@ def microspine_release_load_reward():
     shear_sq = (loads[..., 0] / shear_scale_n).square()
     lateral_sq = (loads[..., 1] / lateral_scale_n).square()
     quality = torch.exp(-(shear_sq + lateral_sq).amax(dim=-1))
-    load_cost = (shear_cost*shear_sq + lateral_cost*lateral_sq).amax(dim=-1)
+    load_cost = (shear_cost * shear_sq + lateral_cost * lateral_sq).amax(dim=-1)
     load_cost = torch.where(finite, load_cost.clamp(max=max_load_cost), max_load_cost)
 
     reason = affordance.release_reason
@@ -1054,14 +1034,13 @@ def microspine_release_load_reward():
     recovering = affordance.dr_release_pending.any(dim=-1)
     # Unknown/early empirical failures are not successful controlled releases.
     controlled_reason = (reason >= 1) & (reason <= 5)
-    pay = (released & controlled_reason & finite & window & ~paid
-           & support_ok.unsqueeze(-1) & ~recovering.unsqueeze(-1))
+    pay = released & controlled_reason & finite & window & ~paid & support_ok.unsqueeze(-1) & ~recovering.unsqueeze(-1)
     # Consume even an unsuccessful first release: relatch/release retries in
     # the same window cannot turn a bad release into extra positive income.
     state["paid"] = paid | (released & window)
-    score = (torch.where(pay, quality, 0.) - torch.where(released, load_cost, 0.)).sum(dim=-1)
+    score = (torch.where(pay, quality, 0.0) - torch.where(released, load_cost, 0.0)).sum(dim=-1)
     settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
-    return torch.where(settling, 0., score / env.step_dt)
+    return torch.where(settling, 0.0, score / env.step_dt)
 
   return call
 
@@ -1183,15 +1162,8 @@ def torque_headroom_penalty(
     fr = torch.as_tensor(env.sim.model.actuator_forcerange)
     if fr.ndim == 3:
       fr = fr[0]
-    limits = (
-      fr[asset.indexing.ctrl_ids]
-      .abs()
-      .amax(dim=-1)
-      .to(device=torque.device, dtype=torque.dtype)
-    )
-    limits = torch.where(
-      limits > 0.0, limits, torch.full_like(limits, torch.inf)
-    )
+    limits = fr[asset.indexing.ctrl_ids].abs().amax(dim=-1).to(device=torque.device, dtype=torque.dtype)
+    limits = torch.where(limits > 0.0, limits, torch.full_like(limits, torch.inf))
     asset._torque_headroom_limits = limits  # type: ignore[attr-defined]
   util = torque.abs() / limits
   span = max(1.0 - threshold, 1.0e-6)

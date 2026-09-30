@@ -180,8 +180,7 @@ def main() -> None:
       else:
         print("    terminations: none")
       print(
-        f"    self-collision(>{sc_threshold:.0f}N): {sc_steps[seg]} env-steps"
-        f" ({100.0 * sc_steps[seg] / total:.2f}%)"
+        f"    self-collision(>{sc_threshold:.0f}N): {sc_steps[seg]} env-steps ({100.0 * sc_steps[seg] / total:.2f}%)"
       )
       print(
         f"    feet sep  p1={sq[0]:.3f} p5={sq[1]:.3f} p50={sq[2]:.3f}"
@@ -191,13 +190,8 @@ def main() -> None:
         f"    tilt(deg) p50={tq[0]:.1f} p99={tq[1]:.1f} max={tilt.max():.1f}"
         f"  >20deg: {100.0 * (tilt > 20.0).float().mean():.2f}%"
       )
-      print(
-        f"    actual mean vx={vel[:, 0].mean():.3f} vy={vel[:, 1].mean():.3f}"
-        f" wz={vel[:, 2].mean():.3f}"
-      )
-      print(
-        f"    foot xy disp p50={dq[0]:.3f} p99={dq[1]:.3f} max={foot_disp.max():.3f}"
-      )
+      print(f"    actual mean vx={vel[:, 0].mean():.3f} vy={vel[:, 1].mean():.3f} wz={vel[:, 2].mean():.3f}")
+      print(f"    foot xy disp p50={dq[0]:.3f} p99={dq[1]:.3f} max={foot_disp.max():.3f}")
       print(
         f"    abs err p50 vx={eq[0, 0]:.3f} vy={eq[0, 1]:.3f} wz={eq[0, 2]:.3f}"
         f"  p90 vx={eq[1, 0]:.3f} vy={eq[1, 1]:.3f} wz={eq[1, 2]:.3f}"

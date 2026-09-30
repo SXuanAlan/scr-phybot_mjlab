@@ -40,7 +40,6 @@ ROOT = Path(__file__).resolve().parents[1]
 from scr_phybot_mjab.tools.paths import DEFAULT_UNIT_TRIALS as DEFAULT_DATA
 
 
-
 @dataclass
 class Geometry:
   rows: int
@@ -75,20 +74,23 @@ def load_data(path: Path):
     groups[s, l].append(r)
   cells = []
   for (s, l), rows in sorted(groups.items()):
-    values = np.array([
-      float(r["fz_cmd_n"]) for r in rows if r["result"] == "detached_normal"
-    ])
+    values = np.array([float(r["fz_cmd_n"]) for r in rows if r["result"] == "detached_normal"])
     if not np.isfinite(values).all():
       raise ValueError(f"Non-finite terminal command in cell {(s, l)}")
-    cells.append({
-      "s_n": s, "l_n": l, "n_total": len(rows), "n_terminal": len(values),
-      "n_early": sum(r["result"] in ("detached_drag", "detached_lateral") for r in rows),
-      "n_censored": sum(r["result"] == "held" for r in rows),
-      "terminal_command_median_n": float(np.median(values)) if len(values) else None,
-      "terminal_command_q25_n": float(np.quantile(values, 0.25)) if len(values) else None,
-      "terminal_command_q75_n": float(np.quantile(values, 0.75)) if len(values) else None,
-      "terminal_trial_ids": " ".join(r["trial"] for r in rows if r["result"] == "detached_normal"),
-    })
+    cells.append(
+      {
+        "s_n": s,
+        "l_n": l,
+        "n_total": len(rows),
+        "n_terminal": len(values),
+        "n_early": sum(r["result"] in ("detached_drag", "detached_lateral") for r in rows),
+        "n_censored": sum(r["result"] == "held" for r in rows),
+        "terminal_command_median_n": float(np.median(values)) if len(values) else None,
+        "terminal_command_q25_n": float(np.quantile(values, 0.25)) if len(values) else None,
+        "terminal_command_q75_n": float(np.quantile(values, 0.75)) if len(values) else None,
+        "terminal_trial_ids": " ".join(r["trial"] for r in rows if r["result"] == "detached_normal"),
+      }
+    )
   return trials, cells
 
 
@@ -161,10 +163,17 @@ def verify_model(pad: EmpiricalPad):
   w = rng.normal(size=(128, 6))
   a, b, c = pad.distribute(*(w[:, i] for i in range(6)))
   g = pad.geom
-  recovered = np.stack([
-    a.sum(-1), b.sum(-1), c.sum(-1), (g.y * c).sum(-1),
-    -(g.x * c).sum(-1), (g.x * b - g.y * a).sum(-1),
-  ], axis=-1)
+  recovered = np.stack(
+    [
+      a.sum(-1),
+      b.sum(-1),
+      c.sum(-1),
+      (g.y * c).sum(-1),
+      -(g.x * c).sum(-1),
+      (g.x * b - g.y * a).sum(-1),
+    ],
+    axis=-1,
+  )
   force_moment_error = float(np.max(np.abs(w - recovered)))
   zero = pad.normal_boundary(pad.points[:, 0] * g.n, pad.points[:, 1] * g.n)
   scale_error = float(np.max(np.abs(zero - g.n * pad.values)))
@@ -172,8 +181,7 @@ def verify_model(pad: EmpiricalPad):
   assert scale_error < 1e-8, scale_error
   assert np.isnan(pad.unit_boundary(pad.smax + 1, 0))
   assert np.allclose(pad.unit_boundary(15, 10), pad.unit_boundary(15, -10))
-  return {"wrench_reconstruction_max_abs_error": force_moment_error,
-          "zero_moment_scaling_max_abs_error_n": scale_error}
+  return {"wrench_reconstruction_max_abs_error": force_moment_error, "zero_moment_scaling_max_abs_error_n": scale_error}
 
 
 def style_axis(ax):
@@ -184,23 +192,36 @@ def style_axis(ax):
 
 
 def make_figure(pad: EmpiricalPad, trials, stem: Path):
-  plt.rcParams.update({
-    "font.family": "DejaVu Sans", "font.size": 10,
-    "axes.titlesize": 12, "axes.labelsize": 11,
-    "axes.edgecolor": "#46505c", "text.color": "#182332",
-    "axes.labelcolor": "#182332", "pdf.fonttype": 42, "svg.fonttype": "none",
-  })
+  plt.rcParams.update(
+    {
+      "font.family": "DejaVu Sans",
+      "font.size": 10,
+      "axes.titlesize": 12,
+      "axes.labelsize": 11,
+      "axes.edgecolor": "#46505c",
+      "text.color": "#182332",
+      "axes.labelcolor": "#182332",
+      "pdf.fonttype": 42,
+      "svg.fonttype": "none",
+    }
+  )
   g = pad.geom
   fig = plt.figure(figsize=(15, 10.4), facecolor="white")
-  gs = fig.add_gridspec(2, 2, left=0.075, right=0.945, top=0.855, bottom=0.125,
-                        hspace=0.40, wspace=0.34)
-  fig.suptitle("Predicted pad limit surface from unit bench tests", fontsize=19,
-               fontweight="bold", x=0.075, ha="left", y=0.975)
-  fig.text(0.075, 0.926,
-           f"{g.n}-unit pad  |  {g.rows} × {g.cols} grid  |  "
-           f"{g.span_rake_m * 1000:g} × {g.span_lateral_m * 1000:g} mm grid span\n"
-           f"Terminal-detachment command · 0.5 N unit steps · 3 s dwell · {pad.preload_n:g} N unit preload",
-           fontsize=10.5, color="#526174", linespacing=1.6, va="top")
+  gs = fig.add_gridspec(2, 2, left=0.075, right=0.945, top=0.855, bottom=0.125, hspace=0.40, wspace=0.34)
+  fig.suptitle(
+    "Predicted pad limit surface from unit bench tests", fontsize=19, fontweight="bold", x=0.075, ha="left", y=0.975
+  )
+  fig.text(
+    0.075,
+    0.926,
+    f"{g.n}-unit pad  |  {g.rows} × {g.cols} grid  |  "
+    f"{g.span_rake_m * 1000:g} × {g.span_lateral_m * 1000:g} mm grid span\n"
+    f"Terminal-detachment command · 0.5 N unit steps · 3 s dwell · {pad.preload_n:g} N unit preload",
+    fontsize=10.5,
+    color="#526174",
+    linespacing=1.6,
+    va="top",
+  )
 
   ax = fig.add_subplot(gs[0, 0], projection="3d")
   s = np.linspace(pad.smin, pad.smax, 91)
@@ -208,19 +229,20 @@ def make_figure(pad: EmpiricalPad, trials, stem: Path):
   ss, ll = np.meshgrid(s, l)
   unit_z = pad.unit_boundary(ss, ll)
   xx, yy, zz = g.n * ss, g.n * ll, g.n * unit_z
-  surface = ax.plot_surface(xx, yy, zz, cmap="RdBu", vmin=-120, vmax=120,
-                            alpha=0.9, linewidth=0, antialiased=True,
-                            rcount=61, ccount=91)
-  ax.plot_wireframe(xx, -yy, zz, rstride=5, cstride=7, color="#8694a7",
-                    alpha=0.52, linewidth=0.6)
-  ax.scatter(g.n * pad.points[:, 0], g.n * pad.points[:, 1], g.n * pad.values,
-             s=11, color="#152435", depthshade=False, alpha=0.9)
+  surface = ax.plot_surface(
+    xx, yy, zz, cmap="RdBu", vmin=-120, vmax=120, alpha=0.9, linewidth=0, antialiased=True, rcount=61, ccount=91
+  )
+  ax.plot_wireframe(xx, -yy, zz, rstride=5, cstride=7, color="#8694a7", alpha=0.52, linewidth=0.6)
+  ax.scatter(
+    g.n * pad.points[:, 0], g.n * pad.points[:, 1], g.n * pad.values, s=11, color="#152435", depthshade=False, alpha=0.9
+  )
   held = [r for r in trials if r["result"] == "held"]
   for r in held:
     hx = g.n * int(r["side"]) * float(r["s_n"])
     hy, hz = g.n * float(r["l_n"]), g.n * float(r["fz_cmd_n"])
-    ax.scatter([hx], [hy], [hz], marker="^", s=65, facecolor="white",
-               edgecolor="#203d70", linewidth=1.6, depthshade=False)
+    ax.scatter(
+      [hx], [hy], [hz], marker="^", s=65, facecolor="white", edgecolor="#203d70", linewidth=1.6, depthshade=False
+    )
   ax.contour(xx, yy, zz, levels=[0], colors=["#182332"], linewidths=1.3)
   ax.contour(xx, -yy, zz, levels=[0], colors=["#637084"], linestyles="--", linewidths=1)
   ax.set_title("(a) Zero-moment force boundary", loc="left", pad=12, fontweight="bold")
@@ -235,10 +257,15 @@ def make_figure(pad: EmpiricalPad, trials, stem: Path):
   ax.tick_params(labelsize=8, pad=1)
   for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
     axis.pane.set_alpha(0.04)
-  ax.text2D(0.0, -0.13,
-             "Dots: unit-cell medians × N; triangle: censored hold × N\n"
-             "Gray wireframe: untested lateral half, assumed symmetric",
-             transform=ax.transAxes, fontsize=8.5, color="#526174")
+  ax.text2D(
+    0.0,
+    -0.13,
+    "Dots: unit-cell medians × N; triangle: censored hold × N\n"
+    "Gray wireframe: untested lateral half, assumed symmetric",
+    transform=ax.transAxes,
+    fontsize=8.5,
+    color="#526174",
+  )
   cbax = fig.add_axes([0.425, 0.63, 0.010, 0.17])
   cb = fig.colorbar(surface, cax=cbax, ticks=[-120, -60, 0, 60, 120])
   cb.ax.tick_params(labelsize=8)
@@ -252,8 +279,7 @@ def make_figure(pad: EmpiricalPad, trials, stem: Path):
   for moment, color in zip(peel_values, colors):
     fn = pad.normal_boundary(ft, ml=moment)
     curves.append(fn)
-    bx.plot(ft, fn, color=color, linewidth=2,
-             label=rf"$|M_l|={moment:g}$ N·m")
+    bx.plot(ft, fn, color=color, linewidth=2, label=rf"$|M_l|={moment:g}$ N·m")
   bx.set_title("(b) Peeling reduces normal-load capacity", loc="left", fontweight="bold")
   bx.set_xlabel(r"$F_t$  rake shear [N]")
   bx.set_ylabel(r"$F_n^{det}$  terminal normal load [N]")
@@ -276,27 +302,24 @@ def make_figure(pad: EmpiricalPad, trials, stem: Path):
     cx.plot(positive_ft, cap, color=color, linewidth=2, label=label)
     indices = np.flatnonzero(np.isfinite(bound))[::10]
     if len(indices):
-      cx.scatter(positive_ft[indices], bound[indices], s=27, marker="^",
-                 facecolors="none", edgecolors=color, linewidth=1.1)
+      cx.scatter(
+        positive_ft[indices], bound[indices], s=27, marker="^", facecolors="none", edgecolors=color, linewidth=1.1
+      )
   cx.set_title("(c) Moment limits at zero normal load", loc="left", fontweight="bold")
   cx.set_xlabel(r"$F_t$  rake shear [N]")
   cx.set_ylabel("Moment magnitude [N·m]")
   cx.set_xlim(0, positive_ft[-1])
   cx.set_ylim(bottom=0)
-  cx.text(0.025, 0.96, r"$F_l=F_n=0$; other moments zero", transform=cx.transAxes,
-           va="top", fontsize=9)
+  cx.text(0.025, 0.96, r"$F_l=F_n=0$; other moments zero", transform=cx.transAxes, va="top", fontsize=9)
   handles, labels = cx.get_legend_handles_labels()
-  handles.append(Line2D([], [], linestyle="none", marker="^", markerfacecolor="none",
-                        markeredgecolor="#526174"))
+  handles.append(Line2D([], [], linestyle="none", marker="^", markerfacecolor="none", markeredgecolor="#526174"))
   labels.append("Data-domain limit (lower bound)")
-  cx.legend(handles, labels, loc="upper left", bbox_to_anchor=(0, 0.88),
-             frameon=False, fontsize=8.5)
+  cx.legend(handles, labels, loc="upper left", bbox_to_anchor=(0, 0.88), frameon=False, fontsize=8.5)
 
   dx = fig.add_subplot(gs[1, 1])
   style_axis(dx)
   dx.axvline(0, color="#68717c", linewidth=0.7, alpha=0.7)
-  for ft_value, color in zip([g.n * 5.0, g.n * 15.0, g.n * 25.0],
-                             ["#73a6ca", "#3d86ab", "#174d78"]):
+  for ft_value, color in zip([g.n * 5.0, g.n * 15.0, g.n * 25.0], ["#73a6ca", "#3d86ab", "#174d78"]):
     normal_cap = float(pad.unit_boundary(ft_value / g.n, 0))
     if not np.isfinite(normal_cap) or normal_cap <= 0:
       continue
@@ -317,22 +340,35 @@ def make_figure(pad: EmpiricalPad, trials, stem: Path):
   dx.text(0.035, 0.95, r"$F_l=F_n=M_n=0$", transform=dx.transAxes, va="top", fontsize=9)
   dx.legend(loc="lower left", frameon=False, fontsize=9)
 
-  fig.text(0.075, 0.055,
-           "Characteristic prediction: identical engaged units, equal stiffness, first-unit terminal failure. "
-           "This is not a measured pad boundary or a pad reliability quantile.\n"
-           "Interpolation stays inside the tested unit-force domain; the plotted force range is not an ultimate shear limit.",
-           color="#526174", fontsize=9, linespacing=1.6)
+  fig.text(
+    0.075,
+    0.055,
+    "Characteristic prediction: identical engaged units, equal stiffness, first-unit terminal failure. "
+    "This is not a measured pad boundary or a pad reliability quantile.\n"
+    "Interpolation stays inside the tested unit-force domain; the plotted force range is not an ultimate shear limit.",
+    color="#526174",
+    fontsize=9,
+    linespacing=1.6,
+  )
   for suffix in ["png", "pdf", "svg"]:
     fig.savefig(stem.with_suffix("." + suffix), dpi=220, facecolor="white")
   plt.close(fig)
   np.savez_compressed(
     stem.with_suffix(".npz"),
-    unit_cell_xy=pad.points, unit_cell_terminal_median=pad.values,
-    pad_force_ft=xx, pad_force_fl=yy, pad_force_fn=zz,
-    force_slice_ft=ft, force_slice_ml=np.array(peel_values),
-    force_slice_fn=np.stack(curves), moment_ft=positive_ft,
-    **{f"{axis}_{kind}": array for axis, arrays in caps.items()
-       for kind, array in zip(["capacity", "domain_lower_bound"], arrays)},
+    unit_cell_xy=pad.points,
+    unit_cell_terminal_median=pad.values,
+    pad_force_ft=xx,
+    pad_force_fl=yy,
+    pad_force_fn=zz,
+    force_slice_ft=ft,
+    force_slice_ml=np.array(peel_values),
+    force_slice_fn=np.stack(curves),
+    moment_ft=positive_ft,
+    **{
+      f"{axis}_{kind}": array
+      for axis, arrays in caps.items()
+      for kind, array in zip(["capacity", "domain_lower_bound"], arrays)
+    },
   )
 
 
@@ -348,6 +384,7 @@ def main():
   geometry_args = [args.rows, args.cols, args.span_rake_m, args.span_lateral_m]
   if any(x is None for x in geometry_args):
     from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
+
     cfg = phybot_c2_climb_wall_env_cfg(play=True).commands["microspine_affordance"].microspine_cfg.limit_surface
     defaults = [cfg.unit_rows_rake, cfg.unit_cols_lateral, cfg.pad_span_rake_m, cfg.pad_span_lateral_m]
     geometry_args = [a if a is not None else b for a, b in zip(geometry_args, defaults)]
@@ -365,16 +402,26 @@ def main():
     writer.writerows(cells)
   source_hash = hashlib.sha256(args.data.read_bytes()).hexdigest()
   audit = {
-    "source": str(args.data.resolve()), "source_sha256": source_hash,
-    "n_summary_trials": len(trials), "outcomes": dict(Counter(r["result"] for r in trials)),
-    "n_cells": len(cells), "n_terminal_cells": len(pad.points),
+    "source": str(args.data.resolve()),
+    "source_sha256": source_hash,
+    "n_summary_trials": len(trials),
+    "outcomes": dict(Counter(r["result"] for r in trials)),
+    "n_cells": len(cells),
+    "n_terminal_cells": len(pad.points),
     "cell_terminal_repeats_min": min(c["n_terminal"] for c in cells),
     "cell_terminal_repeats_max": max(c["n_terminal"] for c in cells),
-    "geometry": {"rows": geom.rows, "cols": geom.cols,
-                 "span_rake_m": geom.span_rake_m, "span_lateral_m": geom.span_lateral_m},
-    "normal_preload_n": next(iter(preloads)), "normal_dwell_s": 3.0,
-    "normal_step_n": 0.5, "protocol_source": "User-supplied acquisition definition",
-    "boundary_column": "fz_cmd_n", "statistic": "median within nominal (side*S, L) cells",
+    "geometry": {
+      "rows": geom.rows,
+      "cols": geom.cols,
+      "span_rake_m": geom.span_rake_m,
+      "span_lateral_m": geom.span_lateral_m,
+    },
+    "normal_preload_n": next(iter(preloads)),
+    "normal_dwell_s": 3.0,
+    "normal_step_n": 0.5,
+    "protocol_source": "User-supplied acquisition definition",
+    "boundary_column": "fz_cmd_n",
+    "statistic": "median within nominal (side*S, L) cells",
     "interpolation": "piecewise-linear Delaunay, within measured positive-lateral convex hull",
     "negative_lateral": "assumed reflection symmetry, not measured",
     "early_failures": "reported separately; excluded only from conditional normal-boundary statistic",
@@ -383,8 +430,9 @@ def main():
     "pad_status": "Prediction from identical conditional characteristic units, not hardware-validated",
     "uncertainty": "No pad survival probability or confidence interval inferred",
     "moment_capacity": "First failure from zero moment; data-domain exits reported as lower bounds",
-    "unlisted_trace_files": sorted(p.name for p in args.data.parent.glob("*_T*.csv")
-                                    if p.name not in {r["detail_csv"] for r in trials}),
+    "unlisted_trace_files": sorted(
+      p.name for p in args.data.parent.glob("*_T*.csv") if p.name not in {r["detail_csv"] for r in trials}
+    ),
     "checks": checks,
   }
   args.out.with_suffix(".audit.json").write_text(json.dumps(audit, indent=2, allow_nan=False) + "\n")
@@ -424,9 +472,18 @@ def main():
   )
   args.out.with_suffix(".caption.txt").write_text(caption)
   assert hashlib.sha256(args.data.read_bytes()).hexdigest() == source_hash
-  print(json.dumps({"figure": str(args.out.with_suffix(".png")),
-                    "trials": len(trials), "geometry": audit["geometry"],
-                    "outcomes": audit["outcomes"], "checks": checks}, indent=2))
+  print(
+    json.dumps(
+      {
+        "figure": str(args.out.with_suffix(".png")),
+        "trials": len(trials),
+        "geometry": audit["geometry"],
+        "outcomes": audit["outcomes"],
+        "checks": checks,
+      },
+      indent=2,
+    )
+  )
 
 
 if __name__ == "__main__":

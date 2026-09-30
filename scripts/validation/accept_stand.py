@@ -30,11 +30,7 @@ TASK = "Mjlab-Stand-Default-Phybot-C2"
 
 
 def _geom_id_with_suffix(model, suffix: str) -> int:
-  matches = [
-    geom_id
-    for geom_id in range(model.ngeom)
-    if model.geom(geom_id).name.rsplit("/", 1)[-1] == suffix
-  ]
+  matches = [geom_id for geom_id in range(model.ngeom) if model.geom(geom_id).name.rsplit("/", 1)[-1] == suffix]
   if len(matches) != 1:
     raise RuntimeError(f"Expected one geom ending in {suffix!r}; found {matches}.")
   return matches[0]
@@ -61,13 +57,9 @@ def main() -> None:
   # 20-second timeout auto-reset it inside the final env.step().
   control_dt = cfg.sim.mujoco.timestep * cfg.decimation
   cfg.episode_length_s = max(cfg.episode_length_s, (args.steps + 1) * control_dt)
-  recovery_time_s = float(
-    cfg.rewards["stand_feet_lock"].params["recovery_time_s"]
-  )
+  recovery_time_s = float(cfg.rewards["stand_feet_lock"].params["recovery_time_s"])
   if args.strict_start_s < recovery_time_s:
-    parser.error(
-      f"--strict-start-s must be >= the task recovery time ({recovery_time_s:.1f} s)"
-    )
+    parser.error(f"--strict-start-s must be >= the task recovery time ({recovery_time_s:.1f} s)")
   recovery_step = int(round(recovery_time_s / control_dt))
   strict_start_step = int(round(args.strict_start_s / control_dt))
   agent_cfg = load_rl_cfg(TASK)
@@ -124,9 +116,7 @@ def main() -> None:
       force_history = sensor.data.force_history
       assert force_history is not None
       force = torch.norm(force_history, dim=-1)
-      self_hits += (
-        (force > 10.0).any(dim=1).any(dim=-1) & sample_mask
-      ).long()
+      self_hits += ((force > 10.0).any(dim=1).any(dim=-1) & sample_mask).long()
 
       nacon = int(wp.to_torch(wp_data.nacon)[0].item())
       geom_pairs = wp.to_torch(wp_data.contact.geom)[:nacon].long()
@@ -134,20 +124,18 @@ def main() -> None:
         (
           ((geom_pairs[:, 0] == left_ankle_geom) & (geom_pairs[:, 1] == right_ankle_geom))
           | ((geom_pairs[:, 0] == right_ankle_geom) & (geom_pairs[:, 1] == left_ankle_geom))
-        ).sum().item()
+        )
+        .sum()
+        .item()
       )
 
       foot_pos = robot.data.site_pos_w[:, foot_ids]
       foot_xy = foot_pos[:, :, :2]
       relative = foot_pos - robot.data.root_link_pos_w.unsqueeze(1)
       root_quat = robot.data.root_link_quat_w.unsqueeze(1).expand(-1, 2, -1)
-      foot_pos_b = quat_apply_inverse(
-        root_quat.reshape(-1, 4), relative.reshape(-1, 3)
-      ).reshape(args.num_envs, 2, 3)
+      foot_pos_b = quat_apply_inverse(root_quat.reshape(-1, 4), relative.reshape(-1, 3)).reshape(args.num_envs, 2, 3)
       separation = torch.abs(foot_pos_b[:, 0, 1] - foot_pos_b[:, 1, 1])
-      min_separation = torch.where(
-        sample_mask, torch.minimum(min_separation, separation), min_separation
-      )
+      min_separation = torch.where(sample_mask, torch.minimum(min_separation, separation), min_separation)
 
       completed_steps = step + 1
       if anchor_xy is None and completed_steps >= recovery_step:
@@ -162,26 +150,18 @@ def main() -> None:
       drift = torch.norm(foot_xy - anchor_xy, dim=-1).max(dim=1).values
       contact = (base_env.scene["feet_ground_contact"].data.found > 0).all(dim=1)
       default = robot.data.default_joint_pos[:, policy_joint_ids]
-      pose_rmse = torch.sqrt(
-        torch.mean(torch.square(robot.data.joint_pos[:, policy_joint_ids] - default), dim=1)
-      )
-      tilt = torch.rad2deg(
-        torch.acos((-robot.data.projected_gravity_b[:, 2]).clamp(-1.0, 1.0))
-      )
+      pose_rmse = torch.sqrt(torch.mean(torch.square(robot.data.joint_pos[:, policy_joint_ids] - default), dim=1))
+      tilt = torch.rad2deg(torch.acos((-robot.data.projected_gravity_b[:, 2]).clamp(-1.0, 1.0)))
 
       sample_f = sample_mask.float()
       speed_sum += foot_speed.mean(dim=1) * sample_f
       contact_sum += contact.float() * sample_f
       pose_sum += pose_rmse * sample_f
       samples += sample_f
-      max_drift = torch.where(
-        sample_mask, torch.maximum(max_drift, drift), max_drift
-      )
+      max_drift = torch.where(sample_mask, torch.maximum(max_drift, drift), max_drift)
       max_tilt = torch.where(sample_mask, torch.maximum(max_tilt, tilt), max_tilt)
       height_error = torch.abs(robot.data.root_link_pos_w[:, 2] - 0.713)
-      max_height_error = torch.where(
-        sample_mask, torch.maximum(max_height_error, height_error), max_height_error
-      )
+      max_height_error = torch.where(sample_mask, torch.maximum(max_height_error, height_error), max_height_error)
 
   success_rate = valid.float().mean()
   selected = valid & (samples > 0)

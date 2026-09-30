@@ -87,9 +87,7 @@ def _stub(
   )
   wall_quat = torch.zeros(E, 4)
   wall_quat[:, 0] = 1.0
-  robot = SimpleNamespace(
-    data=SimpleNamespace(body_link_lin_vel_w=pad_vel)
-  )
+  robot = SimpleNamespace(data=SimpleNamespace(body_link_lin_vel_w=pad_vel))
   motion = SimpleNamespace(
     ref_engaged=ref_engaged,
     ref_edge_countdowns=countdowns,
@@ -99,9 +97,7 @@ def _stub(
     robot=robot,
   )
   env = SimpleNamespace(
-    command_manager=SimpleNamespace(
-      get_term=lambda n: {"climb_motion": motion, "microspine_affordance": aff}[n]
-    ),
+    command_manager=SimpleNamespace(get_term=lambda n: {"climb_motion": motion, "microspine_affordance": aff}[n]),
     episode_length_buf=torch.full((E,), episode_len, dtype=torch.long),
     step_dt=0.02,
     num_envs=E,
@@ -178,8 +174,7 @@ def _cone(**kw):
 
 
 def test_cone_off_never_fires_but_still_reports():
-  term, env, _, aff = _cone(touch=torch.ones(E, H, dtype=torch.bool),
-                            face_cos=torch.zeros(E, H))  # 90 deg tilt
+  term, env, _, aff = _cone(touch=torch.ones(E, H, dtype=torch.bool), face_cos=torch.zeros(E, H))  # 90 deg tilt
   aff.dr_release_pending = torch.zeros(E, H, dtype=torch.bool)
   out = term(env, mode="off", persist_steps=1)
   assert not out.any()
@@ -188,16 +183,16 @@ def test_cone_off_never_fires_but_still_reports():
 
 
 def test_cone_hard_mode_fires_on_any_violation():
-  term, env, _, _ = _cone(touch=torch.ones(E, H, dtype=torch.bool),
-                          face_cos=torch.full((E, H), 0.95))  # ~18 deg
+  term, env, _, _ = _cone(touch=torch.ones(E, H, dtype=torch.bool), face_cos=torch.full((E, H), 0.95))  # ~18 deg
   assert term(env, mode="hard", persist_steps=1, tilt_limit_deg=15.0).all()
   assert not term(env, mode="hard", persist_steps=1, tilt_limit_deg=20.0).any()
 
 
 def test_cone_cat_mode_is_bernoulli_in_delta():
   torch.manual_seed(0)
-  term, env, _, aff = _cone(touch=torch.ones(E, H, dtype=torch.bool),
-                            press=torch.full((E, H), 160.0))  # 2x the 80 N cap
+  term, env, _, aff = _cone(
+    touch=torch.ones(E, H, dtype=torch.bool), press=torch.full((E, H), 160.0)
+  )  # 2x the 80 N cap
   out = term(env, mode="cat", persist_steps=1, p_force=1.0)
   assert out.all()  # v_force saturates at 1 -> delta 1 -> certain death
   aff.pad_press_force[:] = 0.0
@@ -206,8 +201,7 @@ def test_cone_cat_mode_is_bernoulli_in_delta():
 
 
 def test_cone_ignores_engaged_pads_and_counts_unscheduled_touch():
-  term, env, motion, aff = _cone(touch=torch.ones(E, H, dtype=torch.bool),
-                                 face_cos=torch.zeros(E, H))
+  term, env, motion, aff = _cone(touch=torch.ones(E, H, dtype=torch.bool), face_cos=torch.zeros(E, H))
   aff.engaged[:] = True
   term(env, mode="off", persist_steps=1)
   assert term.last_violations["tilt"].sum().item() == 0.0
@@ -230,9 +224,7 @@ def test_cone_slam_reads_the_contact_rising_edge():
   assert term.last_violations["slam"].sum().item() == 0.0
   aff.contact_count[0, 0] = 1.0  # touch begins this step
   term(env, mode="off", persist_steps=1, slam_limit_mps=0.6)
-  assert term.last_violations["slam"][0, 0].item() == pytest.approx(
-    min((1.0 - 0.6) / 0.6, 1.0)
-  )
+  assert term.last_violations["slam"][0, 0].item() == pytest.approx(min((1.0 - 0.6) / 0.6, 1.0))
   term(env, mode="off", persist_steps=1, slam_limit_mps=0.6)  # still touching: no new edge
   assert term.last_violations["slam"][0, 0].item() == 0.0
 
@@ -292,7 +284,9 @@ def test_illegal_wall_contact_uses_geom_surfaces_and_has_no_gate():
   wall_quat[:, 0] = 1.0
   pivot = torch.tensor([[1.5, 0.0, 0.0]] * E)
   motion = SimpleNamespace(
-    wall_quat=wall_quat, wall_pivot_w=pivot, time_steps=torch.zeros(E),
+    wall_quat=wall_quat,
+    wall_pivot_w=pivot,
+    time_steps=torch.zeros(E),
     _first_engage_frame=100,
   )
   geom_xpos = torch.zeros(E, 1, 3)
@@ -316,8 +310,9 @@ def test_illegal_wall_contact_uses_geom_surfaces_and_has_no_gate():
 
 def test_cone_persistence_ignores_spikes_and_bills_sustained_violations():
   term = engage_constraint_termination()
-  env, motion, aff = _stub(touch=torch.ones(E, H, dtype=torch.bool),
-                           face_cos=torch.zeros(E, H))  # 90 deg tilt, sustained
+  env, motion, aff = _stub(
+    touch=torch.ones(E, H, dtype=torch.bool), face_cos=torch.zeros(E, H)
+  )  # 90 deg tilt, sustained
   motion.ref_edge_countdowns[..., 1] = _sec(1.0)  # scheduled soon: C4 silent
   fired = []
   for _ in range(6):
@@ -342,8 +337,9 @@ def test_cone_seed_settle_exemption_mirrors_the_rip_law():
   """A seeded weld torn off inside the settle window leaves a free pad on
   the wall; the cone must not bill it until the window closes."""
   term = engage_constraint_termination()
-  env, motion, aff = _stub(touch=torch.ones(E, H, dtype=torch.bool),
-                           press=torch.full((E, H), 160.0))  # 2x the force cap
+  env, motion, aff = _stub(
+    touch=torch.ones(E, H, dtype=torch.bool), press=torch.full((E, H), 160.0)
+  )  # 2x the force cap
   motion.ref_edge_countdowns[..., 1] = _sec(1.0)
   aff.released_was_seeded[0, 0] = True  # LH seed lost this step (env0)
   env.episode_length_buf[:] = 10  # inside the 0.5 s window
@@ -395,11 +391,9 @@ def test_adaptive_failures_are_charged_to_the_birth_bin():
   cmd.clip = SimpleNamespace(cycle_frames=840)
   cmd._bin_count = 17
   cmd._current_bin_failed = torch.zeros(17)
-  cmd.time_steps = torch.tensor([839, 839, 100])       # all clamped/late at death
-  cmd._birth_frames = torch.tensor([230, 560, 100])    # born at LH / RH windows
-  cmd._env = SimpleNamespace(
-    termination_manager=SimpleNamespace(terminated=torch.tensor([True, True, False]))
-  )
+  cmd.time_steps = torch.tensor([839, 839, 100])  # all clamped/late at death
+  cmd._birth_frames = torch.tensor([230, 560, 100])  # born at LH / RH windows
+  cmd._env = SimpleNamespace(termination_manager=SimpleNamespace(terminated=torch.tensor([True, True, False])))
   cmd._record_failures(torch.arange(3))
   hist = cmd._current_bin_failed
   assert hist[230 * 17 // 840].item() == 1.0 and hist[560 * 17 // 840].item() == 1.0
@@ -538,9 +532,7 @@ def test_microspine_pad_center_world_is_env_local():
 def test_wall_face_corners_closed_form():
   pos, quat = wall_pose_for_angle(torch.tensor([80.0, 90.0]))
   origins = torch.tensor([[10.0, 20.0, 0.0], [0.0, 0.0, 0.0]])
-  wall = SimpleNamespace(
-    data=SimpleNamespace(root_link_pos_w=pos + origins, root_link_quat_w=quat)
-  )
+  wall = SimpleNamespace(data=SimpleNamespace(root_link_pos_w=pos + origins, root_link_quat_w=quat))
 
   class _Scene:
     env_origins = origins
@@ -551,9 +543,7 @@ def test_wall_face_corners_closed_form():
 
   out = wall_face_corners(SimpleNamespace(scene=_Scene())).view(2, 4, 3)
   c, s = math.cos(math.radians(80.0)), math.sin(math.radians(80.0))
-  exp80 = torch.tensor(
-    [[1.5, -0.6, 0.0], [1.5, 0.6, 0.0], [1.5 + 2 * c, -0.6, 2 * s], [1.5 + 2 * c, 0.6, 2 * s]]
-  )
+  exp80 = torch.tensor([[1.5, -0.6, 0.0], [1.5, 0.6, 0.0], [1.5 + 2 * c, -0.6, 2 * s], [1.5 + 2 * c, 0.6, 2 * s]])
   exp90 = torch.tensor([[1.5, -0.6, 0.0], [1.5, 0.6, 0.0], [1.5, -0.6, 2.0], [1.5, 0.6, 2.0]])
   assert torch.allclose(out[0], exp80, atol=1e-4)
   assert torch.allclose(out[1], exp90, atol=1e-5)
@@ -658,9 +648,11 @@ def test_birth_mask_ranges_and_draws():
   bins_of = torch.arange(C) * B // C
   rows = [torch.nonzero((bins_of == b) & allowed).squeeze(-1) for b in range(B)]
   width = max(int(r.numel()) for r in rows)
-  table = torch.zeros(B, width, dtype=torch.long); counts = torch.zeros(B, dtype=torch.long)
+  table = torch.zeros(B, width, dtype=torch.long)
+  counts = torch.zeros(B, dtype=torch.long)
   for b, r in enumerate(rows):
-    counts[b] = r.numel(); table[b, : r.numel()] = r
+    counts[b] = r.numel()
+    table[b, : r.numel()] = r
   cmd._bin_allowed_table, cmd._bin_allowed_count = table, counts
   frames = cmd._adaptive_draw(4000)
   assert bool(allowed[frames].all())
@@ -677,7 +669,9 @@ def test_phi_v3e_pays_the_last_centimetres_and_the_press(monkeypatch):
   gaps = torch.full((E, H * 4), 0.034)  # every sphere 3.4 cm off the wall
   monkeypatch.setattr(rw._SphereGeomCache, "surface_distances", classmethod(lambda cls, e: gaps))
   aff.pad_press_force = torch.zeros(E, H)
-  kw = dict(reach_radius_m=0.5, load_share=0.2, approach_share=0.15, approach_radius_m=0.10, press_share=0.2, press_ref_n=20.0)
+  kw = dict(
+    reach_radius_m=0.5, load_share=0.2, approach_share=0.15, approach_radius_m=0.10, press_share=0.2, press_ref_n=20.0
+  )
 
   def lh():
     return rw.engage_progress(env, **kw)[0].item() * H - 3.0
@@ -707,9 +701,9 @@ def test_ignition_classroom_windows_and_draws():
   )
 
   engaged = torch.zeros(100, 4, dtype=torch.bool)
-  engaged[20:, 0] = True   # LH welds at 20
-  engaged[60:, 1] = True   # RH welds at 60
-  engaged[5:, 3] = True    # RF welds at 5 (window clipped at 0)
+  engaged[20:, 0] = True  # LH welds at 20
+  engaged[60:, 1] = True  # RH welds at 60
+  engaged[5:, 3] = True  # RF welds at 5 (window clipped at 0)
   assert rake_windows_from_engaged(engaged, 10) == ((0, 5), (10, 20), (50, 60))
   cmd = object.__new__(TransitionMotionCommand)
   cmd.cfg = SimpleNamespace(sampling_mode="uniform", spawn_early_fraction=1.0)

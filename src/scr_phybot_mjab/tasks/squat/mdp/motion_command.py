@@ -50,10 +50,7 @@ class SquatMotionLoader:
     if not motion_files:
       raise ValueError("SquatMotionCommandCfg.motion_files must not be empty.")
     if len(motion_files) != 1:
-      raise ValueError(
-        "The squat task requires exactly one standalone motion clip; "
-        f"received {len(motion_files)}."
-      )
+      raise ValueError(f"The squat task requires exactly one standalone motion clip; received {len(motion_files)}.")
 
     joint_pos_parts: list[np.ndarray] = []
     root_pos_parts: list[np.ndarray] = []
@@ -87,8 +84,7 @@ class SquatMotionLoader:
       expected_foot_shape = (clip_joint_pos.shape[0], len(foot_site_names), 3)
       if clip_foot_pos.shape != expected_foot_shape:
         raise ValueError(
-          f"Clip {path.name} foot_positions has shape {clip_foot_pos.shape}; "
-          f"expected {expected_foot_shape}."
+          f"Clip {path.name} foot_positions has shape {clip_foot_pos.shape}; expected {expected_foot_shape}."
         )
       if not np.isfinite(clip_foot_pos).all():
         raise ValueError(f"Clip {path.name} foot_positions contains NaN or Inf.")
@@ -96,9 +92,7 @@ class SquatMotionLoader:
       if fps is None:
         fps = clip_fps
       elif abs(clip_fps - fps) > 1e-3:
-        raise ValueError(
-          f"All squat clips must share one fps; {path.name} has {clip_fps} != {fps}."
-        )
+        raise ValueError(f"All squat clips must share one fps; {path.name} has {clip_fps} != {fps}.")
       joint_pos_parts.append(clip_joint_pos)
       root_pos_parts.append(np.asarray(data["root_position"], dtype=np.float32))
       root_quat_parts.append(np.asarray(data["root_quaternion"], dtype=np.float32))
@@ -147,9 +141,7 @@ class SquatMotionCommand(CommandTerm):
       device=self.device,
     )
 
-    self.motion = SquatMotionLoader(
-      cfg.motion_files, cfg.joint_names, cfg.foot_site_names, self.device
-    )
+    self.motion = SquatMotionLoader(cfg.motion_files, cfg.joint_names, cfg.foot_site_names, self.device)
     self._check_playback_rate()
 
     self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -210,12 +202,8 @@ class SquatMotionCommand(CommandTerm):
 
   def _update_metrics(self) -> None:
     robot_joint_pos = self.robot.data.joint_pos[:, self.joint_ids]
-    self.metrics["error_joint_pos"] = torch.norm(
-      self.joint_pos_ref - robot_joint_pos, dim=-1
-    )
-    self.metrics["error_base_height"] = torch.abs(
-      self.base_height_ref - self.robot.data.root_link_pos_w[:, 2]
-    )
+    self.metrics["error_joint_pos"] = torch.norm(self.joint_pos_ref - robot_joint_pos, dim=-1)
+    self.metrics["error_base_height"] = torch.abs(self.base_height_ref - self.robot.data.root_link_pos_w[:, 2])
 
   def _update_command(self) -> None:
     if self.cfg.sampling_mode == "start":
@@ -237,24 +225,16 @@ class SquatMotionCommand(CommandTerm):
     if self.cfg.sampling_mode == "start":
       self.time_steps[env_ids] = 0
     else:
-      self.time_steps[env_ids] = torch.randint(
-        0, self.motion.time_step_total, (len(env_ids),), device=self.device
-      )
+      self.time_steps[env_ids] = torch.randint(0, self.motion.time_step_total, (len(env_ids),), device=self.device)
 
     # Reference State Initialization: teleport the robot to the sampled phase.
     joint_pos = self.joint_pos_ref[env_ids].clone()
     joint_vel = self.joint_vel_ref[env_ids].clone()
-    joint_pos += sample_uniform(
-      *self.cfg.joint_position_range, joint_pos.shape, device=self.device
-    )
-    joint_vel += sample_uniform(
-      *self.cfg.joint_velocity_range, joint_vel.shape, device=self.device
-    )
+    joint_pos += sample_uniform(*self.cfg.joint_position_range, joint_pos.shape, device=self.device)
+    joint_vel += sample_uniform(*self.cfg.joint_velocity_range, joint_vel.shape, device=self.device)
     limits = self.robot.data.soft_joint_pos_limits[env_ids][:, self.joint_ids]
     joint_pos = torch.clip(joint_pos, limits[..., 0], limits[..., 1])
-    self.robot.write_joint_state_to_sim(
-      joint_pos, joint_vel, env_ids=env_ids, joint_ids=self.joint_ids
-    )
+    self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids, joint_ids=self.joint_ids)
 
     root_pos = self.motion.root_pos[self.time_steps][env_ids].clone()
     root_pos += self._env.scene.env_origins[env_ids]
@@ -266,20 +246,14 @@ class SquatMotionCommand(CommandTerm):
       [self.cfg.pose_range.get(k, (0.0, 0.0)) for k in ("x", "y", "z", "roll", "pitch", "yaw")],
       device=self.device,
     )
-    pose_delta = sample_uniform(
-      pose_ranges[:, 0], pose_ranges[:, 1], (len(env_ids), 6), device=self.device
-    )
+    pose_delta = sample_uniform(pose_ranges[:, 0], pose_ranges[:, 1], (len(env_ids), 6), device=self.device)
     root_pos += pose_delta[:, 0:3]
-    root_quat = quat_mul(
-      quat_from_euler_xyz(pose_delta[:, 3], pose_delta[:, 4], pose_delta[:, 5]), root_quat
-    )
+    root_quat = quat_mul(quat_from_euler_xyz(pose_delta[:, 3], pose_delta[:, 4], pose_delta[:, 5]), root_quat)
     vel_ranges = torch.tensor(
       [self.cfg.velocity_range.get(k, (0.0, 0.0)) for k in ("x", "y", "z", "roll", "pitch", "yaw")],
       device=self.device,
     )
-    vel_delta = sample_uniform(
-      vel_ranges[:, 0], vel_ranges[:, 1], (len(env_ids), 6), device=self.device
-    )
+    vel_delta = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (len(env_ids), 6), device=self.device)
     root_lin_vel += vel_delta[:, 0:3]
     root_ang_vel += vel_delta[:, 3:6]
 

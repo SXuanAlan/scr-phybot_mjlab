@@ -19,30 +19,44 @@ SPEC.loader.exec_module(supervisor)
 
 
 def control():
-  return {"schema_version": 1, "max_stage": 0, "angle_stages": [
-    {"iter": 0, "angle_deg": 45, "jitter_deg": 5},
-    {"iter": 1500, "angle_deg": 55, "jitter_deg": 5},
-    {"iter": 3300, "angle_deg": 60, "jitter_deg": 0},
-  ]}
+  return {
+    "schema_version": 1,
+    "max_stage": 0,
+    "angle_stages": [
+      {"iter": 0, "angle_deg": 45, "jitter_deg": 5},
+      {"iter": 1500, "angle_deg": 55, "jitter_deg": 5},
+      {"iter": 3300, "angle_deg": 60, "jitter_deg": 0},
+    ],
+  }
 
 
 def metrics():
   return {
-    "engage_match_min": .96, "first_episode_falls": 0,
-    "pad_occupancy_excess_max_per_pad": [.02, .01, -.1, .039],
-    "progress_ratio_min": .85, "true_regrip_cycles_min": 2,
-    "full_30s_survival_rate": 1., "reference_cycles_completed_min": 3,
+    "engage_match_min": 0.96,
+    "first_episode_falls": 0,
+    "pad_occupancy_excess_max_per_pad": [0.02, 0.01, -0.1, 0.039],
+    "progress_ratio_min": 0.85,
+    "true_regrip_cycles_min": 2,
+    "full_30s_survival_rate": 1.0,
+    "reference_cycles_completed_min": 3,
   }
 
 
 def exam(iteration, *, passed=True, reviewed=True, stage_index=0):
   stage = control()["angle_stages"][stage_index]
   return {
-    "checkpoint_iteration": iteration, "checkpoint_sha256": f"hash-{iteration}",
-    "stage_index": stage_index, "stage": stage, "num_envs": 32, "duration_s": 30,
-    "status": "complete", "smoke": False,
-    "cases": [{"profile": profile, "angle_deg": angle, "verdict": {"passed": passed}}
-              for profile, angle in supervisor.expected_case_keys(stage)],
+    "checkpoint_iteration": iteration,
+    "checkpoint_sha256": f"hash-{iteration}",
+    "stage_index": stage_index,
+    "stage": stage,
+    "num_envs": 32,
+    "duration_s": 30,
+    "status": "complete",
+    "smoke": False,
+    "cases": [
+      {"profile": profile, "angle_deg": angle, "verdict": {"passed": passed}}
+      for profile, angle in supervisor.expected_case_keys(stage)
+    ],
     "visual_review": {"approved": reviewed},
   }
 
@@ -76,12 +90,18 @@ def test_stable_checkpoints_and_milestones_include_guard_nodes(tmp_path):
   assert supervisor.due_iterations(checkpoints, control()) == [0, 25, 100, 250, 1250, 1400, 1450]
 
 
-@pytest.mark.parametrize("key,value", [
-  ("engage_match_min", float("nan")), ("progress_ratio_min", None),
-  ("true_regrip_cycles_min", 1), ("first_episode_falls", 1),
-  ("full_30s_survival_rate", .99), ("reference_cycles_completed_min", 1.99),
-  ("pad_occupancy_excess_max_per_pad", [.04, 0, 0, 0]),
-])
+@pytest.mark.parametrize(
+  "key,value",
+  [
+    ("engage_match_min", float("nan")),
+    ("progress_ratio_min", None),
+    ("true_regrip_cycles_min", 1),
+    ("first_episode_falls", 1),
+    ("full_30s_survival_rate", 0.99),
+    ("reference_cycles_completed_min", 1.99),
+    ("pad_occupancy_excess_max_per_pad", [0.04, 0, 0, 0]),
+  ],
+)
 def test_missing_nonfinite_failed_or_one_bad_pad_cannot_pass(key, value):
   values = metrics()
   assert supervisor.numeric_verdict(values)["passed"]
@@ -92,8 +112,10 @@ def test_missing_nonfinite_failed_or_one_bad_pad_cannot_pass(key, value):
 def test_gate_requires_two_recent_complete_exams_and_visuals():
   value = control()
   for exams in (
-    [exam(1250)], [exam(1250), exam(1400, reviewed=False)],
-    [exam(1250), exam(1400, passed=False)], [exam(250), exam(500)],
+    [exam(1250)],
+    [exam(1250), exam(1400, reviewed=False)],
+    [exam(1250), exam(1400, passed=False)],
+    [exam(250), exam(500)],
     [exam(1250), exam(1300, passed=False), exam(1400)],
   ):
     updated, event = supervisor.curriculum_decision(value, 1400, exams)
@@ -167,8 +189,14 @@ def test_visual_review_binds_hash_stage_and_real_artifacts(tmp_path):
   for case in record["cases"]:
     case["artifacts"] = {"engage_schedule": str(tmp_path / "raster.png"), "video": str(tmp_path / "rollout.mp4")}
   review = {key: record[key] for key in ("checkpoint_iteration", "checkpoint_sha256", "stage_index")}
-  review.update(approved=True, raster_reviewed=True, video_reviewed=True,
-                reviewer="fixture-reviewer", reviewed_at="test-time", notes="Fixture observation")
+  review.update(
+    approved=True,
+    raster_reviewed=True,
+    video_reviewed=True,
+    reviewer="fixture-reviewer",
+    reviewed_at="test-time",
+    notes="Fixture observation",
+  )
   supervisor.atomic_json(tmp_path / "visual_review.json", review)
   assert not supervisor.visual_verdict(record, tmp_path)["approved"]
   (tmp_path / "raster.png").write_bytes(b"fixture")
@@ -181,14 +209,26 @@ def test_visual_review_binds_hash_stage_and_real_artifacts(tmp_path):
 
 def test_evaluator_identity_actor_and_horizon_are_checked():
   record = exam(1250)
-  result = {"profile": "canonical", "angle_deg": 45, "actor_state_verified": True,
-            "auto_reset": False, "num_envs": 32, "duration_s": 30}
-  summary = {"complete": True, "checkpoint": {"sha256": record["checkpoint_sha256"], "iteration": 1250}, "results": [result]}
+  result = {
+    "profile": "canonical",
+    "angle_deg": 45,
+    "actor_state_verified": True,
+    "auto_reset": False,
+    "num_envs": 32,
+    "duration_s": 30,
+  }
+  summary = {
+    "complete": True,
+    "checkpoint": {"sha256": record["checkpoint_sha256"], "iteration": 1250},
+    "results": [result],
+  }
   assert supervisor.decode_result(summary, record, "canonical", 45) is result
-  for mutate in (lambda row: row.update(complete=False),
-                 lambda row: row["checkpoint"].update(sha256="other"),
-                 lambda row: row["results"][0].update(auto_reset=True),
-                 lambda row: row["results"][0].update(duration_s=1)):
+  for mutate in (
+    lambda row: row.update(complete=False),
+    lambda row: row["checkpoint"].update(sha256="other"),
+    lambda row: row["results"][0].update(auto_reset=True),
+    lambda row: row["results"][0].update(duration_s=1),
+  ):
     broken = copy.deepcopy(summary)
     mutate(broken)
     with pytest.raises(ValueError):
@@ -197,7 +237,8 @@ def test_evaluator_identity_actor_and_horizon_are_checked():
 
 def test_once_fixture_persists_results_feedback_and_keeps_stage_locked(tmp_path, monkeypatch):
   fake = tmp_path / "fake_evaluator.py"
-  fake.write_text('''import argparse, hashlib, json
+  fake.write_text(
+    """import argparse, hashlib, json
 from pathlib import Path
 p=argparse.ArgumentParser()
 for arg in ('checkpoint','output-dir','task','angle-deg','profile','num-envs','duration-s','device'):
@@ -213,13 +254,25 @@ m.update(profile=a.profile,angle_deg=float(a.angle_deg),actor_state_verified=Tru
 ckpt=Path(a.checkpoint)
 (out/'summary.json').write_text(json.dumps({'complete':True,'results':[m],
  'checkpoint':{'sha256':hashlib.sha256(ckpt.read_bytes()).hexdigest(),'iteration':int(ckpt.stem.split('_')[1])}}))
-'''.replace("METRICS", repr(metrics())))
+""".replace("METRICS", repr(metrics()))
+  )
   supervisor.atomic_json(tmp_path / "curriculum_control.json", control())
   checkpoint = tmp_path / "model_1250.pt"
   checkpoint.write_bytes(b"fixture checkpoint")
   monkeypatch.setattr(supervisor, "checkpoint_stage", lambda path: (0, 0))
   monkeypatch.setattr(supervisor, "training_metrics", lambda run, log: {"latest_iteration": 1250, "alerts": []})
-  args = supervisor.parse_args([str(tmp_path), "--once", "--checkpoint-stable-seconds", "0", "--eval-script", str(fake), "--python", sys.executable])
+  args = supervisor.parse_args(
+    [
+      str(tmp_path),
+      "--once",
+      "--checkpoint-stable-seconds",
+      "0",
+      "--eval-script",
+      str(fake),
+      "--python",
+      sys.executable,
+    ]
+  )
   runner = supervisor.Supervisor(args)
   assert runner.tick()
   status = json.loads((tmp_path / "monitor/status.json").read_text())
@@ -240,7 +293,18 @@ def test_broken_tool_has_cooldown_and_bounded_attempts(tmp_path, monkeypatch):
   (tmp_path / "model_0.pt").write_bytes(b"fixture")
   monkeypatch.setattr(supervisor, "checkpoint_stage", lambda path: (0, 0))
   monkeypatch.setattr(supervisor, "training_metrics", lambda run, log: {"latest_iteration": 0, "alerts": []})
-  args = supervisor.parse_args([str(tmp_path), "--once", "--checkpoint-stable-seconds", "0", "--eval-script", str(fake), "--python", sys.executable])
+  args = supervisor.parse_args(
+    [
+      str(tmp_path),
+      "--once",
+      "--checkpoint-stable-seconds",
+      "0",
+      "--eval-script",
+      str(fake),
+      "--python",
+      sys.executable,
+    ]
+  )
   runner = supervisor.Supervisor(args)
   assert runner.tick()
   record = runner.state["exams"]["0"]

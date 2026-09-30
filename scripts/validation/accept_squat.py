@@ -20,11 +20,7 @@ TASK = "Mjlab-Squat-Phybot-C2"
 
 
 def _geom_id_with_suffix(model, suffix: str) -> int:
-  matches = [
-    geom_id
-    for geom_id in range(model.ngeom)
-    if model.geom(geom_id).name.rsplit("/", 1)[-1] == suffix
-  ]
+  matches = [geom_id for geom_id in range(model.ngeom) if model.geom(geom_id).name.rsplit("/", 1)[-1] == suffix]
   if len(matches) != 1:
     raise RuntimeError(f"Expected one geom ending in {suffix!r}; found {matches}.")
   return matches[0]
@@ -89,13 +85,9 @@ def main() -> None:
     dtype=torch.long,
     device=args.device,
   )
-  waist_action_limits = torch.tensor(
-    waist_action_limit_cfg["max_abs_actions"], device=args.device
-  )
+  waist_action_limits = torch.tensor(waist_action_limit_cfg["max_abs_actions"], device=args.device)
   waist_action_reference_cfg = cfg.rewards["waist_reference_action"].params
-  waist_action_tolerance = torch.tensor(
-    waist_action_reference_cfg["max_abs_deviation"], device=args.device
-  )
+  waist_action_tolerance = torch.tensor(waist_action_reference_cfg["max_abs_deviation"], device=args.device)
   waist_action_scale = action_term.scale
   if isinstance(waist_action_scale, torch.Tensor):
     waist_action_scale = waist_action_scale[:, waist_action_ids]
@@ -107,13 +99,9 @@ def main() -> None:
     dtype=torch.long,
     device=args.device,
   )
-  arm_action_limits = torch.tensor(
-    arm_action_limit_cfg["max_abs_actions"], device=args.device
-  )
+  arm_action_limits = torch.tensor(arm_action_limit_cfg["max_abs_actions"], device=args.device)
   arm_action_reference_cfg = cfg.rewards["arm_reference_action"].params
-  arm_action_tolerance = torch.tensor(
-    arm_action_reference_cfg["max_abs_deviation"], device=args.device
-  )
+  arm_action_tolerance = torch.tensor(arm_action_reference_cfg["max_abs_deviation"], device=args.device)
   arm_action_scale = action_term.scale
   if isinstance(arm_action_scale, torch.Tensor):
     arm_action_scale = arm_action_scale[:, arm_action_ids]
@@ -143,9 +131,7 @@ def main() -> None:
   waist_max_error = torch.zeros(args.num_envs, device=args.device)
   waist_action_limit_hits = torch.zeros((), device=args.device)
   waist_action_tube_hits = torch.zeros((), device=args.device)
-  waist_action_reference_squared_error_sum = torch.zeros(
-    args.num_envs, device=args.device
-  )
+  waist_action_reference_squared_error_sum = torch.zeros(args.num_envs, device=args.device)
   waist_action_rate_squared_sum = torch.zeros((), device=args.device)
   previous_waist_action: torch.Tensor | None = None
   arm_squared_error_sum = torch.zeros(args.num_envs, device=args.device)
@@ -153,9 +139,7 @@ def main() -> None:
   arm_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_action_limit_hits = torch.zeros((), device=args.device)
   arm_action_tube_hits = torch.zeros((), device=args.device)
-  arm_action_reference_squared_error_sum = torch.zeros(
-    args.num_envs, device=args.device
-  )
+  arm_action_reference_squared_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_action_symmetry_error_sum = torch.zeros(args.num_envs, device=args.device)
   arm_action_rate_squared_sum = torch.zeros((), device=args.device)
   previous_arm_action: torch.Tensor | None = None
@@ -170,9 +154,7 @@ def main() -> None:
       max_error = torch.maximum(max_error, error)
       relative = robot.data.site_pos_w[:, foot_ids] - robot.data.root_link_pos_w.unsqueeze(1)
       root_quat = robot.data.root_link_quat_w.unsqueeze(1).expand(-1, 2, -1)
-      foot_pos_b = quat_apply_inverse(
-        root_quat.reshape(-1, 4), relative.reshape(-1, 3)
-      ).reshape(args.num_envs, 2, 3)
+      foot_pos_b = quat_apply_inverse(root_quat.reshape(-1, 4), relative.reshape(-1, 3)).reshape(args.num_envs, 2, 3)
       separation = torch.abs(foot_pos_b[:, 0, 1] - foot_pos_b[:, 1, 1])
       min_separation = torch.minimum(min_separation, separation)
       if frame > 0:  # Contact sensors need one physics step after reset.
@@ -185,54 +167,31 @@ def main() -> None:
       actions = policy(env.get_observations())
       waist_action = actions[:, waist_action_ids]
       waist_reference_action = (
-        command.joint_pos_ref[:, waist_ref_ids]
-        - waist_action_offset
-        + robot.data.encoder_bias[:, waist_joint_ids]
+        command.joint_pos_ref[:, waist_ref_ids] - waist_action_offset + robot.data.encoder_bias[:, waist_joint_ids]
       ) / waist_action_scale
       waist_action_error = waist_action - waist_reference_action
-      waist_action_reference_squared_error_sum += torch.sum(
-        torch.square(waist_action_error), dim=1
-      )
-      waist_action_tube_hits += (
-        torch.abs(waist_action_error) > waist_action_tolerance
-      ).sum()
-      waist_action_limit_hits += (
-        torch.abs(waist_action) > waist_action_limits
-      ).sum()
+      waist_action_reference_squared_error_sum += torch.sum(torch.square(waist_action_error), dim=1)
+      waist_action_tube_hits += (torch.abs(waist_action_error) > waist_action_tolerance).sum()
+      waist_action_limit_hits += (torch.abs(waist_action) > waist_action_limits).sum()
       if previous_waist_action is not None:
-        waist_action_rate_squared_sum += torch.sum(
-          torch.square(waist_action - previous_waist_action)
-        )
+        waist_action_rate_squared_sum += torch.sum(torch.square(waist_action - previous_waist_action))
       previous_waist_action = waist_action.clone()
 
       arm_action = actions[:, arm_action_ids]
       arm_reference_action = (
-        command.joint_pos_ref[:, arm_ref_ids]
-        - arm_action_offset
-        + robot.data.encoder_bias[:, arm_joint_ids]
+        command.joint_pos_ref[:, arm_ref_ids] - arm_action_offset + robot.data.encoder_bias[:, arm_joint_ids]
       ) / arm_action_scale
       arm_action_error = arm_action - arm_reference_action
-      arm_action_reference_squared_error_sum += torch.sum(
-        torch.square(arm_action_error), dim=1
-      )
-      arm_action_tube_hits += (
-        torch.abs(arm_action_error) > arm_action_tolerance
-      ).sum()
+      arm_action_reference_squared_error_sum += torch.sum(torch.square(arm_action_error), dim=1)
+      arm_action_tube_hits += (torch.abs(arm_action_error) > arm_action_tolerance).sum()
       action_symmetry_error = torch.stack(
-        [
-          arm_action_error[:, left] - arm_action_error[:, right]
-          for left, right in arm_pairs
-        ],
+        [arm_action_error[:, left] - arm_action_error[:, right] for left, right in arm_pairs],
         dim=1,
       )
-      arm_action_symmetry_error_sum += torch.sum(
-        torch.square(action_symmetry_error), dim=1
-      )
+      arm_action_symmetry_error_sum += torch.sum(torch.square(action_symmetry_error), dim=1)
       arm_action_limit_hits += (torch.abs(arm_action) > arm_action_limits).sum()
       if previous_arm_action is not None:
-        arm_action_rate_squared_sum += torch.sum(
-          torch.square(arm_action - previous_arm_action)
-        )
+        arm_action_rate_squared_sum += torch.sum(torch.square(arm_action - previous_arm_action))
       previous_arm_action = arm_action.clone()
 
       env.step(actions)
@@ -240,20 +199,15 @@ def main() -> None:
       waist_reference = command.joint_pos_ref[:, waist_ref_ids]
       waist_error = waist_position - waist_reference
       waist_squared_error_sum += torch.sum(torch.square(waist_error), dim=1)
-      waist_max_error = torch.maximum(
-        waist_max_error, torch.abs(waist_error).max(dim=1).values
-      )
+      waist_max_error = torch.maximum(waist_max_error, torch.abs(waist_error).max(dim=1).values)
       arm_position = robot.data.joint_pos[:, arm_joint_ids]
       arm_reference = command.joint_pos_ref[:, arm_ref_ids]
       arm_error = arm_position - arm_reference
       arm_squared_error_sum += torch.sum(torch.square(arm_error), dim=1)
-      arm_max_error = torch.maximum(
-        arm_max_error, torch.abs(arm_error).max(dim=1).values
-      )
+      arm_max_error = torch.maximum(arm_max_error, torch.abs(arm_error).max(dim=1).values)
       symmetry_error = torch.stack(
         [
-          (arm_position[:, left] - arm_position[:, right])
-          - (arm_reference[:, left] - arm_reference[:, right])
+          (arm_position[:, left] - arm_position[:, right]) - (arm_reference[:, left] - arm_reference[:, right])
           for left, right in arm_pairs
         ],
         dim=1,
@@ -270,7 +224,9 @@ def main() -> None:
         (
           ((geom_pairs[:, 0] == left_ankle_geom) & (geom_pairs[:, 1] == right_ankle_geom))
           | ((geom_pairs[:, 0] == right_ankle_geom) & (geom_pairs[:, 1] == left_ankle_geom))
-        ).sum().item()
+        )
+        .sum()
+        .item()
       )
       for name in base_env.termination_manager.active_terms:
         if name == "time_out":
@@ -288,9 +244,7 @@ def main() -> None:
     contact_sum += (feet_contact.data.found > 0).all(dim=1).float()
     relative = robot.data.site_pos_w[:, foot_ids] - robot.data.root_link_pos_w.unsqueeze(1)
     root_quat = robot.data.root_link_quat_w.unsqueeze(1).expand(-1, 2, -1)
-    foot_pos_b = quat_apply_inverse(
-      root_quat.reshape(-1, 4), relative.reshape(-1, 3)
-    ).reshape(args.num_envs, 2, 3)
+    foot_pos_b = quat_apply_inverse(root_quat.reshape(-1, 4), relative.reshape(-1, 3)).reshape(args.num_envs, 2, 3)
     separation = torch.abs(foot_pos_b[:, 0, 1] - foot_pos_b[:, 1, 1])
     min_separation = torch.minimum(min_separation, separation)
     samples += 1
@@ -299,62 +253,38 @@ def main() -> None:
   max_per_env = max_error.max(dim=1).values
   error_p95 = torch.quantile(max_per_env, 0.95)
   mean_speed = torch.mean(speed_sum / max(samples, 1))
-  worst_foot_mean_speed = torch.max(
-    foot_speed_sum / max(samples, 1), dim=1
-  ).values
+  worst_foot_mean_speed = torch.max(foot_speed_sum / max(samples, 1), dim=1).values
   worst_foot_mean_speed_p95 = torch.quantile(worst_foot_mean_speed, 0.95)
   contact_rate = torch.mean(contact_sum / max(samples, 1))
   separation_p01 = torch.quantile(min_separation, 0.01)
   separation_p05 = torch.quantile(min_separation, 0.05)
   separation_min = torch.min(min_separation)
-  waist_rmse = torch.sqrt(
-    waist_squared_error_sum / (frames * len(waist_names))
-  )
+  waist_rmse = torch.sqrt(waist_squared_error_sum / (frames * len(waist_names)))
   waist_rmse_mean = torch.mean(waist_rmse)
   waist_rmse_p95 = torch.quantile(waist_rmse, 0.95)
   waist_max_error_p95 = torch.quantile(waist_max_error, 0.95)
   waist_action_count = args.num_envs * frames * len(waist_names)
   waist_action_limit_fraction = waist_action_limit_hits / waist_action_count
   waist_action_tube_fraction = waist_action_tube_hits / waist_action_count
-  waist_action_reference_rmse = torch.sqrt(
-    waist_action_reference_squared_error_sum / (frames * len(waist_names))
-  )
-  waist_action_reference_rmse_p95 = torch.quantile(
-    waist_action_reference_rmse, 0.95
-  )
+  waist_action_reference_rmse = torch.sqrt(waist_action_reference_squared_error_sum / (frames * len(waist_names)))
+  waist_action_reference_rmse_p95 = torch.quantile(waist_action_reference_rmse, 0.95)
   waist_action_rate_count = args.num_envs * (frames - 1) * len(waist_names)
-  waist_action_rate_rms = torch.sqrt(
-    waist_action_rate_squared_sum / waist_action_rate_count
-  )
-  arm_rmse = torch.sqrt(
-    arm_squared_error_sum / (frames * len(arm_names))
-  )
+  waist_action_rate_rms = torch.sqrt(waist_action_rate_squared_sum / waist_action_rate_count)
+  arm_rmse = torch.sqrt(arm_squared_error_sum / (frames * len(arm_names)))
   arm_rmse_mean = torch.mean(arm_rmse)
   arm_rmse_p95 = torch.quantile(arm_rmse, 0.95)
   arm_max_error_p95 = torch.quantile(arm_max_error, 0.95)
-  arm_symmetry_rmse = torch.sqrt(
-    arm_symmetry_error_sum / (frames * len(arm_pairs))
-  )
+  arm_symmetry_rmse = torch.sqrt(arm_symmetry_error_sum / (frames * len(arm_pairs)))
   arm_symmetry_rmse_p95 = torch.quantile(arm_symmetry_rmse, 0.95)
   arm_action_count = args.num_envs * frames * len(arm_names)
   arm_action_limit_fraction = arm_action_limit_hits / arm_action_count
   arm_action_tube_fraction = arm_action_tube_hits / arm_action_count
-  arm_action_reference_rmse = torch.sqrt(
-    arm_action_reference_squared_error_sum / (frames * len(arm_names))
-  )
-  arm_action_reference_rmse_p95 = torch.quantile(
-    arm_action_reference_rmse, 0.95
-  )
-  arm_action_symmetry_rmse = torch.sqrt(
-    arm_action_symmetry_error_sum / (frames * len(arm_pairs))
-  )
-  arm_action_symmetry_rmse_p95 = torch.quantile(
-    arm_action_symmetry_rmse, 0.95
-  )
+  arm_action_reference_rmse = torch.sqrt(arm_action_reference_squared_error_sum / (frames * len(arm_names)))
+  arm_action_reference_rmse_p95 = torch.quantile(arm_action_reference_rmse, 0.95)
+  arm_action_symmetry_rmse = torch.sqrt(arm_action_symmetry_error_sum / (frames * len(arm_pairs)))
+  arm_action_symmetry_rmse_p95 = torch.quantile(arm_action_symmetry_rmse, 0.95)
   arm_action_rate_count = args.num_envs * (frames - 1) * len(arm_names)
-  arm_action_rate_rms = torch.sqrt(
-    arm_action_rate_squared_sum / arm_action_rate_count
-  )
+  arm_action_rate_rms = torch.sqrt(arm_action_rate_squared_sum / arm_action_rate_count)
   hits = int(collision_hits.sum().item())
   limit = 0.01 if args.friction == 0.7 else 0.02
 

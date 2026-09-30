@@ -37,10 +37,7 @@ def test_handoff_frame_matches_climb_state1(mount: dict, cycle: dict) -> None:
   assert list(mount["ee_list"]) == list(cycle["ee_list"])
 
   # Joint-space pose: the final mount frame IS state 1.
-  dq = np.abs(
-    np.asarray(mount["joint_positions"][-1])
-    - np.asarray(cycle["joint_positions"][0])
-  )
+  dq = np.abs(np.asarray(mount["joint_positions"][-1]) - np.asarray(cycle["joint_positions"][0]))
   assert float(dq.max()) < 1.0e-4
 
   if mount.get("passive_joint_names"):
@@ -54,28 +51,18 @@ def test_handoff_frame_matches_climb_state1(mount: dict, cycle: dict) -> None:
   # Base orientation identical; base position identical in x/y and rigidly
   # shifted in z (the mount ends dz below the canonical stance so the final
   # stance clears the floor from standing reach).
-  assert np.allclose(
-    mount["root_quaternion"][-1], cycle["root_quaternion"][0], atol=1.0e-5
-  )
-  dp = np.asarray(mount["root_position"][-1]) - np.asarray(
-    cycle["root_position"][0]
-  )
+  assert np.allclose(mount["root_quaternion"][-1], cycle["root_quaternion"][0], atol=1.0e-5)
+  dp = np.asarray(mount["root_position"][-1]) - np.asarray(cycle["root_position"][0])
   assert abs(dp[0]) < 1.0e-4 and abs(dp[1]) < 1.0e-4
   dz = float(dp[2])
   assert dz < 0.0  # standing reach puts the mount stance below canonical
 
   # Base-relative pad positions match to the millimeter; world anchors are
   # the cycle's shifted by exactly dz.
-  rel_mount = np.asarray(mount["pad_positions"][-1]) - np.asarray(
-    mount["root_position"][-1]
-  )
-  rel_cycle = np.asarray(cycle["pad_positions"][0]) - np.asarray(
-    cycle["root_position"][0]
-  )
+  rel_mount = np.asarray(mount["pad_positions"][-1]) - np.asarray(mount["root_position"][-1])
+  rel_cycle = np.asarray(cycle["pad_positions"][0]) - np.asarray(cycle["root_position"][0])
   assert float(np.abs(rel_mount - rel_cycle).max()) < 1.5e-3
-  anchor_shift = np.asarray(mount["ee_anchor_positions"][-1]) - np.asarray(
-    cycle["ee_anchor_positions"][0]
-  )
+  anchor_shift = np.asarray(mount["ee_anchor_positions"][-1]) - np.asarray(cycle["ee_anchor_positions"][0])
   assert float(np.abs(anchor_shift[:, :2]).max()) < 1.5e-3
   assert float(np.abs(anchor_shift[:, 2] - dz).max()) < 1.5e-3
 

@@ -709,9 +709,7 @@ class MicrospineCfg:
   re-engagement: each fresh grace window lets the reference follow the pad
   again, with a gain of roughly millimeters per engage cycle."""
 
-  limit_surface: MicrospineLimitSurfaceCfg = dataclasses.field(
-    default_factory=MicrospineLimitSurfaceCfg
-  )
+  limit_surface: MicrospineLimitSurfaceCfg = dataclasses.field(default_factory=MicrospineLimitSurfaceCfg)
   """Hold envelope evaluated by the affordance in constraint mode."""
 
   def resolve_initial_engaged_mask(self) -> tuple[bool, ...]:
@@ -723,10 +721,7 @@ class MicrospineCfg:
     unknown = selected.difference(self.ee_body_names)
     if unknown:
       unknown_names = ", ".join(sorted(unknown))
-      raise ValueError(
-        "initial_engaged_ee_names contains names outside ee_body_names: "
-        f"{unknown_names}"
-      )
+      raise ValueError(f"initial_engaged_ee_names contains names outside ee_body_names: {unknown_names}")
     return tuple(name in selected for name in self.ee_body_names)
 
   def ordered_surfaces(self) -> tuple[MicrospineSurfaceCfg, ...]:

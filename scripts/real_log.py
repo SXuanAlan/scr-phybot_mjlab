@@ -21,14 +21,26 @@ DECIMATION = 10  # walk_amp policy fires every 10th tick (50 Hz)
 # Index -> joint name, identical on the real robot (panel/shared/joints.json)
 # and in sim (PHYBOT_C2_POLICY_JOINT_NAMES).
 JOINT_NAMES = (
-  "left_hip_pitch", "left_hip_roll", "left_hip_yaw",
-  "left_knee", "left_ankle_pitch", "left_ankle_roll",
-  "right_hip_pitch", "right_hip_roll", "right_hip_yaw",
-  "right_knee", "right_ankle_pitch", "right_ankle_roll",
+  "left_hip_pitch",
+  "left_hip_roll",
+  "left_hip_yaw",
+  "left_knee",
+  "left_ankle_pitch",
+  "left_ankle_roll",
+  "right_hip_pitch",
+  "right_hip_roll",
+  "right_hip_yaw",
+  "right_knee",
+  "right_ankle_pitch",
+  "right_ankle_roll",
   "waist_yaw",
-  "left_shoulder_pitch", "left_shoulder_roll", "left_shoulder_yaw",
+  "left_shoulder_pitch",
+  "left_shoulder_roll",
+  "left_shoulder_yaw",
   "left_elbow_pitch",
-  "right_shoulder_pitch", "right_shoulder_roll", "right_shoulder_yaw",
+  "right_shoulder_pitch",
+  "right_shoulder_roll",
+  "right_shoulder_yaw",
   "right_elbow_pitch",
 )
 
@@ -64,16 +76,16 @@ def ensure_state_csv(source: Path, deploy_repo: Path) -> Path:
 @dataclass
 class RealLog:
   path: Path
-  tick: np.ndarray           # (N,) int64, robot_main loop counter
-  current_task: np.ndarray   # (N,) int64
+  tick: np.ndarray  # (N,) int64, robot_main loop counter
+  current_task: np.ndarray  # (N,) int64
   motors_enabled: np.ndarray  # (N,) int64
-  q: np.ndarray              # (N, 21) measured joint pos (sim joint frame)
-  dq: np.ndarray             # (N, 21) measured joint vel
-  q_des: np.ndarray          # (N, 21) commanded PD target (default + scale*action)
-  tau: np.ndarray            # (N, 21) measured joint torque
-  imu_zyx: np.ndarray        # (N, 3) ZYX euler (yaw, pitch, roll)
-  imu_gyro: np.ndarray       # (N, 3) body angular velocity
-  js: np.ndarray             # (N, 3) post-watchdog command (vx, vy, wz)
+  q: np.ndarray  # (N, 21) measured joint pos (sim joint frame)
+  dq: np.ndarray  # (N, 21) measured joint vel
+  q_des: np.ndarray  # (N, 21) commanded PD target (default + scale*action)
+  tau: np.ndarray  # (N, 21) measured joint torque
+  imu_zyx: np.ndarray  # (N, 3) ZYX euler (yaw, pitch, roll)
+  imu_gyro: np.ndarray  # (N, 3) body angular velocity
+  js: np.ndarray  # (N, 3) post-watchdog command (vx, vy, wz)
 
 
 def load_state_csv(path: Path) -> RealLog:
@@ -106,11 +118,11 @@ def load_state_csv(path: Path) -> RealLog:
 
 @dataclass
 class WalkSegment:
-  start: int                # first row of the gap-free constant-task run
-  end: int                  # one past the last row
-  infer_rows: np.ndarray    # rows where the policy produced a new action
+  start: int  # first row of the gap-free constant-task run
+  end: int  # one past the last row
+  infer_rows: np.ndarray  # rows where the policy produced a new action
   task_code: int
-  true_task_start: bool     # log captured task entry (decimation-1 held rows)
+  true_task_start: bool  # log captured task entry (decimation-1 held rows)
 
   @property
   def duration_s(self) -> float:
@@ -136,9 +148,7 @@ def find_walk_segment(
   n = len(log.tick)
   if n < 3 * decimation:
     raise ValueError(f"log too short ({n} rows)")
-  boundary = np.flatnonzero(
-    (np.diff(log.tick) != 1) | (np.diff(log.current_task) != 0)
-  )
+  boundary = np.flatnonzero((np.diff(log.tick) != 1) | (np.diff(log.current_task) != 0))
   starts = np.concatenate(([0], boundary + 1))
   ends = np.concatenate((boundary + 1, [n]))
 
@@ -148,15 +158,13 @@ def find_walk_segment(
       continue
     if task_code is not None and log.current_task[a] != task_code:
       continue
-    changed = np.any(log.q_des[a + 1:b] != log.q_des[a:b - 1], axis=1)
+    changed = np.any(log.q_des[a + 1 : b] != log.q_des[a : b - 1], axis=1)
     ch = a + 1 + np.flatnonzero(changed)
     if len(ch) < 3:
       continue
     if abs(float(np.median(np.diff(ch))) - decimation) > 0.5:
       continue
-    if task_code is None and not np.allclose(
-      log.q_des[a], default_dof_pos, atol=2e-3
-    ):
+    if task_code is None and not np.allclose(log.q_des[a], default_dof_pos, atol=2e-3):
       continue
     candidates.append((a, b, ch))
   if not candidates:

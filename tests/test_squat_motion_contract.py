@@ -58,9 +58,7 @@ class SquatMotionContractTest(unittest.TestCase):
 
   def test_motion_has_three_second_standing_holds_and_no_seam(self) -> None:
     joint_pos = np.asarray(self.motion["joint_positions"])
-    zero_pos = np.asarray(
-      [PHYBOT_C2_STANDING_JOINT_POS[name] for name in self.motion["joints_list"]]
-    )
+    zero_pos = np.asarray([PHYBOT_C2_STANDING_JOINT_POS[name] for name in self.motion["joints_list"]])
     fps = float(self.motion["fps"])
     stand_frames = int(round(3.0 * fps))
 
@@ -96,9 +94,7 @@ class SquatMotionContractTest(unittest.TestCase):
     fps = float(self.motion["fps"])
     self.assertEqual(command.motion_files, (str(_MOTION),))
     self.assertEqual(command.sampling_mode, "start")
-    self.assertEqual(
-      command.foot_site_names, tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
-    )
+    self.assertEqual(command.foot_site_names, tuple(site for _, site in PHYBOT_C2_FOOT_SITES))
     self.assertEqual(cfg.episode_length_s, frames / fps)
     self.assertEqual(play_cfg.episode_length_s, frames / fps)
     self.assertEqual(frames, cfg.episode_length_s / (cfg.sim.mujoco.timestep * cfg.decimation))
@@ -119,9 +115,7 @@ class SquatMotionContractTest(unittest.TestCase):
     self.assertEqual(foot_names, tuple(site for _, site in PHYBOT_C2_FOOT_SITES))
     self.assertEqual(foot_positions.shape, (frames, 2, 3))
     self.assertTrue(np.isfinite(foot_positions).all())
-    np.testing.assert_allclose(
-      foot_positions, np.broadcast_to(foot_positions[0], foot_positions.shape), atol=2e-4
-    )
+    np.testing.assert_allclose(foot_positions, np.broadcast_to(foot_positions[0], foot_positions.shape), atol=2e-4)
 
     cfg = phybot_c2_squat_env_cfg()
     self.assertEqual(cfg.rewards["track_feet_anchor"].weight, 5.0)
@@ -134,9 +128,7 @@ class SquatMotionContractTest(unittest.TestCase):
     self.assertEqual(cfg.rewards["foot_anchor_error"].params["beta"], 0.02)
     self.assertEqual(cfg.rewards["self_collisions"].weight, -3.0)
     self.assertEqual(cfg.rewards["feet_distance"].params["min_dist"], 0.26)
-    reference_separation = abs(
-      float(foot_positions[0, 0, 1] - foot_positions[0, 1, 1])
-    )
+    reference_separation = abs(float(foot_positions[0, 0, 1] - foot_positions[0, 1, 1]))
     self.assertGreater(reference_separation, 0.29)
     self.assertLess(cfg.rewards["feet_distance"].params["min_dist"], reference_separation)
     self.assertFalse(cfg.events["foot_friction"].params["shared_random"])
@@ -225,18 +217,12 @@ class SquatMotionContractTest(unittest.TestCase):
     self.assertEqual(cfg.rewards["track_waist"].params["metric_prefix"], "waist")
     self.assertEqual(cfg.rewards["waist_tracking_error"].weight, -3.0)
     self.assertEqual(cfg.rewards["waist_tracking_error"].params["beta"], 0.10)
-    self.assertEqual(
-      cfg.rewards["waist_tracking_error"].params["reduction"], "sum"
-    )
+    self.assertEqual(cfg.rewards["waist_tracking_error"].params["reduction"], "sum")
     self.assertEqual(cfg.rewards["track_waist_velocity"].weight, 1.0)
     self.assertEqual(cfg.rewards["track_waist_velocity"].params["std"], 0.5)
     self.assertEqual(cfg.rewards["waist_action_limits"].weight, -0.5)
-    self.assertEqual(
-      cfg.rewards["waist_action_limits"].params["max_abs_actions"], (0.75,)
-    )
-    self.assertEqual(
-      cfg.rewards["waist_action_limits"].params["reduction"], "sum"
-    )
+    self.assertEqual(cfg.rewards["waist_action_limits"].params["max_abs_actions"], (0.75,))
+    self.assertEqual(cfg.rewards["waist_action_limits"].params["reduction"], "sum")
     self.assertEqual(cfg.rewards["waist_reference_action"].weight, -1.0)
     self.assertEqual(cfg.rewards["waist_reference_action"].params["beta"], 0.25)
     self.assertEqual(
@@ -271,12 +257,8 @@ class SquatMotionContractTest(unittest.TestCase):
     left_arm_names = arm_names[:4]
     right_arm_names = arm_names[4:]
     for reward_name in ("arm_position_symmetry", "arm_action_symmetry"):
-      self.assertEqual(
-        cfg.rewards[reward_name].params["left_joint_names"], left_arm_names
-      )
-      self.assertEqual(
-        cfg.rewards[reward_name].params["right_joint_names"], right_arm_names
-      )
+      self.assertEqual(cfg.rewards[reward_name].params["left_joint_names"], left_arm_names)
+      self.assertEqual(cfg.rewards[reward_name].params["right_joint_names"], right_arm_names)
     np.testing.assert_allclose(
       np.asarray(self.motion["joint_positions"])[
         :, [list(self.motion["joints_list"]).index(name) for name in left_arm_names]
@@ -287,15 +269,11 @@ class SquatMotionContractTest(unittest.TestCase):
       atol=1.0e-8,
     )
 
-    limits = np.asarray(
-      cfg.rewards["arm_action_limits"].params["max_abs_actions"]
-    )
+    limits = np.asarray(cfg.rewards["arm_action_limits"].params["max_abs_actions"])
     motion_names = list(self.motion["joints_list"])
     arm_ids = [motion_names.index(name) for name in arm_names]
     arm_default = np.asarray([PHYBOT_C2_STANDING_JOINT_POS[name] for name in arm_names])
-    reference_actions = (
-      np.asarray(self.motion["joint_positions"])[:, arm_ids] - arm_default
-    ) / 0.25
+    reference_actions = (np.asarray(self.motion["joint_positions"])[:, arm_ids] - arm_default) / 0.25
     self.assertEqual(limits.shape, (len(arm_names),))
     self.assertEqual(
       cfg.rewards["arm_reference_action"].params["max_abs_deviation"],

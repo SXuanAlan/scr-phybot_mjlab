@@ -75,22 +75,15 @@ def generate_clip(
   data = {
     "joints_list": joint_names,
     "joint_positions": joint_positions.astype(np.float32),
-    "root_position": np.tile(
-      np.array([[0.0, 0.0, 0.726]], dtype=np.float32), (frames, 1)
-    ),
+    "root_position": np.tile(np.array([[0.0, 0.0, 0.726]], dtype=np.float32), (frames, 1)),
     # amp-rsl-rl datasets use SciPy's xyzw quaternion convention.
-    "root_quaternion": np.tile(
-      np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float32), (frames, 1)
-    ),
+    "root_quaternion": np.tile(np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float32), (frames, 1)),
     "fps": np.float32(fps),
   }
 
   output.parent.mkdir(parents=True, exist_ok=True)
   np.save(output, data)
-  print(
-    f"wrote {output} ({frames} frames, {duration_s:.2f}s @ {fps:.1f} fps, "
-    f"jitter={jitter_rad:.4f} rad)"
-  )
+  print(f"wrote {output} ({frames} frames, {duration_s:.2f}s @ {fps:.1f} fps, jitter={jitter_rad:.4f} rad)")
 
 
 def main() -> None:

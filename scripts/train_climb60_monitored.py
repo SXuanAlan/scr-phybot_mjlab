@@ -4,6 +4,7 @@ Same PPO/task recipe as the standard CLI. The episode clock starts at zero
 because random phase RSI already diversifies births, and climb event rewards
 use actual episode age for their initial settling/anti-farming guards.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,7 +22,10 @@ from mjlab.utils.os import dump_yaml
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wandb import add_wandb_tags
 from scr_phybot_mjab.tasks.climb_wall.mdp.live_curriculum import (
-  LiveCurriculumControl, atomic_json, file_controlled_wall_angle, initial_control,
+  LiveCurriculumControl,
+  atomic_json,
+  file_controlled_wall_angle,
+  initial_control,
 )
 
 TASK = "Mjlab-Climb-Wall-Phybot-C2-Corners-A60"
@@ -32,12 +36,15 @@ class MonitoredRunner(MjlabOnPolicyRunner):
     env = self.env.unwrapped
     sampler = env.command_manager.get_term("climb_motion").phase_sampler
     controller = env._live_climb_curriculum
-    infos = {**(infos or {}), "climb_monitor": {
-      "phase_failed": sampler.failed.detach().cpu(),
-      "active_stage": controller.active_stage,
-      "stage_started_iter": controller.stage_started_iter,
-      "control": controller.control,
-    }}
+    infos = {
+      **(infos or {}),
+      "climb_monitor": {
+        "phase_failed": sampler.failed.detach().cpu(),
+        "active_stage": controller.active_stage,
+        "stage_started_iter": controller.stage_started_iter,
+        "control": controller.control,
+      },
+    }
     # Publish complete checkpoint files so concurrent evaluations never load
     # a partially serialized optimizer/model.
     destination = Path(path)
@@ -99,15 +106,25 @@ def main():
   assert cfg.commands["microspine_affordance"].microspine_cfg.limit_surface.unit_layout == "corners"
   assert len(cfg.rewards) == 16
   print(f"[train] task={TASK} envs={args.num_envs} run_dir={run_dir}", flush=True)
-  print("[train] live curriculum gate; init_at_random_ep_len=False; physical capacity and rewards unchanged", flush=True)
+  print(
+    "[train] live curriculum gate; init_at_random_ep_len=False; physical capacity and rewards unchanged", flush=True
+  )
   dump_yaml(run_dir / "params" / "env.yaml", dataclasses.asdict(cfg))
   dump_yaml(run_dir / "params" / "agent.yaml", dataclasses.asdict(agent))
-  atomic_json(run_dir / "launch.json", {
-    "task": TASK, "num_envs": args.num_envs, "max_iterations": args.max_iterations,
-    "seed": agent.seed, "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
-    "control_file": str(control_path), "init_at_random_ep_len": False,
-    "resume": str(args.resume) if args.resume else None, "pid": os.getpid(),
-  })
+  atomic_json(
+    run_dir / "launch.json",
+    {
+      "task": TASK,
+      "num_envs": args.num_envs,
+      "max_iterations": args.max_iterations,
+      "seed": agent.seed,
+      "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+      "control_file": str(control_path),
+      "init_at_random_ep_len": False,
+      "resume": str(args.resume) if args.resume else None,
+      "pid": os.getpid(),
+    },
+  )
   env = ManagerBasedRlEnv(cfg=cfg, device="cuda:0")
   try:
     wrapper = RslRlVecEnvWrapper(env, clip_actions=agent.clip_actions)
@@ -120,11 +137,14 @@ def main():
     if remaining <= 0:
       raise ValueError("Requested iteration limit is already completed by the checkpoint")
     runner.learn(num_learning_iterations=remaining, init_at_random_ep_len=False)
-    atomic_json(run_dir / "training_finished.json", {
-      "last_iteration": runner.current_learning_iteration,
-      "stage_index": env._live_climb_curriculum.active_stage,
-      "target_stage_reached": env._live_climb_curriculum.active_stage == 2,
-    })
+    atomic_json(
+      run_dir / "training_finished.json",
+      {
+        "last_iteration": runner.current_learning_iteration,
+        "stage_index": env._live_climb_curriculum.active_stage,
+        "target_stage_reached": env._live_climb_curriculum.active_stage == 2,
+      },
+    )
   finally:
     env.close()
 

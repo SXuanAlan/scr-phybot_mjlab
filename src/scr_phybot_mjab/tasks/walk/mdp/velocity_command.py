@@ -38,9 +38,7 @@ class UniformVelocityCommand(CommandTerm):
     self.vel_command_b = torch.zeros(self.num_envs, 3, device=self.device)
     self.heading_target = torch.zeros(self.num_envs, device=self.device)
     self.heading_error = torch.zeros(self.num_envs, device=self.device)
-    self.is_heading_env = torch.zeros(
-      self.num_envs, dtype=torch.bool, device=self.device
-    )
+    self.is_heading_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
     self.is_standing_env = torch.zeros_like(self.is_heading_env)
 
     self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
@@ -63,14 +61,10 @@ class UniformVelocityCommand(CommandTerm):
     max_command_time = self.cfg.resampling_time_range[1]
     max_command_step = max_command_time / self._env.step_dt
     self.metrics["error_vel_xy"] += (
-      torch.norm(
-        self.vel_command_b[:, :2] - self.robot.data.root_link_lin_vel_b[:, :2], dim=-1
-      )
-      / max_command_step
+      torch.norm(self.vel_command_b[:, :2] - self.robot.data.root_link_lin_vel_b[:, :2], dim=-1) / max_command_step
     )
     self.metrics["error_vel_yaw"] += (
-      torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_link_ang_vel_b[:, 2])
-      / max_command_step
+      torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_link_ang_vel_b[:, 2]) / max_command_step
     )
 
   def _resample_command(self, env_ids: torch.Tensor) -> None:
@@ -94,9 +88,7 @@ class UniformVelocityCommand(CommandTerm):
       root_lin_vel_w = quat_apply(root_quat, lin_vel_b)
       root_ang_vel_b = self.robot.data.root_link_ang_vel_b[init_vel_env_ids]
       root_ang_vel_b[:, 2] = self.vel_command_b[init_vel_env_ids, 2]
-      root_state = torch.cat(
-        [root_pos, root_quat, root_lin_vel_w, root_ang_vel_b], dim=-1
-      )
+      root_state = torch.cat([root_pos, root_quat, root_lin_vel_w, root_ang_vel_b], dim=-1)
       self.robot.write_root_state_to_sim(root_state, init_vel_env_ids)
 
   def _update_command(self) -> None:
@@ -169,9 +161,7 @@ class UniformVelocityCommand(CommandTerm):
     self._joystick_sliders = sliders
     self._joystick_get_env_idx = get_env_idx
 
-  def set_gamepad_source(
-    self, source: Callable[[], tuple[float, float, float]] | None
-  ) -> None:
+  def set_gamepad_source(self, source: Callable[[], tuple[float, float, float]] | None) -> None:
     """Drive the command from a physical gamepad during play.
 
     ``source`` returns the latest ``(lin_vel_x, lin_vel_y, ang_vel_z)`` command
@@ -223,46 +213,28 @@ class UniformVelocityCommand(CommandTerm):
         continue
 
       # Helper to transform local to world coordinates.
-      def local_to_world(
-        vec: np.ndarray, pos: np.ndarray = base_pos_w, mat: np.ndarray = base_mat_w
-      ) -> np.ndarray:
+      def local_to_world(vec: np.ndarray, pos: np.ndarray = base_pos_w, mat: np.ndarray = base_mat_w) -> np.ndarray:
         return pos + mat @ vec
 
       # Command linear velocity arrow (blue).
       cmd_lin_from = local_to_world(np.array([0, 0, z_offset]) * scale)
-      cmd_lin_to = local_to_world(
-        (np.array([0, 0, z_offset]) + np.array([cmd[0], cmd[1], 0])) * scale
-      )
-      visualizer.add_arrow(
-        cmd_lin_from, cmd_lin_to, color=(0.2, 0.2, 0.6, 0.6), width=0.015
-      )
+      cmd_lin_to = local_to_world((np.array([0, 0, z_offset]) + np.array([cmd[0], cmd[1], 0])) * scale)
+      visualizer.add_arrow(cmd_lin_from, cmd_lin_to, color=(0.2, 0.2, 0.6, 0.6), width=0.015)
 
       # Command angular velocity arrow (green).
       cmd_ang_from = cmd_lin_from
-      cmd_ang_to = local_to_world(
-        (np.array([0, 0, z_offset]) + np.array([0, 0, cmd[2]])) * scale
-      )
-      visualizer.add_arrow(
-        cmd_ang_from, cmd_ang_to, color=(0.2, 0.6, 0.2, 0.6), width=0.015
-      )
+      cmd_ang_to = local_to_world((np.array([0, 0, z_offset]) + np.array([0, 0, cmd[2]])) * scale)
+      visualizer.add_arrow(cmd_ang_from, cmd_ang_to, color=(0.2, 0.6, 0.2, 0.6), width=0.015)
 
       # Actual linear velocity arrow (cyan).
       act_lin_from = local_to_world(np.array([0, 0, z_offset]) * scale)
-      act_lin_to = local_to_world(
-        (np.array([0, 0, z_offset]) + np.array([lin_vel_b[0], lin_vel_b[1], 0])) * scale
-      )
-      visualizer.add_arrow(
-        act_lin_from, act_lin_to, color=(0.0, 0.6, 1.0, 0.7), width=0.015
-      )
+      act_lin_to = local_to_world((np.array([0, 0, z_offset]) + np.array([lin_vel_b[0], lin_vel_b[1], 0])) * scale)
+      visualizer.add_arrow(act_lin_from, act_lin_to, color=(0.0, 0.6, 1.0, 0.7), width=0.015)
 
       # Actual angular velocity arrow (light green).
       act_ang_from = act_lin_from
-      act_ang_to = local_to_world(
-        (np.array([0, 0, z_offset]) + np.array([0, 0, ang_vel_b[2]])) * scale
-      )
-      visualizer.add_arrow(
-        act_ang_from, act_ang_to, color=(0.0, 1.0, 0.4, 0.7), width=0.015
-      )
+      act_ang_to = local_to_world((np.array([0, 0, z_offset]) + np.array([0, 0, ang_vel_b[2]])) * scale)
+      visualizer.add_arrow(act_ang_from, act_ang_to, color=(0.0, 1.0, 0.4, 0.7), width=0.015)
 
 
 @dataclass(kw_only=True)
@@ -333,10 +305,7 @@ class PresetVelocityCommand(UniformVelocityCommand):
       replacement=True,
     )
     self.vel_command_b[env_ids] = self._preset_values[preset_ids]
-    total_command = (
-      torch.norm(self.vel_command_b[env_ids, :2], dim=1)
-      + torch.abs(self.vel_command_b[env_ids, 2])
-    )
+    total_command = torch.norm(self.vel_command_b[env_ids, :2], dim=1) + torch.abs(self.vel_command_b[env_ids, 2])
     self.is_standing_env[env_ids] = total_command < self.cfg.external_deadband
     self.is_heading_env[env_ids] = False
 

@@ -1,4 +1,5 @@
 """Build the empirical runtime table from raw trials, with separate analysis outputs."""
+
 from __future__ import annotations
 
 import argparse

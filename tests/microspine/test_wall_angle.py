@@ -20,9 +20,7 @@ def _rot_y(alpha: float) -> torch.Tensor:
 def test_vertical_wall_is_the_compiled_identity_pose():
   pos, quat = wall_pose_for_angle(torch.tensor([90.0]))
   assert torch.allclose(pos[0], torch.tensor(WALL_OFFSET, dtype=pos.dtype), atol=1e-6)
-  assert torch.allclose(
-    quat[0], torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=quat.dtype), atol=1e-6
-  )
+  assert torch.allclose(quat[0], torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=quat.dtype), atol=1e-6)
 
 
 def test_base_line_stays_on_the_ground_at_every_angle():
@@ -81,9 +79,7 @@ def test_vertical_height_spawn_offset_restores_the_90_deg_height():
   for i, angle in enumerate((90.0, 45.0, 75.0)):
     alpha = _math.radians(90.0 - angle)
     rel_x = 1.327 - _PIVOT_X
-    world_z = -rel_x * _math.sin(alpha) + (1.0 + shift[i].item()) * _math.cos(
-      alpha
-    )
+    world_z = -rel_x * _math.sin(alpha) + (1.0 + shift[i].item()) * _math.cos(alpha)
     assert abs(world_z - 1.0) < 1e-5, f"angle {angle}: world z {world_z}"
   # Shallow wall raises the spawn up-slope; steep is a small correction.
   assert shift[1].item() > 0.2
