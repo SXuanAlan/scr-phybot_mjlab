@@ -3,24 +3,26 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import mujoco
 import numpy as np
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
+
 from .kinematics import (
-  ClimbIK,
-  IKTask,
-  IKResidual,
-  WALL_SURFACE_X,
-  PAD_TOUCH_X,
   FOOT_SITE_NAMES,
-  smootherstep,
-  bezier,
-  slerp_matrix,
-  rotation_angle,
-  weld_task,
-  toe_task,
+  PAD_TOUCH_X,
+  WALL_SURFACE_X,
+  ClimbIK,
+  IKResidual,
+  IKTask,
   base_task,
+  bezier,
+  rotation_angle,
+  slerp_matrix,
+  smootherstep,
+  toe_task,
+  weld_task,
 )
 
 SEGMENT_NAMES = (

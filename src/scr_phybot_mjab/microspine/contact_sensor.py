@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 import torch
-
 from mjlab.sensor.contact_sensor import ContactData, ContactSensor, ContactSensorCfg
 
 

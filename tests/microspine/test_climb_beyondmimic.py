@@ -3,13 +3,14 @@
 import math
 from types import SimpleNamespace
 
-import numpy as np
 import mujoco
+import numpy as np
 import pytest
 import torch
+from mjlab.tasks.registry import load_env_cfg
 
 import scr_phybot_mjab.tasks  # noqa: F401
-from mjlab.tasks.registry import load_env_cfg
+from scr_phybot_mjab.tasks.climb_wall.mdp import rewards, terminations
 from scr_phybot_mjab.tasks.climb_wall.mdp.body_tracking import (
   align_body_reference,
   body_velocities_from_poses,
@@ -17,7 +18,6 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.body_tracking import (
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionCommand
 from scr_phybot_mjab.tasks.climb_wall.mdp.phase_sampling import AdaptivePhaseSampler
-from scr_phybot_mjab.tasks.climb_wall.mdp import rewards, terminations
 
 
 @pytest.mark.parametrize(

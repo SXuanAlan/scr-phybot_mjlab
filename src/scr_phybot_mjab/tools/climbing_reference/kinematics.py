@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+
 import mujoco
 import numpy as np
 

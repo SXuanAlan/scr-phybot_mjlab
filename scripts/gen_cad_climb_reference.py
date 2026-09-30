@@ -10,26 +10,27 @@ import hashlib
 import json
 from pathlib import Path
 
-import mjlab
+import mjlab  # noqa: F401  (initialize mjlab before project imports)
 import mujoco
 import numpy as np
 from scipy.optimize import least_squares, lsq_linear
 
+from scr_phybot_mjab.assets.motions import (
+  CAD_CLIMB_INITIAL_STATE as INITIAL,
+)
+from scr_phybot_mjab.assets.motions import (
+  CAD_CLIMB_MOTION as MOTION,
+)
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
+from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
+from scr_phybot_mjab.tools.climbing_reference.cycle import generate_clip
 from scr_phybot_mjab.tools.climbing_reference.kinematics import (
   ClimbIK,
   IKTask,
   base_task,
-  toe_task,
   orientation_error_world,
+  toe_task,
 )
-from scr_phybot_mjab.tools.climbing_reference.cycle import generate_clip
-
-from scr_phybot_mjab.assets.motions import (
-  CAD_CLIMB_MOTION as MOTION,
-  CAD_CLIMB_INITIAL_STATE as INITIAL,
-)
-from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
-from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 
 
 def generate_initial(output: Path = INITIAL):

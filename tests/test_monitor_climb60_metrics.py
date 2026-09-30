@@ -5,7 +5,6 @@ import json
 import math
 from pathlib import Path
 
-
 spec = importlib.util.spec_from_file_location(
   "climb60_digest", Path(__file__).resolve().parents[1] / "scripts/monitor_climb60_metrics.py"
 )

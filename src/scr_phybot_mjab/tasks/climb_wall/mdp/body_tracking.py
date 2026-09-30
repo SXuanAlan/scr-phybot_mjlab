@@ -10,7 +10,6 @@ from __future__ import annotations
 import mujoco
 import numpy as np
 import torch
-
 from mjlab.utils.lab_api.math import quat_apply, quat_inv, quat_mul, yaw_quat
 
 

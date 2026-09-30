@@ -43,13 +43,13 @@ import sys
 from pathlib import Path
 
 import torch
-from scr_phybot_mjab.tools.plotting import CAT, ORDINAL, INK, SEC, MUT, RC_PARAMS, save_three
 
-from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 from scr_phybot_mjab.microspine.wang_limit_surface import (
   build_capacity_lut,
   capacity_ratio,
 )
+from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
+from scr_phybot_mjab.tools.plotting import CAT, INK, MUT, ORDINAL, RC_PARAMS, SEC, save_three
 
 # Categorical slots (validated trio) for the three moment axes; ordinal blue
 # ramp (light -> dark with |m_l|) for the panel-A family; neutral inks.

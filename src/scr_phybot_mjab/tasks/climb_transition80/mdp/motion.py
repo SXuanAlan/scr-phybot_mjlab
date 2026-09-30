@@ -43,7 +43,6 @@ from typing import TYPE_CHECKING, Literal
 import mujoco
 import numpy as np
 import torch
-
 from mjlab.utils.lab_api.math import (
   quat_apply,
   quat_from_angle_axis,
@@ -52,6 +51,7 @@ from mjlab.utils.lab_api.math import (
   sample_uniform,
   yaw_quat,
 )
+
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import (
   ClimbMotionClip,
   ClimbMotionCommand,

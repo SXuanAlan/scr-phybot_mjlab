@@ -5,12 +5,12 @@ from types import SimpleNamespace
 import mujoco
 import pytest
 import torch
-
 from mjlab.sensor import ContactMatch
+
 from scr_phybot_mjab.microspine.affordance import MicrospineAffordance
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
-from scr_phybot_mjab.microspine.contact_sensor import WrenchContactData, WrenchContactSensorCfg
 from scr_phybot_mjab.microspine.contact import get_sphere_geom_names
+from scr_phybot_mjab.microspine.contact_sensor import WrenchContactData, WrenchContactSensorCfg
 
 
 @pytest.fixture

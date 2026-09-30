@@ -1,8 +1,8 @@
+import mjlab  # noqa: F401
 import mujoco
 import pytest
-import mjlab  # noqa: F401
-import scr_phybot_mjab.tasks  # noqa: F401  # Initialize the registry before task modules.
 
+import scr_phybot_mjab.tasks  # noqa: F401  # Initialize the registry before task modules.
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_PAD_GIMBAL,
 )
@@ -123,6 +123,7 @@ def test_climb_microspine_contract_and_command_ordering():
 @pytest.mark.parametrize("play", [False, True])
 def test_main_climbing_task_uses_twelve_units_and_the_legacy_90_degree_ladder(play):
   from mjlab.tasks.registry import load_env_cfg
+
   from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import WALL_ANGLE_STAGES
 
   cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2", play=play)
@@ -144,6 +145,7 @@ def test_main_climbing_task_uses_twelve_units_and_the_legacy_90_degree_ladder(pl
 @pytest.mark.parametrize("play", [False, True])
 def test_corner_climbing_60_task_has_full_training_and_play_configs(play):
   from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
+
   from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS60_MOTION
 
   cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A60", play=play)
@@ -204,6 +206,7 @@ def test_corner_climbing_curriculum_cannot_mutate_the_main_task():
 @pytest.mark.parametrize("play", [False, True])
 def test_corner_climbing_80_task_keeps_its_angle_in_training_and_play(play):
   from mjlab.tasks.registry import load_env_cfg
+
   from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS80_MOTION
 
   cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A80", play=play)

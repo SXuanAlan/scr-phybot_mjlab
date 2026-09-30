@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import torch
-
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.utils.lab_api.math import (
   quat_apply,
@@ -38,6 +37,7 @@ from mjlab.utils.lab_api.math import (
 )
 
 from scr_phybot_mjab.assets.wall import WALL_PIVOT_X
+
 from .body_tracking import align_body_reference, body_velocities_from_poses, build_body_pose_tables
 from .phase_sampling import AdaptivePhaseSampler
 

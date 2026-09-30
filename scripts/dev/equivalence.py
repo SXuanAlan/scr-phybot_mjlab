@@ -27,11 +27,11 @@ import os
 import subprocess
 import sys
 import time
-import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
+import tomllib
 
 REPO = Path(__file__).resolve().parents[2]
 RENAMES = Path(__file__).with_name("equivalence_renames.toml")

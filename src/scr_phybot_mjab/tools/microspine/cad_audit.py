@@ -8,16 +8,16 @@ from xml.etree import ElementTree as ET
 
 import mujoco
 import numpy as np
-from scipy.spatial import cKDTree
 import trimesh
+from scipy.spatial import cKDTree
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
-  get_spec,
-  PHYBOT_C2_XML,
   PHYBOT_C2_PAD_GEOMETRY,
+  PHYBOT_C2_XML,
   SPINE_BODY_NAMES,
+  get_spec,
 )
-from scr_phybot_mjab.tools.microspine.cad import load_cad_pad_assembly, CAD_DIRECTORY, CAD_STEP
+from scr_phybot_mjab.tools.microspine.cad import CAD_DIRECTORY, CAD_STEP, load_cad_pad_assembly
 
 
 def audit_rigid_cad_asset() -> dict:

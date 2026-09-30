@@ -11,7 +11,6 @@ import copy
 from pathlib import Path
 
 import numpy as np
-
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr

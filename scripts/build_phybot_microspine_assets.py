@@ -13,10 +13,10 @@ import re
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+import mjlab  # noqa: F401  # Initialize plugins before project tool imports.
 import numpy as np
 import trimesh
 from scipy.spatial.transform import Rotation
-import mjlab  # noqa: F401  # Initialize plugins before project tool imports.
 
 from scr_phybot_mjab.tools.microspine.cad import (
   CAD_DIRECTORY,

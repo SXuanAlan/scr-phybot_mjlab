@@ -7,14 +7,14 @@ The exported planar mates are not a model of the hardware's passive bearing.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from xml.etree import ElementTree as ET
 
 import numpy as np
-from scipy.spatial.transform import Rotation
 import trimesh
+from scipy.spatial.transform import Rotation
 
 from scr_phybot_mjab.tools.paths import CAD_MODEL_DIR
 

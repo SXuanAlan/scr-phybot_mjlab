@@ -4,7 +4,6 @@ import types
 import unittest
 
 import torch
-
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 

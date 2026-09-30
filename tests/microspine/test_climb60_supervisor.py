@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-
 SCRIPT = Path(__file__).parents[2] / "scripts" / "supervise_climb60.py"
 SPEC = importlib.util.spec_from_file_location("climb60_supervisor", SCRIPT)
 supervisor = importlib.util.module_from_spec(SPEC)

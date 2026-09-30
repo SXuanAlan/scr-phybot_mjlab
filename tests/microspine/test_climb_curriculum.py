@@ -1,9 +1,9 @@
-import torch
 import pytest
+import torch
 
 from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import (
-  sample_wall_angles,
   resolve_wall_stage,
+  sample_wall_angles,
 )
 
 

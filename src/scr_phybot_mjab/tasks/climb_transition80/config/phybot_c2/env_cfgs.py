@@ -24,12 +24,11 @@ climb_transition):
 from __future__ import annotations
 
 import dataclasses
-import numpy as np
 import functools
 from pathlib import Path
 
 import mujoco
-
+import numpy as np
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
@@ -43,6 +42,7 @@ from mjlab.managers.observation_manager import (
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
+
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTUATOR_ANKLE_PITCH,
   PHYBOT_C2_ACTUATOR_ANKLE_ROLL,

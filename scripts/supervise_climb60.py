@@ -34,7 +34,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 TASK = "Mjlab-Climb-Wall-Phybot-C2-Corners-A60"
 PROFILES = ("canonical", "training-rsi")
 CHECKPOINT_RE = re.compile(r"model_(\d+)\.pt$")

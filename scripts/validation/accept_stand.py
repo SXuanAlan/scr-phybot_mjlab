@@ -13,18 +13,16 @@ from dataclasses import asdict
 
 import torch
 import warp as wp
-
-import scr_phybot_mjab.tasks  # noqa: F401
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.utils.lab_api.math import quat_apply_inverse
 from mjlab.utils.torch import configure_torch_backends
 
+import scr_phybot_mjab.tasks  # noqa: F401
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_POLICY_JOINT_NAMES,
 )
-
 
 TASK = "Mjlab-Stand-Default-Phybot-C2"
 

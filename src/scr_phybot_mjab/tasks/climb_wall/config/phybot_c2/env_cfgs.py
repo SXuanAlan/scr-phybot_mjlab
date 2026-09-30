@@ -24,7 +24,6 @@ from __future__ import annotations
 import dataclasses
 
 import mujoco
-
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
@@ -37,11 +36,13 @@ from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from scr_phybot_mjab.assets.motions import (
   CAD_CLIMB_INITIAL_STATE as _CLIMB_INITIAL_STATE_FILE,
+)
+from scr_phybot_mjab.assets.motions import (
   CAD_CLIMB_MOTION as _CLIMB_MOTION_FILE,
+)
+from scr_phybot_mjab.assets.motions import (
   LEGACY_CLIMB_MOTION as _LEGACY_CLIMB_MOTION_FILE,
 )
-from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
-from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
   PHYBOT_C2_ACTUATOR_ANKLE_PITCH,
@@ -69,20 +70,22 @@ from scr_phybot_mjab.microspine.config import (
   MicrospineAffordanceCfg,
   MicrospineCfg,
 )
+from scr_phybot_mjab.microspine.constraint import (
+  add_attachment_equalities,
+  make_constraint_event_cfg,
+)
 from scr_phybot_mjab.microspine.contact import (
   ToeContact,
+  add_arm_wall_contact_pairs,
   add_contact_pairs,
   add_pad_wall_contact_excludes,
-  add_arm_wall_contact_pairs,
   add_toe_contact_pairs,
   add_toe_geoms,
   get_sphere_geom_names,
   toe_geom_name,
 )
-from scr_phybot_mjab.microspine.constraint import (
-  add_attachment_equalities,
-  make_constraint_event_cfg,
-)
+from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
+from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   MICROSPINE_AFFORDANCE_COMMAND,

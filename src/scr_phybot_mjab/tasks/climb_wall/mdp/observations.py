@@ -4,17 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import torch
-
-from mjlab.envs.mdp.observations import (
-  builtin_sensor,
-  generated_commands,
-  joint_pos_rel,
-  joint_vel_rel,
-  last_action,
-)
 from mjlab.managers.observation_manager import (
   ObservationGroupCfg,
   ObservationTermCfg,
@@ -22,7 +14,6 @@ from mjlab.managers.observation_manager import (
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import BuiltinSensor
 from mjlab.utils.lab_api.math import quat_apply_inverse
-from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv

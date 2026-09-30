@@ -12,22 +12,14 @@ from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
+from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.utils.spec_config import CollisionCfg
-from scr_phybot_mjab.tasks.walk import mdp
-from scr_phybot_mjab.tasks.walk.mdp import (
-  AmpReferenceResetCommandCfg,
-  PresetVelocityCommandCfg,
-  UniformVelocityCommandCfg,
-)
-from scr_phybot_mjab.tasks.walk.walk_env_cfg import make_velocity_env_cfg
-from scr_phybot_mjab.tasks.walk.config.phybot_c2.amp_rl_cfg import AmpDatasetCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
@@ -39,6 +31,14 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
 )
+from scr_phybot_mjab.tasks.walk import mdp
+from scr_phybot_mjab.tasks.walk.config.phybot_c2.amp_rl_cfg import AmpDatasetCfg
+from scr_phybot_mjab.tasks.walk.mdp import (
+  AmpReferenceResetCommandCfg,
+  PresetVelocityCommandCfg,
+  UniformVelocityCommandCfg,
+)
+from scr_phybot_mjab.tasks.walk.walk_env_cfg import make_velocity_env_cfg
 
 _TORSO_BODY = "torso"
 _FEET_ROOT_BODIES = r"^(left_ankle_roll|right_ankle_roll)$"

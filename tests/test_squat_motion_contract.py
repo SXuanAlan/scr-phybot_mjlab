@@ -27,7 +27,6 @@ from scr_phybot_mjab.tasks.squat.mdp import (
   SquatMotionLoader,
 )
 
-
 _REPO = Path(__file__).resolve().parents[1]
 _MOTION = _REPO / "src/scr_phybot_mjab/assets/motions/squat.npy"
 

@@ -18,6 +18,7 @@ if str(_REPO / "src") not in sys.path:
   sys.path.insert(0, str(_REPO / "src"))
 
 from amp_rsl_rl.utils import AMPLoader, VelocityRepresentation  # noqa: E402
+
 import scr_phybot_mjab.tasks  # noqa: E402,F401
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_POLICY_JOINT_NAMES,

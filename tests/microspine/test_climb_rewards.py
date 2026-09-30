@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+from scr_phybot_mjab.tasks.climb_wall.mdp.metrics import microspine_engage_events
 from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   bounded_joint_acc_l2,
   climb_height_progress,
@@ -18,7 +18,6 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   signed_climb_height_progress,
   unsafe_microspine_release_penalty,
 )
-from scr_phybot_mjab.tasks.climb_wall.mdp.metrics import microspine_engage_events
 from scr_phybot_mjab.tasks.climb_wall.mdp.terminations import (
   motion_tracking_divergence,
   no_progress_stall,

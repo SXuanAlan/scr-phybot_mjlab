@@ -1,7 +1,6 @@
 """Wall asset constants and configuration."""
 
 import mujoco
-
 from mjlab.entity import EntityCfg
 from mjlab.utils.spec_config import CollisionCfg
 

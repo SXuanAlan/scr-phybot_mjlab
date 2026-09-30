@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
-
 from amp_rsl_rl.utils import AMPLoader, VelocityRepresentation
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.utils.lab_api.math import quat_apply

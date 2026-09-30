@@ -12,8 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-
 from mjlab.utils.lab_api.math import quat_error_magnitude
+
 from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   _engage_match_gate,
   _SphereGeomCache,

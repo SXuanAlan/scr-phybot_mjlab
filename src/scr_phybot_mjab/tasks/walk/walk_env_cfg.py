@@ -20,10 +20,11 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.scene import SceneCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
-from scr_phybot_mjab.tasks.walk import mdp
-from scr_phybot_mjab.tasks.walk.mdp import UniformVelocityCommandCfg
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 from mjlab.viewer import ViewerConfig
+
+from scr_phybot_mjab.tasks.walk import mdp
+from scr_phybot_mjab.tasks.walk.mdp import UniformVelocityCommandCfg
 
 _TORSO_BODY = "torso"
 _FOOT_SITE_NAMES = ("left_foot", "right_foot")

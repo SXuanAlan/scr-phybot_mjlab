@@ -25,13 +25,13 @@ Run inside the env_mjlab15 environment:
 from __future__ import annotations
 
 import argparse
-import math
 import sys
 from pathlib import Path
 
 import numpy as np
 import torch
-from scr_phybot_mjab.tools.plotting import style_slice, style_3d
+
+from scr_phybot_mjab.tools.plotting import style_3d, style_slice
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from plot_pad_limit_surface import (  # noqa: E402

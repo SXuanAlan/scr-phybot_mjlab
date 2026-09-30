@@ -25,10 +25,10 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -128,8 +128,9 @@ def matched_schedule_edges(reference, actual_events, episode_id, tolerance_steps
 
 def configure_evaluation(task, angle_deg, num_envs, profile, seed):
   """Build from the registered training task and pin only evaluation controls."""
-  import scr_phybot_mjab.tasks  # noqa: F401
   from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
+
+  import scr_phybot_mjab.tasks  # noqa: F401
 
   if task != TASK:
     raise ValueError(f"This evaluation contract is for {TASK}; received {task}")
@@ -447,9 +448,10 @@ def save_contact_sheet(path, frames):
 
 
 def evaluate_angle(args, angle, checkpoint_info):
+  from dataclasses import asdict
+
   import imageio.v2 as imageio
   import torch
-  from dataclasses import asdict
   from mjlab.envs import ManagerBasedRlEnv
   from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
   from mjlab.tasks.registry import load_runner_cls

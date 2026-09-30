@@ -6,12 +6,17 @@ be compared. Frames are pinned by intercepting the command's uniform draw.
 Usage: CUDA_VISIBLE_DEVICES=2 python scripts/climb_cycle_passive_gate.py [--angle 90] [--stride 10] [--guard 25] [--steps 40] [--envs 128]
 """
 
-import argparse, math, os, sys
+import argparse
+import math
+import os
+import sys
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 from pathlib import Path
-import numpy as np, torch
+
 import mjlab  # noqa
+import numpy as np
+import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.tasks.registry import load_env_cfg
 

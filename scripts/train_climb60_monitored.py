@@ -9,18 +9,17 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import json
 import os
 from pathlib import Path
 
-import torch
-import scr_phybot_mjab.tasks  # noqa: F401
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 from mjlab.utils.os import dump_yaml
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wandb import add_wandb_tags
+
+import scr_phybot_mjab.tasks  # noqa: F401
 from scr_phybot_mjab.tasks.climb_wall.mdp.live_curriculum import (
   LiveCurriculumControl,
   atomic_json,

@@ -555,7 +555,7 @@ def panel_d(ax, mcfg: MicrospineCfg, ls: MicrospineLimitSurfaceCfg, dt: float) -
   ax.text(
     0.415,
     f0_hi - 10,
-    "$F_0\sim\mathrm{U}(400,\,650)$ N per grip",
+    r"$F_0\sim\mathrm{U}(400,\,650)$ N per grip",
     fontsize=FS_TINY,
     color=TEAL,
     ha="right",

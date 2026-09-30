@@ -579,9 +579,9 @@ def test_robot_body_lanes_have_the_tracking_widths():
 
 # -- v3: wage, birth freeze, tenable-birth mask -----------------------------------
 
-from scr_phybot_mjab.tasks.climb_transition80.mdp.rewards import scheduled_hold_margin_wage  # noqa: E402
 from scr_phybot_mjab.tasks.climb_transition80.mdp.metrics import scheduled_hold_margin  # noqa: E402
 from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import birth_mask_from_ranges  # noqa: E402
+from scr_phybot_mjab.tasks.climb_transition80.mdp.rewards import scheduled_hold_margin_wage  # noqa: E402
 
 
 def test_hold_margin_wage_pays_only_welded_scheduled_pads():

@@ -7,19 +7,18 @@ first-unit release, NOT hardware-calibrated pad reliability/confidence bands.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import mjlab
 import matplotlib
+import mjlab  # noqa: F401  (initialize mjlab before project imports)
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scr_phybot_mjab.tools.plotting import RC_PARAMS, save_three, style_3d, style_slice
 from scr_phybot_mjab.tools.microspine.stochastic_pad import StochasticPad
 from scr_phybot_mjab.tools.microspine.wang_comparison import WangUnit
 from scr_phybot_mjab.tools.paths import EMPIRICAL_UNIT_REPORT, FIGURES_DIR
+from scr_phybot_mjab.tools.plotting import RC_PARAMS, save_three, style_3d, style_slice
 
 STEM = FIGURES_DIR / "fig_pad_limit_surface_stochastic_cad"
 

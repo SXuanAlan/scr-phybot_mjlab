@@ -1,7 +1,5 @@
 """Failure data semantics, persistent draws, and C-referenced unit mechanics."""
 
-from types import SimpleNamespace
-
 import numpy as np
 import pytest
 import torch
@@ -181,6 +179,7 @@ def test_build_preserves_right_censoring_and_excludes_early_normal_points():
 
 def test_native_weld_rotational_rows_are_a_c_couple_not_a_second_lever_arm():
   import mujoco
+
   from scr_phybot_mjab.microspine.constraint import weld_rotational_force_to_world_moment
 
   model = mujoco.MjModel.from_xml_string("""<mujoco><option gravity="0 0 0" jacobian="dense"/>

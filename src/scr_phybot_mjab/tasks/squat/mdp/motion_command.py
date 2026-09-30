@@ -17,10 +17,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.utils.lab_api.math import (
-  quat_error_magnitude,
   quat_from_euler_xyz,
   quat_mul,
   sample_uniform,

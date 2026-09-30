@@ -5,6 +5,7 @@ import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 import mjlab  # noqa: F401
+
 from scr_phybot_mjab.tools.microspine.cad_audit import audit_rigid_cad_asset, render_cad_comparison
 from scr_phybot_mjab.tools.paths import CLIMB_REVIEW_DIR, FIGURES_DIR
 

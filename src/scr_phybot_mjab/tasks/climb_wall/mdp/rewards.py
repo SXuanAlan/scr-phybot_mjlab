@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 
 import mujoco
 import torch
-
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 

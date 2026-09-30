@@ -1,28 +1,29 @@
 """Environment-side affordance model for microspine grip."""
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import warp as wp
-
 from mjlab.managers.command_manager import CommandTerm
 from mjlab.utils.lab_api.math import quat_apply
-from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
+
+from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg
 from scr_phybot_mjab.microspine.empirical_limit_surface import (
   DEFAULT_TABLE,
   EmpiricalLimitSurface,
 )
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, pad_face_vertices, rotate
-from scr_phybot_mjab.microspine.wrench import (
-  distribute_wrench_to_units,
-  distribute_wrench_to_units_weighted,
-)
 from scr_phybot_mjab.microspine.wang_limit_surface import (
   build_capacity_lut,
   capacity_ratio,
+)
+from scr_phybot_mjab.microspine.wrench import (
+  distribute_wrench_to_units,
+  distribute_wrench_to_units_weighted,
 )
 
 if TYPE_CHECKING:
@@ -1063,7 +1064,7 @@ class MicrospineAffordance(CommandTerm):
     return result
 
   def _moving_surface_fraction(self):
-    from scr_phybot_mjab.microspine.contact import pad_contact_face_centers, pad_contact_center, virtual_spine_fraction
+    from scr_phybot_mjab.microspine.contact import pad_contact_center, pad_contact_face_centers, virtual_spine_fraction
 
     if self._surface_corners is None:
       model = self._env.sim.mj_model

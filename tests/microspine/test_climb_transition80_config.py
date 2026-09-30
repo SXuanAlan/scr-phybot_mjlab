@@ -15,7 +15,6 @@ import pytest
 import torch
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
-
 from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import (
   TRANSITION80_ACTOR_DIM,
   TRANSITION80_ACTOR_TERMS,

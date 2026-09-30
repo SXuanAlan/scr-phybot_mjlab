@@ -9,8 +9,6 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-import scr_phybot_mjab.tasks  # noqa: F401 - registers SCR PHYBot tasks
-
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
@@ -18,6 +16,7 @@ from mjlab.utils.os import dump_yaml
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wandb import add_wandb_tags
 
+import scr_phybot_mjab.tasks  # noqa: F401 - registers SCR PHYBot tasks
 
 DEFAULT_TASK = "Mjlab-Walk-Amp-Phybot-C2"
 DEFAULT_WARMSTART = "logs/rsl_rl/phybot_c2_walk_amp/2026-06-13_10-08-48_autoresearch_4096x12000_s1_gpu0/model_11999.pt"

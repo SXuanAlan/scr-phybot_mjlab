@@ -7,6 +7,7 @@ construction); only the logging identity changes.
 import dataclasses
 
 from mjlab.rl import RslRlOnPolicyRunnerCfg
+
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
   phybot_c2_ppo_runner_cfg,
 )

@@ -14,22 +14,22 @@ import hashlib
 import json
 from pathlib import Path
 
-import mjlab
+import mjlab  # noqa: F401  (initialize mjlab before project imports)
 import mujoco
 import numpy as np
 from scipy.optimize import linprog, minimize
 
 from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION as MOTION
-from scr_phybot_mjab.tools.climbing_reference.model import (
-  build_reference_model,
-  engage_basis,
-  joint_group,
-  WallGeometry,
-)
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_DEPLOY_TORQUE_LIMITS
 from scr_phybot_mjab.microspine.empirical_limit_surface import EmpiricalLimitSurface
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.microspine.wrench import unit_wrench_matrix
+from scr_phybot_mjab.tools.climbing_reference.model import (
+  WallGeometry,
+  build_reference_model,
+  engage_basis,
+  joint_group,
+)
 from scr_phybot_mjab.tools.paths import CLIMB_REVIEW_DIR
 
 OUT = CLIMB_REVIEW_DIR

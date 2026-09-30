@@ -2,7 +2,6 @@ import pytest
 
 from scr_phybot_mjab.microspine.config import MicrospineCfg
 
-
 EE_NAMES = ("left_hand", "right_hand", "left_foot", "right_foot")
 
 

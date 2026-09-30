@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-
 from mjlab.entity import Entity
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.utils.lab_api.math import (
@@ -17,7 +16,6 @@ from mjlab.utils.lab_api.math import (
 
 if TYPE_CHECKING:
   import viser
-
   from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
   from mjlab.viewer.debug_visualizer import DebugVisualizer
 

@@ -127,12 +127,12 @@ if str(_REPO / "src") not in sys.path:
 if str(_REPO / "scripts") not in sys.path:
   sys.path.insert(0, str(_REPO / "scripts"))
 
-from scr_phybot_mjab.tools.climbing_reference import kinematics as gcc  # noqa: E402
+from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION  # noqa: E402
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
 )
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION  # noqa: E402
+from scr_phybot_mjab.tools.climbing_reference import kinematics as gcc  # noqa: E402
 
 SEGMENT_NAMES = (
   "ground_stand",

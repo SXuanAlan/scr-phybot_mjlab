@@ -86,6 +86,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+
 import mjlab  # noqa: F401  # Initialize task plugins before project imports.
 
 from scr_phybot_mjab.tools.climbing_reference.cycle import generate_clip

@@ -5,8 +5,10 @@ microspine.wrench. No independent pad dimensions or allocation formula live here
 """
 
 import numpy as np
+
 from scr_phybot_mjab.microspine.empirical_limit_surface import EmpiricalLimitSurface
 from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units_numpy, unit_wrench_matrix
+
 from .geometry import phybot_pad_geometry
 
 

@@ -15,12 +15,17 @@ Usage: CUDA_VISIBLE_DEVICES=2 python scripts/mount_clip_passive_gate.py [--clip 
        [--guard 25] [--envs 128] [--steps 40] [--fail-frac 0.05] [--mask-frac 0.20] [--gimbal-deg 2.5] [--out FILE]
 """
 
-import argparse, math, os, sys
+import argparse
+import math
+import os
+import sys
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 from pathlib import Path
-import numpy as np, torch
+
 import mjlab  # noqa
+import numpy as np
+import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.tasks.registry import load_env_cfg
 
@@ -162,7 +167,7 @@ for f in seeded_frames:
   emit(
     f"{f:5d} {seg(f):18s} {''.join(str(int(x)) for x in seed[0].tolist())}  | {loss:5.0%} "
     + " ".join(f"{EE[e]} {loss_ee[e]:.2f}" for e in sched)
-    + f" | "
+    + " | "
     + " ".join(f"{EE[e]} {gim_p90[e]:.1f}" for e in sched)
     + f" | {wall:.2f} {fall:.2f} {rip:.2f} | {'ok' if ok else 'FAIL'} {rtxt}{gw}"
   )

@@ -37,6 +37,7 @@ for _p in (str(_REPO / "src"), str(_REPO / "scripts")):
     sys.path.insert(0, _p)
 
 import real_log  # noqa: E402
+
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_DEPLOY_TORQUE_LIMITS,
   PHYBOT_C2_POLICY_JOINT_NAMES,

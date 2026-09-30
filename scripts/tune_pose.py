@@ -23,9 +23,8 @@ import time
 import mujoco
 import numpy as np
 import viser
-from mjviser import ViserMujocoScene
-
 from mjlab.entity import Entity
+from mjviser import ViserMujocoScene
 
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,

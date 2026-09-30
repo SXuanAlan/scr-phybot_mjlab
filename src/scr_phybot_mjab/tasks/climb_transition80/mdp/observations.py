@@ -27,13 +27,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-
 from mjlab.utils.lab_api.math import (
   matrix_from_quat,
   quat_apply,
   quat_apply_inverse,
   subtract_frame_transforms,
 )
+
 from scr_phybot_mjab.assets.wall.wall_constants import WALL_HALF_SIZE
 
 if TYPE_CHECKING:

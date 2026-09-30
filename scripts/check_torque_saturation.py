@@ -7,17 +7,16 @@ Examples:
       --agent trained --checkpoint-file logs/.../model.pt
 """
 
-import sys
 import re
+import sys
 from dataclasses import asdict, dataclass
 from math import ceil
 from pathlib import Path
 from typing import Literal
 
+import mjlab  # noqa: F401
 import torch
 import tyro
-
-import mjlab  # noqa: F401
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import (

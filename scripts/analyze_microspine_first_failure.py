@@ -25,21 +25,19 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from scr_phybot_mjab.tools.paths import LIMIT_SURFACE_ANALYSIS_DIR  # noqa: E402
 from scr_phybot_mjab.tools.microspine.first_failure import (  # noqa: E402
   DetectorConfig,
   analyze_trial,
   cell_statistics,
   csv_rows,
   fit_surface,
-  predict_surface,
   prepare_trace,
   sha256,
 )
-
 from scr_phybot_mjab.tools.microspine.first_failure_plot import (  # noqa: E402
   plot_first_failure_surface as plot_surface,
 )
+from scr_phybot_mjab.tools.paths import LIMIT_SURFACE_ANALYSIS_DIR  # noqa: E402
 
 CATEGORIES = {
   "reverse_shear": ("Reverse shear / drag", "#AA4499", "反向拖拽阶段滑移"),

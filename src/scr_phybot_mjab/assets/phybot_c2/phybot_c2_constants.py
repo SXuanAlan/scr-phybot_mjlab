@@ -13,7 +13,6 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import mujoco
-
 from mjlab.actuator import BuiltinPositionActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 from mjlab.utils import spec_config as spec_cfg
@@ -643,7 +642,6 @@ def get_phybot_c2_robot_cfg() -> EntityCfg:
 
 if __name__ == "__main__":
   import mujoco.viewer as viewer
-
   from mjlab.entity.entity import Entity
 
   robot = Entity(get_phybot_c2_robot_cfg())

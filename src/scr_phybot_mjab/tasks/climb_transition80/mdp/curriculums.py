@@ -9,12 +9,10 @@ counter, so stage iters are cumulative across a lineage (08-18 finding).
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
-import math
-
 import torch
-
 from mjlab.managers.event_manager import requires_model_fields
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 

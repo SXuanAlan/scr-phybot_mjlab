@@ -1,14 +1,14 @@
 """CAD climbing reference geometry and pre-latch audit contracts."""
 
-from pathlib import Path
 import importlib.util
+from pathlib import Path
 
 import mjlab  # noqa: F401
-import scr_phybot_mjab.tasks  # noqa: F401
 import mujoco
 import numpy as np
 import pytest
 
+import scr_phybot_mjab.tasks  # noqa: F401
 from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
 from scr_phybot_mjab.tools.climbing_reference.model import build_reference_model
 
@@ -87,6 +87,7 @@ def test_corner80_asset_keeps_canonical_cad_poses_and_identifies_active_units(re
 
 def test_audit_toe_loads_obey_the_actual_task_friction_cone(reference):
   import inspect
+
   from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
 
   clip, model, sites, bodies, toes, audit = reference

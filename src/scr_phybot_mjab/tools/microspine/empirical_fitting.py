@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
+
 from scr_phybot_mjab.microspine.empirical_limit_surface import DEFAULT_TABLE, EmpiricalLimitSurface
 from scr_phybot_mjab.tools.paths import DEFAULT_UNIT_TRIALS, EMPIRICAL_UNIT_DIR
 

@@ -103,11 +103,11 @@ def parse_args() -> argparse.Namespace:
 # --------------------------------------------------------------------------
 def rollout(args: argparse.Namespace) -> dict:
   import torch
-
-  import scr_phybot_mjab.tasks  # noqa: F401  (registers tasks)
   from mjlab.envs import ManagerBasedRlEnv
   from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
   from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+
+  import scr_phybot_mjab.tasks  # noqa: F401  (registers tasks)
   from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
     PHYBOT_C2_PAD_GIMBAL,
   )
