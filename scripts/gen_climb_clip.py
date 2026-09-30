@@ -88,8 +88,9 @@ import argparse
 from pathlib import Path
 
 import mjlab  # noqa: F401  # Initialize task plugins before project imports.
+import numpy as np
 
-from scr_phybot_mjab.tools.climbing_reference.cycle import generate_clip
+from scr_phybot_mjab.tools.climbing_reference.cycle import ClimbCycleRecipe, generate_clip
 from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT as _REPO
 
 
@@ -192,8 +193,7 @@ def main() -> None:
   )
   args = parser.parse_args()
 
-  generate_clip(
-    output=args.output,
+  recipe = ClimbCycleRecipe(
     step_height=args.step_height,
     cycles=args.cycles,
     fps=args.fps,
@@ -215,6 +215,11 @@ def main() -> None:
     limit_margin_frac=args.limit_margin_frac,
     limit_weight=args.limit_weight,
   )
+  clip = generate_clip(recipe)
+  args.output.parent.mkdir(parents=True, exist_ok=True)
+  np.save(args.output, clip.data)
+  print(f"wrote {args.output} ({clip.report[0]})")
+  print("\n".join(clip.report[1:]))
 
 
 if __name__ == "__main__":

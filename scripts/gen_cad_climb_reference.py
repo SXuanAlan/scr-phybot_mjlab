@@ -6,6 +6,7 @@ This is offline inverse kinematics, not policy optimization or a rollout.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -23,7 +24,7 @@ from scr_phybot_mjab.assets.motions import (
 )
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
-from scr_phybot_mjab.tools.climbing_reference.cycle import generate_clip
+from scr_phybot_mjab.tools.climbing_reference.cycle import CAD_EMPIRICAL, generate_clip
 from scr_phybot_mjab.tools.climbing_reference.kinematics import (
   ClimbIK,
   IKTask,
@@ -155,30 +156,11 @@ def main():
   initial = generate_initial(args.initial_output)
   if args.initial_only:
     return
-  generate_clip(
-    output=args.output,
-    step_height=args.step_height,
-    cycles=1,
-    fps=50.0,
-    foot_swing_s=1.5,
-    swing_s=1.8,
-    hold_start_s=0.6,
-    foot_transfer_hold_s=0.6,
-    seat_hold_s=0.6,
-    regrip_hold_s=0.6,
-    end_hold_s=0.8,
-    swing_bulge=0.01,
-    swing_lateral=0.0,
-    foot_bulge=0.01,
-    body_press=0.0,
-    lateral_weight_shift=0.0,
-    hand_load_transfer_s=0.2,
-    rake_s=0.2,
-    rake_dist=0.002,
-    limit_margin_frac=0.08,
-    limit_weight=3.0,
-    initial_state=initial,
-  )
+  clip = generate_clip(dataclasses.replace(CAD_EMPIRICAL, step_height=args.step_height), initial_state=initial)
+  args.output.parent.mkdir(parents=True, exist_ok=True)
+  np.save(args.output, clip.data)
+  print(f"wrote {args.output} ({clip.report[0]})")
+  print("\n".join(clip.report[1:]))
   refine_reference(args.output, initial)
   write_variant_metadata(np.load(args.output, allow_pickle=True).item(), args.output, args.wall_angle, args.unit_layout)
 
