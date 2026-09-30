@@ -346,7 +346,6 @@ src/scr_phybot_mjab/
     motions/           # Runtime motion clips and shared clip/initial-state paths.
     microspine/        # Packaged empirical unit distribution; no raw bench logs.
     phybot_c2/          # PHYBot C2 MJCF, meshes, actuator config.
-    forearm_hand/       # Small microspine arm/hand test asset.
     rizon4/             # Flexiv Rizon4 URDF/meshes and microspine pad config.
     wall/               # Wall entity.
   microspine/
