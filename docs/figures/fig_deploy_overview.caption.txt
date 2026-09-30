@@ -1,0 +1,15 @@
+Fig. X. Robot operation and control software. (a) Run procedure. The
+robot starts suspended on a gantry (1). On power-on it is driven to the
+ZERO pose along a cubic trajectory q(s) = q_init + (q_ZERO - q_init)
+(3s^2 - 2s^3), s = t/T, with zero joint velocity at both ends (2), then
+lowered until the feet are loaded (3). The operator unlocks the gamepad
+(LT + RT) and selects a task (4); the task runs (5); the robot returns
+to ZERO, motors are disabled and it is hoisted back onto the gantry (6).
+(b) Control software during step 5. Gamepad commands reach the controller
+over an LCM bus (UDP multicast). The controller is a 500 Hz real-time
+loop that runs, in order, safety guards, task scheduling (zero, walk,
+walk_amp, hold), RL policy inference at 50 Hz and telemetry/logging at
+50 Hz. Through a common backend interface the same loop drives either the
+real robot (real-robot backend, 500 Hz fieldbus) or a simulation backend
+stepping a MuJoCo model. A read-only web panel consumes telemetry and
+supervises the controller process (start / kill).

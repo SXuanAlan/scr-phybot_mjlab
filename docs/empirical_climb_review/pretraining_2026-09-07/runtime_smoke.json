@@ -1,0 +1,437 @@
+{
+  "created_at_utc": "2026-09-08T01:14:24.432145+00:00",
+  "scope": "4 environments per angle, 100 policy steps, reference joint-position PD targets; no learned policy, no training, no success claim.",
+  "angles": [
+    {
+      "wall_angle_deg": 60,
+      "num_envs": 4,
+      "policy_steps": 100,
+      "step_dt": 0.02,
+      "seeded_supports": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "new_latches": 0,
+      "release_reason_counts": {
+        "2": 6,
+        "7": 9,
+        "8": 1
+      },
+      "minimum_preload_at_new_latch_n": null,
+      "termination_events": 0,
+      "truncation_events": 0,
+      "environments_with_termination": 0,
+      "observations_rewards_states_finite": true,
+      "env0_release_details": [
+        {
+          "policy_step": 2,
+          "reference_frame": 2,
+          "pad": "right_hand_spine",
+          "reason": 2,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              22.81890296936035,
+              0.12307972460985184,
+              -5.026068210601807
+            ],
+            [
+              22.96714210510254,
+              0.12307972460985184,
+              -4.885587215423584
+            ],
+            [
+              22.81890296936035,
+              0.01190110296010971,
+              5.470609188079834
+            ],
+            [
+              22.96714210510254,
+              0.01190110296010971,
+              5.611090183258057
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            6.294198036193848,
+            3.396563768386841,
+            2.999480724334717,
+            4.502602577209473
+          ],
+          "unit_in_measured_domain": [
+            true,
+            true,
+            true,
+            true
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "policy_step": 2,
+          "reference_frame": 2,
+          "pad": "left_foot_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              31.545734405517578,
+              2.4561281204223633,
+              -32.730682373046875
+            ],
+            [
+              34.46525955200195,
+              2.4561281204223633,
+              -29.72903060913086
+            ],
+            [
+              31.545734405517578,
+              0.266485333442688,
+              -17.628131866455078
+            ],
+            [
+              34.46525955200195,
+              0.266485333442688,
+              -14.626480102539062
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            2.5,
+            5.236838340759277,
+            8.94670295715332,
+            4.442759037017822
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "policy_step": 2,
+          "reference_frame": 2,
+          "pad": "right_foot_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              34.44098663330078,
+              -2.4564366340637207,
+              -29.7386474609375
+            ],
+            [
+              31.521360397338867,
+              -2.4564366340637207,
+              -32.740966796875
+            ],
+            [
+              34.44098663330078,
+              -0.26671648025512695,
+              -14.6353178024292
+            ],
+            [
+              31.521360397338867,
+              -0.26671648025512695,
+              -17.637638092041016
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            7.263068675994873,
+            3.0,
+            8.946657180786133,
+            2.5
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "policy_step": 3,
+          "reference_frame": 3,
+          "pad": "left_hand_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              38.184326171875,
+              0.7557525634765625,
+              10.004408836364746
+            ],
+            [
+              39.09832000732422,
+              0.7557525634765625,
+              10.756058692932129
+            ],
+            [
+              38.184326171875,
+              0.07025972008705139,
+              14.28844928741455
+            ],
+            [
+              39.09832000732422,
+              0.07025972008705139,
+              15.040099143981934
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            10.0,
+            9.848849296569824,
+            8.98594856262207,
+            10.0
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        }
+      ],
+      "final_support_counts_after_possible_resets": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "runtime_completed": true
+    },
+    {
+      "wall_angle_deg": 80,
+      "num_envs": 4,
+      "policy_steps": 100,
+      "step_dt": 0.02,
+      "seeded_supports": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "new_latches": 0,
+      "release_reason_counts": {
+        "7": 15,
+        "8": 1
+      },
+      "minimum_preload_at_new_latch_n": null,
+      "termination_events": 0,
+      "truncation_events": 0,
+      "environments_with_termination": 0,
+      "observations_rewards_states_finite": true,
+      "env0_release_details": [
+        {
+          "policy_step": 2,
+          "reference_frame": 2,
+          "pad": "left_hand_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              35.87211227416992,
+              -0.13541945815086365,
+              3.1694271564483643
+            ],
+            [
+              35.71213150024414,
+              -0.13541945815086365,
+              3.015150785446167
+            ],
+            [
+              35.87211227416992,
+              -0.015432361513376236,
+              9.31421947479248
+            ],
+            [
+              35.71213150024414,
+              -0.015432361513376236,
+              9.159943580627441
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            10.0,
+            9.972916603088379,
+            8.99691390991211,
+            10.0
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "policy_step": 2,
+          "reference_frame": 2,
+          "pad": "right_hand_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              35.69320297241211,
+              0.1293976604938507,
+              3.01452374458313
+            ],
+            [
+              35.84621047973633,
+              0.1293976604938507,
+              3.1615207195281982
+            ],
+            [
+              35.69320297241211,
+              0.014640625566244125,
+              9.158045768737793
+            ],
+            [
+              35.84621047973633,
+              0.014640625566244125,
+              9.30504322052002
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            8.0,
+            2.500000238418579,
+            2.0,
+            4.497072219848633
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "policy_step": 3,
+          "reference_frame": 3,
+          "pad": "left_foot_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              36.181396484375,
+              2.527337074279785,
+              -22.003185272216797
+            ],
+            [
+              39.07411193847656,
+              2.527337074279785,
+              -18.86890411376953
+            ],
+            [
+              36.181396484375,
+              0.35780251026153564,
+              -7.586555004119873
+            ],
+            [
+              39.07411193847656,
+              0.35780251026153564,
+              -4.452273845672607
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            2.5,
+            5.2582011222839355,
+            8.928439140319824,
+            4.4231438636779785
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        },
+        {
+          "policy_step": 3,
+          "reference_frame": 3,
+          "pad": "right_foot_spine",
+          "reason": 7,
+          "unit_loads_shear_lateral_normal_n": [
+            [
+              39.02705001831055,
+              -2.5328638553619385,
+              -18.879695892333984
+            ],
+            [
+              36.12790298461914,
+              -2.5328638553619385,
+              -22.020263671875
+            ],
+            [
+              39.02705001831055,
+              -0.3585011959075928,
+              -4.4464616775512695
+            ],
+            [
+              36.12790298461914,
+              -0.3585011959075928,
+              -7.587028503417969
+            ]
+          ],
+          "unit_normal_capacities_n": [
+            7.240140914916992,
+            3.0,
+            8.928299903869629,
+            2.5
+          ],
+          "unit_in_measured_domain": [
+            false,
+            false,
+            false,
+            false
+          ],
+          "unit_early_failure": [
+            false,
+            false,
+            false,
+            false
+          ]
+        }
+      ],
+      "final_support_counts_after_possible_resets": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "runtime_completed": true
+    }
+  ]
+}

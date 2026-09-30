@@ -1,0 +1,25 @@
+protocol_id,phase,factors,development_repeats,test_seen_repeats,test_new_repeats,status,notes
+ENG01,engagement,preload=low;drag=short;speed=standard;proof_load=common,4,2,0,planned_levels_pending,Start unattached; count failed seating and proof-load failure
+ENG02,engagement,preload=low;drag=long;speed=standard;proof_load=common,4,2,0,planned_levels_pending,Same proof load and hold time as all engagement trials
+ENG03,engagement,preload=high;drag=short;speed=standard;proof_load=common,4,2,0,planned_levels_pending,Preload is whole-pad measured loading; do not assume equal unit preload
+ENG04,engagement,preload=high;drag=long;speed=standard;proof_load=common,4,2,0,planned_levels_pending,Development repeats should span acquisition blocks
+ENG05,engagement,preload=mid;drag=short;speed=standard;proof_load=common,0,0,4,planned_levels_pending,Unseen preload setting fixed before model fitting
+ENG06,engagement,preload=mid;drag=long;speed=standard;proof_load=common,0,0,4,planned_levels_pending,Test data and outcomes remain hidden during search
+HOLD01,holding_failure,seating=standard;shear=low;lateral=zero;normal=step_ramp,4,2,0,planned_levels_pending,Record last stable wrench and first slip and terminal detachment
+HOLD02,holding_failure,seating=standard;shear=high;lateral=zero;normal=step_ramp,4,2,0,planned_levels_pending,Keep the same step dwell and approach protocol
+HOLD03,holding_failure,seating=standard;shear=mid;lateral=positive_reference;normal=step_ramp,4,2,0,planned_levels_pending,Record actual moments; no independent moment claim
+HOLD04,holding_failure,seating=standard;shear=mid;lateral=negative_reference;normal=step_ramp,4,2,0,planned_levels_pending,Check the lateral mirror assumption within reachable loads
+HOLD05,holding_failure,seating=standard;shear=low;lateral=positive_half_reference;normal=step_ramp,0,0,4,planned_levels_pending,Unseen shear-lateral combination fixed before fitting
+HOLD06,holding_failure,seating=standard;shear=high;lateral=negative_half_reference;normal=step_ramp,0,0,4,planned_levels_pending,Held at effort ceiling is right censored; early failure retained
+COMP01,compliance_slip,seating=standard;direction=rake;speed=low;amplitude=main,4,2,0,planned_levels_pending,Bounded subfailure load-unload pose excitation with common force ceiling
+COMP02,compliance_slip,seating=standard;direction=rake;speed=high;amplitude=main,4,2,0,planned_levels_pending,Measure pad-wall relative displacement and force hysteresis
+COMP03,compliance_slip,seating=standard;direction=normal;speed=low;amplitude=main,4,2,0,planned_levels_pending,Amplitudes are direction-specific and fixed after pilot
+COMP04,compliance_slip,seating=standard;direction=normal;speed=high;amplitude=main,4,2,0,planned_levels_pending,Separate reversible compliance from residual displacement
+COMP05,compliance_slip,seating=standard;direction=rake;speed=mid;amplitude=smaller_check,0,0,4,planned_levels_pending,Unseen intermediate speed and smaller excursion; no guaranteed slip
+COMP06,compliance_slip,seating=standard;direction=normal;speed=mid;amplitude=smaller_check,0,0,4,planned_levels_pending,Same measurement filtering and controller as development
+REL01,release,seating=standard;remaining_shear=low;retreat=normal,4,2,0,planned_levels_pending,Start with common load hold; unload to specified state before retreat
+REL02,release,seating=standard;remaining_shear=low;retreat=antirake_then_normal,4,2,0,planned_levels_pending,Reverse motion distance and exit limits fixed after pilot
+REL03,release,seating=standard;remaining_shear=high;retreat=normal,4,2,0,planned_levels_pending,High remaining shear still belongs to the bounded unload protocol
+REL04,release,seating=standard;remaining_shear=high;retreat=antirake_then_normal,4,2,0,planned_levels_pending,Log residual wrench and release distance and duration
+REL05,release,seating=standard;remaining_shear=mid;retreat=normal,0,0,4,planned_levels_pending,Unseen intermediate unloading level fixed before fitting
+REL06,release,seating=standard;remaining_shear=mid;retreat=antirake_then_normal,0,0,4,planned_levels_pending,Retain failed establishment; report conditional release metrics separately

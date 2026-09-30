@@ -1,8 +1,14 @@
 import mujoco
 import pytest
+import mjlab  # noqa: F401
+import scr_phybot_mjab.tasks  # noqa: F401  # Initialize the registry before task modules.
 
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
+  PHYBOT_C2_PAD_GIMBAL,
+)
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   _CLIMB_MOTION_FILE,
+  phybot_c2_climb_wall_corners60_env_cfg,
   phybot_c2_climb_wall_env_cfg,
 )
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
@@ -28,21 +34,24 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.reengage_cooldown_steps == 10
   assert microspine.engage_consecutive_steps == 3
   assert microspine.engage_normal_force_threshold == 3.0
-  # 1 (was 2): a rigid pad generically touches a flat wall with ONE sphere —
-  # the 2-sphere gate demanded sub-degree parallelism and never passed on
-  # motionref8 (78 N pressed through a single sphere, engage counter never
-  # started), making every release an irreversible loss and welding limbs.
-  # Seating is judged by the virtual spine field instead (Wang 2017: spine
-  # normal suspension is force-free over le_max = 5 mm, so seating is
-  # kinematic reach, not multi-sphere force).
+  # Proxy count/force settings remain available for legacy recipes; empirical
+  # latching uses estimated preload on every physical unit instead.
   assert microspine.engage_min_spheres == 1
   assert microspine.virtual_spine_grid == (5, 5)
   assert microspine.virtual_spine_travel == 0.005  # paper le_max
-  assert microspine.engage_min_spine_fraction == 0.5
-  # A half-seated latch holds half the load (paper Sec 2.4: capacity is the
-  # sum of engaged spines) — seating quality gets a continuous physical
-  # payoff, and a corner-poke latch cannot ride a full-strength anchor.
-  assert microspine.seat_quality_scales_capacity is True
+  assert microspine.engage_min_spine_fraction == 1.0
+  assert microspine.engage_min_total_normal_force == 0.0
+  assert microspine.engage_unit_preload_n == 10.0
+  from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
+  sensor = next(s for s in cfg.scene.sensors if isinstance(s, WrenchContactSensorCfg))
+  assert {"force", "torque", "pos"}.issubset(sensor.fields)
+  assert sensor.history_length == cfg.decimation
+  assert len(sensor.reference_sites) == 16
+  # Each box can create four contacts even before floor/toe support is counted.
+  assert cfg.sim.nconmax > 4 * len(sensor.reference_sites)
+  # The empirical distribution is conditioned on a seated unit. Require
+  # full geometric seating and do not multiply it by a second capacity DR.
+  assert microspine.seat_quality_scales_capacity is False
   # 1 (was 2): latched-contact retraction killed the one-step equality
   # transients the debounce guarded against; the first genuine violation
   # now releases, closing the flicker-through loophole for good.
@@ -71,22 +80,34 @@ def test_climb_microspine_contract_and_command_ordering():
   # 0.25 s of rake-shear-loaded time (Wang loading-phase recruitment), and
   # every latch redraws F0 (per-grip asperity lottery, paper Fig 6).
   assert microspine.limit_surface.hold_judge_guard_steps == 2
-  assert microspine.limit_surface.capacity_ramp_floor == 0.3
-  assert microspine.limit_surface.capacity_ramp_time_s == 0.25
+  # v57: the seed settle guard is a TRANSITION fix; climb keeps stock
+  # judging (None = no seeded special case) — its RSI births never showed
+  # the settle rip and its exams are green.
+  assert microspine.limit_surface.seed_hold_judge_guard_steps is None
+  assert microspine.limit_surface.capacity_ramp_floor == 1.0
+  assert microspine.limit_surface.capacity_ramp_time_s == 0.0
   assert microspine.limit_surface.capacity_ramp_shear_n == 10.0
-  assert microspine.limit_surface.redraw_f_t_max_per_latch is True
+  assert microspine.limit_surface.redraw_f_t_max_per_latch is False
+  assert microspine.limit_surface.model == "empirical_unit"
+  assert "random_release" not in cfg.events
+  assert cfg.commands["climb_motion"].joint_pos_noise == 0
   assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
   assert microspine.limit_surface.moment_capacity_enable is True
-  # Billing spans derive from the robot XML's sphere grid (pad_grid_spans),
-  # not from hand-maintained constants; billing is per-unit (paper 12-tile
-  # palm: 3 rake rows x 4 lateral cols, weakest unit releases the pad);
+  # The main task uses the complete 3x4 CAD array for preload and holding.
   # torquescale = reference-hold-calibrated compliance.
-  assert abs(microspine.limit_surface.pad_span_rake_m - 0.0746) < 1.0e-3
-  assert abs(microspine.limit_surface.pad_span_lateral_m - 0.096) < 1.0e-3
+  assert abs(microspine.limit_surface.pad_span_rake_m - 0.063) < 1.0e-6
+  assert abs(microspine.limit_surface.pad_span_lateral_m - 0.084) < 1.0e-6
   assert microspine.limit_surface.moment_billing_mode == "per_unit"
+  assert microspine.limit_surface.unit_layout == "all"
   assert microspine.limit_surface.unit_rows_rake == 3
   assert microspine.limit_surface.unit_cols_lateral == 4
-  assert microspine.anchor_torquescale == 0.01
+  assert microspine.limit_surface.f_t_max_range == (360.,360.)
+  if PHYBOT_C2_PAD_GIMBAL:
+    # Gimbal-era weld: rotationally RIGID — the passive wrist gimbal owns
+    # compliance and angle-based release is retired (moment billing only).
+    assert microspine.anchor_torquescale == 1.0
+  else:
+    assert microspine.anchor_torquescale == 0.01
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and
   # seeds the per-env latch state AFTER the affordance's own reset ran.
@@ -100,6 +121,124 @@ def test_climb_microspine_contract_and_command_ordering():
   }
 
 
+@pytest.mark.parametrize("play", [False, True])
+def test_main_climbing_task_uses_twelve_units_and_the_legacy_90_degree_ladder(play):
+  from mjlab.tasks.registry import load_env_cfg
+  from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import WALL_ANGLE_STAGES
+
+  cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2", play=play)
+  microspine = cfg.commands["microspine_affordance"].microspine_cfg
+  ls = microspine.limit_surface
+  assert (ls.unit_layout, ls.unit_rows_rake, ls.unit_cols_lateral) == ("all", 3, 4)
+  assert microspine.engage_unit_preload_n == 10.0
+  event_microspine = cfg.events["microspine_grip"].params["microspine_cfg"]
+  assert event_microspine.limit_surface.unit_layout == "all"
+  assert event_microspine.engage_unit_preload_n == 10.0
+  wall = cfg.curriculum["wall_angle"].params
+  if play:
+    assert wall["angle_stages"] == [{"iter": 0, "angle_deg": 90.0}]
+    assert wall["angle_jitter_deg"] == 0.0
+  else:
+    assert wall["angle_stages"] == list(WALL_ANGLE_STAGES)
+
+
+@pytest.mark.parametrize("play", [False, True])
+def test_corner_climbing_60_task_has_full_training_and_play_configs(play):
+  from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
+  from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS60_MOTION
+
+  cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A60", play=play)
+  main = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2", play=play)
+  microspine = cfg.commands["microspine_affordance"].microspine_cfg
+  ls = microspine.limit_surface
+  assert (ls.unit_layout, ls.unit_rows_rake, ls.unit_cols_lateral) == ("corners", 2, 2)
+  assert microspine.engage_unit_preload_n == 10.0
+  assert cfg.events["microspine_grip"].params["microspine_cfg"].limit_surface.unit_layout == "corners"
+  motion = cfg.commands["climb_motion"]
+  assert motion.motion_file == str(CAD_CLIMB_CORNERS60_MOTION)
+  assert cfg.commands["climb_velocity"].ranges.lin_vel_z == pytest.approx(
+    (clip_average_climb_rate(CAD_CLIMB_CORNERS60_MOTION),) * 2)
+  assert cfg.scene.num_envs == main.scene.num_envs
+  assert cfg.episode_length_s == main.episode_length_s
+  assert cfg.actions == main.actions
+  assert tuple(cfg.commands) == tuple(main.commands)
+  assert tuple(cfg.observations["actor"].terms) == tuple(main.observations["actor"].terms)
+  assert tuple(cfg.observations["critic"].terms) == tuple(main.observations["critic"].terms)
+  assert {key: term.weight for key, term in cfg.rewards.items()} == {
+    key: term.weight for key, term in main.rewards.items()}
+  assert tuple(cfg.terminations) == tuple(main.terminations)
+  wall = cfg.curriculum["wall_angle"].params
+  if play:
+    assert wall["angle_stages"] == [{"iter": 0, "angle_deg": 60.0}]
+    assert wall["angle_jitter_deg"] == 0.0
+    assert motion.sampling_mode == "start"
+    assert motion.height_offset_range == (0.0, 0.0)
+    assert not cfg.observations["actor"].enable_corruption
+  else:
+    assert len(wall["angle_stages"]) > 1
+    assert wall["angle_stages"][0]["angle_deg"] == 45.0
+    assert wall["angle_stages"][-1]["angle_deg"] == 60.0
+    assert motion.sampling_mode == "adaptive"
+    assert cfg.observations["actor"].enable_corruption
+  agent = load_rl_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A60")
+  main_agent = load_rl_cfg("Mjlab-Climb-Wall-Phybot-C2")
+  assert agent.experiment_name != main_agent.experiment_name
+  assert agent.algorithm == main_agent.algorithm
+  assert agent.actor == main_agent.actor and agent.critic == main_agent.critic
+  assert agent.num_steps_per_env == wall["steps_per_iter"]
+
+
+def test_corner_climbing_curriculum_cannot_mutate_the_main_task():
+  from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import CORNERS60_WALL_ANGLE_STAGES
+
+  corner = phybot_c2_climb_wall_corners60_env_cfg()
+  corner.curriculum["wall_angle"].params["angle_stages"][0]["angle_deg"] = 10.0
+  assert CORNERS60_WALL_ANGLE_STAGES[0]["angle_deg"] == 45.0
+  assert phybot_c2_climb_wall_corners60_env_cfg().curriculum["wall_angle"].params[
+    "angle_stages"][0]["angle_deg"] == 45.0
+  assert phybot_c2_climb_wall_env_cfg().curriculum["wall_angle"].params[
+    "angle_stages"][-1]["angle_deg"] == 90.0
+
+
+@pytest.mark.parametrize("play", [False, True])
+def test_corner_climbing_80_task_keeps_its_angle_in_training_and_play(play):
+  from mjlab.tasks.registry import load_env_cfg
+  from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS80_MOTION
+  cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A80", play=play)
+  microspine = cfg.commands["microspine_affordance"].microspine_cfg
+  assert microspine.limit_surface.unit_layout == "corners"
+  assert microspine.engage_unit_preload_n == 10.0
+  wall = cfg.curriculum["wall_angle"].params
+  assert wall["angle_stages"] == [{"iter":0, "angle_deg":80.0}]
+  assert wall["angle_jitter_deg"] == 0.0
+  assert cfg.events["microspine_grip"].params["microspine_cfg"].limit_surface.unit_layout == "corners"
+  assert cfg.commands["climb_motion"].motion_file == str(CAD_CLIMB_CORNERS80_MOTION)
+
+
+@pytest.mark.parametrize("wall_angle,layout", [(60., "corners"), (80., "corners"), (90., "all")])
+def test_empirical_climbing_rewards_unloaded_release_at_each_angle_and_layout(wall_angle, layout):
+  cfg = phybot_c2_climb_wall_env_cfg(wall_angle_deg=wall_angle, unit_layout=layout)
+  release = cfg.rewards["microspine_release_load"]
+  assert callable(release.func) and release.weight == 1.
+  assert release.params["shear_scale_n"] == release.params["lateral_scale_n"] == 2.
+  assert release.params["shear_cost"] > release.params["lateral_cost"] > 0
+  assert release.params["minimum_supports"] == 3
+  assert cfg.rewards["unsafe_microspine_release"].weight < 0
+  assert cfg.commands["microspine_affordance"].microspine_cfg.engage_unit_preload_n == 10.
+
+
+def test_release_load_reward_requires_empirical_unit_telemetry():
+  cfg = phybot_c2_climb_wall_env_cfg(contact_model="wang2017")
+  assert "microspine_release_load" not in cfg.rewards
+
+
+def test_full_array_comparison_and_legacy_wang_remain_available():
+  for kwargs in ({"unit_layout":"all"}, {"contact_model":"wang2017"}):
+    cfg = phybot_c2_climb_wall_env_cfg(**kwargs)
+    ls = cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
+    assert (ls.unit_layout,ls.unit_rows_rake,ls.unit_cols_lateral) == ("all",3,4)
+
+
 def test_climb_motion_command_is_rsi_over_the_ik_cycle():
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   motion = cfg.commands["climb_motion"]
@@ -111,7 +250,7 @@ def test_climb_motion_command_is_rsi_over_the_ik_cycle():
     "left_foot_spine",
     "right_foot_spine",
   )
-  assert motion.sampling_mode == "uniform"  # DeepMimic RSI.
+  assert motion.sampling_mode == "adaptive"
   assert motion.affordance_command_name == "microspine_affordance"
   # RSI owns the reset pose: the generic perturbation events must be gone or
   # they would fight (be overwritten by) the reference-state write.
@@ -161,8 +300,8 @@ def test_climb_wall_keeps_visual_box_but_collides_as_surface_plane():
   assert tuple(collision.size) == (0.5, 0.6, 0.1)
 
 
-def test_climb_reward_contract_is_deepmimic_split():
-  cfg = phybot_c2_climb_wall_env_cfg(play=False)
+def test_legacy_wang_reward_contract_remains_deepmimic_split():
+  cfg = phybot_c2_climb_wall_env_cfg(play=False, contact_model="wang2017")
 
   # Imitation teaches the motion; every tracking term is position-free
   # (joint space / root frame / orientation) — no global-pose kernel exists.
@@ -284,7 +423,10 @@ def test_climb_reward_contract_is_deepmimic_split():
   # the 74.7 mm rake span = ~3.8 deg of chassis rotation about the loaded
   # edge; per-grip lottery like F0.
   ls_cfg = cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
-  assert ls_cfg.tilt_peel_max_deg_range == (3.5, 4.5)
+  if PHYBOT_C2_PAD_GIMBAL:
+    assert ls_cfg.tilt_peel_max_deg_range == (0.0, 0.0)  # angle release off
+  else:
+    assert ls_cfg.tilt_peel_max_deg_range == (3.5, 4.5)
   assert cfg.rewards["bounded_dof_acc_l2"].weight == -0.02
   assert cfg.rewards["bounded_dof_acc_l2"].params["max_cost"] == 10.0
   assert cfg.rewards["dof_pos_limits"].weight == -5.0
@@ -310,44 +452,71 @@ def test_climb_curriculum_retrains_from_scratch():
   # trajectory — v3 ran 0->3300 on 45/75+-12 (with this exact tilt anneal)
   # and the v4 bridge took the same lineage 3300->5050 through
   # 85+-3/88+-2/exact-90 to the ship gate (90-deg cal exams
-  # 0.962/0.961/0.963). Every hop overlaps its neighbor's pool; rung
-  # boundaries sit >=300 iters from tilt-anneal steps; drive by mastery
-  # gates in practice (the iters are ceilings).
+  # 0.962/0.961/0.963). 2026-08-10: the 80+-5 rung joins for the
+  # band-teacher matrix (deploy bands 80+-5/88+-2/90 each mint a teacher at
+  # its rung's end), shifting later rungs +350. Every hop overlaps its
+  # neighbor's pool; rung boundaries sit >=300 iters from tilt-anneal
+  # steps; drive by mastery gates in practice (the iters are ceilings).
   assert "climb_difficulty" not in cfg.curriculum
   term = cfg.curriculum["wall_angle"]
   stages = term.params["angle_stages"]
   assert [(s["iter"], s["angle_deg"], s.get("jitter_deg")) for s in stages] == [
     (0, 45.0, None),
     (1500, 75.0, 12.0),
-    (3550, 85.0, 3.0),
-    (4200, 88.0, 2.0),
-    (4800, 90.0, None),
+    (3300, 80.0, 5.0),
+    (3900, 85.0, 3.0),
+    (4550, 88.0, 2.0),
+    (5150, 90.0, None),
   ]
   assert term.params["steps_per_iter"] == runner_cfg.num_steps_per_env == 96
 
-  # v3's birth-validated tilt anneal, ending on the calibrated band well
-  # before the wall gets steep (3000 < 3550).
-  tilt_term = cfg.curriculum["tilt_peel"]
-  tilt_stages = tilt_term.params["stages"]
-  assert [
-    (s["iter"], s["deg_range"], s["tax_threshold_deg"], s["tax_scale_deg"])
-    for s in tilt_stages
-  ] == [
-    (0, (12.0, 15.0), 10.0, 8.0),
-    (1200, (8.0, 10.0), 6.5, 6.0),
-    (2400, (5.0, 7.0), 4.0, 5.0),
-    (3000, (3.5, 4.5), 3.0, 5.0),
-  ]
-  assert tilt_stages[-1]["iter"] < stages[2]["iter"]
-  assert tilt_term.params["steps_per_iter"] == 96
+  if PHYBOT_C2_PAD_GIMBAL:
+    # Angle release retired with the pad gimbal: no tilt ladder at all —
+    # the schedule would just rewrite live bands onto a dead channel.
+    assert "tilt_peel" not in cfg.curriculum
+  else:
+    # v3's birth-validated tilt anneal, ending on the calibrated band well
+    # before the wall gets steep (3000 < 3550).
+    tilt_term = cfg.curriculum["tilt_peel"]
+    tilt_stages = tilt_term.params["stages"]
+    assert [
+      (s["iter"], s["deg_range"], s["tax_threshold_deg"], s["tax_scale_deg"])
+      for s in tilt_stages
+    ] == [
+      (0, (12.0, 15.0), 10.0, 8.0),
+      (1200, (8.0, 10.0), 6.5, 6.0),
+      (2400, (5.0, 7.0), 4.0, 5.0),
+      (3000, (3.5, 4.5), 3.0, 5.0),
+    ]
+    assert tilt_stages[-1]["iter"] < stages[2]["iter"]
+    assert tilt_term.params["steps_per_iter"] == 96
 
   # Play/eval pins to the ladder's terminal values: exams always run the
   # honest physics at the target angle regardless of training progress.
   play_cfg = phybot_c2_climb_wall_env_cfg(play=True)
   play_term = play_cfg.curriculum["wall_angle"]
   assert play_term.params["angle_stages"][-1]["angle_deg"] == 90.0
-  play_tilt = play_cfg.curriculum["tilt_peel"].params["stages"]
-  assert play_tilt[-1]["deg_range"] == (3.5, 4.5)
+  if PHYBOT_C2_PAD_GIMBAL:
+    assert "tilt_peel" not in play_cfg.curriculum
+  else:
+    play_tilt = play_cfg.curriculum["tilt_peel"].params["stages"]
+    assert play_tilt[-1]["deg_range"] == (3.5, 4.5)
+
+  # Band pin (band-teacher matrix knob): one stage, jitter PRESERVED —
+  # unlike the final-stage pin, which runs a hard angle.
+  from scr_phybot_mjab.tasks.climb_wall import mdp as climb_mdp
+
+  band_cfg = phybot_c2_climb_wall_env_cfg(play=False)
+  climb_mdp.pin_curricula_to_band(band_cfg, 80.0, 5.0)
+  assert band_cfg.curriculum["wall_angle"].params["angle_stages"] == [
+    {"iter": 0, "angle_deg": 80.0, "jitter_deg": 5.0}
+  ]
+  if PHYBOT_C2_PAD_GIMBAL:
+    assert "tilt_peel" not in band_cfg.curriculum
+  else:
+    assert band_cfg.curriculum["tilt_peel"].params["stages"] == [
+      {"iter": 0, "deg_range": (3.5, 4.5)}
+    ]
 
 
 def test_climb_action_contract_is_bounded_in_target_space_only():

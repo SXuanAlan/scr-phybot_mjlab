@@ -1,0 +1,3641 @@
+{
+  "created_at_utc": "2026-09-08T03:52:58.434352+00:00",
+  "training_started": false,
+  "tasks": {
+    "Mjlab-Climb-Wall-Phybot-C2": {
+      "gpu_ids": [
+        0
+      ],
+      "num_envs_per_worker": 2048,
+      "episode_length_s": 30.0,
+      "physics_dt_s": 0.002,
+      "decimation": 10,
+      "nconmax": 256,
+      "njmax": 512,
+      "actor_observation_dimension_runtime": 150,
+      "critic_observation_dimension_runtime": 170,
+      "actions": {
+        "joint_pos": {
+          "entity_name": "robot",
+          "clip": null,
+          "transmission_type": "joint",
+          "actuator_names": [
+            "left_hip_pitch",
+            "left_hip_roll",
+            "left_hip_yaw",
+            "left_knee",
+            "left_ankle_pitch",
+            "left_ankle_roll",
+            "right_hip_pitch",
+            "right_hip_roll",
+            "right_hip_yaw",
+            "right_knee",
+            "right_ankle_pitch",
+            "right_ankle_roll",
+            "waist_yaw",
+            "left_shoulder_pitch",
+            "left_shoulder_roll",
+            "left_shoulder_yaw",
+            "left_elbow_pitch",
+            "right_shoulder_pitch",
+            "right_shoulder_roll",
+            "right_shoulder_yaw",
+            "right_elbow_pitch"
+          ],
+          "scale": 0.25,
+          "offset": 0.0,
+          "preserve_order": true,
+          "use_default_offset": true
+        }
+      },
+      "motion": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy",
+        "affordance_command_name": "microspine_affordance",
+        "wall_entity_name": "wall",
+        "ee_body_names": [
+          "left_hand_spine",
+          "right_hand_spine",
+          "left_foot_spine",
+          "right_foot_spine"
+        ],
+        "sampling_mode": "adaptive",
+        "tracking_body_names": [
+          "torso",
+          "torso_upper",
+          "neck_pitch",
+          "left_shoulder_roll",
+          "left_elbow_pitch",
+          "left_hand_spine",
+          "right_shoulder_roll",
+          "right_elbow_pitch",
+          "right_hand_spine",
+          "left_hip_yaw",
+          "left_knee",
+          "left_ankle_roll",
+          "left_foot_spine",
+          "right_hip_yaw",
+          "right_knee",
+          "right_ankle_roll",
+          "right_foot_spine"
+        ],
+        "adaptive_bin_time_s": 1.0,
+        "adaptive_alpha": 0.001,
+        "adaptive_uniform_ratio": 0.1,
+        "synchronize_reset_phase": true,
+        "initialize_seeded_anchors": true,
+        "height_offset_range": [
+          -0.3,
+          0.0
+        ],
+        "spawn_match_vertical_height": true,
+        "joint_pos_noise": 0.0
+      },
+      "microspine": {
+        "microspine_cfg": {
+          "ee_body_names": [
+            "left_hand_spine",
+            "right_hand_spine",
+            "left_foot_spine",
+            "right_foot_spine"
+          ],
+          "spheres_per_ee_rows": 2,
+          "spheres_per_ee_cols": 2,
+          "grip_enabled": true,
+          "affordance_name": null,
+          "wall_geom_name": "wall/wall_geom",
+          "arm_wall_contact_geoms": [],
+          "contact_friction": [
+            0.2,
+            0.2,
+            0.005,
+            0.0001,
+            0.0001
+          ],
+          "contact_condim": 3,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "contact_solimp": [
+            0.9,
+            0.99,
+            0.001,
+            0.5,
+            2.0
+          ],
+          "contact_margin": 0.01,
+          "contact_gap": 0.01,
+          "disable_contacts_while_latched": true,
+          "latched_contact_retract": 0.05,
+          "debug": false,
+          "engage_normal_force_threshold": 3.0,
+          "engage_unit_preload_n": 10.0,
+          "engage_min_fraction": 0.25,
+          "engage_min_total_normal_force": 0.0,
+          "engage_min_spheres": 1,
+          "engage_parallel_cos_threshold": 0.25,
+          "virtual_spine_grid": [
+            5,
+            5
+          ],
+          "virtual_spine_travel": 0.005,
+          "engage_min_spine_fraction": 1.0,
+          "engage_max_antirake_vel": 0.02,
+          "spring_field_enabled": false,
+          "spring_axis_tilt_deg": 15.0,
+          "spring_free_length_range": [
+            0.002,
+            0.005
+          ],
+          "spring_k_unit_range": [
+            80.0,
+            180.0
+          ],
+          "spring_damping_range": [
+            0.2,
+            0.8
+          ],
+          "engage_shear_threshold_n": 10.0,
+          "seat_quality_scales_capacity": false,
+          "engage_consecutive_steps": 3,
+          "reengage_cooldown_steps": 10,
+          "dr_reseat_hold_timeout_steps": 75,
+          "face_local_axis": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "wall_entity_name": "wall",
+          "initial_on": true,
+          "initial_engaged_ee_names": [
+            "left_hand_spine",
+            "right_hand_spine",
+            "left_foot_spine",
+            "right_foot_spine"
+          ],
+          "anchor_solref": [
+            0.01,
+            1.0
+          ],
+          "anchor_solimp": [
+            0.9,
+            0.95,
+            0.001,
+            0.5,
+            2.0
+          ],
+          "anchor_lock_rotation": true,
+          "anchor_torquescale": 1.0,
+          "anchor_reseat_mode": "down",
+          "anchor_reseat_step_cap": 0.001,
+          "anchor_project_to_wall": false,
+          "reanchor_after_grace": true,
+          "limit_surface": {
+            "enable": true,
+            "model": "empirical_unit",
+            "empirical_table_path": null,
+            "rake_mode": "ee_local",
+            "ee_rake_local_axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "f_t_max_range": [
+              360.0,
+              360.0
+            ],
+            "f_rev_max_range": [
+              15.0,
+              25.0
+            ],
+            "mu_adhesion_range": [
+              0.3,
+              0.5
+            ],
+            "f_n0_range": [
+              10.0,
+              20.0
+            ],
+            "mu_lateral_range": [
+              0.5,
+              0.7
+            ],
+            "f_l0_range": [
+              10.0,
+              20.0
+            ],
+            "wang_mu_tip": 0.42,
+            "wang_delta_psi_deg": 90.0,
+            "wang_beta_deg": 15.0,
+            "wang_alpha_deg": 15.0,
+            "wang_mu_channel": 0.2,
+            "wang_c_i": 50.0,
+            "wang_r_floor": 0.02,
+            "wang_margin_eps": 0.02,
+            "wang_lut_theta_bins": 181,
+            "wang_lut_phi_bins": 91,
+            "hold_judge_guard_steps": 2,
+            "capacity_ramp_floor": 1.0,
+            "capacity_ramp_time_s": 0.0,
+            "capacity_ramp_shear_n": 10.0,
+            "unit_catch_empty_prob": 0.0,
+            "unit_catch_capacity_range": [
+              30.0,
+              65.0
+            ],
+            "moment_capacity_enable": true,
+            "moment_billing_mode": "per_unit",
+            "unit_layout": "all",
+            "unit_rows_rake": 3,
+            "unit_cols_lateral": 4,
+            "pad_span_rake_m": 0.0630000000008,
+            "pad_span_lateral_m": 0.0840000000005,
+            "moment_arm_fraction": 0.25,
+            "redraw_f_t_max_per_latch": false,
+            "tilt_peel_max_deg_range": [
+              0.0,
+              0.0
+            ],
+            "seed_hold_judge_guard_steps": null,
+            "hold_grace_steps": 14,
+            "violation_consecutive_steps": 1,
+            "release_mode": "binary"
+          }
+        },
+        "skip_zero_time_update": true,
+        "asset_name": "robot",
+        "contact_sensor_name": "microspine_wall_contact",
+        "physics_event_name": "microspine_grip",
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false
+      },
+      "curriculum": {
+        "wall_angle": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.curriculums.wall_angle",
+          "params": {
+            "angle_stages": [
+              {
+                "iter": 0,
+                "angle_deg": 45.0
+              },
+              {
+                "iter": 1500,
+                "angle_deg": 75.0,
+                "jitter_deg": 12.0
+              },
+              {
+                "iter": 3300,
+                "angle_deg": 80.0,
+                "jitter_deg": 5.0
+              },
+              {
+                "iter": 3900,
+                "angle_deg": 85.0,
+                "jitter_deg": 3.0
+              },
+              {
+                "iter": 4550,
+                "angle_deg": 88.0,
+                "jitter_deg": 2.0
+              },
+              {
+                "iter": 5150,
+                "angle_deg": 90.0
+              }
+            ],
+            "steps_per_iter": 96,
+            "angle_jitter_deg": 5.0
+          }
+        }
+      },
+      "rewards": {
+        "motion_body_pos": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_position_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3,
+            "std": 0.1
+          },
+          "weight": 1.0
+        },
+        "motion_body_ori": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_orientation_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3,
+            "std": 0.3
+          },
+          "weight": 1.0
+        },
+        "motion_body_lin_vel": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_linear_velocity_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 1.0
+          },
+          "weight": 1.0
+        },
+        "motion_body_ang_vel": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_angular_velocity_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 3.14
+          },
+          "weight": 1.0
+        },
+        "motion_root_ori": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_root_ori_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.3,
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3
+          },
+          "weight": 0.5
+        },
+        "motion_ref_height": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_ref_height_tracking.<locals>.call",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "motion_command_name": "climb_motion",
+            "std": 0.025,
+            "settle_time_s": 0.5
+          },
+          "weight": 2.5
+        },
+        "motion_anchor_landing": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_anchor_landing.<locals>.call",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.03
+          },
+          "weight": 40.0
+        },
+        "motion_swing_approach": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_swing_approach",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.05
+          },
+          "weight": 0.5
+        },
+        "motion_engage_mismatch": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_engage_mismatch",
+          "params": {
+            "command_name": "climb_motion",
+            "grace_fraction": 0.3
+          },
+          "weight": -1.0
+        },
+        "microspine_support_loss": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_support_loss",
+          "params": {
+            "event_term_name": "microspine_grip",
+            "minimum_supports": 2
+          },
+          "weight": -4.0
+        },
+        "unsafe_microspine_release": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.unsafe_microspine_release_penalty",
+          "params": {
+            "command_name": "microspine_affordance",
+            "minimum_supports": 2,
+            "settle_time_s": 0.5,
+            "motion_command_name": "climb_motion",
+            "scheduled_reverse_cost": 0.3,
+            "scheduled_reverse_grace_s": 0.25,
+            "tilt_release_cost": 0.5
+          },
+          "weight": -2.5
+        },
+        "microspine_release_load": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_release_load_reward.<locals>.call",
+          "params": {
+            "command_name": "microspine_affordance",
+            "motion_command_name": "climb_motion",
+            "shear_scale_n": 2.0,
+            "lateral_scale_n": 2.0,
+            "shear_cost": 0.25,
+            "lateral_cost": 0.1,
+            "max_load_cost": 4.0,
+            "minimum_supports": 3,
+            "release_lead_time_s": 0.25,
+            "settle_time_s": 0.5
+          },
+          "weight": 1.0
+        },
+        "action_rate_l2": {
+          "func": "mjlab.envs.mdp.rewards.action_rate_l2",
+          "params": {},
+          "weight": -0.1
+        },
+        "dof_pos_limits": {
+          "func": "mjlab.envs.mdp.rewards.joint_pos_limits",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": [
+                "left_hip_pitch",
+                "left_hip_roll",
+                "left_hip_yaw",
+                "left_knee",
+                "left_ankle_pitch",
+                "left_ankle_roll",
+                "right_hip_pitch",
+                "right_hip_roll",
+                "right_hip_yaw",
+                "right_knee",
+                "right_ankle_pitch",
+                "right_ankle_roll",
+                "waist_yaw",
+                "left_shoulder_pitch",
+                "left_shoulder_roll",
+                "left_shoulder_yaw",
+                "left_elbow_pitch",
+                "right_shoulder_pitch",
+                "right_shoulder_roll",
+                "right_shoulder_yaw",
+                "right_elbow_pitch"
+              ],
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": true
+            }
+          },
+          "weight": -5.0
+        },
+        "termination_penalty": {
+          "func": "mjlab.envs.mdp.rewards.is_terminated",
+          "params": {},
+          "weight": -500.0
+        },
+        "undesired_contacts": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.undesired_body_contacts",
+          "params": {
+            "sensor_name": "climb_undesired_contact",
+            "threshold": 1.0
+          },
+          "weight": -0.1
+        }
+      },
+      "terminations": {
+        "time_out": {
+          "func": "mjlab.envs.mdp.terminations.time_out",
+          "params": {},
+          "time_out": true
+        },
+        "base_height": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.root_below_wall_altitude",
+          "params": {
+            "minimum_altitude": 0.3
+          },
+          "time_out": false
+        },
+        "bad_state": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.bad_state",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "max_velocity": 20.0
+          },
+          "time_out": false
+        },
+        "bad_tracking": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.motion_body_tracking_divergence",
+          "params": {
+            "command_name": "climb_motion",
+            "position_threshold": 0.3,
+            "orientation_threshold": 1.0,
+            "height_threshold": 0.25
+          },
+          "time_out": false
+        },
+        "lost_support": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.prolonged_support_loss.<locals>.call",
+          "params": {
+            "command_name": "microspine_affordance",
+            "timeout_s": 0.4
+          },
+          "time_out": false
+        }
+      },
+      "domain_randomization_events": {
+        "reset_scene_to_default": {
+          "func": "mjlab.envs.mdp.events.reset_scene_to_default",
+          "params": {},
+          "mode": "reset",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "body_friction": {
+          "func": "mjlab.envs.mdp.dr.geom.geom_friction",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": [
+                "^(?!(left|right)_ankle_roll_collision$).*_collision$"
+              ],
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "operation": "abs",
+            "ranges": [
+              0.6,
+              1.0
+            ]
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "base_mass": {
+          "func": "mjlab.envs.mdp.dr.body.body_mass",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": [
+                "torso"
+              ],
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "ranges": [
+              -2.0,
+              2.0
+            ],
+            "operation": "add"
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "encoder_bias": {
+          "func": "mjlab.envs.mdp.dr.joint.encoder_bias",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "bias_range": [
+              -0.01,
+              0.01
+            ]
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        }
+      },
+      "runner": {
+        "seed": 42,
+        "num_steps_per_env": 96,
+        "max_iterations": 12000,
+        "obs_groups": {
+          "actor": [
+            "actor"
+          ],
+          "critic": [
+            "critic"
+          ]
+        },
+        "save_interval": 25,
+        "experiment_name": "phybot_c2_climb_wall",
+        "run_name": "",
+        "logger": "wandb",
+        "wandb_project": "scr_phybot_mjab-climb-wall",
+        "wandb_tags": [
+          "phybot_c2",
+          "microspine_constraint",
+          "microspine_empirical",
+          "units12",
+          "curriculum90"
+        ],
+        "resume": false,
+        "load_run": ".*",
+        "load_checkpoint": "model_.*.pt",
+        "clip_actions": null,
+        "upload_model": true,
+        "class_name": "OnPolicyRunner",
+        "actor": {
+          "hidden_dims": [
+            256,
+            128,
+            64
+          ],
+          "activation": "elu",
+          "obs_normalization": true,
+          "cnn_cfg": null,
+          "distribution_cfg": {
+            "class_name": "GaussianDistribution",
+            "init_std": 0.6,
+            "std_type": "scalar"
+          },
+          "rnn_type": null,
+          "rnn_hidden_dim": 256,
+          "rnn_num_layers": 1,
+          "class_name": "MLPModel"
+        },
+        "critic": {
+          "hidden_dims": [
+            256,
+            128,
+            64
+          ],
+          "activation": "elu",
+          "obs_normalization": true,
+          "cnn_cfg": null,
+          "distribution_cfg": null,
+          "rnn_type": null,
+          "rnn_hidden_dim": 256,
+          "rnn_num_layers": 1,
+          "class_name": "MLPModel"
+        },
+        "algorithm": {
+          "num_learning_epochs": 5,
+          "num_mini_batches": 4,
+          "learning_rate": 0.0003,
+          "schedule": "adaptive",
+          "gamma": 0.99,
+          "lam": 0.95,
+          "entropy_coef": 0.003,
+          "desired_kl": 0.01,
+          "max_grad_norm": 1.0,
+          "value_loss_coef": 1.0,
+          "use_clipped_value_loss": true,
+          "clip_param": 0.2,
+          "normalize_advantage_per_mini_batch": false,
+          "optimizer": "adam",
+          "share_cnn_encoders": false,
+          "class_name": "PPO"
+        }
+      },
+      "evaluation_motion": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy",
+        "affordance_command_name": "microspine_affordance",
+        "wall_entity_name": "wall",
+        "ee_body_names": [
+          "left_hand_spine",
+          "right_hand_spine",
+          "left_foot_spine",
+          "right_foot_spine"
+        ],
+        "sampling_mode": "start",
+        "tracking_body_names": [
+          "torso",
+          "torso_upper",
+          "neck_pitch",
+          "left_shoulder_roll",
+          "left_elbow_pitch",
+          "left_hand_spine",
+          "right_shoulder_roll",
+          "right_elbow_pitch",
+          "right_hand_spine",
+          "left_hip_yaw",
+          "left_knee",
+          "left_ankle_roll",
+          "left_foot_spine",
+          "right_hip_yaw",
+          "right_knee",
+          "right_ankle_roll",
+          "right_foot_spine"
+        ],
+        "adaptive_bin_time_s": 1.0,
+        "adaptive_alpha": 0.001,
+        "adaptive_uniform_ratio": 0.1,
+        "synchronize_reset_phase": true,
+        "initialize_seeded_anchors": true,
+        "height_offset_range": [
+          0.0,
+          0.0
+        ],
+        "spawn_match_vertical_height": true,
+        "joint_pos_noise": 0.0
+      },
+      "evaluation_curriculum": {
+        "wall_angle": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.curriculums.wall_angle",
+          "params": {
+            "angle_stages": [
+              {
+                "iter": 0,
+                "angle_deg": 90.0
+              }
+            ],
+            "steps_per_iter": 96,
+            "angle_jitter_deg": 0.0
+          }
+        }
+      },
+      "reference_sha256": "1a9b134431ea4ce9af2c552f5778ebac47d1423975fdbd8285e2aaa421d4337e"
+    },
+    "Mjlab-Climb-Wall-Phybot-C2-Corners-A60": {
+      "gpu_ids": [
+        0
+      ],
+      "num_envs_per_worker": 2048,
+      "episode_length_s": 30.0,
+      "physics_dt_s": 0.002,
+      "decimation": 10,
+      "nconmax": 256,
+      "njmax": 512,
+      "actor_observation_dimension_runtime": 150,
+      "critic_observation_dimension_runtime": 170,
+      "actions": {
+        "joint_pos": {
+          "entity_name": "robot",
+          "clip": null,
+          "transmission_type": "joint",
+          "actuator_names": [
+            "left_hip_pitch",
+            "left_hip_roll",
+            "left_hip_yaw",
+            "left_knee",
+            "left_ankle_pitch",
+            "left_ankle_roll",
+            "right_hip_pitch",
+            "right_hip_roll",
+            "right_hip_yaw",
+            "right_knee",
+            "right_ankle_pitch",
+            "right_ankle_roll",
+            "waist_yaw",
+            "left_shoulder_pitch",
+            "left_shoulder_roll",
+            "left_shoulder_yaw",
+            "left_elbow_pitch",
+            "right_shoulder_pitch",
+            "right_shoulder_roll",
+            "right_shoulder_yaw",
+            "right_elbow_pitch"
+          ],
+          "scale": 0.25,
+          "offset": 0.0,
+          "preserve_order": true,
+          "use_default_offset": true
+        }
+      },
+      "motion": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a60.npy",
+        "affordance_command_name": "microspine_affordance",
+        "wall_entity_name": "wall",
+        "ee_body_names": [
+          "left_hand_spine",
+          "right_hand_spine",
+          "left_foot_spine",
+          "right_foot_spine"
+        ],
+        "sampling_mode": "adaptive",
+        "tracking_body_names": [
+          "torso",
+          "torso_upper",
+          "neck_pitch",
+          "left_shoulder_roll",
+          "left_elbow_pitch",
+          "left_hand_spine",
+          "right_shoulder_roll",
+          "right_elbow_pitch",
+          "right_hand_spine",
+          "left_hip_yaw",
+          "left_knee",
+          "left_ankle_roll",
+          "left_foot_spine",
+          "right_hip_yaw",
+          "right_knee",
+          "right_ankle_roll",
+          "right_foot_spine"
+        ],
+        "adaptive_bin_time_s": 1.0,
+        "adaptive_alpha": 0.001,
+        "adaptive_uniform_ratio": 0.1,
+        "synchronize_reset_phase": true,
+        "initialize_seeded_anchors": true,
+        "height_offset_range": [
+          -0.3,
+          0.0
+        ],
+        "spawn_match_vertical_height": true,
+        "joint_pos_noise": 0.0
+      },
+      "microspine": {
+        "microspine_cfg": {
+          "ee_body_names": [
+            "left_hand_spine",
+            "right_hand_spine",
+            "left_foot_spine",
+            "right_foot_spine"
+          ],
+          "spheres_per_ee_rows": 2,
+          "spheres_per_ee_cols": 2,
+          "grip_enabled": true,
+          "affordance_name": null,
+          "wall_geom_name": "wall/wall_geom",
+          "arm_wall_contact_geoms": [],
+          "contact_friction": [
+            0.2,
+            0.2,
+            0.005,
+            0.0001,
+            0.0001
+          ],
+          "contact_condim": 3,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "contact_solimp": [
+            0.9,
+            0.99,
+            0.001,
+            0.5,
+            2.0
+          ],
+          "contact_margin": 0.01,
+          "contact_gap": 0.01,
+          "disable_contacts_while_latched": true,
+          "latched_contact_retract": 0.05,
+          "debug": false,
+          "engage_normal_force_threshold": 3.0,
+          "engage_unit_preload_n": 10.0,
+          "engage_min_fraction": 0.25,
+          "engage_min_total_normal_force": 0.0,
+          "engage_min_spheres": 1,
+          "engage_parallel_cos_threshold": 0.25,
+          "virtual_spine_grid": [
+            5,
+            5
+          ],
+          "virtual_spine_travel": 0.005,
+          "engage_min_spine_fraction": 1.0,
+          "engage_max_antirake_vel": 0.02,
+          "spring_field_enabled": false,
+          "spring_axis_tilt_deg": 15.0,
+          "spring_free_length_range": [
+            0.002,
+            0.005
+          ],
+          "spring_k_unit_range": [
+            80.0,
+            180.0
+          ],
+          "spring_damping_range": [
+            0.2,
+            0.8
+          ],
+          "engage_shear_threshold_n": 10.0,
+          "seat_quality_scales_capacity": false,
+          "engage_consecutive_steps": 3,
+          "reengage_cooldown_steps": 10,
+          "dr_reseat_hold_timeout_steps": 75,
+          "face_local_axis": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "wall_entity_name": "wall",
+          "initial_on": true,
+          "initial_engaged_ee_names": [
+            "left_hand_spine",
+            "right_hand_spine",
+            "left_foot_spine",
+            "right_foot_spine"
+          ],
+          "anchor_solref": [
+            0.01,
+            1.0
+          ],
+          "anchor_solimp": [
+            0.9,
+            0.95,
+            0.001,
+            0.5,
+            2.0
+          ],
+          "anchor_lock_rotation": true,
+          "anchor_torquescale": 1.0,
+          "anchor_reseat_mode": "down",
+          "anchor_reseat_step_cap": 0.001,
+          "anchor_project_to_wall": false,
+          "reanchor_after_grace": true,
+          "limit_surface": {
+            "enable": true,
+            "model": "empirical_unit",
+            "empirical_table_path": null,
+            "rake_mode": "ee_local",
+            "ee_rake_local_axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "f_t_max_range": [
+              120.0,
+              120.0
+            ],
+            "f_rev_max_range": [
+              15.0,
+              25.0
+            ],
+            "mu_adhesion_range": [
+              0.3,
+              0.5
+            ],
+            "f_n0_range": [
+              10.0,
+              20.0
+            ],
+            "mu_lateral_range": [
+              0.5,
+              0.7
+            ],
+            "f_l0_range": [
+              10.0,
+              20.0
+            ],
+            "wang_mu_tip": 0.42,
+            "wang_delta_psi_deg": 90.0,
+            "wang_beta_deg": 15.0,
+            "wang_alpha_deg": 15.0,
+            "wang_mu_channel": 0.2,
+            "wang_c_i": 50.0,
+            "wang_r_floor": 0.02,
+            "wang_margin_eps": 0.02,
+            "wang_lut_theta_bins": 181,
+            "wang_lut_phi_bins": 91,
+            "hold_judge_guard_steps": 2,
+            "capacity_ramp_floor": 1.0,
+            "capacity_ramp_time_s": 0.0,
+            "capacity_ramp_shear_n": 10.0,
+            "unit_catch_empty_prob": 0.0,
+            "unit_catch_capacity_range": [
+              30.0,
+              65.0
+            ],
+            "moment_capacity_enable": true,
+            "moment_billing_mode": "per_unit",
+            "unit_layout": "corners",
+            "unit_rows_rake": 2,
+            "unit_cols_lateral": 2,
+            "pad_span_rake_m": 0.0630000000008,
+            "pad_span_lateral_m": 0.0840000000005,
+            "moment_arm_fraction": 0.25,
+            "redraw_f_t_max_per_latch": false,
+            "tilt_peel_max_deg_range": [
+              0.0,
+              0.0
+            ],
+            "seed_hold_judge_guard_steps": null,
+            "hold_grace_steps": 14,
+            "violation_consecutive_steps": 1,
+            "release_mode": "binary"
+          }
+        },
+        "skip_zero_time_update": true,
+        "asset_name": "robot",
+        "contact_sensor_name": "microspine_wall_contact",
+        "physics_event_name": "microspine_grip",
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false
+      },
+      "curriculum": {
+        "wall_angle": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.curriculums.wall_angle",
+          "params": {
+            "angle_stages": [
+              {
+                "iter": 0,
+                "angle_deg": 45.0,
+                "jitter_deg": 5.0
+              },
+              {
+                "iter": 1500,
+                "angle_deg": 55.0,
+                "jitter_deg": 5.0
+              },
+              {
+                "iter": 3300,
+                "angle_deg": 60.0,
+                "jitter_deg": 0.0
+              }
+            ],
+            "steps_per_iter": 96,
+            "angle_jitter_deg": 5.0
+          }
+        }
+      },
+      "rewards": {
+        "motion_body_pos": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_position_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3,
+            "std": 0.1
+          },
+          "weight": 1.0
+        },
+        "motion_body_ori": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_orientation_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3,
+            "std": 0.3
+          },
+          "weight": 1.0
+        },
+        "motion_body_lin_vel": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_linear_velocity_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 1.0
+          },
+          "weight": 1.0
+        },
+        "motion_body_ang_vel": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_angular_velocity_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 3.14
+          },
+          "weight": 1.0
+        },
+        "motion_root_ori": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_root_ori_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.3,
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3
+          },
+          "weight": 0.5
+        },
+        "motion_ref_height": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_ref_height_tracking.<locals>.call",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "motion_command_name": "climb_motion",
+            "std": 0.025,
+            "settle_time_s": 0.5
+          },
+          "weight": 2.5
+        },
+        "motion_anchor_landing": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_anchor_landing.<locals>.call",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.03
+          },
+          "weight": 40.0
+        },
+        "motion_swing_approach": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_swing_approach",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.05
+          },
+          "weight": 0.5
+        },
+        "motion_engage_mismatch": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_engage_mismatch",
+          "params": {
+            "command_name": "climb_motion",
+            "grace_fraction": 0.3
+          },
+          "weight": -1.0
+        },
+        "microspine_support_loss": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_support_loss",
+          "params": {
+            "event_term_name": "microspine_grip",
+            "minimum_supports": 2
+          },
+          "weight": -4.0
+        },
+        "unsafe_microspine_release": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.unsafe_microspine_release_penalty",
+          "params": {
+            "command_name": "microspine_affordance",
+            "minimum_supports": 2,
+            "settle_time_s": 0.5,
+            "motion_command_name": "climb_motion",
+            "scheduled_reverse_cost": 0.3,
+            "scheduled_reverse_grace_s": 0.25,
+            "tilt_release_cost": 0.5
+          },
+          "weight": -2.5
+        },
+        "microspine_release_load": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_release_load_reward.<locals>.call",
+          "params": {
+            "command_name": "microspine_affordance",
+            "motion_command_name": "climb_motion",
+            "shear_scale_n": 2.0,
+            "lateral_scale_n": 2.0,
+            "shear_cost": 0.25,
+            "lateral_cost": 0.1,
+            "max_load_cost": 4.0,
+            "minimum_supports": 3,
+            "release_lead_time_s": 0.25,
+            "settle_time_s": 0.5
+          },
+          "weight": 1.0
+        },
+        "action_rate_l2": {
+          "func": "mjlab.envs.mdp.rewards.action_rate_l2",
+          "params": {},
+          "weight": -0.1
+        },
+        "dof_pos_limits": {
+          "func": "mjlab.envs.mdp.rewards.joint_pos_limits",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": [
+                "left_hip_pitch",
+                "left_hip_roll",
+                "left_hip_yaw",
+                "left_knee",
+                "left_ankle_pitch",
+                "left_ankle_roll",
+                "right_hip_pitch",
+                "right_hip_roll",
+                "right_hip_yaw",
+                "right_knee",
+                "right_ankle_pitch",
+                "right_ankle_roll",
+                "waist_yaw",
+                "left_shoulder_pitch",
+                "left_shoulder_roll",
+                "left_shoulder_yaw",
+                "left_elbow_pitch",
+                "right_shoulder_pitch",
+                "right_shoulder_roll",
+                "right_shoulder_yaw",
+                "right_elbow_pitch"
+              ],
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": true
+            }
+          },
+          "weight": -5.0
+        },
+        "termination_penalty": {
+          "func": "mjlab.envs.mdp.rewards.is_terminated",
+          "params": {},
+          "weight": -500.0
+        },
+        "undesired_contacts": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.undesired_body_contacts",
+          "params": {
+            "sensor_name": "climb_undesired_contact",
+            "threshold": 1.0
+          },
+          "weight": -0.1
+        }
+      },
+      "terminations": {
+        "time_out": {
+          "func": "mjlab.envs.mdp.terminations.time_out",
+          "params": {},
+          "time_out": true
+        },
+        "base_height": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.root_below_wall_altitude",
+          "params": {
+            "minimum_altitude": 0.3
+          },
+          "time_out": false
+        },
+        "bad_state": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.bad_state",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "max_velocity": 20.0
+          },
+          "time_out": false
+        },
+        "bad_tracking": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.motion_body_tracking_divergence",
+          "params": {
+            "command_name": "climb_motion",
+            "position_threshold": 0.3,
+            "orientation_threshold": 1.0,
+            "height_threshold": 0.25
+          },
+          "time_out": false
+        },
+        "lost_support": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.prolonged_support_loss.<locals>.call",
+          "params": {
+            "command_name": "microspine_affordance",
+            "timeout_s": 0.4
+          },
+          "time_out": false
+        }
+      },
+      "domain_randomization_events": {
+        "reset_scene_to_default": {
+          "func": "mjlab.envs.mdp.events.reset_scene_to_default",
+          "params": {},
+          "mode": "reset",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "body_friction": {
+          "func": "mjlab.envs.mdp.dr.geom.geom_friction",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": [
+                "^(?!(left|right)_ankle_roll_collision$).*_collision$"
+              ],
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "operation": "abs",
+            "ranges": [
+              0.6,
+              1.0
+            ]
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "base_mass": {
+          "func": "mjlab.envs.mdp.dr.body.body_mass",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": [
+                "torso"
+              ],
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "ranges": [
+              -2.0,
+              2.0
+            ],
+            "operation": "add"
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "encoder_bias": {
+          "func": "mjlab.envs.mdp.dr.joint.encoder_bias",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "bias_range": [
+              -0.01,
+              0.01
+            ]
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        }
+      },
+      "runner": {
+        "seed": 42,
+        "num_steps_per_env": 96,
+        "max_iterations": 12000,
+        "obs_groups": {
+          "actor": [
+            "actor"
+          ],
+          "critic": [
+            "critic"
+          ]
+        },
+        "save_interval": 25,
+        "experiment_name": "phybot_c2_climb_wall_corners60",
+        "run_name": "",
+        "logger": "wandb",
+        "wandb_project": "scr_phybot_mjab-climb-wall",
+        "wandb_tags": [
+          "phybot_c2",
+          "microspine_empirical",
+          "units4",
+          "curriculum60"
+        ],
+        "resume": false,
+        "load_run": ".*",
+        "load_checkpoint": "model_.*.pt",
+        "clip_actions": null,
+        "upload_model": true,
+        "class_name": "OnPolicyRunner",
+        "actor": {
+          "hidden_dims": [
+            256,
+            128,
+            64
+          ],
+          "activation": "elu",
+          "obs_normalization": true,
+          "cnn_cfg": null,
+          "distribution_cfg": {
+            "class_name": "GaussianDistribution",
+            "init_std": 0.6,
+            "std_type": "scalar"
+          },
+          "rnn_type": null,
+          "rnn_hidden_dim": 256,
+          "rnn_num_layers": 1,
+          "class_name": "MLPModel"
+        },
+        "critic": {
+          "hidden_dims": [
+            256,
+            128,
+            64
+          ],
+          "activation": "elu",
+          "obs_normalization": true,
+          "cnn_cfg": null,
+          "distribution_cfg": null,
+          "rnn_type": null,
+          "rnn_hidden_dim": 256,
+          "rnn_num_layers": 1,
+          "class_name": "MLPModel"
+        },
+        "algorithm": {
+          "num_learning_epochs": 5,
+          "num_mini_batches": 4,
+          "learning_rate": 0.0003,
+          "schedule": "adaptive",
+          "gamma": 0.99,
+          "lam": 0.95,
+          "entropy_coef": 0.003,
+          "desired_kl": 0.01,
+          "max_grad_norm": 1.0,
+          "value_loss_coef": 1.0,
+          "use_clipped_value_loss": true,
+          "clip_param": 0.2,
+          "normalize_advantage_per_mini_batch": false,
+          "optimizer": "adam",
+          "share_cnn_encoders": false,
+          "class_name": "PPO"
+        }
+      },
+      "evaluation_motion": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a60.npy",
+        "affordance_command_name": "microspine_affordance",
+        "wall_entity_name": "wall",
+        "ee_body_names": [
+          "left_hand_spine",
+          "right_hand_spine",
+          "left_foot_spine",
+          "right_foot_spine"
+        ],
+        "sampling_mode": "start",
+        "tracking_body_names": [
+          "torso",
+          "torso_upper",
+          "neck_pitch",
+          "left_shoulder_roll",
+          "left_elbow_pitch",
+          "left_hand_spine",
+          "right_shoulder_roll",
+          "right_elbow_pitch",
+          "right_hand_spine",
+          "left_hip_yaw",
+          "left_knee",
+          "left_ankle_roll",
+          "left_foot_spine",
+          "right_hip_yaw",
+          "right_knee",
+          "right_ankle_roll",
+          "right_foot_spine"
+        ],
+        "adaptive_bin_time_s": 1.0,
+        "adaptive_alpha": 0.001,
+        "adaptive_uniform_ratio": 0.1,
+        "synchronize_reset_phase": true,
+        "initialize_seeded_anchors": true,
+        "height_offset_range": [
+          0.0,
+          0.0
+        ],
+        "spawn_match_vertical_height": true,
+        "joint_pos_noise": 0.0
+      },
+      "evaluation_curriculum": {
+        "wall_angle": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.curriculums.wall_angle",
+          "params": {
+            "angle_stages": [
+              {
+                "iter": 0,
+                "angle_deg": 60.0
+              }
+            ],
+            "steps_per_iter": 96,
+            "angle_jitter_deg": 0.0
+          }
+        }
+      },
+      "reference_sha256": "a353e28b7bd417b7e43139e56e4626b91d9194849d41a257887dfbaf419265e5"
+    },
+    "Mjlab-Climb-Wall-Phybot-C2-Corners-A80": {
+      "gpu_ids": [
+        0
+      ],
+      "num_envs_per_worker": 2048,
+      "episode_length_s": 30.0,
+      "physics_dt_s": 0.002,
+      "decimation": 10,
+      "nconmax": 256,
+      "njmax": 512,
+      "actor_observation_dimension_runtime": 150,
+      "critic_observation_dimension_runtime": 170,
+      "actions": {
+        "joint_pos": {
+          "entity_name": "robot",
+          "clip": null,
+          "transmission_type": "joint",
+          "actuator_names": [
+            "left_hip_pitch",
+            "left_hip_roll",
+            "left_hip_yaw",
+            "left_knee",
+            "left_ankle_pitch",
+            "left_ankle_roll",
+            "right_hip_pitch",
+            "right_hip_roll",
+            "right_hip_yaw",
+            "right_knee",
+            "right_ankle_pitch",
+            "right_ankle_roll",
+            "waist_yaw",
+            "left_shoulder_pitch",
+            "left_shoulder_roll",
+            "left_shoulder_yaw",
+            "left_elbow_pitch",
+            "right_shoulder_pitch",
+            "right_shoulder_roll",
+            "right_shoulder_yaw",
+            "right_elbow_pitch"
+          ],
+          "scale": 0.25,
+          "offset": 0.0,
+          "preserve_order": true,
+          "use_default_offset": true
+        }
+      },
+      "motion": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy",
+        "affordance_command_name": "microspine_affordance",
+        "wall_entity_name": "wall",
+        "ee_body_names": [
+          "left_hand_spine",
+          "right_hand_spine",
+          "left_foot_spine",
+          "right_foot_spine"
+        ],
+        "sampling_mode": "adaptive",
+        "tracking_body_names": [
+          "torso",
+          "torso_upper",
+          "neck_pitch",
+          "left_shoulder_roll",
+          "left_elbow_pitch",
+          "left_hand_spine",
+          "right_shoulder_roll",
+          "right_elbow_pitch",
+          "right_hand_spine",
+          "left_hip_yaw",
+          "left_knee",
+          "left_ankle_roll",
+          "left_foot_spine",
+          "right_hip_yaw",
+          "right_knee",
+          "right_ankle_roll",
+          "right_foot_spine"
+        ],
+        "adaptive_bin_time_s": 1.0,
+        "adaptive_alpha": 0.001,
+        "adaptive_uniform_ratio": 0.1,
+        "synchronize_reset_phase": true,
+        "initialize_seeded_anchors": true,
+        "height_offset_range": [
+          -0.3,
+          0.0
+        ],
+        "spawn_match_vertical_height": true,
+        "joint_pos_noise": 0.0
+      },
+      "microspine": {
+        "microspine_cfg": {
+          "ee_body_names": [
+            "left_hand_spine",
+            "right_hand_spine",
+            "left_foot_spine",
+            "right_foot_spine"
+          ],
+          "spheres_per_ee_rows": 2,
+          "spheres_per_ee_cols": 2,
+          "grip_enabled": true,
+          "affordance_name": null,
+          "wall_geom_name": "wall/wall_geom",
+          "arm_wall_contact_geoms": [],
+          "contact_friction": [
+            0.2,
+            0.2,
+            0.005,
+            0.0001,
+            0.0001
+          ],
+          "contact_condim": 3,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "contact_solimp": [
+            0.9,
+            0.99,
+            0.001,
+            0.5,
+            2.0
+          ],
+          "contact_margin": 0.01,
+          "contact_gap": 0.01,
+          "disable_contacts_while_latched": true,
+          "latched_contact_retract": 0.05,
+          "debug": false,
+          "engage_normal_force_threshold": 3.0,
+          "engage_unit_preload_n": 10.0,
+          "engage_min_fraction": 0.25,
+          "engage_min_total_normal_force": 0.0,
+          "engage_min_spheres": 1,
+          "engage_parallel_cos_threshold": 0.25,
+          "virtual_spine_grid": [
+            5,
+            5
+          ],
+          "virtual_spine_travel": 0.005,
+          "engage_min_spine_fraction": 1.0,
+          "engage_max_antirake_vel": 0.02,
+          "spring_field_enabled": false,
+          "spring_axis_tilt_deg": 15.0,
+          "spring_free_length_range": [
+            0.002,
+            0.005
+          ],
+          "spring_k_unit_range": [
+            80.0,
+            180.0
+          ],
+          "spring_damping_range": [
+            0.2,
+            0.8
+          ],
+          "engage_shear_threshold_n": 10.0,
+          "seat_quality_scales_capacity": false,
+          "engage_consecutive_steps": 3,
+          "reengage_cooldown_steps": 10,
+          "dr_reseat_hold_timeout_steps": 75,
+          "face_local_axis": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "wall_entity_name": "wall",
+          "initial_on": true,
+          "initial_engaged_ee_names": [
+            "left_hand_spine",
+            "right_hand_spine",
+            "left_foot_spine",
+            "right_foot_spine"
+          ],
+          "anchor_solref": [
+            0.01,
+            1.0
+          ],
+          "anchor_solimp": [
+            0.9,
+            0.95,
+            0.001,
+            0.5,
+            2.0
+          ],
+          "anchor_lock_rotation": true,
+          "anchor_torquescale": 1.0,
+          "anchor_reseat_mode": "down",
+          "anchor_reseat_step_cap": 0.001,
+          "anchor_project_to_wall": false,
+          "reanchor_after_grace": true,
+          "limit_surface": {
+            "enable": true,
+            "model": "empirical_unit",
+            "empirical_table_path": null,
+            "rake_mode": "ee_local",
+            "ee_rake_local_axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "f_t_max_range": [
+              120.0,
+              120.0
+            ],
+            "f_rev_max_range": [
+              15.0,
+              25.0
+            ],
+            "mu_adhesion_range": [
+              0.3,
+              0.5
+            ],
+            "f_n0_range": [
+              10.0,
+              20.0
+            ],
+            "mu_lateral_range": [
+              0.5,
+              0.7
+            ],
+            "f_l0_range": [
+              10.0,
+              20.0
+            ],
+            "wang_mu_tip": 0.42,
+            "wang_delta_psi_deg": 90.0,
+            "wang_beta_deg": 15.0,
+            "wang_alpha_deg": 15.0,
+            "wang_mu_channel": 0.2,
+            "wang_c_i": 50.0,
+            "wang_r_floor": 0.02,
+            "wang_margin_eps": 0.02,
+            "wang_lut_theta_bins": 181,
+            "wang_lut_phi_bins": 91,
+            "hold_judge_guard_steps": 2,
+            "capacity_ramp_floor": 1.0,
+            "capacity_ramp_time_s": 0.0,
+            "capacity_ramp_shear_n": 10.0,
+            "unit_catch_empty_prob": 0.0,
+            "unit_catch_capacity_range": [
+              30.0,
+              65.0
+            ],
+            "moment_capacity_enable": true,
+            "moment_billing_mode": "per_unit",
+            "unit_layout": "corners",
+            "unit_rows_rake": 2,
+            "unit_cols_lateral": 2,
+            "pad_span_rake_m": 0.0630000000008,
+            "pad_span_lateral_m": 0.0840000000005,
+            "moment_arm_fraction": 0.25,
+            "redraw_f_t_max_per_latch": false,
+            "tilt_peel_max_deg_range": [
+              0.0,
+              0.0
+            ],
+            "seed_hold_judge_guard_steps": null,
+            "hold_grace_steps": 14,
+            "violation_consecutive_steps": 1,
+            "release_mode": "binary"
+          }
+        },
+        "skip_zero_time_update": true,
+        "asset_name": "robot",
+        "contact_sensor_name": "microspine_wall_contact",
+        "physics_event_name": "microspine_grip",
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false
+      },
+      "curriculum": {
+        "wall_angle": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.curriculums.wall_angle",
+          "params": {
+            "angle_stages": [
+              {
+                "iter": 0,
+                "angle_deg": 80.0
+              }
+            ],
+            "steps_per_iter": 96,
+            "angle_jitter_deg": 0.0
+          }
+        }
+      },
+      "rewards": {
+        "motion_body_pos": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_position_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3,
+            "std": 0.1
+          },
+          "weight": 1.0
+        },
+        "motion_body_ori": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_orientation_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3,
+            "std": 0.3
+          },
+          "weight": 1.0
+        },
+        "motion_body_lin_vel": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_linear_velocity_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 1.0
+          },
+          "weight": 1.0
+        },
+        "motion_body_ang_vel": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_body_angular_velocity_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 3.14
+          },
+          "weight": 1.0
+        },
+        "motion_root_ori": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_root_ori_error_exp",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.3,
+            "engage_gate_floor": 0.25,
+            "engage_gate_grace_fraction": 0.3
+          },
+          "weight": 0.5
+        },
+        "motion_ref_height": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_ref_height_tracking.<locals>.call",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "motion_command_name": "climb_motion",
+            "std": 0.025,
+            "settle_time_s": 0.5
+          },
+          "weight": 2.5
+        },
+        "motion_anchor_landing": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_anchor_landing.<locals>.call",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.03
+          },
+          "weight": 40.0
+        },
+        "motion_swing_approach": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_swing_approach",
+          "params": {
+            "command_name": "climb_motion",
+            "std": 0.05
+          },
+          "weight": 0.5
+        },
+        "motion_engage_mismatch": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.motion_engage_mismatch",
+          "params": {
+            "command_name": "climb_motion",
+            "grace_fraction": 0.3
+          },
+          "weight": -1.0
+        },
+        "microspine_support_loss": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_support_loss",
+          "params": {
+            "event_term_name": "microspine_grip",
+            "minimum_supports": 2
+          },
+          "weight": -4.0
+        },
+        "unsafe_microspine_release": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.unsafe_microspine_release_penalty",
+          "params": {
+            "command_name": "microspine_affordance",
+            "minimum_supports": 2,
+            "settle_time_s": 0.5,
+            "motion_command_name": "climb_motion",
+            "scheduled_reverse_cost": 0.3,
+            "scheduled_reverse_grace_s": 0.25,
+            "tilt_release_cost": 0.5
+          },
+          "weight": -2.5
+        },
+        "microspine_release_load": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_release_load_reward.<locals>.call",
+          "params": {
+            "command_name": "microspine_affordance",
+            "motion_command_name": "climb_motion",
+            "shear_scale_n": 2.0,
+            "lateral_scale_n": 2.0,
+            "shear_cost": 0.25,
+            "lateral_cost": 0.1,
+            "max_load_cost": 4.0,
+            "minimum_supports": 3,
+            "release_lead_time_s": 0.25,
+            "settle_time_s": 0.5
+          },
+          "weight": 1.0
+        },
+        "action_rate_l2": {
+          "func": "mjlab.envs.mdp.rewards.action_rate_l2",
+          "params": {},
+          "weight": -0.1
+        },
+        "dof_pos_limits": {
+          "func": "mjlab.envs.mdp.rewards.joint_pos_limits",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": [
+                "left_hip_pitch",
+                "left_hip_roll",
+                "left_hip_yaw",
+                "left_knee",
+                "left_ankle_pitch",
+                "left_ankle_roll",
+                "right_hip_pitch",
+                "right_hip_roll",
+                "right_hip_yaw",
+                "right_knee",
+                "right_ankle_pitch",
+                "right_ankle_roll",
+                "waist_yaw",
+                "left_shoulder_pitch",
+                "left_shoulder_roll",
+                "left_shoulder_yaw",
+                "left_elbow_pitch",
+                "right_shoulder_pitch",
+                "right_shoulder_roll",
+                "right_shoulder_yaw",
+                "right_elbow_pitch"
+              ],
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": true
+            }
+          },
+          "weight": -5.0
+        },
+        "termination_penalty": {
+          "func": "mjlab.envs.mdp.rewards.is_terminated",
+          "params": {},
+          "weight": -500.0
+        },
+        "undesired_contacts": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.undesired_body_contacts",
+          "params": {
+            "sensor_name": "climb_undesired_contact",
+            "threshold": 1.0
+          },
+          "weight": -0.1
+        }
+      },
+      "terminations": {
+        "time_out": {
+          "func": "mjlab.envs.mdp.terminations.time_out",
+          "params": {},
+          "time_out": true
+        },
+        "base_height": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.root_below_wall_altitude",
+          "params": {
+            "minimum_altitude": 0.3
+          },
+          "time_out": false
+        },
+        "bad_state": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.bad_state",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "max_velocity": 20.0
+          },
+          "time_out": false
+        },
+        "bad_tracking": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.motion_body_tracking_divergence",
+          "params": {
+            "command_name": "climb_motion",
+            "position_threshold": 0.3,
+            "orientation_threshold": 1.0,
+            "height_threshold": 0.25
+          },
+          "time_out": false
+        },
+        "lost_support": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.terminations.prolonged_support_loss.<locals>.call",
+          "params": {
+            "command_name": "microspine_affordance",
+            "timeout_s": 0.4
+          },
+          "time_out": false
+        }
+      },
+      "domain_randomization_events": {
+        "reset_scene_to_default": {
+          "func": "mjlab.envs.mdp.events.reset_scene_to_default",
+          "params": {},
+          "mode": "reset",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "body_friction": {
+          "func": "mjlab.envs.mdp.dr.geom.geom_friction",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": [
+                "^(?!(left|right)_ankle_roll_collision$).*_collision$"
+              ],
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "operation": "abs",
+            "ranges": [
+              0.6,
+              1.0
+            ]
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "base_mass": {
+          "func": "mjlab.envs.mdp.dr.body.body_mass",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": [
+                "torso"
+              ],
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "ranges": [
+              -2.0,
+              2.0
+            ],
+            "operation": "add"
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        },
+        "encoder_bias": {
+          "func": "mjlab.envs.mdp.dr.joint.encoder_bias",
+          "params": {
+            "asset_cfg": {
+              "name": "robot",
+              "joint_names": null,
+              "joint_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "body_names": null,
+              "body_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "geom_names": null,
+              "geom_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "site_names": null,
+              "site_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "actuator_names": null,
+              "actuator_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "tendon_names": null,
+              "tendon_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "camera_names": null,
+              "camera_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "light_names": null,
+              "light_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "material_names": null,
+              "material_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "pair_names": null,
+              "pair_ids": {
+                "slice": [
+                  null,
+                  null,
+                  null
+                ]
+              },
+              "preserve_order": false
+            },
+            "bias_range": [
+              -0.01,
+              0.01
+            ]
+          },
+          "mode": "startup",
+          "interval_range_s": null,
+          "is_global_time": false,
+          "min_step_count_between_reset": 0
+        }
+      },
+      "runner": {
+        "seed": 42,
+        "num_steps_per_env": 96,
+        "max_iterations": 12000,
+        "obs_groups": {
+          "actor": [
+            "actor"
+          ],
+          "critic": [
+            "critic"
+          ]
+        },
+        "save_interval": 25,
+        "experiment_name": "phybot_c2_climb_wall",
+        "run_name": "",
+        "logger": "wandb",
+        "wandb_project": "scr_phybot_mjab-climb-wall",
+        "wandb_tags": [
+          "phybot_c2",
+          "microspine_corners",
+          "wall80"
+        ],
+        "resume": false,
+        "load_run": ".*",
+        "load_checkpoint": "model_.*.pt",
+        "clip_actions": null,
+        "upload_model": true,
+        "class_name": "OnPolicyRunner",
+        "actor": {
+          "hidden_dims": [
+            256,
+            128,
+            64
+          ],
+          "activation": "elu",
+          "obs_normalization": true,
+          "cnn_cfg": null,
+          "distribution_cfg": {
+            "class_name": "GaussianDistribution",
+            "init_std": 0.6,
+            "std_type": "scalar"
+          },
+          "rnn_type": null,
+          "rnn_hidden_dim": 256,
+          "rnn_num_layers": 1,
+          "class_name": "MLPModel"
+        },
+        "critic": {
+          "hidden_dims": [
+            256,
+            128,
+            64
+          ],
+          "activation": "elu",
+          "obs_normalization": true,
+          "cnn_cfg": null,
+          "distribution_cfg": null,
+          "rnn_type": null,
+          "rnn_hidden_dim": 256,
+          "rnn_num_layers": 1,
+          "class_name": "MLPModel"
+        },
+        "algorithm": {
+          "num_learning_epochs": 5,
+          "num_mini_batches": 4,
+          "learning_rate": 0.0003,
+          "schedule": "adaptive",
+          "gamma": 0.99,
+          "lam": 0.95,
+          "entropy_coef": 0.003,
+          "desired_kl": 0.01,
+          "max_grad_norm": 1.0,
+          "value_loss_coef": 1.0,
+          "use_clipped_value_loss": true,
+          "clip_param": 0.2,
+          "normalize_advantage_per_mini_batch": false,
+          "optimizer": "adam",
+          "share_cnn_encoders": false,
+          "class_name": "PPO"
+        }
+      },
+      "evaluation_motion": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy",
+        "affordance_command_name": "microspine_affordance",
+        "wall_entity_name": "wall",
+        "ee_body_names": [
+          "left_hand_spine",
+          "right_hand_spine",
+          "left_foot_spine",
+          "right_foot_spine"
+        ],
+        "sampling_mode": "start",
+        "tracking_body_names": [
+          "torso",
+          "torso_upper",
+          "neck_pitch",
+          "left_shoulder_roll",
+          "left_elbow_pitch",
+          "left_hand_spine",
+          "right_shoulder_roll",
+          "right_elbow_pitch",
+          "right_hand_spine",
+          "left_hip_yaw",
+          "left_knee",
+          "left_ankle_roll",
+          "left_foot_spine",
+          "right_hip_yaw",
+          "right_knee",
+          "right_ankle_roll",
+          "right_foot_spine"
+        ],
+        "adaptive_bin_time_s": 1.0,
+        "adaptive_alpha": 0.001,
+        "adaptive_uniform_ratio": 0.1,
+        "synchronize_reset_phase": true,
+        "initialize_seeded_anchors": true,
+        "height_offset_range": [
+          0.0,
+          0.0
+        ],
+        "spawn_match_vertical_height": true,
+        "joint_pos_noise": 0.0
+      },
+      "evaluation_curriculum": {
+        "wall_angle": {
+          "func": "scr_phybot_mjab.tasks.climb_wall.mdp.curriculums.wall_angle",
+          "params": {
+            "angle_stages": [
+              {
+                "iter": 0,
+                "angle_deg": 80.0
+              }
+            ],
+            "steps_per_iter": 96,
+            "angle_jitter_deg": 0.0
+          }
+        }
+      },
+      "reference_sha256": "5073d0817de98f70362731ed9964cc938eae956f32022ca62a7d13da86c8245d"
+    }
+  }
+}

@@ -1,0 +1,955 @@
+{
+  "frames": 490,
+  "cycle_frames": 450,
+  "cycle_duration_s": 9.0,
+  "file_duration_s": 9.8,
+  "step_height_m": 0.019999999552965164,
+  "min_engaged": 3,
+  "max_engaged_center_wall_gap_mm": 0.00015675504760892522,
+  "max_engaged_anchor_drift_mm": 0.0005064017522178405,
+  "max_unit_box_wall_penetration_mm": 0.0001748092406383961,
+  "minimum_actuated_joint_range_fraction": 0.032914449186886054,
+  "minimum_gimbal_stop_clearance_deg": -8.348260531046762e-08,
+  "max_joint_speed_rad_s": 3.0844926834106445,
+  "max_passive_speed_rad_s": 2.2025997638702393,
+  "max_braced_toe_gap_mm": 0.03641407890421153,
+  "loop_joint_closure_rad": 0.0,
+  "loop_passive_closure_rad": 0.0,
+  "geometry_pass": true,
+  "gimbal_stop_support": "lower x stop throughout; unilateral stop strength unvalidated"
+}
+static frame 0: linear=True, excess=-2.08111354979978
+static frame 1: linear=True, excess=-2.0811104168760486
+static frame 2: linear=True, excess=-2.0810897555499075
+static frame 3: linear=True, excess=-2.081037281644158
+static frame 4: linear=True, excess=-2.0809417402645973
+static frame 5: linear=True, excess=-2.080794388819069
+static frame 6: linear=True, excess=-2.080589740687242
+static frame 7: linear=True, excess=-2.0803214828745147
+static frame 8: linear=True, excess=-2.07998737276102
+static frame 9: linear=True, excess=-2.079586519446643
+static frame 10: linear=True, excess=-2.0791197604778686
+static frame 11: linear=True, excess=-2.0785906975443327
+static frame 12: linear=True, excess=-2.07800524797978
+static frame 13: linear=True, excess=-2.077371325497455
+static frame 14: linear=True, excess=-2.0766988955740224
+static frame 15: linear=True, excess=-2.075999773702402
+static frame 16: linear=True, excess=-2.0752871408214246
+static frame 17: linear=True, excess=-2.074575505232531
+static frame 18: linear=True, excess=-2.073879905146745
+static frame 19: linear=True, excess=-2.073215553233544
+static frame 20: linear=True, excess=-2.07259718192853
+static frame 21: linear=True, excess=-2.0720383465190837
+static frame 22: linear=True, excess=-2.0715506283714014
+static frame 23: linear=True, excess=-2.071142772416823
+static frame 24: linear=True, excess=-2.0708197980089222
+static frame 25: linear=True, excess=-2.070583313005044
+static frame 26: linear=True, excess=-2.0704255287279194
+static frame 27: linear=True, excess=-2.070337700993755
+static frame 28: linear=True, excess=-2.070302859489745
+static frame 29: linear=True, excess=-2.070297543486795
+static frame 30: linear=True, excess=-0.6947310441811961
+static frame 31: linear=True, excess=-0.6949504729699214
+static frame 32: linear=True, excess=-0.6951382424881811
+static frame 33: linear=True, excess=-2.0893112715090822
+static frame 34: linear=True, excess=-2.089275900108841
+static frame 35: linear=True, excess=-2.089227099354239
+static frame 36: linear=True, excess=-2.089153916425367
+static frame 37: linear=True, excess=-2.0890484893003674
+static frame 38: linear=True, excess=-2.088914606798162
+static frame 39: linear=True, excess=-2.088744258470953
+static frame 40: linear=True, excess=-2.0885388260554567
+static frame 41: linear=True, excess=-2.0882825389492643
+static frame 42: linear=True, excess=-2.087974373268575
+static frame 43: linear=True, excess=-2.0876085925695915
+static frame 44: linear=True, excess=-2.0871803679139687
+static frame 45: linear=True, excess=-2.0866792415471807
+static frame 46: linear=True, excess=-2.086107803496704
+static frame 47: linear=True, excess=-2.084877768538183
+static frame 48: linear=True, excess=-2.0833214522786134
+static frame 49: linear=True, excess=-2.0816036455679656
+static frame 50: linear=True, excess=-2.07972123015315
+static frame 51: linear=True, excess=-2.0776712981592174
+static frame 52: linear=True, excess=-2.0753375235910885
+static frame 53: linear=True, excess=-2.071029562601948
+static frame 54: linear=True, excess=-2.0665461424058384
+static frame 55: linear=True, excess=-2.0632645208754172
+static frame 56: linear=True, excess=-2.0649416594393877
+static frame 57: linear=True, excess=-2.066180457182613
+static frame 58: linear=True, excess=-2.067016436224199
+static frame 59: linear=True, excess=-2.066317623004238
+static frame 60: linear=True, excess=-2.0618002161777955
+static frame 61: linear=True, excess=-2.05518022029925
+static frame 62: linear=True, excess=-2.0485772736143564
+static frame 63: linear=True, excess=-2.0420591835292745
+static frame 64: linear=True, excess=-2.0356811807890223
+static frame 65: linear=True, excess=-2.0317549767803875
+static frame 66: linear=True, excess=-2.0304975233950557
+static frame 67: linear=True, excess=-2.0293516142263206
+static frame 68: linear=True, excess=-2.0283588383550173
+static frame 69: linear=True, excess=-2.0281023845523283
+static frame 70: linear=True, excess=-2.0278695549419288
+static frame 71: linear=True, excess=-2.027648076959732
+static frame 72: linear=True, excess=-2.0274292306638815
+static frame 73: linear=True, excess=-2.0273472541184274
+static frame 74: linear=True, excess=-2.027265613475039
+static frame 75: linear=True, excess=-2.027169125304945
+static frame 76: linear=True, excess=-2.0270535611988336
+static frame 77: linear=True, excess=-2.0271517284128318
+static frame 78: linear=True, excess=-2.027244599875095
+static frame 79: linear=True, excess=-2.0273118051506835
+static frame 80: linear=True, excess=-2.027356704064354
+static frame 81: linear=True, excess=-2.0273770115100778
+static frame 82: linear=True, excess=-2.0273397943884857
+static frame 83: linear=True, excess=-2.027193507085912
+static frame 84: linear=True, excess=-2.027081201507193
+static frame 85: linear=True, excess=-2.027061306249077
+static frame 86: linear=True, excess=-2.027047898735942
+static frame 87: linear=True, excess=-2.0270367801510982
+static frame 88: linear=True, excess=-2.027028824083504
+static frame 89: linear=True, excess=-2.0270227346973932
+static frame 90: linear=True, excess=-2.0270183798118264
+static frame 91: linear=True, excess=-2.027015928049114
+static frame 92: linear=True, excess=-2.0270149243408024
+static frame 93: linear=True, excess=-2.027014874506843
+static frame 94: linear=True, excess=-2.027015211238256
+static frame 95: linear=True, excess=-0.5876310171070112
+static frame 96: linear=True, excess=-0.5880920175030473
+static frame 97: linear=True, excess=-0.5891612783188379
+static frame 98: linear=True, excess=-0.5908050701218368
+static frame 99: linear=True, excess=-0.5928567411657841
+static frame 100: linear=True, excess=-0.5950446382910068
+static frame 101: linear=True, excess=-0.5968945762662772
+static frame 102: linear=True, excess=-0.5980698817487569
+static frame 103: linear=True, excess=-0.5985786457536029
+static frame 104: linear=True, excess=-0.5986137167228951
+static frame 105: linear=True, excess=-2.005989360469912
+static frame 106: linear=True, excess=-2.005989518886351
+static frame 107: linear=True, excess=-2.0059901428745137
+static frame 108: linear=True, excess=-2.0059919550677345
+static frame 109: linear=True, excess=-2.0059958429689178
+static frame 110: linear=True, excess=-2.005998900988936
+static frame 111: linear=True, excess=-2.005998935816967
+static frame 112: linear=True, excess=-2.005991993825157
+static frame 113: linear=True, excess=-2.0059733633205754
+static frame 114: linear=True, excess=-2.005936686268101
+static frame 115: linear=True, excess=-2.005875748652068
+static frame 116: linear=True, excess=-2.0057842831115282
+static frame 117: linear=True, excess=-2.005656928976899
+static frame 118: linear=True, excess=-2.005489765170672
+static frame 119: linear=True, excess=-2.0052810936518113
+static frame 120: linear=True, excess=-2.0050317231114345
+static frame 121: linear=True, excess=-2.004745375333811
+static frame 122: linear=True, excess=-2.0044289085915574
+static frame 123: linear=True, excess=-2.0040916802795814
+static frame 124: linear=True, excess=-2.0037454517108495
+static frame 125: linear=True, excess=-2.0034031116073385
+static frame 126: linear=True, excess=-2.0030783425088634
+static frame 127: linear=True, excess=-2.0027833487437388
+static frame 128: linear=True, excess=-2.0025290577959494
+static frame 129: linear=True, excess=-2.0023229181831144
+static frame 130: linear=True, excess=-2.0021686743362914
+static frame 131: linear=True, excess=-2.002065454330853
+static frame 132: linear=True, excess=-2.0020076517439773
+static frame 133: linear=True, excess=-2.0019845674527175
+static frame 134: linear=True, excess=-2.0019810489327097
+static frame 135: linear=True, excess=-0.5069211050834181
+static frame 136: linear=True, excess=-0.5071304842921212
+static frame 137: linear=True, excess=-0.5072965784822849
+static frame 138: linear=True, excess=-2.0263008672392138
+static frame 139: linear=True, excess=-2.026266712508101
+static frame 140: linear=True, excess=-2.0262113012922187
+static frame 141: linear=True, excess=-2.026131883248455
+static frame 142: linear=True, excess=-2.0260246193674343
+static frame 143: linear=True, excess=-2.02588740183517
+static frame 144: linear=True, excess=-2.0257166841825636
+static frame 145: linear=True, excess=-2.0255114198742543
+static frame 146: linear=True, excess=-2.025383284714228
+static frame 147: linear=True, excess=-2.0252450958054835
+static frame 148: linear=True, excess=-2.0250899436138177
+static frame 149: linear=True, excess=-2.0249172028672744
+static frame 150: linear=True, excess=-2.0247296713506553
+static frame 151: linear=True, excess=-2.024315403642185
+static frame 152: linear=True, excess=-2.023733834552606
+static frame 153: linear=True, excess=-2.023111637574906
+static frame 154: linear=True, excess=-2.022455864675837
+static frame 155: linear=True, excess=-2.022066886932583
+static frame 156: linear=True, excess=-2.022319481900709
+static frame 157: linear=True, excess=-2.0226429327370616
+static frame 158: linear=True, excess=-2.0231234352678062
+static frame 159: linear=True, excess=-2.0263828170768217
+static frame 160: linear=True, excess=-2.03009382641122
+static frame 161: linear=True, excess=-2.033997293314562
+static frame 162: linear=True, excess=-2.0376492691522743
+static frame 163: linear=True, excess=-2.0412420726648968
+static frame 164: linear=True, excess=-2.042632932764408
+static frame 165: linear=True, excess=-2.0390161464664196
+static frame 166: linear=True, excess=-2.0353583178157457
+static frame 167: linear=True, excess=-2.0317177129755497
+static frame 168: linear=True, excess=-2.0281433924893766
+static frame 169: linear=True, excess=-2.0236020332616205
+static frame 170: linear=True, excess=-2.021687476193434
+static frame 171: linear=True, excess=-2.0199511647002963
+static frame 172: linear=True, excess=-2.018713515054978
+static frame 173: linear=True, excess=-2.018525470682936
+static frame 174: linear=True, excess=-2.0183996307381724
+static frame 175: linear=True, excess=-2.0183339756660676
+static frame 176: linear=True, excess=-2.017721656599214
+static frame 177: linear=True, excess=-2.0167725202156954
+static frame 178: linear=True, excess=-2.01574723673306
+static frame 179: linear=True, excess=-2.0147470194640587
+static frame 180: linear=True, excess=-2.0137669122150452
+static frame 181: linear=True, excess=-2.01281086816667
+static frame 182: linear=True, excess=-2.0118747073693837
+static frame 183: linear=True, excess=-2.010969386034593
+static frame 184: linear=True, excess=-2.010105157871243
+static frame 185: linear=True, excess=-2.009291367104727
+static frame 186: linear=True, excess=-2.008538202192823
+static frame 187: linear=True, excess=-2.0078538158235952
+static frame 188: linear=True, excess=-2.007246503356008
+static frame 189: linear=True, excess=-2.006719898364505
+static frame 190: linear=True, excess=-2.0062770611203993
+static frame 191: linear=True, excess=-2.0059170275379112
+static frame 192: linear=True, excess=-2.005638199400006
+static frame 193: linear=True, excess=-2.0054384809048766
+static frame 194: linear=True, excess=-2.0053014144327084
+static frame 195: linear=True, excess=-2.0052243927364364
+static frame 196: linear=True, excess=-2.0051949382855585
+static frame 197: linear=True, excess=-2.0052062222433253
+static frame 198: linear=True, excess=-2.005234338933703
+static frame 199: linear=True, excess=-2.005274690974701
+static frame 200: linear=True, excess=-0.3511488625151351
+static frame 201: linear=True, excess=-0.3513679690082312
+static frame 202: linear=True, excess=-0.3518808402740694
+static frame 203: linear=True, excess=-0.3526836071325432
+static frame 204: linear=True, excess=-0.35369547748042507
+static frame 205: linear=True, excess=-0.3547715343850655
+static frame 206: linear=True, excess=-0.3557183445573182
+static frame 207: linear=True, excess=-0.35636506146215563
+static frame 208: linear=True, excess=-0.35664019217950926
+static frame 209: linear=True, excess=-0.3566343140919601
+static frame 210: linear=True, excess=-2.0932273131210564
+static frame 211: linear=True, excess=-2.093220771619935
+static frame 212: linear=True, excess=-2.093204037224793
+static frame 213: linear=True, excess=-2.093164162549554
+static frame 214: linear=True, excess=-2.0930919839670246
+static frame 215: linear=True, excess=-2.0929841480789855
+static frame 216: linear=True, excess=-2.092838540892732
+static frame 217: linear=True, excess=-2.09265644386592
+static frame 218: linear=True, excess=-2.0924418685955617
+static frame 219: linear=True, excess=-2.0922009801712154
+static frame 220: linear=True, excess=-2.0919417593321348
+static frame 221: linear=True, excess=-2.0916733404718237
+static frame 222: linear=True, excess=-2.0908276032912587
+static frame 223: linear=True, excess=-2.0896922976457657
+static frame 224: linear=True, excess=-2.088568260022372
+static frame 225: linear=True, excess=-2.087483506747832
+static frame 226: linear=True, excess=-2.0864626660705303
+static frame 227: linear=True, excess=-2.0855256184458844
+static frame 228: linear=True, excess=-2.084686630006446
+static frame 229: linear=True, excess=-2.083954061622776
+static frame 230: linear=True, excess=-2.083330731500131
+static frame 231: linear=True, excess=-2.0828143704691326
+static frame 232: linear=True, excess=-2.082399172731937
+static frame 233: linear=True, excess=-2.0820766755088296
+static frame 234: linear=True, excess=-2.081836957134967
+static frame 235: linear=True, excess=-2.0816691646756897
+static frame 236: linear=True, excess=-2.0815621410728755
+static frame 237: linear=True, excess=-2.081504722469577
+static frame 238: linear=True, excess=-2.0814814413160785
+static frame 239: linear=True, excess=-2.081477768935144
+static frame 240: linear=True, excess=-2.081477768935144
+static frame 241: linear=True, excess=-2.081477768935144
+static frame 242: linear=True, excess=-2.081477768935144
+static frame 243: linear=True, excess=-2.081477768935144
+static frame 244: linear=True, excess=-2.081477768935144
+static frame 245: linear=True, excess=-2.081477768935144
+static frame 246: linear=True, excess=-2.081477984099232
+static frame 247: linear=True, excess=-2.081477984099232
+static frame 248: linear=True, excess=-2.0814783138092965
+static frame 249: linear=True, excess=-2.0814783138092965
+static frame 250: linear=True, excess=-0.5958742482776622
+static frame 251: linear=True, excess=-0.5958797499439483
+static frame 252: linear=True, excess=-0.5959072004660277
+static frame 253: linear=True, excess=-0.5959829443484796
+static frame 254: linear=True, excess=-0.5961118622870694
+static frame 255: linear=True, excess=-0.596318562701641
+static frame 256: linear=True, excess=-0.596612405522269
+static frame 257: linear=True, excess=-0.5970094092009495
+static frame 258: linear=True, excess=-0.5975043331350469
+static frame 259: linear=True, excess=-0.5981011523817057
+static frame 260: linear=True, excess=-0.5987992988846895
+static frame 261: linear=True, excess=-0.599590557542728
+static frame 262: linear=True, excess=-0.6004652591925841
+static frame 263: linear=True, excess=-0.6014065622087763
+static frame 264: linear=True, excess=-0.6023966922130821
+static frame 265: linear=True, excess=-0.6034172577720849
+static frame 266: linear=True, excess=-0.604440377503868
+static frame 267: linear=True, excess=-0.6054509583060463
+static frame 268: linear=True, excess=-0.6064177561615933
+static frame 269: linear=True, excess=-0.6073258127142962
+static frame 270: linear=True, excess=-0.6081628736083489
+static frame 271: linear=True, excess=-0.6089229112454813
+static frame 272: linear=True, excess=-0.609610292892973
+static frame 273: linear=True, excess=-0.6101237062795328
+static frame 274: linear=True, excess=-0.6103726847549091
+static frame 275: linear=True, excess=-0.6106209971254599
+static frame 276: linear=True, excess=-0.610891141139013
+static frame 277: linear=True, excess=-0.6112160084251821
+static frame 278: linear=True, excess=-0.611614644505063
+static frame 279: linear=True, excess=-0.6121250793591457
+static frame 280: linear=True, excess=-0.6127795861613712
+static frame 281: linear=True, excess=-0.6136085707630099
+static frame 282: linear=True, excess=-0.6146394249354827
+static frame 283: linear=True, excess=-0.6158915682821151
+static frame 284: linear=True, excess=-0.6173778363838167
+static frame 285: linear=True, excess=-0.6191033805590895
+static frame 286: linear=True, excess=-0.621061033498733
+static frame 287: linear=True, excess=-0.6232373732050704
+static frame 288: linear=True, excess=-0.6256066032344223
+static frame 289: linear=True, excess=-0.628137673389686
+static frame 290: linear=True, excess=-0.6308820089058274
+static frame 291: linear=True, excess=-0.633773781822125
+static frame 292: linear=True, excess=-0.6367096997064312
+static frame 293: linear=True, excess=-0.6396430348347399
+static frame 294: linear=True, excess=-0.6425335612697016
+static frame 295: linear=True, excess=-0.6453432012707991
+static frame 296: linear=True, excess=-0.6480388164674147
+static frame 297: linear=True, excess=-0.6505950023856464
+static frame 298: linear=True, excess=-0.6529982173828643
+static frame 299: linear=True, excess=-0.6552227215545843
+static frame 300: linear=True, excess=-0.6572612609620663
+static frame 301: linear=True, excess=-0.6591218611331029
+static frame 302: linear=True, excess=-0.6608005005031266
+static frame 303: linear=True, excess=-0.6623015697575494
+static frame 304: linear=True, excess=-0.6636337090026654
+static frame 305: linear=True, excess=-0.6648056477556601
+static frame 306: linear=True, excess=-0.6658266837159172
+static frame 307: linear=True, excess=-0.6667085777201027
+static frame 308: linear=True, excess=-0.6674653351903044
+static frame 309: linear=True, excess=-0.6680993768488905
+static frame 310: linear=True, excess=-0.6686261742302859
+static frame 311: linear=True, excess=-0.6690555282314947
+static frame 312: linear=True, excess=-0.6693971308917623
+static frame 313: linear=True, excess=-0.6696600692236236
+static frame 314: linear=True, excess=-0.6698510587309823
+static frame 315: linear=True, excess=-0.6699897510990889
+static frame 316: linear=True, excess=-0.6700772228633172
+static frame 317: linear=True, excess=-0.6701256253430814
+static frame 318: linear=True, excess=-0.6701451355924966
+static frame 319: linear=True, excess=-0.6701537800872268
+static frame 320: linear=True, excess=-0.6700984995274468
+static frame 321: linear=True, excess=-0.6697515100309208
+static frame 322: linear=True, excess=-0.6690168519926054
+static frame 323: linear=True, excess=-0.667935681291485
+static frame 324: linear=True, excess=-0.6666636514596687
+static frame 325: linear=True, excess=-0.6653977736755263
+static frame 326: linear=True, excess=-0.6643330062556818
+static frame 327: linear=True, excess=-0.6636094381481401
+static frame 328: linear=True, excess=-0.6632683281670984
+static frame 329: linear=True, excess=-0.6632107883642533
+static frame 330: linear=True, excess=-2.0913985850678505
+static frame 331: linear=True, excess=-2.0913985850678505
+static frame 332: linear=True, excess=-2.0913985850678505
+static frame 333: linear=True, excess=-2.0913985850678505
+static frame 334: linear=True, excess=-2.0913985850678505
+static frame 335: linear=True, excess=-2.0913985850678505
+static frame 336: linear=True, excess=-2.0913985850678505
+static frame 337: linear=True, excess=-2.0913985850678505
+static frame 338: linear=True, excess=-2.0913985850678505
+static frame 339: linear=True, excess=-2.0913985850678505
+static frame 340: linear=True, excess=-2.0913985850678505
+static frame 341: linear=True, excess=-2.0913985850678505
+static frame 342: linear=True, excess=-2.0913985850678505
+static frame 343: linear=True, excess=-2.0913985850678505
+static frame 344: linear=True, excess=-2.0913985850678505
+static frame 345: linear=True, excess=-2.0913985850678505
+static frame 346: linear=True, excess=-2.0913985850678505
+static frame 347: linear=True, excess=-2.0913985850678505
+static frame 348: linear=True, excess=-2.0913985850678505
+static frame 349: linear=True, excess=-2.0913985850678505
+static frame 350: linear=True, excess=-2.0913985850678505
+static frame 351: linear=True, excess=-2.0913985850678505
+static frame 352: linear=True, excess=-2.0913985850678505
+static frame 353: linear=True, excess=-2.0913985850678505
+static frame 354: linear=True, excess=-2.0913985850678505
+static frame 355: linear=True, excess=-2.0913985850678505
+static frame 356: linear=True, excess=-2.0913985850678505
+static frame 357: linear=True, excess=-2.0913985850678505
+static frame 358: linear=True, excess=-2.0913985850678505
+static frame 359: linear=True, excess=-2.0913985850678505
+static frame 360: linear=True, excess=-2.0913985850678505
+static frame 361: linear=True, excess=-2.0913985850678505
+static frame 362: linear=True, excess=-2.0913985850678505
+static frame 363: linear=True, excess=-2.0913985850678505
+static frame 364: linear=True, excess=-2.0913985850678505
+static frame 365: linear=True, excess=-2.091402289523399
+static frame 366: linear=True, excess=-2.0914047924997927
+static frame 367: linear=True, excess=-2.0914078248655175
+static frame 368: linear=True, excess=-2.0914121747997227
+static frame 369: linear=True, excess=-2.0914174884145904
+static frame 370: linear=True, excess=-0.6757738470244772
+static frame 371: linear=True, excess=-0.6757676711933156
+static frame 372: linear=True, excess=-0.6757683492951627
+static frame 373: linear=True, excess=-0.6757857118883908
+static frame 374: linear=True, excess=-0.6758295469350011
+static frame 375: linear=True, excess=-0.6759035442089187
+static frame 376: linear=True, excess=-0.6760126096790695
+static frame 377: linear=True, excess=-0.6761605137333713
+static frame 378: linear=True, excess=-0.6763507548766747
+static frame 379: linear=True, excess=-0.6765840370378067
+static frame 380: linear=True, excess=-0.6768624336054319
+static frame 381: linear=True, excess=-0.6771747330719595
+static frame 382: linear=True, excess=-0.6775187140039272
+static frame 383: linear=True, excess=-0.677888327644578
+static frame 384: linear=True, excess=-0.6782752012388089
+static frame 385: linear=True, excess=-0.6786682091335972
+static frame 386: linear=True, excess=-0.6790573723077808
+static frame 387: linear=True, excess=-0.6794281291486826
+static frame 388: linear=True, excess=-0.6797802460733866
+static frame 389: linear=True, excess=-0.6801004883114175
+static frame 390: linear=True, excess=-0.680384965218161
+static frame 391: linear=True, excess=-0.6806247189460475
+static frame 392: linear=True, excess=-0.6808259487747388
+static frame 393: linear=True, excess=-0.6809953201742625
+static frame 394: linear=True, excess=-0.6811444838196776
+static frame 395: linear=True, excess=-0.6812931666219524
+static frame 396: linear=True, excess=-0.6814682804447445
+static frame 397: linear=True, excess=-0.6816894558025153
+static frame 398: linear=True, excess=-0.6819931159626464
+static frame 399: linear=True, excess=-0.6824139434197054
+static frame 400: linear=True, excess=-0.6829847848426565
+static frame 401: linear=True, excess=-0.6837389044345903
+static frame 402: linear=True, excess=-0.6847044026863878
+static frame 403: linear=True, excess=-0.6859024810928931
+static frame 404: linear=True, excess=-0.6873466608302743
+static frame 405: linear=True, excess=-0.689040825012019
+static frame 406: linear=True, excess=-0.6909792140854027
+static frame 407: linear=True, excess=-0.6931454320616868
+static frame 408: linear=True, excess=-0.6955161327292849
+static frame 409: linear=True, excess=-0.698055961325107
+static frame 410: linear=True, excess=-0.7006047442468776
+static frame 411: linear=True, excess=-0.7019569581452054
+static frame 412: linear=True, excess=-0.7033333238914157
+static frame 413: linear=True, excess=-0.7047110545645019
+static frame 414: linear=True, excess=-0.7060721690001708
+static frame 415: linear=True, excess=-0.707409631984623
+static frame 416: linear=True, excess=-0.7087186750538432
+static frame 417: linear=True, excess=-0.7099962430382023
+static frame 418: linear=True, excess=-0.7112399719287361
+static frame 419: linear=True, excess=-0.7124475151525749
+static frame 420: linear=True, excess=-0.7136196299587936
+static frame 421: linear=True, excess=-0.7147524889503751
+static frame 422: linear=True, excess=-0.7158560701820251
+static frame 423: linear=True, excess=-0.7169279093136991
+static frame 424: linear=True, excess=-0.717969797733284
+static frame 425: linear=True, excess=-0.718983626930287
+static frame 426: linear=True, excess=-0.7199700162352269
+static frame 427: linear=True, excess=-0.7209298789913503
+static frame 428: linear=True, excess=-0.721862405576724
+static frame 429: linear=True, excess=-0.7227707955069125
+static frame 430: linear=True, excess=-0.7236442584350118
+static frame 431: linear=True, excess=-0.7244842127203364
+static frame 432: linear=True, excess=-0.7252878476977243
+static frame 433: linear=True, excess=-0.7260519539765988
+static frame 434: linear=True, excess=-0.7267695467634714
+static frame 435: linear=True, excess=-0.7274477405600042
+static frame 436: linear=True, excess=-0.7280709337841125
+static frame 437: linear=True, excess=-0.7286415065434335
+static frame 438: linear=True, excess=-0.729159060481686
+static frame 439: linear=True, excess=-0.7296302303066553
+static frame 440: linear=True, excess=-0.7300049948695526
+static frame 441: linear=True, excess=-0.7301889503945911
+static frame 442: linear=True, excess=-0.7301273815845142
+static frame 443: linear=True, excess=-0.7298365604859423
+static frame 444: linear=True, excess=-0.7293907163495046
+static frame 445: linear=True, excess=-0.7288998636181403
+static frame 446: linear=True, excess=-0.7284648405885843
+static frame 447: linear=True, excess=-0.7281556348174769
+static frame 448: linear=True, excess=-0.7280037912775787
+static frame 449: linear=True, excess=-0.7279782473278198
+static frame 450: linear=True, excess=-2.081113549846929
+static frame 451: linear=True, excess=-2.081113549846929
+static frame 452: linear=True, excess=-2.081113549846929
+static frame 453: linear=True, excess=-2.081113549846929
+static frame 454: linear=True, excess=-2.081113549846929
+static frame 455: linear=True, excess=-2.081113549846929
+static frame 456: linear=True, excess=-2.081113549846929
+static frame 457: linear=True, excess=-2.081113549846929
+static frame 458: linear=True, excess=-2.081113549846929
+static frame 459: linear=True, excess=-2.081113549846929
+static frame 460: linear=True, excess=-2.081113549846929
+static frame 461: linear=True, excess=-2.081113549846929
+static frame 462: linear=True, excess=-2.081113549846929
+static frame 463: linear=True, excess=-2.081113549846929
+static frame 464: linear=True, excess=-2.081113549846929
+static frame 465: linear=True, excess=-2.081113549846929
+static frame 466: linear=True, excess=-2.081113549846929
+static frame 467: linear=True, excess=-2.081113549846929
+static frame 468: linear=True, excess=-2.081113549846929
+static frame 469: linear=True, excess=-2.081113549846929
+static frame 470: linear=True, excess=-2.081113549846929
+static frame 471: linear=True, excess=-2.081113549846929
+static frame 472: linear=True, excess=-2.081113549846929
+static frame 473: linear=True, excess=-2.081113549846929
+static frame 474: linear=True, excess=-2.081113549846929
+static frame 475: linear=True, excess=-2.081113549846929
+static frame 476: linear=True, excess=-2.081113549846929
+static frame 477: linear=True, excess=-2.081113549846929
+static frame 478: linear=True, excess=-2.081113549846929
+static frame 479: linear=True, excess=-2.081113549846929
+static frame 480: linear=True, excess=-2.081113549846929
+static frame 481: linear=True, excess=-2.081113549846929
+static frame 482: linear=True, excess=-2.081113549846929
+static frame 483: linear=True, excess=-2.081113549846929
+static frame 484: linear=True, excess=-2.081113549846929
+static frame 485: linear=True, excess=-2.081113549846929
+static frame 486: linear=True, excess=-2.081113549846929
+static frame 487: linear=True, excess=-2.081113549846929
+static frame 488: linear=True, excess=-2.081113549846929
+static frame 489: linear=True, excess=-2.081113549846929
+Engage preload: 4 edges, all characteristic feasible=False
+
+Final preload audit uses an outer Coulomb square for the linear feasibility relaxation, and a circular cone for nonlinear verification.
+{
+  "required_unit_preload_n": 10.0,
+  "debounce_steps": 3,
+  "characteristic_unit_quantile": 0.5,
+  "engage_edges": 4,
+  "frames": [
+    {
+      "frame": 102,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "left_foot_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.2916558108228557,
+      "relaxed_unit_shear_range_n": [
+        1.9370976635613384,
+        12.464988651216862
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -2.272564170860815,
+        3.565335097042368
+      ],
+      "relaxed_unit_normal_range_n": [
+        -12.916558108228559,
+        7.749934864937133
+      ],
+      "relaxed_max_torque_ratio": 0.652759108324384,
+      "engage_frame": 105,
+      "approaching_pad": "left_foot_spine",
+      "center_wall_gap_mm": 1.4786725399673628e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 103,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "left_foot_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.2916648859203256,
+      "relaxed_unit_shear_range_n": [
+        1.9375847586770585,
+        12.465063735974164
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -2.2755505473041384,
+        3.5657302455552724
+      ],
+      "relaxed_unit_normal_range_n": [
+        -12.916648859203255,
+        7.749989315521953
+      ],
+      "relaxed_max_torque_ratio": 0.6529160876093424,
+      "engage_frame": 105,
+      "approaching_pad": "left_foot_spine",
+      "center_wall_gap_mm": 1.2634531199040566e-06,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 104,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "left_foot_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.29166613670176406,
+      "relaxed_unit_shear_range_n": [
+        1.9375831223017497,
+        12.46507865783483
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -2.276025604376631,
+        3.5658178553818467
+      ],
+      "relaxed_unit_normal_range_n": [
+        -12.91666136701764,
+        7.749996820210586
+      ],
+      "relaxed_max_torque_ratio": 0.6529419517871038,
+      "engage_frame": 105,
+      "approaching_pad": "left_foot_spine",
+      "center_wall_gap_mm": 3.758841082834863e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 207,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "right_foot_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.2899777217149961,
+      "relaxed_unit_shear_range_n": [
+        2.214942067049511,
+        12.542818779433652
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -1.6003389299247606,
+        0.9624515393460225
+      ],
+      "relaxed_unit_normal_range_n": [
+        -12.89977721714996,
+        7.739866330289977
+      ],
+      "relaxed_max_torque_ratio": 0.6844305753838259,
+      "engage_frame": 210,
+      "approaching_pad": "right_foot_spine",
+      "center_wall_gap_mm": 5.213700915440711e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 208,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "right_foot_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.289988713630868,
+      "relaxed_unit_shear_range_n": [
+        2.2216594431510814,
+        12.543505799318307
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -1.5808392736572094,
+        0.9471406165229054
+      ],
+      "relaxed_unit_normal_range_n": [
+        -12.89988713630868,
+        7.739932281785208
+      ],
+      "relaxed_max_torque_ratio": 0.6855793477433366,
+      "engage_frame": 210,
+      "approaching_pad": "right_foot_spine",
+      "center_wall_gap_mm": 1.879595767917408e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 209,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "right_foot_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.2899900910356263,
+      "relaxed_unit_shear_range_n": [
+        2.2226990412128815,
+        12.54362209568699
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -1.5775977425286318,
+        0.9445089879662231
+      ],
+      "relaxed_unit_normal_range_n": [
+        -12.899900910356262,
+        7.739940546213758
+      ],
+      "relaxed_max_torque_ratio": 0.6857763060321704,
+      "engage_frame": 210,
+      "approaching_pad": "right_foot_spine",
+      "center_wall_gap_mm": 0.00012498679180517058,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 327,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "left_hand_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.4808713121604427,
+      "relaxed_unit_shear_range_n": [
+        1.9973554498340802,
+        14.105000372093558
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -0.7103186541066391,
+        3.74347794193838
+      ],
+      "relaxed_unit_normal_range_n": [
+        -14.808713121604427,
+        8.885227872962655
+      ],
+      "relaxed_max_torque_ratio": 0.6180835855361447,
+      "engage_frame": 330,
+      "approaching_pad": "left_hand_spine",
+      "center_wall_gap_mm": 2.1700709229577342e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 328,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "left_hand_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.48089348381898134,
+      "relaxed_unit_shear_range_n": [
+        1.9967769223595706,
+        14.105213581650853
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -0.7103418200810887,
+        3.7434561196847804
+      ],
+      "relaxed_unit_normal_range_n": [
+        -14.808934838189813,
+        8.885360902913888
+      ],
+      "relaxed_max_torque_ratio": 0.6180379409355579,
+      "engage_frame": 330,
+      "approaching_pad": "left_hand_spine",
+      "center_wall_gap_mm": 7.751600161753913e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 329,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "left_hand_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.4808973007740079,
+      "relaxed_unit_shear_range_n": [
+        1.9966953995871688,
+        14.10524916315542
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -0.7103440421974538,
+        3.7434426303605006
+      ],
+      "relaxed_unit_normal_range_n": [
+        -14.808973007740079,
+        8.885383804644047
+      ],
+      "relaxed_max_torque_ratio": 0.6180298474558653,
+      "engage_frame": 330,
+      "approaching_pad": "left_hand_spine",
+      "center_wall_gap_mm": 2.460756287625543e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 447,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "right_hand_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.46410055532860606,
+      "relaxed_unit_shear_range_n": [
+        2.2473837525659763,
+        13.959197658979624
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -3.7680198403754774,
+        0.7279719191841965
+      ],
+      "relaxed_unit_normal_range_n": [
+        -14.641005553286062,
+        8.784603331971637
+      ],
+      "relaxed_max_torque_ratio": 0.6399002606575451,
+      "engage_frame": 450,
+      "approaching_pad": "right_hand_spine",
+      "center_wall_gap_mm": 4.9339119900793094e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 448,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "right_hand_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.4641203038154347,
+      "relaxed_unit_shear_range_n": [
+        2.2472440689254998,
+        13.959375275842923
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -3.767838445165242,
+        0.7279143823668128
+      ],
+      "relaxed_unit_normal_range_n": [
+        -14.641203038154346,
+        8.784721822892609
+      ],
+      "relaxed_max_torque_ratio": 0.6398369565521889,
+      "engage_frame": 450,
+      "approaching_pad": "right_hand_spine",
+      "center_wall_gap_mm": 0.00012633500090508676,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    },
+    {
+      "frame": 449,
+      "linear_feasible": false,
+      "solver_message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)",
+      "unit_quantile": 0.5,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "preload_contacts": [
+        "right_hand_spine"
+      ],
+      "holding_unit_normal_ceiling_n": 6.0,
+      "required_unit_preload_n": 10.0,
+      "min_relative_bound_relaxation": 0.46412378456550146,
+      "relaxed_unit_shear_range_n": [
+        2.2472404167092654,
+        13.959399315364132
+      ],
+      "relaxed_unit_lateral_range_n": [
+        -3.7677991505867334,
+        0.7279033405026505
+      ],
+      "relaxed_unit_normal_range_n": [
+        -14.641237845655015,
+        8.784742707393024
+      ],
+      "relaxed_max_torque_ratio": 0.639825667722044,
+      "engage_frame": 450,
+      "approaching_pad": "right_hand_spine",
+      "center_wall_gap_mm": 4.037227974151847e-05,
+      "preload_contact_geometry_ok": true,
+      "preload_characteristic_feasible": false
+    }
+  ],
+  "all_feasible": false,
+  "scope": "Quasistatic characteristic-model feasibility before latching; not dynamic or hardware validation"
+}

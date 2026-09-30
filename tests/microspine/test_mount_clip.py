@@ -22,6 +22,12 @@ _ASSETS = (
 )
 _MOUNT = _ASSETS / "climb_mount_prologue.npy"
 _CYCLE = _ASSETS / "climb_cycle_moment_safe.npy"
+# The band-teacher clip family (gen_mount_clip --wall-angle-deg): NATIVE-a
+# clips stored DE-ROTATED to the canonical frame, so every structural
+# contract below (handoff == state-1 + dz*z, schedule shape, acyclic
+# tables) holds for every family member VERBATIM — the same assertions run
+# per clip.
+_MOUNT_FAMILY = sorted(_ASSETS.glob("climb_mount_prologue*.npy"))
 
 pytestmark = pytest.mark.skipif(
   not (_MOUNT.exists() and _CYCLE.exists()),
@@ -29,14 +35,34 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module")
-def mount() -> dict:
-  return np.load(_MOUNT, allow_pickle=True).item()
+@pytest.fixture(
+  scope="module",
+  params=[p.name for p in _MOUNT_FAMILY] or ["climb_mount_prologue.npy"],
+)
+def mount(request) -> dict:
+  data = np.load(_ASSETS / request.param, allow_pickle=True).item()
+  data["_file"] = request.param
+  return data
 
 
 @pytest.fixture(scope="module")
-def cycle() -> dict:
-  return np.load(_CYCLE, allow_pickle=True).item()
+def cycle(mount: dict) -> dict:
+  path = _ASSETS / mount.get("handoff_motion", _CYCLE.name)
+  return np.load(path, allow_pickle=True).item()
+
+
+def test_mount_wall_angle_metadata(mount: dict) -> None:
+  """Native angle key matches the filename; canonical storage means the
+  frame data itself is angle-invariant (checked by the other tests)."""
+  name = mount["_file"]
+  angle = float(mount.get("wall_angle", 90.0))
+  if name == "climb_mount_prologue.npy":
+    assert angle == 90.0  # the shipped 90 clip predates the key or carries 90
+  else:
+    stem = name.removesuffix(".npy")
+    assert stem.startswith("climb_mount_prologue_a")
+    assert angle == float(stem.removeprefix("climb_mount_prologue_a"))
+    assert 0.0 < angle <= 90.0
 
 
 def test_handoff_frame_matches_climb_state1(mount: dict, cycle: dict) -> None:
@@ -49,6 +75,14 @@ def test_handoff_frame_matches_climb_state1(mount: dict, cycle: dict) -> None:
     - np.asarray(cycle["joint_positions"][0])
   )
   assert float(dq.max()) < 1.0e-4
+
+  if mount.get("passive_joint_names"):
+    assert tuple(mount["passive_joint_names"]) == tuple(cycle["passive_joint_names"])
+    assert np.allclose(
+      mount["passive_joint_positions"][-1],
+      cycle["passive_joint_positions"][0],
+      atol=1.0e-5,
+    )
 
   # Base orientation identical; base position identical in x/y and rigidly
   # shifted in z (the mount ends dz below the canonical stance so the final
@@ -100,7 +134,8 @@ def test_mount_schedule_shape(mount: dict) -> None:
   for i, ee in enumerate(mount["ee_list"]):
     col = engaged[:, i].astype(np.int8)
     drops = int(np.count_nonzero(np.diff(col) < 0))
-    assert drops <= (1 if "hand" in str(ee) else 0), (ee, drops)
+    # v6g: the left hand's TWO-step walk-up regrips twice.
+    assert drops <= (2 if "hand" in str(ee) else 0), (ee, drops)
 
   # The floor schedule only ever loses contact.
   for i in range(2):
@@ -108,7 +143,10 @@ def test_mount_schedule_shape(mount: dict) -> None:
 
   # Acyclic schema markers.
   assert float(mount["step_height"]) == 0.0
-  assert list(mount["segment_names"])[-1] == "end_hold"
+  # The clip ENDS in end_hold (the loaders look the segment up by name; the
+  # name table itself may list later-added segments after it).
+  names = list(mount["segment_names"])
+  assert names[int(np.asarray(mount["phase_segment"])[-1])] == "end_hold"
   assert not np.asarray(mount["toe_braced"]).any()
 
 

@@ -1,0 +1,288 @@
+{
+  "scope": "Diagnostic of saved both-toe poses at 60 degrees, four active corner units per pad. LP necessary conditions only; no hardware or dynamic simulation. Expanding the compression domain is a diagnostic, not a validated model change.",
+  "normal_min_n": -10.0,
+  "unit_shear_max_n": 30.0,
+  "toe_friction": 0.2,
+  "compression_bound_interpretation": "Minimum achievable maximum single-unit compression while retaining all other audit linear inequalities and equilibrium equations. The toe friction cone is an optimistic outer square, and the nonlinear empirical envelope is omitted, so these optima are necessary lower bounds rather than verified physical loads.",
+  "source_sha256": {
+    "scripts/audit_cad_climb_reference.py": "d7ecfcd11c885576eac716e2c32f46eb69dbbcb6c438d50a36bb1216e3b54aa6",
+    "src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a60.npy": "a353e28b7bd417b7e43139e56e4626b91d9194849d41a257887dfbaf419265e5",
+    "docs/empirical_climb_review/corners60/toe_support_probe.json": "e30931ba9b667e794b3e99609b348a3d48790147c01e9afcec19d974f1becf8a"
+  },
+  "poses": [
+    {
+      "frame": 300,
+      "engaged_pads": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "matrix_shape": [
+        117,
+        24
+      ],
+      "eq_shape": [
+        12,
+        24
+      ],
+      "constraints": {
+        "baseline": {
+          "linear_feasible": false,
+          "status": 2,
+          "message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+        },
+        "remove_motor_limits_only": {
+          "linear_feasible": false,
+          "status": 2,
+          "message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+        },
+        "minimum_compression_limit_with_other_bounds_kept": {
+          "linear_feasible": true,
+          "status": 0,
+          "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+          "unit_shear_range_n": [
+            18.34330474319573,
+            30.0
+          ],
+          "unit_lateral_range_n": [
+            -3.140875298611502,
+            2.5655912465688973
+          ],
+          "unit_normal_range_n": [
+            -13.01520236446554,
+            -9.588227225489646
+          ],
+          "max_torque_ratio": 0.6442964708718598,
+          "equality_error": 1.5775920261980325e-10,
+          "toe_force_wall_xyz_n": [
+            [
+              29.534515740882014,
+              -5.90690314817641,
+              -5.906903148176403
+            ],
+            [
+              5.058339853463512,
+              -1.0116679706927023,
+              1.0116679706927023
+            ]
+          ],
+          "unit_force_by_pad": {
+            "right_hand_spine": [
+              [
+                29.999999999967606,
+                -3.140875298611502,
+                -10.152816178245674
+              ],
+              [
+                24.55773372389941,
+                -3.1408752985726287,
+                -13.015202364465052
+              ],
+              [
+                30.0,
+                0.9408244084266855,
+                -10.152816178245649
+              ],
+              [
+                24.557733723931804,
+                0.9408244084914745,
+                -13.015202364465027
+              ]
+            ],
+            "left_foot_spine": [
+              [
+                30.0,
+                0.1425431623701332,
+                -13.01520236446454
+              ],
+              [
+                30.0,
+                0.1425431623701332,
+                -12.847282772417476
+              ],
+              [
+                30.0,
+                0.1425431623701332,
+                -13.01520236446554
+              ],
+              [
+                30.0,
+                0.1425431623701332,
+                -12.847282772418476
+              ]
+            ],
+            "right_foot_spine": [
+              [
+                18.343304743212467,
+                2.5655912465688973,
+                -13.01520236446503
+              ],
+              [
+                21.155113820789865,
+                2.565591246548813,
+                -9.58822722548965
+              ],
+              [
+                18.34330474319573,
+                0.45673443839254224,
+                -13.015202364465026
+              ],
+              [
+                21.155113820773128,
+                0.45673443835906813,
+                -9.588227225489646
+              ]
+            ]
+          },
+          "optimum_uniform_limit_n": 13.015202364465027
+        },
+        "minimum_shear_max_with_other_bounds_kept": {
+          "linear_feasible": false,
+          "status": 2,
+          "message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+        }
+      }
+    },
+    {
+      "frame": 400,
+      "engaged_pads": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "matrix_shape": [
+        117,
+        24
+      ],
+      "eq_shape": [
+        12,
+        24
+      ],
+      "constraints": {
+        "baseline": {
+          "linear_feasible": false,
+          "status": 2,
+          "message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+        },
+        "remove_motor_limits_only": {
+          "linear_feasible": false,
+          "status": 2,
+          "message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+        },
+        "minimum_compression_limit_with_other_bounds_kept": {
+          "linear_feasible": true,
+          "status": 0,
+          "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+          "unit_shear_range_n": [
+            17.578237445791203,
+            30.000000000000046
+          ],
+          "unit_lateral_range_n": [
+            -3.6518910339035573,
+            3.2974620722513888
+          ],
+          "unit_normal_range_n": [
+            -13.1551607999198,
+            -8.730795563307561
+          ],
+          "max_torque_ratio": 0.6237981173587446,
+          "equality_error": 1.1368683772161603e-13,
+          "toe_force_wall_xyz_n": [
+            [
+              4.891088159930615,
+              0.9782176319861231,
+              0.9782176319861231
+            ],
+            [
+              31.419131913108338,
+              6.283826382621637,
+              -6.283826382621668
+            ]
+          ],
+          "unit_force_by_pad": {
+            "left_hand_spine": [
+              [
+                24.335828684605783,
+                3.2974620722513888,
+                -13.155160799915603
+              ],
+              [
+                30.000000000000046,
+                3.2974620722109305,
+                -10.128127442139876
+              ],
+              [
+                24.335828684572068,
+                -0.9506664142808212,
+                -13.1551607999198
+              ],
+              [
+                29.99999999996633,
+                -0.9506664143482522,
+                -10.128127442144073
+              ]
+            ],
+            "left_foot_spine": [
+              [
+                22.263321161688825,
+                -3.6518910339035573,
+                -8.73079556331172
+              ],
+              [
+                17.578237445791203,
+                -3.6518910338700925,
+                -13.155160799919285
+              ],
+              [
+                22.26332116171671,
+                -0.13807824699149474,
+                -8.730795563307561
+              ],
+              [
+                17.578237445819088,
+                -0.1380782469357198,
+                -13.155160799915127
+              ]
+            ],
+            "right_foot_spine": [
+              [
+                29.99999999999997,
+                0.28921580980025097,
+                -13.155160799915596
+              ],
+              [
+                29.99999999999995,
+                0.28921580980025097,
+                -12.450845624995367
+              ],
+              [
+                29.99999999999997,
+                0.2892158098002675,
+                -13.155160799919788
+              ],
+              [
+                29.99999999999995,
+                0.2892158098002675,
+                -12.450845624999559
+              ]
+            ]
+          },
+          "optimum_uniform_limit_n": 13.155160799919788
+        },
+        "minimum_shear_max_with_other_bounds_kept": {
+          "linear_feasible": false,
+          "status": 2,
+          "message": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "geometry_mode": "rigid_cad_import",
+  "passed": true,
+  "tolerance_m": 1e-07,
+  "max_compiled_vertex_error_m": 1.1187808633773011e-08,
+  "compiled_vertex_errors_m": {
+    "left_foot_spine_visual": 1.1187808614233061e-08,
+    "left_foot_spine_brackets_visual": 9.264118705035517e-09,
+    "left_foot_spine_unit_0_0_visual": 1.0440507762506183e-09,
+    "left_foot_spine_unit_0_1_visual": 1.0440465028419786e-09,
+    "left_foot_spine_unit_0_2_visual": 1.044059694999668e-09,
+    "left_foot_spine_unit_0_3_visual": 1.0440553763744423e-09,
+    "left_foot_spine_unit_1_0_visual": 1.0440411753315406e-09,
+    "left_foot_spine_unit_1_1_visual": 1.0440032383446655e-09,
+    "left_foot_spine_unit_1_2_visual": 1.0439991002523799e-09,
+    "left_foot_spine_unit_1_3_visual": 1.044012117681907e-09,
+    "left_foot_spine_unit_2_0_visual": 1.0438529423329944e-09,
+    "left_foot_spine_unit_2_1_visual": 1.0437112496147356e-09,
+    "left_foot_spine_unit_2_2_visual": 1.0443263182414384e-09,
+    "left_foot_spine_unit_2_3_visual": 1.0441845198373747e-09,
+    "right_foot_spine_visual": 1.1187808613999386e-08,
+    "right_foot_spine_brackets_visual": 9.264118705035517e-09,
+    "right_foot_spine_unit_0_0_visual": 1.0440507762506183e-09,
+    "right_foot_spine_unit_0_1_visual": 1.0440464859433152e-09,
+    "right_foot_spine_unit_0_2_visual": 1.044059703448893e-09,
+    "right_foot_spine_unit_0_3_visual": 1.0440553763744423e-09,
+    "right_foot_spine_unit_1_0_visual": 1.0440411668834778e-09,
+    "right_foot_spine_unit_1_1_visual": 1.0440032383446655e-09,
+    "right_foot_spine_unit_1_2_visual": 1.0439991002523799e-09,
+    "right_foot_spine_unit_1_3_visual": 1.0440121261304776e-09,
+    "right_foot_spine_unit_2_0_visual": 1.0438529338828457e-09,
+    "right_foot_spine_unit_2_1_visual": 1.0437112496147356e-09,
+    "right_foot_spine_unit_2_2_visual": 1.0443263351340754e-09,
+    "right_foot_spine_unit_2_3_visual": 1.0441845282848405e-09,
+    "left_hand_spine_visual": 1.1187808615456668e-08,
+    "left_hand_spine_brackets_visual": 9.264118753697148e-09,
+    "left_hand_spine_unit_0_0_visual": 1.0440507804844752e-09,
+    "left_hand_spine_unit_0_1_visual": 1.044046457585489e-09,
+    "left_hand_spine_unit_0_2_visual": 1.0440596855218847e-09,
+    "left_hand_spine_unit_0_3_visual": 1.0440553199117796e-09,
+    "left_hand_spine_unit_1_0_visual": 1.0440411621229432e-09,
+    "left_hand_spine_unit_1_1_visual": 1.0440031895251043e-09,
+    "left_hand_spine_unit_1_2_visual": 1.0439990952053134e-09,
+    "left_hand_spine_unit_1_3_visual": 1.044012080703438e-09,
+    "left_hand_spine_unit_2_0_visual": 1.043852947817883e-09,
+    "left_hand_spine_unit_2_1_visual": 1.04371128417784e-09,
+    "left_hand_spine_unit_2_2_visual": 1.0443263673893737e-09,
+    "left_hand_spine_unit_2_3_visual": 1.044184538332903e-09,
+    "right_hand_spine_visual": 1.1187808633773011e-08,
+    "right_hand_spine_brackets_visual": 9.264118724598031e-09,
+    "right_hand_spine_unit_0_0_visual": 1.044050782723368e-09,
+    "right_hand_spine_unit_0_1_visual": 1.0440465091707875e-09,
+    "right_hand_spine_unit_0_2_visual": 1.0440597216585912e-09,
+    "right_hand_spine_unit_0_3_visual": 1.0440553314293376e-09,
+    "right_hand_spine_unit_1_0_visual": 1.0440411695649356e-09,
+    "right_hand_spine_unit_1_1_visual": 1.0440032656337948e-09,
+    "right_hand_spine_unit_1_2_visual": 1.0439991144881098e-09,
+    "right_hand_spine_unit_1_3_visual": 1.0440120792250945e-09,
+    "right_hand_spine_unit_2_0_visual": 1.0438529425332457e-09,
+    "right_hand_spine_unit_2_1_visual": 1.0437112897304207e-09,
+    "right_hand_spine_unit_2_2_visual": 1.0443263408863247e-09,
+    "right_hand_spine_unit_2_3_visual": 1.0441845269832507e-09,
+    "left_forearm_pad_mount_visual": 5.3848777067697626e-09,
+    "right_forearm_pad_mount_visual": 5.384877725858208e-09
+  },
+  "sleeve_stop_alignment_errors_m": {
+    "left": 2.0761183799637404e-14,
+    "right": 2.0761183799637404e-14
+  },
+  "source_solid_count": 34,
+  "cad_features": {
+    "bearing_center_m": [
+      0.0,
+      0.01225,
+      0.0905
+    ],
+    "bearing_seat_ends_m": [
+      [
+        -0.0,
+        0.00725,
+        0.0905
+      ],
+      [
+        -0.0,
+        0.01725,
+        0.0905
+      ]
+    ],
+    "bearing_seat_radius_m": 0.0075,
+    "sleeve_mouth_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "sleeve_shoulder_m": [
+      0.0,
+      0.0,
+      0.035
+    ],
+    "sleeve_inner_radius_m": 0.021,
+    "sleeve_outer_radius_m": 0.0275,
+    "reference": "B is the midpoint of the CAD cylindrical bearing seat; E is the inner sleeve stop."
+  },
+  "B_to_C_m": [
+    1.509074498406519e-08,
+    -0.04750002244344838,
+    0.07798417233119648
+  ],
+  "source_backplate_extents_xyz_m": [
+    0.12600000217803795,
+    0.011000002694645643,
+    0.16749999673471272
+  ],
+  "source_connector_extents_xyz_m": [
+    0.07999999821186066,
+    0.05495966784656048,
+    0.10999999940395355
+  ],
+  "robot_mass_kg": 36.26110542985573,
+  "provisional_pla_moving_pad_mass_kg": 0.18689573890280511,
+  "provisional_pla_mount_mass_kg": 0.2059797170012537,
+  "source_sha256": {
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/Assembly 1.step": "c7ad378e4c7d984f5409dc833426ab6be19beb4f7425748a59d6887f5623eb69",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/urdf/assembly_1.urdf": "51fc05f3c10ee1fe5fa42b8ef0b64e9c3905f8193e7633f29a6371282b974c40",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1.gltf": "ba20e01250be274b3095cf8babd2bd72d770bda3f38cbf5a35d67db5e596b9f2",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_1.gltf": "56f7906840f91a799b9c6761836ef746ed99ffd1d0ff0b3af4fe6f426e34f48c",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_2.gltf": "c172ad9ed0dc7fdd04a943c18bce566d726e4998107422c55a8249f3130d9062",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_3.gltf": "65466e3a8296eee2a7f0f8a9a63c3deb895942b1284a78da8be26ff9e2de215d",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_4.gltf": "af967b642e020a6c483b1beedb537750d902b880a57ebc48dac12e13d3b1497c",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_5.gltf": "21a28f0b929cd9fa5a66a78c6e606e0629a34e49dfa5f989b0b962178d75cffd",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_6.gltf": "48782d256579b7770570b67a8be0ab4a87b4794ffe380933b61bd3ef31f47c9d",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_7.gltf": "7491b36edbfe6922b69b8353ed6863bc3b3d2ae2d2ae2c4ce450d0b15eabecdf",
+    "/home/spider/projects/scr-phybot_mjlab/cad_model/assembly_1/meshes/Part_1_8.gltf": "9c3c71833e229c3728e6759828ebe68faa255ba7d46af748c2681d737f6ed3e7"
+  },
+  "asset_sha256": "9f3132c71ffffee9072e2bf361113526d13435e449bbbdbb2a7f76703c8db33f"
+}

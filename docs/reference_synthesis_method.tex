@@ -1,0 +1,608 @@
+% Reference-motion synthesis for microspine wall climbing (method section draft)
+% Build: xelatex reference_synthesis_method.tex   (pdflatex also works)
+%
+% Provenance note (not part of the manuscript): Secs. 3, 5, 6 and the
+% weighted variant of Sec. 4.6 describe what scripts/gen_climb_clip.py,
+% scripts/gen_mount_clip.py, scripts/validate_climb_reference.py and the
+% climb_wall MDP implement today (2026-09-04). The lexicographic solver of
+% Secs. 4.1-4.5 is the target formulation agreed in conversation; its
+% implementation is planned (see docs/plans). Numbers marked [TBD] are
+% placeholders for the ablation.
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parskip}{3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\SO}{\mathrm{SO}(3)}
+\newcommand{\SE}{\mathrm{SE}(3)}
+\newcommand{\nhat}{\hat{\bm n}}
+\newcommand{\that}{\hat{\bm t}}
+\newcommand{\lhat}{\hat{\bm l}}
+\newcommand{\zhat}{\hat{\bm z}}
+\newcommand{\dq}{\delta\bm q}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\tbd}{{\color{red}[TBD]}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\atan}{atan2}
+
+\title{Contact-Scheduled Kinematic Reference Synthesis\\for Microspine Wall Climbing without Motion Capture}
+\author{Method section draft}
+\date{2026-09-04}
+
+\begin{document}
+\maketitle
+
+\section{Problem statement}
+
+\subsection{Setting and notation}
+
+We consider a humanoid (PHYBot~C2) climbing a planar wall inclined at angle
+$\alpha$ from the floor ($\alpha=90^\circ$: vertical). The robot has
+$n_j=21$ actuated joints $\bm\theta\in\R^{n_j}$ (6 per leg, 4 per wristless
+arm, 1 waist yaw) and a floating base $(\bm p_b,R_b)\in\SE$. Four microspine
+pads $h\in\mathcal H=\{\mathrm{LH},\mathrm{RH},\mathrm{LF},\mathrm{RF}\}$
+are mounted on the hands and shins. Each pad sits on a passive three-hinge
+gimbal with angles $\bm\gamma_h\in\R^3$, mechanical stops
+$|\gamma_{h,k}|\le\gamma_{\mathrm{stop}}=3^\circ$, and a weak return spring
+($0.7\,\mathrm{N\,m/rad}$). The feet additionally carry a rigid toe tip that
+may press, but not adhere to, the wall.
+
+Positions are expressed in the canonical wall frame: the wall surface is the
+plane $x=x_w$, $\zhat$ points up the wall, and $\nhat=-\hat{\bm x}$ is the
+outward wall normal (pointing at the robot). A tilted wall is obtained by
+rotating this frame about the wall base line; gravity stays physically
+vertical. On an engaged pad the \emph{engage frame}
+$(\that,\lhat,\nhat)$ has $\that$ along the rake direction (down-wall),
+$\lhat=\nhat\times\that$ lateral.
+
+A microspine pad holds a load $\bm F=(f_t,f_l,f_n)$ only inside the closed,
+direction-dependent limit surface of Wang, Jiang and Cutkosky~(IJRR~2017):
+capacity peaks along the rake shear $f_t>0$, tension $f_n>0$ is admissible
+only alongside shear, and against-rake and pure normal pull-off hold almost
+nothing. A pad seats only after a small down-wall stroke under compression
+(the \emph{rake}) and recruits its full capacity over
+$\tau_{\mathrm{ramp}}\approx0.25\,\mathrm s$ of loaded dwell.
+
+A reference motion is a tuple
+\begin{equation}
+  \mathcal M=\bigl(\bm q(t),\;\bm\sigma(t),\;\{A_h(t)\}_{h\in\mathcal H},\;\bm\beta(t)\bigr),
+  \qquad t\in[0,T],
+\end{equation}
+with configuration $\bm q=(\bm p_b,R_b,\bm\theta)$, contact schedule
+$\bm\sigma(t)\in\{0,1\}^{4}$ ($\sigma_h=1$: pad $h$ latched), anchor poses
+$A_h=(\bm a_h,R^a_h)\in\SE$ (the weld target while latched, the landing
+target while swinging), and a toe-brace schedule $\bm\beta(t)\in\{0,1\}^2$.
+The reference is consumed by reinforcement learning as an imitation target
+for \emph{shape and schedule only}: no reward tracks the base position in the
+world, and force allocation and balance are left to the learned policy.
+
+\subsection{Why motion capture does not transfer}
+
+Imitation pipelines for humanoids obtain $\bm q(t)$ from human motion
+capture followed by kinematic retargeting. Two obstacles make this route
+unavailable here.
+
+\paragraph{Data.} Adhesive wall climbing with palm and shin pads is not a
+human activity; no capture corpus exists, and staged approximations
+(bouldering, ladder climbing) exercise fingers, wrists and toes the robot
+does not have and load the holds through friction geometry the pads cannot
+reproduce.
+
+\paragraph{Embodiment optimality.} Even with data, the human optimum is not
+the robot optimum. The feasible set of the robot is dictated by (i)~a
+4-DoF wristless arm that cannot satisfy an arbitrary 6-DoF hand pose,
+(ii)~a pad that must stay flat on the wall and may rotate only within the
+$3^\circ$ gimbal travel once latched, (iii)~an adhesion envelope that is
+essentially one-sided: the pad must be loaded along its rake direction and
+must never be dragged across the surface while unloaded, and (iv)~a
+recruitment time that forbids fast regrips. Retargeting projects a human
+trajectory onto the robot's kinematic chain, but not onto this
+\emph{contact-feasibility} set; the projected motion drags latched pads,
+loads them against the rake, or transfers weight onto immature anchors.
+In our experience, imitating references that lack an explicit schedule and
+the physics gates of Sec.~\ref{sec:gates} produced degenerate gaits: policies
+welded two limbs permanently and dragged the others (Sec.~\ref{sec:ablation}).
+
+\subsection{Requirements}
+
+A usable reference must satisfy:
+\begin{enumerate}[label=(R\arabic*),leftmargin=2.6em]
+  \item \textbf{Explicit schedule.} $\bm\sigma$ and $\{A_h\}$ are part of the
+        reference, so that the policy can be rewarded for latching the
+        right pad at the right place and time.
+  \item \textbf{Kinematic closure.} While $\sigma_h=1$ the pad is
+        stationary at $A_h$ (a latched pad physically cannot move), the
+        limb may rotate relative to it only within the gimbal travel, all
+        joints stay strictly inside their limits, and released pads and toes
+        do not penetrate the wall.
+  \item \textbf{Static feasibility.} At every frame there exists a force
+        allocation on the scheduled contacts that balances gravity inside
+        the limit surface and the actuator torque limits.
+  \item \textbf{Timing feasibility.} Dwell times respect the engage pipeline
+        and the recruitment ramp.
+  \item \textbf{Periodicity.} One cycle ends exactly at its start
+        translated by the step height $h$ up the wall, so the clip loops.
+  \item \textbf{Determinism and low cost.} Regeneration takes minutes and
+        is independent of runtime physics parameters, so that the reference
+        can sit inside a design loop.
+\end{enumerate}
+
+\section{Method overview}
+
+The reference is synthesized in three stages (Fig.~\tbd).
+\emph{Choreography} (Sec.~\ref{sec:choreo}) fixes the contact schedule and a
+small set of task-space intents from the robot's own stance.
+\emph{Lexicographic constrained inverse kinematics}
+(Sec.~\ref{sec:ik}) turns the intents into joint trajectories frame by
+frame, with the latched contacts and the mechanical limits as hard
+constraints and every intent in their null space. \emph{Physics gates}
+(Sec.~\ref{sec:gates}) certify static and timing feasibility and close the
+loop on the choreography parameters. Section~\ref{sec:rl} states how the
+policy consumes the result.
+
+\section{Choreography: contact schedule and task-space intents}
+\label{sec:choreo}
+
+\paragraph{Stance and anchors.} The cycle starts from the climb stance
+$\bm q^0$ (all four pads latched, arms overhead, legs splayed), obtained
+once by an inverse-kinematics stance search that pins the four pad frames
+flat on the wall plane at a chosen hand height and base standoff and
+minimizes posture cost. All anchors are derived from it by forward
+kinematics,
+\begin{equation}
+  A^0_h=\mathrm{FK}_h(\bm q^0),\qquad
+  A^+_h=\bigl(\bm a^0_h+h\,\zhat,\;R^{a,0}_h\bigr),\qquad h=0.03\,\mathrm m,
+\end{equation}
+so that no world coordinate is authored by hand except the wall plane.
+
+\paragraph{Schedule.} One cycle is a four-beat crawl,
+\[
+\text{hold}\to\text{LF swing}\to\text{hold}\to\text{RF swing}\to\text{hold}
+\to\text{LH swing}\to\text{hold}\to\text{RH swing}\to\text{hold},
+\]
+subject to the rules that encode the pad physics:
+\begin{enumerate}[label=(S\arabic*),leftmargin=2.6em]
+  \item at most one pad is released at any time, so $\sum_h\sigma_h\ge3$;
+  \item the support set always contains at least one hand and one foot,
+        preserving the upper-tension/lower-compression couple that balances
+        the wall-normal gravity moment;
+  \item every hand swing starts with a short all-four load-transfer dwell,
+        and every dwell before a release lasts at least $\tau_{\mathrm{ramp}}$;
+  \item during a foot swing the toe of the released foot braces the wall as a
+        compression contact ($\beta_h=1$), so the unloaded spine pad never
+        slides;
+  \item every landing ends with a rake: the pad first touches the wall
+        $d_{\mathrm{rake}}$ above its anchor and is dragged straight down the
+        surface onto it before $\sigma_h$ flips to~1.
+\end{enumerate}
+Segment durations $N_k$ (frames at $f_s=50$\,Hz) are choreography parameters;
+Table~\ref{tab:segments} lists the shipped cycle.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lccl@{}}
+\toprule
+Segment & Frames & Duration [s] & Released pad / brace \\
+\midrule
+hold\_start & 15 & 0.30 & none (left toe plants) \\
+left\_foot\_swing & 38 & 0.76 & LF, left toe braces \\
+foot\_transfer\_hold & 15 & 0.30 & none (retract left toe, plant right) \\
+right\_foot\_swing & 38 & 0.76 & RF, right toe braces \\
+seat\_hold & 15 & 0.30 & none (retract right toe) \\
+left\_hand\_swing & 45 & 0.90 & LH after 0.1\,s transfer dwell \\
+regrip\_hold & 15 & 0.30 & none \\
+right\_hand\_swing & 45 & 0.90 & RH after 0.1\,s transfer dwell \\
+\midrule
+cycle & 226 & 4.52 & $h=30$\,mm, $6.6$\,mm/s \\
+\bottomrule
+\end{tabular}
+\caption{Contact schedule of the shipped reference cycle
+(\texttt{climb\_cycle\_moment\_safe\_paced}).}
+\label{tab:segments}
+\end{table}
+
+\paragraph{Time parameterization.} Within a segment of $N$ frames the
+progress variable is
+\begin{equation}
+  s(t)=S\!\left(\tfrac{t}{N-1}\right),\qquad S(x)=6x^5-15x^4+10x^3,
+\end{equation}
+which has zero velocity and acceleration at both ends.
+
+\paragraph{Swing path.} For the released pad with start pose
+$(\bm p^0,R^0)=\mathrm{FK}_h(\bm q)$ at release and target anchor
+$(\bm p^+,R^a)$, the last $N_r$ frames are the rake and the first
+$N_a=N-N_r$ the approach arc,
+\begin{align}
+  \bm c &= \tfrac12(\bm p^0+\bm p^+)+b\,\nhat+\ell\,\hat{\bm y}_{\mathrm{side}},
+  \qquad \bm r=d_{\mathrm{rake}}\,\zhat,\\
+  \bm p^*(t) &=
+  \begin{cases}
+    (1-s_a)^2\,\bm p^0+2(1-s_a)s_a\,\bm c+s_a^2\,(\bm p^++\bm r), &
+    t<N_a,\quad s_a=S\!\bigl(\min(\tfrac{t}{N_a-1},1)\bigr),\\[2pt]
+    \bm p^++\bigl(1-S(\tfrac{t-N_a+1}{N_r})\bigr)\,\bm r, & t\ge N_a,
+  \end{cases}
+\end{align}
+with off-wall bulge $b$ (hands $0.04$\,m, feet $0.03$\,m), lateral offset
+$\ell$ (default~0) and $d_{\mathrm{rake}}=2$\,mm. The orientation target of a
+foot is the geodesic interpolation
+$R^*(s)=\exp\!\bigl(s\log(R^aR^{0\top})\bigr)R^0$; a hand holds $R^0$ and
+its orientation weight ramps toward landing (Sec.~\ref{sec:soft}).
+
+\paragraph{Toe brace.} With toe tip position $\bm p_{\mathrm{toe}}$ and radius
+$r_{\mathrm{toe}}$ the brace target is
+$x^*_{\mathrm{toe}}(t)=(1-\pi(t))\,x_{\mathrm{plant}}+\pi(t)\,(x_w-r_{\mathrm{toe}})$,
+where the press profile $\pi(t)$ ramps $0\!\to\!1$ over $0.06$\,s, holds 1,
+and returns to 0 during the rake; $y,z$ ride freely.
+
+\paragraph{Base and posture intents.} During a swing the base target and the
+posture reference blend from their values at the segment start,
+\begin{equation}
+  \bm p^*_b(s)=(1-s)\,\bm p_b(t_0)+s\,\bm p^{\mathrm{end}}_b,\qquad
+  \bm\theta^*(s)=(1-s)\,\bm\theta(t_0)+s\,\bm\theta^0,
+\end{equation}
+with $\bm p^{\mathrm{end}}_b=\bm p^0_b-\delta_{\mathrm{press}}\nhat
++\delta_{\mathrm{lat}}\hat{\bm y}_{\mathrm{side}}+\tfrac{k+1}{2}h\,\zhat$ for
+the $k$-th foot swing ($\delta_{\mathrm{press}}=0.03$\,m toward the wall,
+$\delta_{\mathrm{lat}}=0.025$\,m toward the supporting side). These are
+intents, not constraints: the solver realizes them only as far as the latched
+contacts allow.
+
+\section{Lexicographic constrained inverse kinematics}
+\label{sec:ik}
+
+Each frame is solved by iterating a two-level quadratic program in the
+tangent increment of the configuration until convergence. The design
+principle is that \emph{physical facts are hard and intents are soft}: a
+latched pad does not move, a hinge does not pass its stop, a joint does not
+leave its range; everything the choreographer merely \emph{wants} is realized
+in the null space of those facts.
+
+\subsection{Decision variables and hard bounds (level 0)}
+
+The step is
+\begin{equation}
+  \dq=(\delta\bm p_b,\;\delta\bm\phi_b,\;\delta\bm\theta,\;\delta\bm\gamma)\in\R^{n},
+  \qquad n=6+n_j+3|\mathcal H|=39,
+\end{equation}
+where $\delta\bm\phi_b$ is the base rotation vector and $\delta\bm\gamma$
+stacks the gimbal angles of all four pads. Bounds encode the mechanical
+limits and a trust region:
+\begin{align}
+  \bm\theta_{\mathrm{lo}}+\bm m\;\le\;\bm\theta+\delta\bm\theta\;&\le\;\bm\theta_{\mathrm{hi}}-\bm m,
+  & \bm m&=\mu\,(\bm\theta_{\mathrm{hi}}-\bm\theta_{\mathrm{lo}}),\ \mu=0.01,\label{eq:jl}\\
+  -\gamma_{\max}\le\gamma_{h,k}+\delta\gamma_{h,k}&\le\gamma_{\max}
+  & &\text{if }\sigma_h=1,\quad \gamma_{\max}<\gamma_{\mathrm{stop}},\label{eq:gim}\\
+  \gamma_{h,k}+\delta\gamma_{h,k}&=0 & &\text{if }\sigma_h=0,\label{eq:gim0}\\
+  \|\dq\|_\infty&\le\Delta. & &\label{eq:tr}
+\end{align}
+The joint margin $\mu$ matches the $0.98$ soft band the downstream policy
+clamps its targets to, so the reference never asks the policy to fight its
+own clamp. A latched pad may use its gimbal travel up to $\gamma_{\max}$
+(default $2^\circ$), leaving $\gamma_{\mathrm{stop}}-\gamma_{\max}$ of travel
+for the policy's own tracking error. A released pad's gimbal is pinned at
+zero: in the plant it is passive and unloaded, and the solver must not use
+it to fake a landing orientation. All of~\eqref{eq:jl}--\eqref{eq:tr} are
+box constraints $\bm l\le\dq\le\bm u$.
+
+\subsection{Hard task-space constraints (level 1)}
+
+For every latched pad $h$ ($\sigma_h=1$) the pad frame, i.e.\ the body
+\emph{below} the gimbal, is welded to its anchor. With
+$(\bm p_h,R_h)=\mathrm{FK}_h(\bm q)$, site Jacobians $J^p_h,J^r_h\in\R^{3\times n}$
+(including the gimbal columns), and the world-frame small-angle error
+\begin{equation}
+  \bm e^p_h=\bm a_h-\bm p_h,\qquad
+  \bm e^r_h=\tfrac12\sum_{k=1}^{3}\bm r_{h,k}\times\bm r^a_{h,k}
+  \quad(\bm r_{h,k},\bm r^a_{h,k}\text{: columns of }R_h,R^a_h),
+\end{equation}
+the weld rows are
+\begin{equation}
+  J_1\,\dq=\bm e_1,\qquad
+  J_1=\begin{bmatrix}J^p_{h_1}\\ J^r_{h_1}\\ \vdots\end{bmatrix},\quad
+  \bm e_1=\begin{bmatrix}\bm e^p_{h_1}\\ \bm e^r_{h_1}\\ \vdots\end{bmatrix}
+  \in\R^{6n_c},
+  \label{eq:weld}
+\end{equation}
+$n_c=\sum_h\sigma_h\in\{3,4\}$. Wall clearance of released pads and toes is
+a linear inequality on the same level: for every contact sphere or toe tip
+$c$ of a released pad with center $\bm p_c$, radius $r_c$ and Jacobian $J_c$,
+\begin{equation}
+  \hat{\bm x}^\top\bigl(\bm p_c+J_c\,\dq\bigr)\le x_w-r_c
+  \quad\Longleftrightarrow\quad G\,\dq\le\bm g .
+  \label{eq:clear}
+\end{equation}
+
+\subsection{Soft objectives in the null space (level 2)}
+\label{sec:soft}
+
+The intents form a weighted least-squares cost,
+\begin{equation}
+\begin{aligned}
+  f_2(\dq)={}&\tfrac12\!\!\sum_{i\in\mathcal S}\!\bigl\|W_i(J_i\dq-\bm e_i)\bigr\|^2
+  +\tfrac12\bigl\|W_\theta(\delta\bm\theta-(\bm\theta^*-\bm\theta))\bigr\|^2\\
+  &+\tfrac12\bigl\|W_{\mathrm{lim}}(\delta\bm\theta-(\bm\theta_{\mathrm{bnd}}-\bm\theta))\bigr\|^2
+  +\tfrac12 w_\gamma^2\|\bm\gamma+\delta\bm\gamma\|^2
+  +\tfrac12\lambda^2\|\dq\|^2,
+\end{aligned}
+\label{eq:f2}
+\end{equation}
+where $\mathcal S$ collects the swing-pad pose task, the toe-brace task and
+the base task; $W_\theta=\diag(w_\theta)$ pulls toward the posture reference;
+$W_{\mathrm{lim}}$ is nonzero only for joints inside a margin band of width
+$\mu_s(\theta_{\mathrm{hi}}-\theta_{\mathrm{lo}})$, $\mu_s=0.10$, next to
+either stop and pulls them back to the band boundary $\theta_{\mathrm{bnd}}$;
+$w_\gamma$ prefers the arm joints over the gimbal; and $\lambda^2=0.5$ is the
+Levenberg damping. Table~\ref{tab:weights} lists the weights. The swing hand's
+weights fade in over the first 30\,\% of the arc and grow again toward
+landing,
+$w=w_{\min}+(w_{\max}-w_{\min})\max\!\bigl(1-\min(s_a/0.3,1),\,s_a^2\bigr)$,
+which spreads the re-equilibration caused by releasing a weld over the whole
+swing instead of a one-frame pop.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llcc@{}}
+\toprule
+Task & Rows & $w_{\mathrm{pos}}$ & $w_{\mathrm{rot}}$ \\
+\midrule
+latched pad (weld) & level 1, hard & -- & -- \\
+swing foot pad & 6 & 1000 & 100 \\
+swing hand pad & 6 & $500\to2000$ & $50\to500$ \\
+toe brace & 3 (position only) & $(300,\,30,\,30)$ & -- \\
+base intent & 6 & $30$--$100$ & $2$--$50$ \\
+posture reference $w_\theta$ & $n_j$ & $0.3$--$0.6$ (RH swing 10) & -- \\
+limit-band spring $w_{\mathrm{lim}}$ & active joints & 3 & -- \\
+gimbal return $w_\gamma$ & 12 & 3 & -- \\
+damping $\lambda$ & $n$ & $\sqrt{0.5}$ & -- \\
+\bottomrule
+\end{tabular}
+\caption{Task hierarchy and level-2 weights. Latched pads are hard
+constraints and carry no weight.}
+\label{tab:weights}
+\end{table}
+
+\subsection{Two-stage solution, convergence and feasibility verdict}
+
+Each iteration solves two convex QPs. The first realizes the hard tasks as
+well as the bounds allow,
+\begin{equation}
+  \dq_1=\argmin_{\dq}\ \tfrac12\|J_1\dq-\bm e_1\|^2
+  \quad\text{s.t.}\quad \bm l\le\dq\le\bm u,\ \ G\dq\le\bm g,
+  \qquad \bm r_1=J_1\dq_1-\bm e_1 .
+  \label{eq:qp1}
+\end{equation}
+The second minimizes the intents without degrading that optimum:
+\begin{equation}
+  \dq_2=\argmin_{\dq}\ f_2(\dq)
+  \quad\text{s.t.}\quad U_r^\top J_1\dq=U_r^\top J_1\dq_1,\ \
+  \bm l\le\dq\le\bm u,\ \ G\dq\le\bm g,
+  \label{eq:qp2}
+\end{equation}
+where $U_r$ holds the left singular vectors of $J_1$ with
+$\sigma_i>\varepsilon\sigma_{\max}$, so that rank-deficient weld stacks
+(e.g.\ four latched pads on a closed chain) yield a consistent equality set.
+The configuration is updated on the manifold,
+$\bm q\leftarrow\bm q\oplus\dq_2$ (base rotation by the exponential map,
+joints and gimbals additively), and the iteration stops when
+\begin{equation}
+  \|\bm e^p_h\|<\varepsilon_p=1.5\times10^{-4}\,\mathrm m,\quad
+  \|\bm e^r_h\|<\varepsilon_r=2\times10^{-3}\,\mathrm{rad}\ \ \forall h:\sigma_h=1,\quad
+  \|\dq_2\|_\infty<\varepsilon_q=10^{-4},
+\end{equation}
+or after $K_{\max}=100$ iterations ($\Delta=0.12$; the first frames after a
+release are throttled to $\Delta=0.003$ and two iterations).
+
+\paragraph{Lexicographic optimality.} By construction $\dq_2$ attains the
+level-1 residual $\bm r_1$ and, among all steps that do, minimizes $f_2$.
+With equality constraints only this reduces to the classical null-space
+projection $\dq_2=\dq_1+N\bm z^*$, $N=I-V_rV_r^\top$; the QP form is what
+admits the box and clearance inequalities at the same priority as the welds.
+
+\paragraph{Feasibility verdict.} If at termination
+$\|\bm r_1\|$ exceeds the tolerances, the frame is reported infeasible
+together with the active bounds (which joint or gimbal sits at its limit).
+The solver never resolves such a conflict by moving a latched pad or by
+overshooting a stop; it surfaces the conflict to the choreographer. This is
+the mechanism that turns choreography design into a search over a small
+parameter vector with a binary kinematic verdict per frame
+(Sec.~\ref{sec:loop}).
+
+\subsection{Equivalence: bounded gimbal $\equiv$ box-relaxed rotational weld}
+
+Let $\bm o_h$ be the gimbal pivot (the centroid of the pad's contact points)
+and $R^{L}_h$ the orientation of the limb link above the gimbal. Since the pad
+is rigidly attached to the wall while latched and the limb is related to it
+by the gimbal rotation about $\bm o_h$, constraints
+\eqref{eq:weld}--\eqref{eq:gim} are equivalent to
+\begin{equation}
+  \bm o_h(\bm q)=\bm o^a_h,\qquad
+  \bigl|\log\!\bigl(R^{L\top}_h(\bm q)\,R^a_h\bigr)_k\bigr|\le\gamma_{\max},\quad k=1,2,3,
+\end{equation}
+i.e.\ a 3-DoF positional weld of the limb at the pivot plus a componentwise
+box on its orientation error. The bounded-variable form is preferred in the
+implementation because it reuses the plant's own Jacobians and pivot geometry
+without a small-angle approximation, and because the recorded
+$\bm\gamma_h(t)$ directly predicts how much of the physical travel the
+reference consumes.
+
+\subsection{Weighted single-level variant (baseline)}
+\label{sec:weighted}
+
+The baseline replaces the hierarchy by one weighted damped least-squares
+step,
+\begin{equation}
+  \dq=\Bigl(\sum_i J_i^\top W_i^2J_i+D+\lambda^2 I\Bigr)^{-1}
+      \Bigl(\sum_i J_i^\top W_i^2\bm e_i+\bm d\Bigr),
+\end{equation}
+where the weld rows enter with $W=\diag(1000,1000,1000,500,500,500)$, the
+gimbals are locked at zero, and $(D,\bm d)$ collect the posture and
+limit-band springs; joint limits are enforced by clipping after the step.
+Because weights trade off, the weld leaks: the latched pad drifts by an
+amount that grows with the intent weights (measured up to $3.4$\,mm inside
+the swings of the shipped cycle and $1.6$\,mm on the mount prologue under a
+$2\times$ weld weight; re-anchoring at every segment boundary hides the
+accumulated drift from the dwells), and an over-constrained arm resolves a
+rotational demand by translating the pad off its anchor rather than by
+reporting infeasibility. Section~\ref{sec:ablation}
+compares the two.
+
+\subsection{Cycle closure, tiling and velocities}
+
+The last swing returns the robot to the stance; residual solver error is
+removed by a closure blend over the final $n_c=\lceil0.4N_{\mathrm{last}}\rceil$
+frames,
+\begin{equation}
+  \bm\Delta=(\bm q^0\oplus h\zhat)\ominus\bm q_{T},\qquad
+  \bm q_{T-n_c+i}\leftarrow\bm q_{T-n_c+i}\oplus S\!\left(\tfrac{i+1}{n_c}\right)\bm\Delta,
+  \quad i=0,\dots,n_c-1,
+\end{equation}
+so that $\bm q(T)=\bm q^0\oplus h\zhat$ exactly: same joint angles, base
+translated by one step. Cycles tile as $\bm q^{(k)}=\bm q\oplus kh\zhat$ with
+anchors shifted alike. Velocities are forward differences on the loop,
+$\dot{\bm\theta}_t=f_s(\bm\theta_{t+1}-\bm\theta_t)$ and
+$\bm\omega_t=f_s\log(q_{t+1}\otimes q_t^{-1})$, where frame $T$ is frame~0
+shifted, so the wrap velocity is the true loop velocity.
+
+\section{Physics gates}
+\label{sec:gates}
+
+The generator is purely kinematic. Two audits certify that the result is
+physically holdable; both are cheap, deterministic, and independent of any
+learned policy and of the simulator's constraint stiffness.
+
+\subsection{Static force-existence audit on the limit surface}
+
+At each frame the robot is posed at $\bm q(t)$ (gimbals at their recorded
+angles) and we ask whether \emph{some} allocation of contact forces balances
+gravity within the pad envelope and the actuator limits. Unknowns are the
+pad-on-wall forces $\bm F_h$ of latched pads, unilateral wall presses
+$\bm C_j$ (raking pad faces, braced toes), floor forces $\bm P_k$ (mount
+prologues only) and a slack $s$:
+\begin{equation}
+\begin{aligned}
+  \min_{\{\bm F_h\},\{\bm C_j\},\{\bm P_k\},s}\quad & s+\epsilon\|\bm z\|^2\\
+  \text{s.t.}\quad
+  & \textstyle\sum_h\bm F_h+\sum_j\bm C_j+\sum_k\bm P_k=m\,\bm g,\\
+  & \textstyle\sum_h(\bm r_h-\bm r_{\mathrm{com}})\times\bm F_h
+    +\sum_j(\bm r_j-\bm r_{\mathrm{com}})\times\bm C_j
+    +\sum_k(\bm r_k-\bm r_{\mathrm{com}})\times\bm P_k=\bm 0,\\
+  & u_h(\bm F_h)\le s\quad\forall h:\sigma_h=1,\\
+  & \bigl|\bm\tau_0+\textstyle\sum_h J_h^\top\bm F_h+\sum_j J_j^\top\bm C_j+\sum_k J_k^\top\bm P_k\bigr|
+    \le\bm\tau_{\max},\\
+  & c_{j,n}\ge0,\ \|\bm c_{j,t}\|\le\mu_w c_{j,n};\qquad
+    P_{k,z}\le0,\ \|\bm P_{k,xy}\|\le\mu_g(-P_{k,z}),
+\end{aligned}
+\label{eq:audit}
+\end{equation}
+where $\bm\tau_0$ is the gravity torque at zero velocity minus passive joint
+torques, $\bm\tau_{\max}$ the deployment torque limits, and the pad
+utilization is
+\begin{equation}
+  u_h(\bm F)=\frac{\sqrt{f_t^2+f_l^2+\max(f_n,0)^2}}
+                  {F_0\,\max\!\bigl(R(\vartheta,\varphi),\,r_{\mathrm{floor}}\bigr)},
+  \qquad
+  \vartheta=\atan(|f_l|,f_t),\quad
+  \varphi=\atan\!\bigl(\max(f_n,0),\sqrt{f_t^2+f_l^2}\bigr),
+  \label{eq:util}
+\end{equation}
+with $R(\vartheta,\varphi)\in[0,1]$ the normalized Wang limit surface
+(tabulated, bilinearly interpolated), $F_0$ the pure-rake capacity
+($400$\,N, the minimum of the training-time randomization range) and
+compression $f_n<0$ carried by ordinary contact. Local pad moments are zero
+by construction (point forces at the pad centers), so a passing frame cannot
+be relying on the weld as a flange. The audit \emph{passes} iff $s^\star\le1$
+at every frame; the shipped cycle reports $\max_t s^\star=0.877$. Margins are
+built in: $\mu_w=0.5$ (simulated $0.8$), $\mu_g=0.6$ (simulated $1.0$).
+
+\subsection{Schedule-timing audit}
+
+Let $\tau_{\mathrm{cd}}=0.20$\,s be the re-engage cooldown,
+$\tau_{\mathrm{db}}=0.06$\,s the press debounce and
+$\tau_{\mathrm{mv}}=0.25$\,s a floor for the actual pad travel. Over the
+circular schedule, every OFF window $W$ of every pad must satisfy
+\begin{equation}
+  |W|\ge\tau_{\mathrm{cd}}+\tau_{\mathrm{db}}+\tau_{\mathrm{mv}},
+\end{equation}
+and for every regrip of pad $h$ at $t_r$ and the next release $t_f$ of any
+other pad,
+\begin{equation}
+  t_f-t_r\ge\tau_{\mathrm{ramp}}=0.25\,\mathrm s
+  \qquad(\text{warning if }t_f-t_r<\tau_{\mathrm{ramp}}+0.3\,|W|),
+\end{equation}
+because a freshly latched pad holds only a fraction of its capacity until it
+has recruited under load. A cycle that violated this by $0.05$\,s
+(\texttt{fast} timing, $0.2$\,s seat holds) trained policies that abandoned
+the immature foot; restoring the dwells (Table~\ref{tab:segments}) fixed it
+without any change of pose.
+
+\subsection{Design loop}
+\label{sec:loop}
+
+The choreography is a vector $\bm\psi$ of about fifteen scalars (step height,
+bulges, press and lateral shifts, rake length, brace timing) plus the segment
+durations. Generation with the IK verdict, the static audit and the timing
+audit takes minutes and is bitwise reproducible, so $\bm\psi$ is tuned in a
+tight loop and the final recipe is stored with the clip. Because the
+generator does not read any runtime physics parameter, recalibrating the
+simulator's pad model does not invalidate the reference: after the
+$4^\circ$ suspension recalibration the regenerated clip was identical to the
+previous one.
+
+\section{Consuming the reference in reinforcement learning}
+\label{sec:rl}
+
+The clip is resampled to the policy step $\Delta t$ and indexed by a phase
+$k\in\{0,\dots,C-1\}$ that advances every step and wraps with the base
+offset increased by $h$. Episodes start by reference-state initialization: a
+uniformly sampled phase, the robot placed at $\bm q_k$ with joint noise and a
+height jitter along the wall, and the pad latches seeded from $\bm\sigma_k$.
+For a tilted wall the reference is rotated about the wall base line; joint
+angles are frame-invariant.
+
+Imitation rewards use the exponential kernel $r=\exp(-e/\sigma^2)$ on the
+mean squared joint-angle and joint-velocity errors, on the root-frame
+end-effector positions, and on the root-orientation geodesic error; each pose
+reward is multiplied by a schedule gate
+$g=g_0+(1-g_0)\bigl(1-\overline{\mathrm{mismatch}}\bigr)$, where a pad's
+mismatch $|\sigma_h-\hat\sigma_h|$ is discounted linearly within a grace
+fraction of its scheduled window around every edge. Schedule mismatch is
+also billed directly, landings are rewarded once per window by their
+distance to $\bm a_h$, and climb progress is rewarded relative to the clip's
+own rate $h f_s/C$. The base's world position is never tracked: the
+reference dictates \emph{shape and schedule}, the policy learns force
+allocation and balance under domain-randomized pad capacities.
+
+\section{Properties and ablations}
+\label{sec:ablation}
+
+The construction guarantees, per frame and by construction rather than by
+tuning: (i)~latched pads are stationary within $\varepsilon_p,\varepsilon_r$;
+(ii)~joints and gimbals stay strictly inside their limits; (iii)~released
+pads and toes do not penetrate the wall; (iv)~a moment-free static force
+allocation inside the limit surface and torque limits exists; (v)~dwell
+times cover the engage pipeline and the recruitment ramp; (vi)~the cycle
+closes exactly. We report the following ablations \tbd:
+
+\begin{itemize}[leftmargin=1.6em]
+  \item \textbf{Weighted vs.\ lexicographic IK} (Sec.~\ref{sec:weighted} vs.\
+        \ref{sec:ik}): maximum latched-pad drift, worst joint-limit margin,
+        number of frames reported infeasible, and the reachable envelope of
+        the choreography (highest feasible hand anchor at fixed standoff).
+  \item \textbf{Locked vs.\ bounded gimbal} ($\gamma_{\max}\in\{0,1,2,2.5\}^\circ$):
+        pad drift and infeasible frames on the mount prologue, where the
+        closed chain of two welded 4-DoF arms is over-constrained.
+  \item \textbf{Physics gates on/off}: policies trained on the \texttt{fast}
+        (timing-violating) and \texttt{paced} cycles; retargeted style clips
+        as a further baseline.
+  \item \textbf{Downstream}: engage match, per-pad occupancy, climb rate and
+        fall rate of the trained policy on the vertical wall.
+\end{itemize}
+
+\end{document}

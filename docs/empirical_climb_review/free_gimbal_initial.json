@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "reference_point": "C",
+  "wall_surface_x": 1.5,
+  "root_position": [
+    1.3104830648653245,
+    0.0,
+    1.0
+  ],
+  "root_quaternion_wxyz": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "joint_positions": {
+    "left_hip_pitch": -0.3730658524801183,
+    "left_hip_roll": 0.17299397891737742,
+    "left_hip_yaw": -0.13251636278349935,
+    "left_knee": 0.34977191711570305,
+    "left_ankle_pitch": 1.256,
+    "left_ankle_roll": 5.998147535312966e-19,
+    "right_hip_pitch": -0.3730658524738438,
+    "right_hip_roll": -0.1729939788732178,
+    "right_hip_yaw": 0.1325163627651105,
+    "right_knee": 0.3497719171156898,
+    "right_ankle_pitch": 1.256,
+    "right_ankle_roll": 5.412961928188761e-23,
+    "waist_yaw": 1.278455282942048e-08,
+    "neck_yaw": -2.636845747427921e-23,
+    "neck_pitch": -1.977315728348829e-22,
+    "left_shoulder_pitch": -2.349330625416544,
+    "left_shoulder_roll": -0.16772693546018674,
+    "left_shoulder_yaw": 0.006896955727943238,
+    "left_elbow_pitch": -0.7922386128113478,
+    "right_shoulder_pitch": -2.3493306556993323,
+    "right_shoulder_roll": 0.1677269195026355,
+    "right_shoulder_yaw": -0.006896935078820553,
+    "right_elbow_pitch": -0.7922385826676073
+  },
+  "pad_centers_world_m": {
+    "left_hand_spine": [
+      1.500000144227047,
+      0.17784504708099372,
+      1.8657252027264812
+    ],
+    "right_hand_spine": [
+      1.5000001442270106,
+      -0.17784504536743645,
+      1.8657252072502533
+    ],
+    "left_foot_spine": [
+      1.5000000111060834,
+      0.19990012944337113,
+      0.6320177593225723
+    ],
+    "right_foot_spine": [
+      1.50000001110608,
+      -0.19990012942701815,
+      0.632017759319317
+    ]
+  },
+  "max_center_wall_error_m": 1.4422704697203415e-07,
+  "gimbal_angles": "zero; passive joints are not actuated reference targets",
+  "generator": "scripts/gen_cad_climb_reference.py",
+  "protocol_note": "Four initially seeded mature contacts; no claim of demonstrated preload or dynamic stability"
+}

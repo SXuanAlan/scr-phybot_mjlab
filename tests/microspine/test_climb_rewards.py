@@ -331,6 +331,18 @@ def test_release_cost_distinguishes_controlled_and_failed_release():
   assert result.tolist() == pytest.approx([0.0, 12.5, 100.0])
 
 
+def test_empirical_domain_and_early_failures_are_not_free_unhooks():
+  affordance = SimpleNamespace(
+    engaged=torch.tensor([[False, True, True, True]] * 2),
+    forced_release_this_step=torch.tensor([[True, False, False, False]] * 2),
+    release_reason=torch.tensor([[7, 0, 0, 0], [8, 0, 0, 0]]),
+  )
+  env = SimpleNamespace(command_manager=FakeCommandManager(torch.zeros(2, 3), affordance),
+    step_dt=.02, episode_length_buf=torch.full((2,), 100, dtype=torch.long))
+  cost = unsafe_microspine_release_penalty(env)
+  assert torch.all(cost > 0)
+
+
 def _make_motion_env(motion):
   return SimpleNamespace(
     command_manager=FakeCommandManager(torch.zeros(1, 3), motion),

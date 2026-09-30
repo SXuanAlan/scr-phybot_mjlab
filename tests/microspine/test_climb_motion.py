@@ -78,6 +78,20 @@ def test_loader_slices_one_cycle_and_derives_velocities():
   assert clip.ee_engaged[1].tolist() == [True, True, False, False]
 
 
+def test_passive_reference_state_is_loaded_and_resampled_without_becoming_actions():
+  data = _synthetic_clip()
+  data["passive_joint_names"] = ["pad_gimbal_x"]
+  data["passive_joint_positions"] = np.arange(6, dtype=np.float32)[:, None] * .001
+  clip = ClimbMotionClip.from_dict(data, step_dt=.01, device="cpu")
+  assert clip.joint_names == ("j0", "j1")
+  assert clip.passive_joint_names == ("pad_gimbal_x",)
+  assert clip.passive_joint_pos.shape[1] == 1
+  torch.testing.assert_close(clip.passive_joint_vel, torch.full_like(clip.passive_joint_vel, .05))
+  data["passive_joint_names"] = ["j0"]
+  with pytest.raises(ValueError, match="both actuated and passive"):
+    ClimbMotionClip.from_dict(data, step_dt=.02, device="cpu")
+
+
 def test_loader_derives_schedule_edge_countdowns():
   clip = ClimbMotionClip.from_dict(_synthetic_clip(), step_dt=0.02, device="cpu")
 

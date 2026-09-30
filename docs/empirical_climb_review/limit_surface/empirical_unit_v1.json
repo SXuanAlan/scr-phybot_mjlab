@@ -1,0 +1,6081 @@
+{
+  "schema_version": 1,
+  "source": "/home/spider/projects/scr-phybot_mjlab/data/microspine/raw/20260905-110314/results.csv",
+  "source_sha256": "ddabbd752802a270539d0fff4b12d7b0a3f84651d50346bd4f4b9d897c0bfd44",
+  "result_counts": {
+    "detached_normal": 275,
+    "detached_drag": 2,
+    "detached_lateral": 18,
+    "held": 1
+  },
+  "cells": [
+    {
+      "shear_n": -15.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 1,
+        "detached_lateral": 1
+      },
+      "trial_ids": [
+        63,
+        112
+      ],
+      "terminal_command_n": [
+        -1.5
+      ],
+      "first_release_command_n": [
+        -1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -15.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        48,
+        168,
+        209
+      ],
+      "terminal_command_n": [
+        1.0,
+        -4.0,
+        0.0
+      ],
+      "first_release_command_n": [
+        -3.5,
+        -7.5,
+        -4.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -15.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        25,
+        28,
+        148,
+        175,
+        275
+      ],
+      "terminal_command_n": [
+        1.0,
+        -1.5,
+        -1.5,
+        -2.5,
+        -1.0
+      ],
+      "first_release_command_n": [
+        -3.5,
+        -2.0,
+        -1.5,
+        -9.5,
+        -6.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -15.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        14,
+        72,
+        169,
+        214,
+        273
+      ],
+      "terminal_command_n": [
+        -1.5,
+        -0.5,
+        -3.0,
+        -3.0,
+        -4.5
+      ],
+      "first_release_command_n": [
+        -4.0,
+        -0.5,
+        -4.5,
+        -3.5,
+        -4.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -15.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        84,
+        110,
+        133,
+        194
+      ],
+      "terminal_command_n": [
+        1.5,
+        -3.369,
+        -4.5,
+        -5.0
+      ],
+      "first_release_command_n": [
+        -5.5,
+        -3.5,
+        -5.0,
+        -5.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -15.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_drag": 1,
+        "detached_lateral": 1,
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        58,
+        146,
+        190,
+        236
+      ],
+      "terminal_command_n": [
+        -2.5,
+        -2.0
+      ],
+      "first_release_command_n": [
+        -2.5,
+        -2.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -15.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 3,
+        "detached_lateral": 4
+      },
+      "trial_ids": [
+        22,
+        39,
+        66,
+        163,
+        186,
+        256,
+        279
+      ],
+      "terminal_command_n": [
+        -1.5,
+        -4.5,
+        -0.5
+      ],
+      "first_release_command_n": [
+        -3.0,
+        -0.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        120,
+        160,
+        248
+      ],
+      "terminal_command_n": [
+        0.0,
+        1.0,
+        -3.0
+      ],
+      "first_release_command_n": [
+        0.0,
+        -1.0,
+        -3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        139,
+        278
+      ],
+      "terminal_command_n": [
+        -2.0,
+        -2.5
+      ],
+      "first_release_command_n": [
+        -2.5,
+        -2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        50,
+        96,
+        174,
+        230
+      ],
+      "terminal_command_n": [
+        -1.0,
+        -1.0,
+        0.0,
+        -7.0
+      ],
+      "first_release_command_n": [
+        -5.0,
+        -4.0,
+        -2.0,
+        -7.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        108,
+        150,
+        276
+      ],
+      "terminal_command_n": [
+        -1.5,
+        -0.5,
+        -3.0
+      ],
+      "first_release_command_n": [
+        -1.5,
+        -7.5,
+        -3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        10,
+        36,
+        167
+      ],
+      "terminal_command_n": [
+        -0.335,
+        -0.5,
+        -2.5
+      ],
+      "first_release_command_n": [
+        -3.0,
+        -0.5,
+        -2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 6,
+        "detached_lateral": 1
+      },
+      "trial_ids": [
+        30,
+        78,
+        113,
+        152,
+        191,
+        257,
+        263
+      ],
+      "terminal_command_n": [
+        0.5,
+        -8.5,
+        -4.5,
+        -2.5,
+        -0.5,
+        -5.396
+      ],
+      "first_release_command_n": [
+        0.5,
+        -8.5,
+        -9.0,
+        -2.5,
+        -0.5,
+        -5.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -10.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 3,
+        "detached_lateral": 2
+      },
+      "trial_ids": [
+        103,
+        171,
+        202,
+        237,
+        269
+      ],
+      "terminal_command_n": [
+        -2.0,
+        -7.0,
+        -2.0
+      ],
+      "first_release_command_n": [
+        -2.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        12,
+        80,
+        127,
+        154,
+        260
+      ],
+      "terminal_command_n": [
+        1.0,
+        -1.5,
+        0.0,
+        -0.5,
+        0.0
+      ],
+      "first_release_command_n": [
+        -2.5,
+        -1.5,
+        -3.0,
+        -1.5,
+        0.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        123,
+        145,
+        240,
+        290
+      ],
+      "terminal_command_n": [
+        1.0,
+        0.5,
+        -0.019,
+        0.5
+      ],
+      "first_release_command_n": [
+        1.0,
+        -2.5,
+        -4.5,
+        -0.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 6
+      },
+      "trial_ids": [
+        85,
+        109,
+        170,
+        189,
+        245,
+        262
+      ],
+      "terminal_command_n": [
+        2.5,
+        -1.5,
+        -4.5,
+        0.0,
+        -0.5,
+        -2.5
+      ],
+      "first_release_command_n": [
+        -0.5,
+        -3.0,
+        -6.5,
+        -2.5,
+        -3.0,
+        -2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        7,
+        165,
+        215
+      ],
+      "terminal_command_n": [
+        1.5,
+        -0.5,
+        1.5
+      ],
+      "first_release_command_n": [
+        -2.0,
+        -0.5,
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        70,
+        211,
+        277
+      ],
+      "terminal_command_n": [
+        -4.5,
+        -1.0,
+        -3.5
+      ],
+      "first_release_command_n": [
+        -5.0,
+        -2.5,
+        -3.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        92,
+        143,
+        176,
+        227
+      ],
+      "terminal_command_n": [
+        -8.0,
+        -3.0,
+        -2.5,
+        -3.0
+      ],
+      "first_release_command_n": [
+        -8.0,
+        -3.0,
+        -2.5,
+        -3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -5.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 4,
+        "detached_lateral": 1
+      },
+      "trial_ids": [
+        4,
+        34,
+        77,
+        124,
+        138
+      ],
+      "terminal_command_n": [
+        -1.0,
+        -9.5,
+        -9.5,
+        -5.0
+      ],
+      "first_release_command_n": [
+        -9.5,
+        -9.5,
+        -5.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 0.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 9
+      },
+      "trial_ids": [
+        51,
+        69,
+        94,
+        105,
+        132,
+        180,
+        223,
+        234,
+        265
+      ],
+      "terminal_command_n": [
+        1.0,
+        0.5,
+        0.5,
+        1.0,
+        0.495,
+        0.5,
+        0.0,
+        0.998,
+        1.5
+      ],
+      "first_release_command_n": [
+        1.0,
+        0.5,
+        0.5,
+        0.5,
+        -0.5,
+        -1.0,
+        -0.5,
+        0.0,
+        1.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 0.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 10
+      },
+      "trial_ids": [
+        8,
+        29,
+        65,
+        98,
+        122,
+        162,
+        196,
+        207,
+        224,
+        284
+      ],
+      "terminal_command_n": [
+        1.5,
+        0.5,
+        0.5,
+        0.489,
+        0.5,
+        2.5,
+        -1.5,
+        -0.5,
+        -1.0,
+        1.0
+      ],
+      "first_release_command_n": [
+        -0.5,
+        -1.5,
+        -0.5,
+        -0.5,
+        -0.5,
+        0.5,
+        -2.0,
+        -1.0,
+        -2.5,
+        0.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -0.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 8
+      },
+      "trial_ids": [
+        31,
+        79,
+        89,
+        101,
+        164,
+        181,
+        201,
+        228
+      ],
+      "terminal_command_n": [
+        2.5,
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        -0.157,
+        0.0,
+        0.0
+      ],
+      "first_release_command_n": [
+        -1.0,
+        -1.0,
+        -2.0,
+        -1.5,
+        1.0,
+        -3.5,
+        -1.5,
+        -2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -0.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 8
+      },
+      "trial_ids": [
+        21,
+        27,
+        60,
+        88,
+        128,
+        205,
+        206,
+        270
+      ],
+      "terminal_command_n": [
+        3.0,
+        1.18,
+        2.0,
+        -0.5,
+        0.0,
+        -1.5,
+        0.0,
+        1.0
+      ],
+      "first_release_command_n": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -0.5,
+        0.0,
+        -9.0,
+        0.0,
+        -1.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -0.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 11
+      },
+      "trial_ids": [
+        3,
+        24,
+        33,
+        42,
+        59,
+        129,
+        156,
+        212,
+        220,
+        255,
+        267
+      ],
+      "terminal_command_n": [
+        -2.0,
+        0.5,
+        -3.5,
+        0.069,
+        2.0,
+        -1.257,
+        -2.5,
+        0.0,
+        1.0,
+        3.0,
+        1.5
+      ],
+      "first_release_command_n": [
+        -2.0,
+        -0.5,
+        -3.5,
+        0.0,
+        2.0,
+        -1.5,
+        -2.5,
+        0.0,
+        1.0,
+        3.0,
+        -6.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": -0.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 11
+      },
+      "trial_ids": [
+        17,
+        38,
+        76,
+        82,
+        95,
+        142,
+        158,
+        179,
+        225,
+        231,
+        282
+      ],
+      "terminal_command_n": [
+        -1.0,
+        -9.5,
+        -2.606,
+        -6.0,
+        -2.0,
+        3.5,
+        3.0,
+        -1.5,
+        -1.0,
+        -5.0,
+        -0.5
+      ],
+      "first_release_command_n": [
+        -1.0,
+        -9.5,
+        -3.5,
+        -6.0,
+        -6.0,
+        -3.0,
+        -3.0,
+        -1.5,
+        -1.0,
+        -5.0,
+        -0.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 0.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        47,
+        135,
+        210,
+        253,
+        285
+      ],
+      "terminal_command_n": [
+        -1.0,
+        1.0,
+        3.392,
+        -2.0,
+        0.5
+      ],
+      "first_release_command_n": [
+        1.0,
+        -2.0,
+        0.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 5,
+        "detached_lateral": 1
+      },
+      "trial_ids": [
+        2,
+        73,
+        107,
+        198,
+        246,
+        289
+      ],
+      "terminal_command_n": [
+        2.0,
+        1.0,
+        1.5,
+        0.5,
+        3.0
+      ],
+      "first_release_command_n": [
+        -1.5,
+        -0.5,
+        -0.5,
+        0.5,
+        2.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        99,
+        203
+      ],
+      "terminal_command_n": [
+        2.0,
+        0.5
+      ],
+      "first_release_command_n": [
+        2.0,
+        -2.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        55,
+        106,
+        193,
+        258
+      ],
+      "terminal_command_n": [
+        1.0,
+        0.0,
+        2.5,
+        1.517
+      ],
+      "first_release_command_n": [
+        1.0,
+        0.0,
+        0.0,
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        15,
+        117,
+        183,
+        294
+      ],
+      "terminal_command_n": [
+        2.5,
+        3.0,
+        3.0,
+        1.422
+      ],
+      "first_release_command_n": [
+        1.0,
+        -0.5,
+        3.0,
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        37,
+        83,
+        121,
+        149
+      ],
+      "terminal_command_n": [
+        3.0,
+        1.0,
+        -0.5,
+        4.5
+      ],
+      "first_release_command_n": [
+        3.0,
+        1.0,
+        -0.5,
+        -3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        16,
+        235,
+        274,
+        293
+      ],
+      "terminal_command_n": [
+        -4.0,
+        3.5,
+        3.0,
+        1.5
+      ],
+      "first_release_command_n": [
+        -4.0,
+        3.5,
+        3.0,
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 5.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 7
+      },
+      "trial_ids": [
+        32,
+        53,
+        116,
+        131,
+        144,
+        173,
+        238
+      ],
+      "terminal_command_n": [
+        3.5,
+        1.0,
+        -5.5,
+        -6.5,
+        -3.349,
+        -5.5,
+        -0.5
+      ],
+      "first_release_command_n": [
+        -1.0,
+        1.0,
+        -6.5,
+        -5.0,
+        -5.5,
+        -0.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 1
+      },
+      "trial_ids": [
+        54
+      ],
+      "terminal_command_n": [
+        5.0
+      ],
+      "first_release_command_n": [
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        6,
+        130,
+        250,
+        266
+      ],
+      "terminal_command_n": [
+        2.0,
+        2.5,
+        1.5,
+        0.0
+      ],
+      "first_release_command_n": [
+        0.0,
+        2.5,
+        1.5,
+        -1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        11,
+        67,
+        118,
+        141,
+        252
+      ],
+      "terminal_command_n": [
+        4.566,
+        2.0,
+        3.0,
+        2.5,
+        3.0
+      ],
+      "first_release_command_n": [
+        2.5,
+        2.0,
+        3.0,
+        2.5,
+        3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        177,
+        244,
+        271
+      ],
+      "terminal_command_n": [
+        3.0,
+        3.3,
+        2.5
+      ],
+      "first_release_command_n": [
+        3.0,
+        0.0,
+        2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        5,
+        68,
+        161,
+        242,
+        261
+      ],
+      "terminal_command_n": [
+        1.0,
+        1.5,
+        2.0,
+        -1.5,
+        2.5
+      ],
+      "first_release_command_n": [
+        1.0,
+        1.5,
+        2.0,
+        -1.5,
+        -6.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        64,
+        125,
+        182,
+        295
+      ],
+      "terminal_command_n": [
+        5.0,
+        2.5,
+        -2.0,
+        -6.0
+      ],
+      "first_release_command_n": [
+        -9.5,
+        2.5,
+        -2.0,
+        -6.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 10.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        185,
+        219
+      ],
+      "terminal_command_n": [
+        1.5,
+        4.0
+      ],
+      "first_release_command_n": [
+        1.5,
+        4.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 15.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        19,
+        114,
+        197,
+        249
+      ],
+      "terminal_command_n": [
+        2.742,
+        -8.5,
+        5.0,
+        3.5
+      ],
+      "first_release_command_n": [
+        -0.5,
+        -9.0,
+        1.5,
+        1.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 15.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        57,
+        192,
+        251
+      ],
+      "terminal_command_n": [
+        5.5,
+        3.0,
+        2.5
+      ],
+      "first_release_command_n": [
+        5.5,
+        3.0,
+        2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 15.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_lateral": 1,
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        61,
+        157,
+        188,
+        239,
+        288
+      ],
+      "terminal_command_n": [
+        2.0,
+        6.5,
+        -1.0,
+        1.0
+      ],
+      "first_release_command_n": [
+        1.0,
+        0.5,
+        -1.0,
+        -2.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 15.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        13,
+        75,
+        213,
+        247
+      ],
+      "terminal_command_n": [
+        4.0,
+        3.5,
+        2.0,
+        -3.606
+      ],
+      "first_release_command_n": [
+        -9.5,
+        3.0,
+        2.0,
+        -3.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 15.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 1
+      },
+      "trial_ids": [
+        222
+      ],
+      "terminal_command_n": [
+        6.137
+      ],
+      "first_release_command_n": [
+        4.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 15.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        87,
+        243
+      ],
+      "terminal_command_n": [
+        -8.0,
+        -8.5
+      ],
+      "first_release_command_n": [
+        -8.0,
+        -8.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_drag": 1,
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        23,
+        45,
+        91,
+        166,
+        187,
+        264
+      ],
+      "terminal_command_n": [
+        4.5,
+        7.0,
+        4.0,
+        2.5,
+        4.0
+      ],
+      "first_release_command_n": [
+        2.5,
+        7.0,
+        3.5,
+        2.5,
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        97,
+        134
+      ],
+      "terminal_command_n": [
+        6.0,
+        5.0
+      ],
+      "first_release_command_n": [
+        4.0,
+        5.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        26,
+        74,
+        100,
+        233,
+        286
+      ],
+      "terminal_command_n": [
+        6.5,
+        8.0,
+        3.0,
+        0.0,
+        -5.0
+      ],
+      "first_release_command_n": [
+        6.5,
+        2.0,
+        -2.0,
+        0.0,
+        -5.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        216,
+        221
+      ],
+      "terminal_command_n": [
+        7.5,
+        1.5
+      ],
+      "first_release_command_n": [
+        3.5,
+        -4.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        119,
+        281
+      ],
+      "terminal_command_n": [
+        6.0,
+        5.0
+      ],
+      "first_release_command_n": [
+        1.5,
+        5.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        90,
+        195
+      ],
+      "terminal_command_n": [
+        -2.0,
+        1.5
+      ],
+      "first_release_command_n": [
+        -5.5,
+        1.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 20.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_lateral": 1,
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        41,
+        102,
+        232
+      ],
+      "terminal_command_n": [
+        -0.001,
+        -3.0
+      ],
+      "first_release_command_n": [
+        -3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        9,
+        46,
+        137,
+        200,
+        291
+      ],
+      "terminal_command_n": [
+        7.0,
+        6.5,
+        3.0,
+        3.0,
+        4.5
+      ],
+      "first_release_command_n": [
+        3.5,
+        6.5,
+        0.0,
+        -0.5,
+        4.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 6
+      },
+      "trial_ids": [
+        71,
+        126,
+        140,
+        184,
+        218,
+        268
+      ],
+      "terminal_command_n": [
+        6.0,
+        2.0,
+        4.5,
+        6.0,
+        2.0,
+        8.0
+      ],
+      "first_release_command_n": [
+        6.0,
+        0.5,
+        2.0,
+        6.0,
+        0.0,
+        4.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        40,
+        49,
+        151
+      ],
+      "terminal_command_n": [
+        8.5,
+        3.5,
+        9.0
+      ],
+      "first_release_command_n": [
+        8.5,
+        2.5,
+        4.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 1
+      },
+      "trial_ids": [
+        52
+      ],
+      "terminal_command_n": [
+        6.5
+      ],
+      "first_release_command_n": [
+        6.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        35,
+        155,
+        204
+      ],
+      "terminal_command_n": [
+        7.362,
+        1.5,
+        -2.5
+      ],
+      "first_release_command_n": [
+        7.5,
+        1.5,
+        -2.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 4
+      },
+      "trial_ids": [
+        86,
+        172,
+        208,
+        292
+      ],
+      "terminal_command_n": [
+        3.0,
+        3.0,
+        -0.287,
+        -4.0
+      ],
+      "first_release_command_n": [
+        3.0,
+        -4.5,
+        -4.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 25.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_lateral": 2,
+        "detached_normal": 3
+      },
+      "trial_ids": [
+        44,
+        115,
+        147,
+        254,
+        287
+      ],
+      "terminal_command_n": [
+        -3.857,
+        -9.5,
+        -4.5
+      ],
+      "first_release_command_n": [
+        -4.0,
+        -9.5,
+        -4.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 0.0,
+      "count": {
+        "detached_normal": 5,
+        "held": 1
+      },
+      "trial_ids": [
+        1,
+        18,
+        43,
+        93,
+        159,
+        280
+      ],
+      "terminal_command_n": [
+        9.0,
+        3.0,
+        4.5,
+        2.5,
+        0.688
+      ],
+      "first_release_command_n": [
+        9.0,
+        2.5,
+        4.5,
+        0.5,
+        -4.5
+      ],
+      "censored_lower_bounds_n": [
+        10.0
+      ]
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 5.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        20,
+        153,
+        199,
+        229,
+        296
+      ],
+      "terminal_command_n": [
+        2.0,
+        6.0,
+        0.5,
+        8.0,
+        3.0
+      ],
+      "first_release_command_n": [
+        -2.0,
+        2.0,
+        0.5,
+        8.0,
+        3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 10.0,
+      "count": {
+        "detached_normal": 1
+      },
+      "trial_ids": [
+        81
+      ],
+      "terminal_command_n": [
+        3.426
+      ],
+      "first_release_command_n": [
+        -2.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 15.0,
+      "count": {
+        "detached_normal": 1
+      },
+      "trial_ids": [
+        136
+      ],
+      "terminal_command_n": [
+        7.5
+      ],
+      "first_release_command_n": [
+        3.5
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 20.0,
+      "count": {
+        "detached_normal": 5
+      },
+      "trial_ids": [
+        62,
+        104,
+        178,
+        259,
+        272
+      ],
+      "terminal_command_n": [
+        6.0,
+        4.5,
+        7.606,
+        4.787,
+        5.0
+      ],
+      "first_release_command_n": [
+        -5.5,
+        -5.0,
+        8.0,
+        -1.0,
+        -1.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 25.0,
+      "count": {
+        "detached_normal": 2
+      },
+      "trial_ids": [
+        111,
+        241
+      ],
+      "terminal_command_n": [
+        -1.5,
+        3.0
+      ],
+      "first_release_command_n": [
+        -1.5,
+        3.0
+      ],
+      "censored_lower_bounds_n": []
+    },
+    {
+      "shear_n": 30.0,
+      "lateral_n": 30.0,
+      "count": {
+        "detached_lateral": 3,
+        "detached_normal": 1
+      },
+      "trial_ids": [
+        56,
+        217,
+        226,
+        283
+      ],
+      "terminal_command_n": [
+        -9.0
+      ],
+      "first_release_command_n": [
+        -9.5
+      ],
+      "censored_lower_bounds_n": []
+    }
+  ],
+  "unlisted_detail_files": [
+    "20260905-111342_T297_Dp_S20_L5_R1.csv"
+  ],
+  "missing_detail_files": [],
+  "protocol": {
+    "preload_per_unit_n": 10,
+    "normal_step_n": 0.5,
+    "dwell_per_step_s": 3,
+    "failure_value": "fz_cmd_n, including actual ramp command at the event",
+    "partial_release": "fz_first_release_n retained separately; not terminal failure"
+  },
+  "assumptions": [
+    "same substrate and 10 N unit seating protocol",
+    "Gaussian kernel pooling of observed outcomes; bandwidth selected by calibration-only leave-placement-out quantile loss",
+    "negative lateral reflected from positive lateral; unmeasured symmetry",
+    "same quantile rank across directions; unmeasured directional correlation",
+    "early loading failure frequency indexed by intended S,L protocol; not a normal threshold",
+    "censored tail capped conservatively at last observation, with explicit flag",
+    "bilinear conditional-quantile interpolation; missing cells filled inside data hull",
+    "independent unit draws; no measured between-unit or between-pad correlation",
+    "equal-stiffness allocation at C; first unit violation releases whole pad",
+    "no shear/lateral extrapolation beyond measured S[-15,30], abs(L)[0,30]",
+    "10 N seating is a minimum engagement preload, not a compression limit; normal failure is an upper pull-off bound",
+    "additional compression does not increase fitted pull-off capacity; structural compression failure is not identified",
+    "no dwell-time extrapolation, fatigue identification or full-pad physical validation"
+  ],
+  "validation": {
+    "split": "retrospective x_mm < 540 calibration, x_mm >= 540 validation; same panel",
+    "calibration_trial_ids": [
+      2,
+      3,
+      5,
+      6,
+      7,
+      9,
+      13,
+      14,
+      18,
+      21,
+      22,
+      24,
+      26,
+      27,
+      29,
+      31,
+      34,
+      40,
+      41,
+      44,
+      45,
+      48,
+      51,
+      52,
+      57,
+      58,
+      59,
+      64,
+      66,
+      67,
+      69,
+      71,
+      72,
+      73,
+      74,
+      76,
+      77,
+      80,
+      86,
+      87,
+      89,
+      90,
+      92,
+      95,
+      96,
+      97,
+      98,
+      101,
+      106,
+      107,
+      108,
+      112,
+      113,
+      117,
+      119,
+      120,
+      122,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      132,
+      133,
+      134,
+      135,
+      137,
+      138,
+      139,
+      141,
+      142,
+      145,
+      149,
+      151,
+      156,
+      160,
+      161,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      178,
+      179,
+      181,
+      182,
+      185,
+      186,
+      187,
+      189,
+      190,
+      194,
+      195,
+      196,
+      197,
+      198,
+      201,
+      204,
+      207,
+      208,
+      210,
+      213,
+      214,
+      216,
+      218,
+      220,
+      223,
+      224,
+      227,
+      229,
+      230,
+      231,
+      232,
+      233,
+      234,
+      235,
+      236,
+      238,
+      239,
+      241,
+      243,
+      251,
+      254,
+      257,
+      258,
+      261,
+      262,
+      263,
+      265,
+      266,
+      267,
+      272,
+      274,
+      275,
+      276,
+      279,
+      281,
+      282,
+      283,
+      284,
+      286,
+      288,
+      289,
+      290,
+      292,
+      293,
+      295
+    ],
+    "validation_trial_ids": [
+      1,
+      4,
+      8,
+      10,
+      11,
+      12,
+      15,
+      16,
+      17,
+      19,
+      20,
+      23,
+      25,
+      28,
+      30,
+      32,
+      33,
+      35,
+      36,
+      37,
+      38,
+      39,
+      42,
+      43,
+      46,
+      47,
+      49,
+      50,
+      53,
+      54,
+      55,
+      56,
+      60,
+      61,
+      62,
+      63,
+      65,
+      68,
+      70,
+      75,
+      78,
+      79,
+      81,
+      82,
+      83,
+      84,
+      85,
+      88,
+      91,
+      93,
+      94,
+      99,
+      100,
+      102,
+      103,
+      104,
+      105,
+      109,
+      110,
+      111,
+      114,
+      115,
+      116,
+      118,
+      121,
+      123,
+      130,
+      131,
+      136,
+      140,
+      143,
+      144,
+      146,
+      147,
+      148,
+      150,
+      152,
+      153,
+      154,
+      155,
+      157,
+      158,
+      159,
+      162,
+      163,
+      164,
+      165,
+      166,
+      173,
+      174,
+      175,
+      176,
+      177,
+      180,
+      183,
+      184,
+      188,
+      191,
+      192,
+      193,
+      199,
+      200,
+      202,
+      203,
+      205,
+      206,
+      209,
+      211,
+      212,
+      215,
+      217,
+      219,
+      221,
+      222,
+      225,
+      226,
+      228,
+      237,
+      240,
+      242,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      252,
+      253,
+      255,
+      256,
+      259,
+      260,
+      264,
+      268,
+      269,
+      270,
+      271,
+      273,
+      277,
+      278,
+      280,
+      285,
+      287,
+      291,
+      294,
+      296
+    ],
+    "trials": [
+      {
+        "trial": 1,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.390855379712532e-17,
+        "early_probability": 7.994282569256939e-09,
+        "observed_n": 9.0,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 4,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.027526283227878645,
+        "early_probability": 0.16591046750545502,
+        "observed_n": -1.0,
+        "predicted_median_n": -7.0,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 8,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.8213148259081467e-05,
+        "early_probability": 0.005311605054885149,
+        "observed_n": 1.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 10,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.01659480024958615,
+        "early_probability": 0.12882080674171448,
+        "observed_n": -0.335,
+        "predicted_median_n": -3.0,
+        "absolute_error_n": 2.665,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 11,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.5666702960984028e-05,
+        "early_probability": 0.003958118613809347,
+        "observed_n": 4.566,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 2.566,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 12,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.4859373315466427e-08,
+        "early_probability": 0.00012189902918180451,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 15,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 4.145660628144957e-06,
+        "early_probability": 0.0020360895432531834,
+        "observed_n": 2.5,
+        "predicted_median_n": 1.5169999599456787,
+        "absolute_error_n": 0.9830000400543213,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 16,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 9.126104547702103e-10,
+        "early_probability": 3.0209443139028735e-05,
+        "observed_n": -4.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 17,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.934577404839817e-05,
+        "early_probability": 0.006272620987147093,
+        "observed_n": -1.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 19,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.7928613115569715e-08,
+        "early_probability": 0.00016711856005713344,
+        "observed_n": 2.742,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 2.258,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 20,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.147948521464392e-12,
+        "early_probability": 1.7742459021974355e-06,
+        "observed_n": 2.0,
+        "predicted_median_n": 7.0,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 23,
+        "supported": true,
+        "result": "detached_drag",
+        "early_brier": 0.999999985535541,
+        "early_probability": 7.23222948195712e-09
+      },
+      {
+        "trial": 25,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0006899553628290957,
+        "early_probability": 0.026267001405358315,
+        "observed_n": 1.0,
+        "predicted_median_n": -1.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 28,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0006899553628290957,
+        "early_probability": 0.026267001405358315,
+        "observed_n": -1.5,
+        "predicted_median_n": -1.5,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 30,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.051203894443663245,
+        "early_probability": 0.2262827754020691,
+        "observed_n": 0.5,
+        "predicted_median_n": -4.5,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 32,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.856459913510204e-09,
+        "early_probability": 7.65275108278729e-05,
+        "observed_n": 3.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 33,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.6653341858646146e-06,
+        "early_probability": 0.001290478277951479,
+        "observed_n": -3.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 35,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0009390427235185829,
+        "early_probability": 0.030643803998827934,
+        "observed_n": 7.362,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 4.362,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 36,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.01659480024958615,
+        "early_probability": 0.12882080674171448,
+        "observed_n": -0.5,
+        "predicted_median_n": -3.0,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 37,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.483233691051741e-09,
+        "early_probability": 5.901892654947005e-05,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 38,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.934577404839817e-05,
+        "early_probability": 0.006272620987147093,
+        "observed_n": -9.5,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 9.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 39,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.3467239910032873,
+        "early_probability": 0.4111672639846802
+      },
+      {
+        "trial": 42,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.6653341858646146e-06,
+        "early_probability": 0.001290478277951479,
+        "observed_n": 0.069,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.069,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 43,
+        "supported": true,
+        "result": "held",
+        "early_brier": 6.390855379712532e-17,
+        "early_probability": 7.994282569256939e-09
+      },
+      {
+        "trial": 46,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.60577578539198e-17,
+        "early_probability": 4.007213227907869e-09,
+        "observed_n": 6.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 47,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0003072469552786762,
+        "early_probability": 0.017528461292386055,
+        "observed_n": -1.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 49,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.2535609799984e-09,
+        "early_probability": 7.24814526620321e-05,
+        "observed_n": 3.5,
+        "predicted_median_n": 6.5,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 50,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.0302561650878213e-05,
+        "early_probability": 0.005504776258021593,
+        "observed_n": -1.0,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 53,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.856459913510204e-09,
+        "early_probability": 7.65275108278729e-05,
+        "observed_n": 1.0,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 54,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.003234511141641472,
+        "early_probability": 0.056872762739658356,
+        "observed_n": 5.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 55,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.000564579567477911,
+        "early_probability": 0.023760883137583733,
+        "observed_n": 1.0,
+        "predicted_median_n": 1.5169999599456787,
+        "absolute_error_n": 0.5169999599456787,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 56,
+        "supported": false
+      },
+      {
+        "trial": 60,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.479916156197641e-08,
+        "early_probability": 0.00023409220739267766,
+        "observed_n": 2.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 61,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.9994690734892845,
+        "early_probability": 0.0002654985000845045
+      },
+      {
+        "trial": 62,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0020695702738890986,
+        "early_probability": 0.04549252986907959,
+        "observed_n": 6.0,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 63,
+        "supported": false
+      },
+      {
+        "trial": 65,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.8213148259081467e-05,
+        "early_probability": 0.005311605054885149,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 68,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.738182804594458e-10,
+        "early_probability": 1.318401609751163e-05,
+        "observed_n": 1.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 70,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.001738966270315112,
+        "early_probability": 0.04170091450214386,
+        "observed_n": -4.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 75,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.2565395637376131e-05,
+        "early_probability": 0.0035447701811790466,
+        "observed_n": 3.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 78,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.051203894443663245,
+        "early_probability": 0.2262827754020691,
+        "observed_n": -8.5,
+        "predicted_median_n": -4.5,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 79,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.7075563057411536e-06,
+        "early_probability": 0.0013067349791526794,
+        "observed_n": 0.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 81,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.1048491860604165e-08,
+        "early_probability": 0.00022593913308810443,
+        "observed_n": 3.426,
+        "predicted_median_n": 8.0,
+        "absolute_error_n": 4.574,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 82,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.934577404839817e-05,
+        "early_probability": 0.006272620987147093,
+        "observed_n": -6.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 5.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 83,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.483233691051741e-09,
+        "early_probability": 5.901892654947005e-05,
+        "observed_n": 1.0,
+        "predicted_median_n": 2.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 84,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.01616428417171556,
+        "early_probability": 0.12713883817195892,
+        "observed_n": 1.5,
+        "predicted_median_n": -3.0,
+        "absolute_error_n": 4.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 85,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.758681930372626e-08,
+        "early_probability": 0.00025997465127147734,
+        "observed_n": 2.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 88,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.479916156197641e-08,
+        "early_probability": 0.00023409220739267766,
+        "observed_n": -0.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 91,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.230514327968975e-17,
+        "early_probability": 7.23222948195712e-09,
+        "observed_n": 7.0,
+        "predicted_median_n": 4.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 93,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.390855379712532e-17,
+        "early_probability": 7.994282569256939e-09,
+        "observed_n": 4.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 94,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.00012375060636852456,
+        "early_probability": 0.0111243249848485,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 99,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.008071370606124229,
+        "early_probability": 0.08984080702066422,
+        "observed_n": 2.0,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 100,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.5561877983453776e-09,
+        "early_probability": 5.0558755901874974e-05,
+        "observed_n": 3.0,
+        "predicted_median_n": 6.0,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 102,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.06579638091992379,
+        "early_probability": 0.2565080523490906,
+        "observed_n": -0.001,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 1.999,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 103,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.058713147957721645,
+        "early_probability": 0.24230796098709106,
+        "observed_n": -2.0,
+        "predicted_median_n": -5.395999908447266,
+        "absolute_error_n": 3.3959999084472656,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 104,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0020695702738890986,
+        "early_probability": 0.04549252986907959,
+        "observed_n": 4.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 105,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.00012375060636852456,
+        "early_probability": 0.0111243249848485,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 109,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.758681930372626e-08,
+        "early_probability": 0.00025997465127147734,
+        "observed_n": -1.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 110,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.01616428417171556,
+        "early_probability": 0.12713883817195892,
+        "observed_n": -3.369,
+        "predicted_median_n": -3.0,
+        "absolute_error_n": 0.3690000000000002,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 111,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0359972876242729,
+        "early_probability": 0.1897295117378235,
+        "observed_n": -1.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 4.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 114,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.7928613115569715e-08,
+        "early_probability": 0.00016711856005713344,
+        "observed_n": -8.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 13.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 115,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.5780658038460738,
+        "early_probability": 0.23969361186027527
+      },
+      {
+        "trial": 116,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.856459913510204e-09,
+        "early_probability": 7.65275108278729e-05,
+        "observed_n": -5.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 7.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 118,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.5666702960984028e-05,
+        "early_probability": 0.003958118613809347,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 121,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.483233691051741e-09,
+        "early_probability": 5.901892654947005e-05,
+        "observed_n": -0.5,
+        "predicted_median_n": 2.5,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 123,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.612898527198701e-09,
+        "early_probability": 6.010739161865786e-05,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 130,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.00039409707145865447,
+        "early_probability": 0.01985187828540802,
+        "observed_n": 2.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 131,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.856459913510204e-09,
+        "early_probability": 7.65275108278729e-05,
+        "observed_n": -6.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 8.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 136,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.887238236226936e-05,
+        "early_probability": 0.00623477203771472,
+        "observed_n": 7.5,
+        "predicted_median_n": 6.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 140,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.179557109585383e-13,
+        "early_probability": 7.196913998086529e-07,
+        "observed_n": 4.5,
+        "predicted_median_n": 6.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 143,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.011846741609401745,
+        "early_probability": 0.10884273797273636,
+        "observed_n": -3.0,
+        "predicted_median_n": -5.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 144,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.856459913510204e-09,
+        "early_probability": 7.65275108278729e-05,
+        "observed_n": -3.349,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 4.849,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 146,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.4886571238769344,
+        "early_probability": 0.30095985531806946
+      },
+      {
+        "trial": 147,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.05745302756662429,
+        "early_probability": 0.23969361186027527,
+        "observed_n": -3.857,
+        "predicted_median_n": -0.28700000047683716,
+        "absolute_error_n": 3.569999999523163,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 148,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0006899553628290957,
+        "early_probability": 0.026267001405358315,
+        "observed_n": -1.5,
+        "predicted_median_n": -1.5,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 150,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.000771345960347572,
+        "early_probability": 0.027773115783929825,
+        "observed_n": -0.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 152,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.051203894443663245,
+        "early_probability": 0.2262827754020691,
+        "observed_n": -2.5,
+        "predicted_median_n": -4.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 153,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.147948521464392e-12,
+        "early_probability": 1.7742459021974355e-06,
+        "observed_n": 6.0,
+        "predicted_median_n": 7.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 154,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.4859373315466427e-08,
+        "early_probability": 0.00012189902918180451,
+        "observed_n": -0.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 155,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0009390427235185829,
+        "early_probability": 0.030643803998827934,
+        "observed_n": 1.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 157,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 7.048945354712163e-08,
+        "early_probability": 0.0002654985000845045,
+        "observed_n": 2.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 158,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.934577404839817e-05,
+        "early_probability": 0.006272620987147093,
+        "observed_n": 3.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 159,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.390855379712532e-17,
+        "early_probability": 7.994282569256939e-09,
+        "observed_n": 2.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 162,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.8213148259081467e-05,
+        "early_probability": 0.005311605054885149,
+        "observed_n": 2.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 163,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.16905851897264768,
+        "early_probability": 0.4111672639846802,
+        "observed_n": -4.5,
+        "predicted_median_n": -1.5,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 164,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.7075563057411536e-06,
+        "early_probability": 0.0013067349791526794,
+        "observed_n": 3.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 165,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.707280605728315e-05,
+        "early_probability": 0.005203153472393751,
+        "observed_n": -0.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 166,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.230514327968975e-17,
+        "early_probability": 7.23222948195712e-09,
+        "observed_n": 4.0,
+        "predicted_median_n": 4.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 173,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.856459913510204e-09,
+        "early_probability": 7.65275108278729e-05,
+        "observed_n": -5.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 7.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 174,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.0302561650878213e-05,
+        "early_probability": 0.005504776258021593,
+        "observed_n": 0.0,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 175,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0006899553628290957,
+        "early_probability": 0.026267001405358315,
+        "observed_n": -2.5,
+        "predicted_median_n": -1.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 176,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.011846741609401745,
+        "early_probability": 0.10884273797273636,
+        "observed_n": -2.5,
+        "predicted_median_n": -5.0,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 177,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 9.419767292936615e-08,
+        "early_probability": 0.00030691639403812587,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 180,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.00012375060636852456,
+        "early_probability": 0.0111243249848485,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 183,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 4.145660628144957e-06,
+        "early_probability": 0.0020360895432531834,
+        "observed_n": 3.0,
+        "predicted_median_n": 1.5169999599456787,
+        "absolute_error_n": 1.4830000400543213,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 184,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.179557109585383e-13,
+        "early_probability": 7.196913998086529e-07,
+        "observed_n": 6.0,
+        "predicted_median_n": 6.0,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 188,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 7.048945354712163e-08,
+        "early_probability": 0.0002654985000845045,
+        "observed_n": 6.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 4.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 191,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.051203894443663245,
+        "early_probability": 0.2262827754020691,
+        "observed_n": -0.5,
+        "predicted_median_n": -4.5,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 192,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.329509952316955e-10,
+        "early_probability": 1.8246944819111377e-05,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 193,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.000564579567477911,
+        "early_probability": 0.023760883137583733,
+        "observed_n": 2.5,
+        "predicted_median_n": 1.5169999599456787,
+        "absolute_error_n": 0.9830000400543213,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 199,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.147948521464392e-12,
+        "early_probability": 1.7742459021974355e-06,
+        "observed_n": 0.5,
+        "predicted_median_n": 7.0,
+        "absolute_error_n": 6.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 200,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.60577578539198e-17,
+        "early_probability": 4.007213227907869e-09,
+        "observed_n": 3.0,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 202,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.5740972259835395,
+        "early_probability": 0.24230796098709106
+      },
+      {
+        "trial": 203,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.008071370606124229,
+        "early_probability": 0.08984080702066422,
+        "observed_n": 0.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 205,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.479916156197641e-08,
+        "early_probability": 0.00023409220739267766,
+        "observed_n": -1.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 206,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.479916156197641e-08,
+        "early_probability": 0.00023409220739267766,
+        "observed_n": 0.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 209,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.020095810735970332,
+        "early_probability": 0.1417596936225891,
+        "observed_n": 0.0,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 211,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.001738966270315112,
+        "early_probability": 0.04170091450214386,
+        "observed_n": -1.0,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 212,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.6653341858646146e-06,
+        "early_probability": 0.001290478277951479,
+        "observed_n": 0.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 215,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.707280605728315e-05,
+        "early_probability": 0.005203153472393751,
+        "observed_n": 1.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 217,
+        "supported": false
+      },
+      {
+        "trial": 219,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.441420778927995e-09,
+        "early_probability": 7.376598659902811e-05,
+        "observed_n": 4.0,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 221,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.9522236279770765e-06,
+        "early_probability": 0.0019880200270563364,
+        "observed_n": 1.5,
+        "predicted_median_n": 6.0,
+        "absolute_error_n": 4.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 222,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.00038047081030335994,
+        "early_probability": 0.019505660980939865,
+        "observed_n": 6.137,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 4.637,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 225,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.934577404839817e-05,
+        "early_probability": 0.006272620987147093,
+        "observed_n": -1.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 226,
+        "supported": false
+      },
+      {
+        "trial": 228,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.7075563057411536e-06,
+        "early_probability": 0.0013067349791526794,
+        "observed_n": 0.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 237,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.058713147957721645,
+        "early_probability": 0.24230796098709106,
+        "observed_n": -2.0,
+        "predicted_median_n": -5.395999908447266,
+        "absolute_error_n": 3.3959999084472656,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 240,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.612898527198701e-09,
+        "early_probability": 6.010739161865786e-05,
+        "observed_n": -0.019,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.019,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 242,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.738182804594458e-10,
+        "early_probability": 1.318401609751163e-05,
+        "observed_n": -1.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 244,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 9.419767292936615e-08,
+        "early_probability": 0.00030691639403812587,
+        "observed_n": 3.3,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 1.2999999999999998,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 245,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.758681930372626e-08,
+        "early_probability": 0.00025997465127147734,
+        "observed_n": -0.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 246,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.02059761331571508,
+        "early_probability": 0.14351868629455566,
+        "observed_n": 0.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 247,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.2565395637376131e-05,
+        "early_probability": 0.0035447701811790466,
+        "observed_n": -3.606,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 5.606,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 248,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.001324573946625121,
+        "early_probability": 0.036394696682691574,
+        "observed_n": -3.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 249,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 2.7928613115569715e-08,
+        "early_probability": 0.00016711856005713344,
+        "observed_n": 3.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 250,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.00039409707145865447,
+        "early_probability": 0.01985187828540802,
+        "observed_n": 1.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 252,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.5666702960984028e-05,
+        "early_probability": 0.003958118613809347,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 253,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0003072469552786762,
+        "early_probability": 0.017528461292386055,
+        "observed_n": -2.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 255,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.6653341858646146e-06,
+        "early_probability": 0.001290478277951479,
+        "observed_n": 3.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 256,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.3467239910032873,
+        "early_probability": 0.4111672639846802
+      },
+      {
+        "trial": 259,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0020695702738890986,
+        "early_probability": 0.04549252986907959,
+        "observed_n": 4.787,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 0.21300000000000008,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 260,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.4859373315466427e-08,
+        "early_probability": 0.00012189902918180451,
+        "observed_n": 0.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 264,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.230514327968975e-17,
+        "early_probability": 7.23222948195712e-09,
+        "observed_n": 4.0,
+        "predicted_median_n": 4.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 268,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.179557109585383e-13,
+        "early_probability": 7.196913998086529e-07,
+        "observed_n": 8.0,
+        "predicted_median_n": 6.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 269,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.5740972259835395,
+        "early_probability": 0.24230796098709106
+      },
+      {
+        "trial": 270,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 5.479916156197641e-08,
+        "early_probability": 0.00023409220739267766,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 271,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 9.419767292936615e-08,
+        "early_probability": 0.00030691639403812587,
+        "observed_n": 2.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 273,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0006843368235601478,
+        "early_probability": 0.026159832254052162,
+        "observed_n": -4.5,
+        "predicted_median_n": -3.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 277,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.001738966270315112,
+        "early_probability": 0.04170091450214386,
+        "observed_n": -3.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 278,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0002804498957824676,
+        "early_probability": 0.01674663834273815,
+        "observed_n": -2.5,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 280,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 6.390855379712532e-17,
+        "early_probability": 7.994282569256939e-09,
+        "observed_n": 0.688,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 2.3120000000000003,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 285,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0003072469552786762,
+        "early_probability": 0.017528461292386055,
+        "observed_n": 0.5,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 287,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.05745302756662429,
+        "early_probability": 0.23969361186027527,
+        "observed_n": -4.5,
+        "predicted_median_n": -0.28700000047683716,
+        "absolute_error_n": 4.212999999523163,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 291,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.60577578539198e-17,
+        "early_probability": 4.007213227907869e-09,
+        "observed_n": 4.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 294,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 4.145660628144957e-06,
+        "early_probability": 0.0020360895432531834,
+        "observed_n": 1.422,
+        "predicted_median_n": 1.5169999599456787,
+        "absolute_error_n": 0.09499995994567878,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 296,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 3.147948521464392e-12,
+        "early_probability": 1.7742459021974355e-06,
+        "observed_n": 3.0,
+        "predicted_median_n": 7.0,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      }
+    ],
+    "total": 147,
+    "supported": 143,
+    "terminal_count": 134,
+    "terminal_mae_n": 2.1711492526566807,
+    "terminal_10_90_coverage": 0.7388059701492538,
+    "terminal_median_overprediction_fraction": 0.47761194029850745,
+    "early_brier": 0.04067059182968167
+  },
+  "raw_cell_baseline_validation": {
+    "trials": [
+      {
+        "trial": 1,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 9.0,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 4,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0625,
+        "early_probability": 0.25,
+        "observed_n": -1.0,
+        "predicted_median_n": -9.5,
+        "absolute_error_n": 8.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 8,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": 0.48899999260902405,
+        "absolute_error_n": 1.011000007390976,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 10,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.335,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 2.165,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 11,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.566,
+        "predicted_median_n": 2.25,
+        "absolute_error_n": 2.316,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 12,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": -0.75,
+        "absolute_error_n": 1.75,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 15,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 16,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -4.0,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 7.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 17,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.0,
+        "predicted_median_n": -1.75,
+        "absolute_error_n": 0.75,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 19,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.742,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 2.258,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 20,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.0,
+        "predicted_median_n": 8.0,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 23,
+        "supported": true,
+        "result": "detached_drag",
+        "early_brier": 1.0,
+        "early_probability": 0.0
+      },
+      {
+        "trial": 25,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 28,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.5,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 30,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.11111111773384952,
+        "early_probability": 0.3333333432674408,
+        "observed_n": 0.5,
+        "predicted_median_n": -4.947999954223633,
+        "absolute_error_n": 5.447999954223633,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 32,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.5,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 33,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.5,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 35,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 7.362,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 9.862,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 36,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 37,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 4.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 38,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -9.5,
+        "predicted_median_n": -1.75,
+        "absolute_error_n": 7.75,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 39,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.25,
+        "early_probability": 0.5
+      },
+      {
+        "trial": 42,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.069,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.431,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 43,
+        "supported": true,
+        "result": "held",
+        "early_brier": 0.0,
+        "early_probability": 0.0
+      },
+      {
+        "trial": 46,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 6.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 47,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.0,
+        "predicted_median_n": 2.1959999799728394,
+        "absolute_error_n": 3.1959999799728394,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 49,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.5,
+        "predicted_median_n": 8.75,
+        "absolute_error_n": 5.25,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 50,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.0,
+        "predicted_median_n": -4.0,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 53,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 54,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.010000000298023226,
+        "early_probability": 0.10000000149011612,
+        "observed_n": 5.0,
+        "predicted_median_n": 3.375,
+        "absolute_error_n": 1.625,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 55,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.7584999799728394,
+        "absolute_error_n": 0.24150002002716064,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 56,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.0,
+        "early_probability": 1.0
+      },
+      {
+        "trial": 60,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.0,
+        "predicted_median_n": 1.1799999475479126,
+        "absolute_error_n": 0.8200000524520874,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 61,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 1.0,
+        "early_probability": 0.0
+      },
+      {
+        "trial": 62,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 6.0,
+        "predicted_median_n": 6.302999973297119,
+        "absolute_error_n": 0.30299997329711914,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 63,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.0,
+        "early_probability": 1.0,
+        "observed_n": -1.5,
+        "predicted_median_n": -10.0,
+        "absolute_error_n": 8.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 65,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.48899999260902405,
+        "absolute_error_n": 0.011000007390975952,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 68,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 70,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -4.5,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 75,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 78,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.11111111773384952,
+        "early_probability": 0.3333333432674408,
+        "observed_n": -8.5,
+        "predicted_median_n": -4.947999954223633,
+        "absolute_error_n": 3.552000045776367,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 79,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": 1.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 81,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.426,
+        "predicted_median_n": 7.434333324432373,
+        "absolute_error_n": 4.008333324432373,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 82,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -6.0,
+        "predicted_median_n": -1.75,
+        "absolute_error_n": 4.25,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 83,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": 4.5,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 84,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": -4.75,
+        "absolute_error_n": 6.25,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 85,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 88,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": 1.1799999475479126,
+        "absolute_error_n": 1.6799999475479126,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 91,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 7.0,
+        "predicted_median_n": 3.5,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 93,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 94,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.7490000128746033,
+        "absolute_error_n": 0.24900001287460327,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 99,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.0,
+        "predicted_median_n": 0.7445000186562538,
+        "absolute_error_n": 1.2554999813437462,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 100,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 3.25,
+        "absolute_error_n": 0.25,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 102,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.25,
+        "early_probability": 0.5,
+        "observed_n": -0.001,
+        "predicted_median_n": -3.0,
+        "absolute_error_n": 2.999,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 103,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -2.0,
+        "predicted_median_n": -7.0,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 104,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.5,
+        "predicted_median_n": 6.302999973297119,
+        "absolute_error_n": 1.8029999732971191,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 105,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.7490000128746033,
+        "absolute_error_n": 0.25099998712539673,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 109,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 110,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.369,
+        "predicted_median_n": -4.75,
+        "absolute_error_n": 1.3809999999999998,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 111,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 4.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 114,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -8.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 13.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 115,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.25,
+        "early_probability": 0.5
+      },
+      {
+        "trial": 116,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -5.5,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 118,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.25,
+        "absolute_error_n": 0.75,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 121,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": 4.5,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 123,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 130,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": 1.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 131,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -6.5,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 136,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 7.5,
+        "predicted_median_n": 6.868666648864746,
+        "absolute_error_n": 0.6313333511352539,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 140,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 143,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.0,
+        "predicted_median_n": -5.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 144,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.349,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 2.849,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 146,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.4444444311989679,
+        "early_probability": 0.3333333432674408
+      },
+      {
+        "trial": 147,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.25,
+        "early_probability": 0.5,
+        "observed_n": -3.857,
+        "predicted_median_n": -9.5,
+        "absolute_error_n": 5.643,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 148,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.5,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 150,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": -2.25,
+        "absolute_error_n": 1.75,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 152,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.11111111773384952,
+        "early_probability": 0.3333333432674408,
+        "observed_n": -2.5,
+        "predicted_median_n": -4.947999954223633,
+        "absolute_error_n": 2.447999954223633,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 153,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 6.0,
+        "predicted_median_n": 8.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 154,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": -0.75,
+        "absolute_error_n": 0.25,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 155,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 157,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.0,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 158,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": -1.75,
+        "absolute_error_n": 4.75,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 159,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 162,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": 0.48899999260902405,
+        "absolute_error_n": 2.011000007390976,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 163,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.25,
+        "early_probability": 0.5,
+        "observed_n": -4.5,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 164,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 1.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 165,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 166,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.0,
+        "predicted_median_n": 3.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 173,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -5.5,
+        "predicted_median_n": -0.5,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 174,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": -4.0,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 175,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -2.5,
+        "predicted_median_n": -1.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 176,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -2.5,
+        "predicted_median_n": -5.5,
+        "absolute_error_n": 3.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 177,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 180,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.7490000128746033,
+        "absolute_error_n": 0.24900001287460327,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 183,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 184,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 6.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 4.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 188,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 6.5,
+        "predicted_median_n": 0.0,
+        "absolute_error_n": 6.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 191,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.11111111773384952,
+        "early_probability": 0.3333333432674408,
+        "observed_n": -0.5,
+        "predicted_median_n": -4.947999954223633,
+        "absolute_error_n": 4.447999954223633,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 192,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 4.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 193,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": 0.7584999799728394,
+        "absolute_error_n": 1.7415000200271606,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 199,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.5,
+        "predicted_median_n": 8.0,
+        "absolute_error_n": 7.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 200,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 202,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 1.0,
+        "early_probability": 0.0
+      },
+      {
+        "trial": 203,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.5,
+        "predicted_median_n": 0.7445000186562538,
+        "absolute_error_n": 0.24450001865625381,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 205,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.5,
+        "predicted_median_n": 1.1799999475479126,
+        "absolute_error_n": 2.6799999475479126,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 206,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": 1.1799999475479126,
+        "absolute_error_n": 1.1799999475479126,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 209,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": -1.5,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 211,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.0,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 212,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 215,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 0.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 217,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.0,
+        "early_probability": 1.0
+      },
+      {
+        "trial": 219,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.0,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 221,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": 7.5,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 222,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 6.137,
+        "predicted_median_n": -2.625,
+        "absolute_error_n": 8.762,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 225,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.0,
+        "predicted_median_n": -1.75,
+        "absolute_error_n": 0.75,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 226,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 1.0,
+        "early_probability": 1.0,
+        "observed_n": -9.0,
+        "predicted_median_n": -10.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 228,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": 1.0,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 237,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -2.0,
+        "predicted_median_n": -7.0,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 240,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.019,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 0.519,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 242,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -1.5,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 244,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.3,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 1.7999999999999998,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 245,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -0.5,
+        "predicted_median_n": -2.5,
+        "absolute_error_n": 2.0,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 246,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.040000001192092904,
+        "early_probability": 0.20000000298023224,
+        "observed_n": 0.5,
+        "predicted_median_n": 1.75,
+        "absolute_error_n": 1.25,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 247,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.606,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 6.606,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 248,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 3.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 249,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 250,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.5,
+        "predicted_median_n": 1.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 252,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 2.25,
+        "absolute_error_n": 0.75,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 253,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -2.0,
+        "predicted_median_n": 2.1959999799728394,
+        "absolute_error_n": 4.195999979972839,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 255,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 0.5,
+        "absolute_error_n": 2.5,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 256,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 0.25,
+        "early_probability": 0.5
+      },
+      {
+        "trial": 259,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.787,
+        "predicted_median_n": 6.302999973297119,
+        "absolute_error_n": 1.5159999732971192,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 260,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.0,
+        "predicted_median_n": -0.75,
+        "absolute_error_n": 0.75,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 264,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.0,
+        "predicted_median_n": 3.5,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 268,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 8.0,
+        "predicted_median_n": 2.0,
+        "absolute_error_n": 6.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 269,
+        "supported": true,
+        "result": "detached_lateral",
+        "early_brier": 1.0,
+        "early_probability": 0.0
+      },
+      {
+        "trial": 270,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.0,
+        "predicted_median_n": 1.1799999475479126,
+        "absolute_error_n": 0.1799999475479126,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 271,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 2.5,
+        "predicted_median_n": 1.5,
+        "absolute_error_n": 1.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 273,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -4.5,
+        "predicted_median_n": -2.25,
+        "absolute_error_n": 2.25,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 277,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -3.5,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 1.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 278,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": -2.5,
+        "predicted_median_n": -2.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 280,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.688,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 2.3120000000000003,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 285,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 0.5,
+        "predicted_median_n": 2.1959999799728394,
+        "absolute_error_n": 1.6959999799728394,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 287,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.25,
+        "early_probability": 0.5,
+        "observed_n": -4.5,
+        "predicted_median_n": -9.5,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": false,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 291,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 4.5,
+        "predicted_median_n": 5.0,
+        "absolute_error_n": 0.5,
+        "in_10_90_band": true,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 294,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 1.422,
+        "predicted_median_n": 3.0,
+        "absolute_error_n": 1.578,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      },
+      {
+        "trial": 296,
+        "supported": true,
+        "result": "detached_normal",
+        "early_brier": 0.0,
+        "early_probability": 0.0,
+        "observed_n": 3.0,
+        "predicted_median_n": 8.0,
+        "absolute_error_n": 5.0,
+        "in_10_90_band": false,
+        "median_overpredicts": true,
+        "prediction_has_capped_tail": false
+      }
+    ],
+    "total": 147,
+    "supported": 147,
+    "terminal_count": 136,
+    "terminal_mae_n": 2.692328429129194,
+    "terminal_10_90_coverage": 0.29411764705882354,
+    "terminal_median_overprediction_fraction": 0.4632352941176471,
+    "early_brier": 0.059533257847785584
+  },
+  "paired_terminal_validation": {
+    "terminal_count": 134,
+    "trial_ids": [
+      1,
+      4,
+      8,
+      10,
+      11,
+      12,
+      15,
+      16,
+      17,
+      19,
+      20,
+      25,
+      28,
+      30,
+      32,
+      33,
+      35,
+      36,
+      37,
+      38,
+      42,
+      46,
+      47,
+      49,
+      50,
+      53,
+      54,
+      55,
+      60,
+      62,
+      65,
+      68,
+      70,
+      75,
+      78,
+      79,
+      81,
+      82,
+      83,
+      84,
+      85,
+      88,
+      91,
+      93,
+      94,
+      99,
+      100,
+      102,
+      103,
+      104,
+      105,
+      109,
+      110,
+      111,
+      114,
+      116,
+      118,
+      121,
+      123,
+      130,
+      131,
+      136,
+      140,
+      143,
+      144,
+      147,
+      148,
+      150,
+      152,
+      153,
+      154,
+      155,
+      157,
+      158,
+      159,
+      162,
+      163,
+      164,
+      165,
+      166,
+      173,
+      174,
+      175,
+      176,
+      177,
+      180,
+      183,
+      184,
+      188,
+      191,
+      192,
+      193,
+      199,
+      200,
+      203,
+      205,
+      206,
+      209,
+      211,
+      212,
+      215,
+      219,
+      221,
+      222,
+      225,
+      228,
+      237,
+      240,
+      242,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      252,
+      253,
+      255,
+      259,
+      260,
+      264,
+      268,
+      270,
+      271,
+      273,
+      277,
+      278,
+      280,
+      285,
+      287,
+      291,
+      294,
+      296
+    ],
+    "raw_mae_n": 2.6616169131460476,
+    "kernel_mae_n": 2.1711492526566807,
+    "raw_10_90_coverage": 0.29850746268656714,
+    "kernel_10_90_coverage": 0.7388059701492538
+  },
+  "estimator": {
+    "kind": "kernel-weighted conditional Kaplan-Meier inverse CDF",
+    "bandwidth_n": [
+      2.5,
+      5.0
+    ],
+    "calibration_only_bandwidth_scores": [
+      {
+        "shear_bandwidth_n": 2.5,
+        "lateral_bandwidth_n": 2.5,
+        "loo_integrated_quantile_loss_n": 1.5581042159469705
+      },
+      {
+        "shear_bandwidth_n": 2.5,
+        "lateral_bandwidth_n": 5.0,
+        "loo_integrated_quantile_loss_n": 1.5234813799753846
+      },
+      {
+        "shear_bandwidth_n": 2.5,
+        "lateral_bandwidth_n": 7.5,
+        "loo_integrated_quantile_loss_n": 1.5588298286540836
+      },
+      {
+        "shear_bandwidth_n": 2.5,
+        "lateral_bandwidth_n": 10.0,
+        "loo_integrated_quantile_loss_n": 1.5872438031434264
+      },
+      {
+        "shear_bandwidth_n": 5.0,
+        "lateral_bandwidth_n": 2.5,
+        "loo_integrated_quantile_loss_n": 1.5699609092771134
+      },
+      {
+        "shear_bandwidth_n": 5.0,
+        "lateral_bandwidth_n": 5.0,
+        "loo_integrated_quantile_loss_n": 1.5316786389482517
+      },
+      {
+        "shear_bandwidth_n": 5.0,
+        "lateral_bandwidth_n": 7.5,
+        "loo_integrated_quantile_loss_n": 1.5577950610033515
+      },
+      {
+        "shear_bandwidth_n": 5.0,
+        "lateral_bandwidth_n": 10.0,
+        "loo_integrated_quantile_loss_n": 1.584475110161304
+      },
+      {
+        "shear_bandwidth_n": 7.5,
+        "lateral_bandwidth_n": 2.5,
+        "loo_integrated_quantile_loss_n": 1.5976572447257613
+      },
+      {
+        "shear_bandwidth_n": 7.5,
+        "lateral_bandwidth_n": 5.0,
+        "loo_integrated_quantile_loss_n": 1.5692711517860543
+      },
+      {
+        "shear_bandwidth_n": 7.5,
+        "lateral_bandwidth_n": 7.5,
+        "loo_integrated_quantile_loss_n": 1.5917746528400862
+      },
+      {
+        "shear_bandwidth_n": 7.5,
+        "lateral_bandwidth_n": 10.0,
+        "loo_integrated_quantile_loss_n": 1.6128806904589703
+      },
+      {
+        "shear_bandwidth_n": 10.0,
+        "lateral_bandwidth_n": 2.5,
+        "loo_integrated_quantile_loss_n": 1.6333100322463114
+      },
+      {
+        "shear_bandwidth_n": 10.0,
+        "lateral_bandwidth_n": 5.0,
+        "loo_integrated_quantile_loss_n": 1.6091484454160028
+      },
+      {
+        "shear_bandwidth_n": 10.0,
+        "lateral_bandwidth_n": 7.5,
+        "loo_integrated_quantile_loss_n": 1.628223616118443
+      },
+      {
+        "shear_bandwidth_n": 10.0,
+        "lateral_bandwidth_n": 10.0,
+        "loo_integrated_quantile_loss_n": 1.651813100086824
+      }
+    ],
+    "model_development_note": "Sparse-cell baseline coverage motivated pooling; spatial split is retrospective development evidence, not a preregistered confirmation test"
+  },
+  "runtime_table": "refit on all listed trials AFTER split-only validation; do not validate this on its training rows"
+}

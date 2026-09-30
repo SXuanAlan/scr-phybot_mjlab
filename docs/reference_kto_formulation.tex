@@ -1,0 +1,298 @@
+% 单条参考 clip 的运动学轨迹优化（KTO）：变量、公式与解释
+% Build: xelatex reference_kto_formulation.tex
+% 对应计划书 docs/plans/2026-09-04_reference_synthesis_pipeline_plan.md 步骤二（逐帧字典序 IK）与步骤三（整段 KTO）。
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2.0cm]{geometry}
+\usepackage{xeCJK}
+\setCJKmainfont{Noto Sans CJK SC}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,array,longtable}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.15}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\SO}{\mathrm{SO}(3)}
+\newcommand{\dq}{\delta\bm q}
+\newcommand{\dQ}{\delta\bm Q}
+\newcommand{\zhat}{\hat{\bm z}}
+\newcommand{\xhat}{\hat{\bm x}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\blkdiag}{blkdiag}
+
+\title{单条参考 clip 的运动学轨迹优化（KTO）\\[4pt]\large 变量、公式与解释}
+\author{对应计划书 \code{2026-09-04\_reference\_synthesis\_pipeline\_plan.md} 步骤二、三}
+\date{2026-09-04}
+
+\begin{document}
+\maketitle
+
+\section*{0\quad 定位}
+
+本文只讲\textbf{一条} clip 怎么优化，即计划书的步骤三（整段 KTO）和作为其初值与退路的步骤二（逐帧字典序 IK）。
+编排（时刻表、锚点、意图）是输入，不在这里决定；证书（静力审计、时序审计等）是输出之后的事，只在最后一节简述。
+核心原则：\textbf{优化器里只有运动学事实和意图，没有接触力}。焊着的垫不动、万向节和关节有挡块、电机有限速、周期要闭合，这些是硬约束；摆动弧、基座怎么靠、姿态像不像站姿，这些是软目标，只在硬约束剩下的自由度里实现。
+
+\section{符号表}
+
+{\small\begin{longtable}{@{}>{$}p{4.3cm}<{$}p{6.2cm}p{5.6cm}@{}}
+\toprule
+\text{符号} & 含义 & 形状 / 单位 / 代码名 \\
+\midrule
+\endhead
+N,\ f_s & 帧数；采样率 & $f_s=50$\,Hz（\code{fps}） \\
+t & 帧索引 & $t\in\{0,\dots,N-1\}$ \\
+h,\ \mathcal H & 垫索引；$\mathcal H=\{\mathrm{LH},\mathrm{RH},\mathrm{LF},\mathrm{RF}\}$ & \code{ee\_list} \\
+\bm q_t$\newline$\quad=(\bm p_{b,t},R_{b,t},\bm\theta_t,\bm\gamma_t) & 第 $t$ 帧构型：基座位置、基座姿态、关节角、万向节角 & $\bm p_b\in\R^3$, $R_b\in\SO$, $\bm\theta\in\R^{21}$（\code{joint\_positions}）, $\bm\gamma\in\R^{12}$（\code{ee\_gimbal\_angles}, 关节 \code{*\_gimbal\_\{x,y,z\}}） \\
+n & 切空间维数 & $n=6+21+12=39$ \\
+\dq_t$\newline$\quad=(\delta\bm p_b,\delta\bm\phi_b,\delta\bm\theta,\delta\bm\gamma) & 第 $t$ 帧增量；$\delta\bm\phi_b$ 是基座旋转向量 & $\R^{39}$ \\
+\bm Q,\ \dQ & 整段轨迹 $(\bm q_0,\dots,\bm q_{N-1})$ 及其增量 & $\R^{39N}$ \\
+\sigma_{h,t} & 接触时刻表：1 = 垫 $h$ 在第 $t$ 帧焊着 & \code{ee\_engaged} \\
+A_{h,t}=(\bm a_{h,t},R^a_{h,t}) & 锚点位姿：焊着时的焊接目标，摆动时的落点 & \code{ee\_anchor\_positions}；姿态 = state-1 的垫姿态 \\
+\bm p_h(\bm q),\ R_h(\bm q) & 垫中心站点的正运动学位姿 & 站点 \code{\{ee\}\_pad\_center} \\
+J^p_{h,t},\ J^r_{h,t} & 站点位置 / 姿态雅可比（含万向节列） & $\R^{3\times39}$，\code{mj\_jacSite} \\
+\mathcal T_{\mathrm{rake}} & rake 帧集合 $\{(h,t)\}$；每次落点前的最后 $N_r$ 帧 & \code{--rake-s}（时长），\code{--rake-dist} $=2$\,mm \\
+\bm p^*_h(t),\ R^*_h(t) & 摆动垫的意图路径（Bezier 弧）与意图姿态 & 鼓包 \code{--swing-bulge} / \code{--foot-bulge} \\
+x_{\mathrm{toe},h}(\bm q),\ x^*_{\mathrm{toe},h}(t),$\newline$\beta_{h,t} & 趾尖 $x$ 坐标、趾撑目标、趾撑表 & \code{toe\_braced}；$r_{\mathrm{toe}}=12$\,mm \\
+\bm p^*_b(t),\ R^*_b(t) & 基座意图 & \code{--body-press}, \code{--lateral-weight-shift} \\
+\bm\theta^*(t) & 姿态参考（段首角到站姿角的混合） & 站姿 = \code{init\_state.joint\_pos} \\
+\bm\theta_{\mathrm{lo}},\bm\theta_{\mathrm{hi}},\ \bm m & 关节范围；硬带 $\bm m=\mu(\bm\theta_{\mathrm{hi}}-\bm\theta_{\mathrm{lo}})$ & $\mu=0.01$（\code{--limit-hard-margin-frac}） \\
+\bm\theta_{\mathrm{bnd}},\ \mu_s & 软弹簧边缘带边界；带宽比例 & $\mu_s=0.10$（\code{--limit-margin-frac}） \\
+\gamma_{\mathrm{stop}},\ \gamma_{\max} & 万向节挡块；参考允许使用的行程 & $3^\circ$\newline（\code{PHYBOT\_\allowbreak C2\_\allowbreak PAD\_\allowbreak GIMBAL\_\allowbreak TRAVEL\_\allowbreak RAD}）；$2^\circ$（\code{--gimbal-travel-deg}） \\
+v_{\max},\ a_{\max} & 关节限速、限加速度（逐关节向量） & \code{PHYBOT\_\allowbreak C2\_\allowbreak DEPLOY\_\allowbreak VELOCITY\_\allowbreak LIMITS}（待补） \\
+h,\ \zhat & 步高；沿墙向上单位向量 & $h=0.03$\,m（\code{step\_height}） \\
+x_w,\ \xhat,\ r_c & 墙面坐标；指向墙内的单位向量；球 / 趾半径 & \code{wall\_surface\_x}；$r_c=12$\,mm \\
+S,\ dz,\ \bm q_{\mathrm{stand}} & 交接状态；mount 末帧相对 $S$ 的竖直平移；walk 站姿 & \code{handoff\_states.json}；\code{PHYBOT\_\allowbreak C2\_\allowbreak STANDING\_\allowbreak JOINT\_\allowbreak POS} \\
+W^p_h,w^r_h,W^{\mathrm{toe}},W^b,w^b_r,$\newline$W_\theta,W_{\mathrm{lim}},w_\gamma & 软目标权重 & 见第 6 节 \\
+w_a,\ \lambda & 加速度平滑权重；阻尼 & 见第 6 节 \\
+\Delta,\ \varepsilon_p,\varepsilon_r,\varepsilon_q & 信赖域；位置 / 姿态 / 步长收敛阈 & $0.12$；$1.5\times10^{-4}$\,m；$2\times10^{-3}$\,rad；$10^{-4}$ \\
+J_1,\bm e_1,U_r & 硬等式雅可比、残差、截秩左奇异向量 & 第 4 节 \\
+G,\bm g,\ \bm l,\bm u & 线性不等式；盒约束上下界 & 第 4 节 \\
+\bottomrule
+\end{longtable}}
+
+\section{几何算子}
+
+构型空间是 $\R^3\times\SO\times\R^{21}\times\R^{12}$，基座姿态不能直接相加，所以定义两个算子：
+\begin{align}
+\bm q\oplus\dq &= \bigl(\bm p_b+\delta\bm p_b,\ \exp([\delta\bm\phi_b]_\times)\,R_b,\ \bm\theta+\delta\bm\theta,\ \bm\gamma+\delta\bm\gamma\bigr),\\
+\bm q'\ominus\bm q &= \bigl(\bm p'_b-\bm p_b,\ \log(R'_bR_b^{\top})^{\vee},\ \bm\theta'-\bm\theta,\ \bm\gamma'-\bm\gamma\bigr)\in\R^{39}.
+\end{align}
+$\oplus$ 把切空间增量"加"到构型上（基座旋转走指数映射），$\ominus$ 把两个构型之差投回切空间（旋转走对数映射）。速度、加速度、闭合都用 $\ominus$ 定义。
+
+姿态误差用世界系小角度形式：
+\begin{equation}
+\bm e_r(R,R^*)=\tfrac12\sum_{k=1}^{3}\bm r_k\times\bm r^*_k,\qquad \bm r_k,\bm r^*_k\ \text{为 }R,R^*\text{ 的第 }k\text{ 列}.
+\end{equation}
+它是把 $R$ 转到 $R^*$ 所需旋转向量的一阶近似，误差为零当且仅当两姿态相同。
+
+在当前构型处的线性化（高斯牛顿）：
+\begin{equation}
+\bm p_h(\bm q\oplus\dq)\approx\bm p_h(\bm q)+J^p_h\dq,\qquad
+\bm e_r\bigl(R_h(\bm q\oplus\dq),R^*\bigr)\approx\bm e_r\bigl(R_h(\bm q),R^*\bigr)-J^r_h\dq .
+\label{eq:lin}
+\end{equation}
+雅可比由 MuJoCo 的 \code{mj\_jacSite} 给出，列对应 39 个切空间自由度；焊着垫的万向节列非零，是让肢体能相对垫转动的关键。
+
+\section{完整的优化问题}
+
+\subsection{输入与未知量}
+
+输入（编排给定）：$N$, $f_s$, $\sigma_{h,t}$, $A_{h,t}$, $\mathcal T_{\mathrm{rake}}$ 与 $\bm p^*_h(t)$, 摆动弧 $\bm p^*_h(t),R^*_h(t)$, 趾撑 $x^*_{\mathrm{toe}}(t),\beta_{h,t}$, 基座意图 $\bm p^*_b(t),R^*_b(t)$, 姿态参考 $\bm\theta^*(t)$, 限值 $\bm\theta_{\mathrm{lo}},\bm\theta_{\mathrm{hi}},\mu,\gamma_{\max},v_{\max},a_{\max}$, 步高 $h$（cycle）或交接状态 $S,dz$（mount）。
+
+未知量：整段轨迹 $\bm Q=(\bm q_0,\dots,\bm q_{N-1})$。
+
+\textbf{cycle 的闭合约定。} 令
+\begin{equation}
+\bm q_N\ \equiv\ \bm q_0\oplus h\zhat ,
+\label{eq:closure}
+\end{equation}
+第 $N$ 帧不是变量，按定义等于第 0 帧沿墙抬一步。于是"周期精确闭合"是恒等式，不需要单独约束，也不需要现役代码里的尾部混合；周期性通过帧间约束（C6、C7）回绕到第 0 帧来体现。mount 是非循环的：首帧钉在 walk 站姿，末帧钉在交接状态，作为真正的等式（C8）。
+
+\subsection{目标函数}
+
+\begin{equation}
+J(\bm Q)=\sum_{t=0}^{N-1} f_t(\bm q_t)\;+\;w_a\sum_{t}\bigl\|(\bm q_{t+1}\ominus\bm q_t)-(\bm q_t\ominus\bm q_{t-1})\bigr\|^2 .
+\label{eq:obj}
+\end{equation}
+第一项是逐帧意图，第二项是离散加速度的平方和（平滑）。记 $\mathcal S_t=\{h:\ \sigma_{h,t}=0,\ (h,t)\notin\mathcal T_{\mathrm{rake}}\}$ 为第 $t$ 帧"放开且不在 rake"的垫集合，逐帧意图展开为
+\begin{equation}
+\begin{aligned}
+f_t(\bm q)=\;&\sum_{h\in\mathcal S_t}\bigl\|W^p_h\bigl(\bm p_h(\bm q)-\bm p^*_h(t)\bigr)\bigr\|^2 && \text{摆动垫弧线}\\
+  &+\sum_{h\in\mathcal S_t} w^r_h\bigl\|\bm e_r\bigl(R_h(\bm q),R^*_h(t)\bigr)\bigr\|^2 && \text{摆动垫姿态}\\
+  &+\sum_{h:\ \beta_{h,t}=1}\bigl\|W^{\mathrm{toe}}\bigl(\bm p_{\mathrm{toe},h}(\bm q)-\bm p^*_{\mathrm{toe},h}(t)\bigr)\bigr\|^2 && \text{趾撑（只有 }x\text{ 权重大）}\\
+  &+\bigl\|W^b\bigl(\bm p_b-\bm p^*_b(t)\bigr)\bigr\|^2+w^b_r\bigl\|\bm e_r\bigl(R_b,R^*_b(t)\bigr)\bigr\|^2 && \text{基座意图}\\
+  &+\bigl\|W_\theta\bigl(\bm\theta-\bm\theta^*(t)\bigr)\bigr\|^2 && \text{姿态参考}\\
+  &+\bigl\|W_{\mathrm{lim}}(\bm\theta)\bigl(\bm\theta-\bm\theta_{\mathrm{bnd}}\bigr)\bigr\|^2 && \text{限位裕度弹簧，仅边缘带内激活}\\
+  &+w_\gamma^2\|\bm\gamma\|^2 . && \text{万向节回零}
+\end{aligned}
+\label{eq:ft}
+\end{equation}
+
+逐项解释：
+\begin{itemize}[leftmargin=1.6em]
+\item \textbf{摆动垫}：放开且不在 rake 的帧里，垫沿 Bezier 弧走，权重 $W^p_h$ 是三维对角阵，$w^r_h$ 随弧线进度渐升（手在段首弱、落点前强，见第 6 节）。它是意图，因为弧线的具体形状不是物理事实，只是"离墙、不刮针"的偏好。
+\item \textbf{趾撑}：$W^{\mathrm{toe}}=\diag(300,30,30)$，只认真压 $x$（垂直墙面）方向，$y,z$ 放任，因为两自由度踝关节做不到三维精确定点。
+\item \textbf{基座意图}：$\bm p^*_b(t)$ 是从段首位置到"压墙 3\,cm、向支撑侧偏 2.5\,cm、抬半步"的线性混合。权重小（30 到 100），所以焊接决定基座实际能到哪。
+\item \textbf{姿态参考}：$\bm\theta^*(t)$ 从段首角混合到站姿角，权重最小（0.3），只负责在其它项不管的方向上"别乱动"。
+\item \textbf{限位裕度弹簧}：关节进入靠近挡块 $\mu_s=10\%$ 量程的边缘带时才激活，把它拉回带边界 $\bm\theta_{\mathrm{bnd}}$。它和硬带 $\bm m$ 不同：硬带是不可逾越的墙，弹簧是提前劝退。
+\item \textbf{万向节回零}：$w_\gamma$ 让求解器优先用手臂关节而不是万向节去满足焊接，万向节只在手臂真的不够用时才转。
+\item \textbf{平滑项}：$w_a$ 惩罚离散加速度，让整段轨迹在硬界之内尽量光滑；硬界由 C7 保证，平滑项负责"光滑得多一些"。
+\end{itemize}
+
+\subsection{约束}
+
+\begin{align}
+&\bm p_h(\bm q_t)=\bm a_{h,t},\qquad R_h(\bm q_t)=R^a_{h,t} && \forall(h,t):\ \sigma_{h,t}=1 \tag{C1}\\
+&\bm p_h(\bm q_t)=\bm p^*_h(t),\qquad R_h(\bm q_t)=R^a_{h,t} && \forall(h,t)\in\mathcal T_{\mathrm{rake}} \tag{C2}\\
+&\xhat^{\top}\bm p_c(\bm q_t)\le x_w-r_c && \forall t,\ \forall c\in\text{放开垫的球与趾} \tag{C3}\\
+&\bm\theta_{\mathrm{lo}}+\bm m\le\bm\theta_t\le\bm\theta_{\mathrm{hi}}-\bm m && \forall t \tag{C4}\\
+&|\gamma_{h,t,k}|\le\gamma_{\max}\ \ (\sigma_{h,t}=1),\qquad \gamma_{h,t,k}=0\ \ (\sigma_{h,t}=0) && \forall h,t,\ k=1,2,3 \tag{C5}\\
+&\bigl|\bm q_{t+1}\ominus\bm q_t\bigr|\le v_{\max}/f_s && \forall t\ (\text{逐分量}) \tag{C6}\\
+&\bigl|(\bm q_{t+1}\ominus\bm q_t)-(\bm q_t\ominus\bm q_{t-1})\bigr|\le a_{\max}/f_s^2 && \forall t\ (\text{逐分量}) \tag{C7}\\
+&\text{mount: }\bm q_0=\bm q_{\mathrm{stand}},\quad \bm q_{N-1}=S\oplus dz\,\zhat;\qquad \text{cycle: 无（由式 \eqref{eq:closure} 承担）} && \tag{C8}
+\end{align}
+
+逐条解释：
+\begin{itemize}[leftmargin=1.6em]
+\item \textbf{C1 焊接}：焊着的垫的位置和姿态都等于锚点，每垫 6 个标量等式。作用点是垫体上的站点，即万向节\emph{下方}的刚体；肢体通过万向节和它相连。这是物理事实：仿真里焊接是刚性的，垫不可能动。
+\item \textbf{C2 rake}：落点前最后 $N_r$ 帧，垫先在锚点上方 $d_{\mathrm{rake}}=2$\,mm 触墙、再沿墙面拖到锚点，路径是等式而不是意图，否则平滑项会把 2\,mm 的行程磨平，时刻表里"$\sigma$ 翻 1 时垫已落座"就不再成立。
+\item \textbf{C3 净空}：放开的垫的每个接触球和趾尖不得越过墙面。$\xhat$ 指向墙内，$x_w$ 是墙面，$r_c$ 是球半径。
+\item \textbf{C4 关节硬带}：留 1\% 量程，和下游策略的 0.98 钳位带对齐，参考永远不会要求策略去顶自己的钳位。
+\item \textbf{C5 万向节}：焊着的垫允许肢体相对它转 $\gamma_{\max}$，剩下 $\gamma_{\mathrm{stop}}-\gamma_{\max}$ 留给策略的跟踪误差；放开的垫钉零，因为它在仿真里是被动回中的，IK 不能拿它伪造落地姿态。
+\item \textbf{C6、C7 速度与加速度}：逐分量的两侧界，来源是实机电机限速乘安全系数。它们让"段太短"直接表现为不可行，而不是表现为参考里策略追不上的尖峰。
+\item \textbf{C8 边界}：mount 的首尾是等式；cycle 靠式 \eqref{eq:closure}，且 C6、C7 在 $t=N-1$ 处用 $\bm q_N=\bm q_0\oplus h\zhat$ 回绕，所以回绕处的速度也是真实有界的。
+\end{itemize}
+
+\section{求解：SQP 外循环加两步字典序 QP}
+
+问题 (\ref{eq:obj})--(C8) 的非线性只来自 FK。在第 $k$ 轮的当前轨迹 $\bm Q^k$ 处，用式 \eqref{eq:lin} 逐帧线性化，所有约束和目标变成关于增量 $\dQ$ 的线性 / 二次形式：
+
+\begin{align}
+\text{硬等式（C1, C2, C8）：}&\quad J_1\dQ=\bm e_1,\qquad J_1=\blkdiag(J_{1,0},\dots,J_{1,N-1})\ (+\text{ 边界块}),\\
+\text{线性不等式（C3, C6, C7）：}&\quad G\dQ\le\bm g,\\
+\text{盒（C4, C5, 信赖域）：}&\quad \bm l\le\dQ\le\bm u,\qquad |\dq_t|_\infty\le\Delta,\\
+\text{二次目标：}&\quad f_2(\dQ)=\tfrac12\dQ^{\top}H\dQ+\bm h^{\top}\dQ\ \ (\text{式 \eqref{eq:obj} 的线性化})+\tfrac12\lambda^2\|\dQ\|^2 .
+\end{align}
+
+$J_{1,t}$ 堆叠第 $t$ 帧所有焊着垫和 rake 垫的 $[J^p;J^r]$（每垫 6 行），$\bm e_1$ 堆叠对应的位置误差 $\bm a-\bm p$ 与姿态误差 $\bm e_r$。C6、C7 是相邻帧增量的线性组合，例如 C6 写成
+\begin{equation}
+-\frac{v_{\max}}{f_s}-\bm v_t\ \le\ \dq_{t+1}-\dq_t\ \le\ \frac{v_{\max}}{f_s}-\bm v_t,\qquad \bm v_t=\bm q^k_{t+1}\ominus\bm q^k_t .
+\end{equation}
+
+每轮解两个凸 QP：
+\begin{align}
+\text{步 1：}\quad &\dQ_1=\argmin_{\dQ}\ \tfrac12\|J_1\dQ-\bm e_1\|^2
+      \quad\text{s.t.}\quad G\dQ\le\bm g,\ \ \bm l\le\dQ\le\bm u,
+      \qquad \bm r_1=J_1\dQ_1-\bm e_1 ; \label{eq:qp1}\\
+\text{步 2：}\quad &\dQ_2=\argmin_{\dQ}\ f_2(\dQ)
+      \quad\text{s.t.}\quad U_r^{\top}J_1\dQ=U_r^{\top}J_1\dQ_1,\ \ G\dQ\le\bm g,\ \ \bm l\le\dQ\le\bm u . \label{eq:qp2}
+\end{align}
+
+\textbf{步 1 的含义}：在全部硬不等式和盒约束之内，焊接、rake、边界最多能满足到什么程度。可行时 $\bm r_1=\bm 0$。
+
+\textbf{步 2 的含义}：保持步 1 的结果不变（等式 $U_r^{\top}J_1\dQ=U_r^{\top}J_1\dQ_1$），在剩下的自由度里把意图和平滑做到最好。$U_r$ 是 $J_1$ 截秩后的左奇异向量：对每个分块 $J_{1,t}=U\Sigma V^{\top}$，保留 $\sigma_i>\varepsilon\,\sigma_{\max}$ 的列。四个垫同时焊着时闭链使 $J_{1,t}$ 秩亏，直接用 $J_{1,t}$ 作等式会自相矛盾，投到 $U_r$ 上后等式集自洽。
+
+\textbf{与零空间投影的关系}：若没有不等式和盒，步 2 的解就是经典的 $\dQ_2=\dQ_1+N\bm z^*$，$N=I-V_rV_r^{\top}$。写成 QP 是为了让盒约束、净空、速度、加速度与焊接处于\emph{同一优先级}，而不是靠权重换算。
+
+\textbf{稀疏结构}：C1、C2 逐帧独立，$J_1$ 分块对角；C6、C7 只耦合相邻帧；cycle 的回绕把第 $N-1$ 帧和第 0 帧连起来；mount 的 C8 只作用在首尾两帧。整个 QP 是带状的，规模约 $226\times39\approx 8.8\times10^3$ 个变量，用 \code{proxsuite.proxqp.sparse} 求解，上一轮的解作热启动。
+
+\textbf{更新与停止}：
+\begin{equation}
+\bm Q^{k+1}=\bm Q^k\oplus\dQ_2,\qquad
+\text{停止当 }\ \max_{(h,t)}\|\bm e^p_{h,t}\|<\varepsilon_p,\ \ \max_{(h,t)}\|\bm e^r_{h,t}\|<\varepsilon_r,\ \ \|\dQ_2\|_\infty<\varepsilon_q .
+\end{equation}
+信赖域 $\Delta$ 限制每轮每帧的步长，保证线性化有效。
+
+\textbf{不可行判决}：到达轮数上限时若 $\|\bm r_1\|$ 仍超阈，整条 clip 判为不可行，报告按段给出活跃约束的类型：速度界（C6/C7）与焊接（C1）同时活跃说明该段太短；万向节界（C5）活跃说明编排要求的转动超出了 $\gamma_{\max}$；关节硬带（C4）活跃说明姿态到了挡块。求解器绝不用拖动焊着的垫来化解冲突，冲突只会以判决的形式暴露给编排者。
+
+\subsection*{算法步骤}
+\begin{enumerate}[leftmargin=1.8em]
+\item 用逐帧字典序 IK（第 5 节）生成初值 $\bm Q^0$。
+\item 对 $k=0,1,\dots,K_{\max}$：
+  \begin{enumerate}[leftmargin=1.4em]
+  \item 逐帧 \code{mj\_forward}，取 $\bm p_h,R_h,J^p_h,J^r_h$，装配 $J_1,\bm e_1,G,\bm g,\bm l,\bm u,H,\bm h$。
+  \item 解式 \eqref{eq:qp1} 得 $\dQ_1,\bm r_1$；逐块 SVD 得 $U_r$。
+  \item 解式 \eqref{eq:qp2} 得 $\dQ_2$。
+  \item 若满足停止条件则跳出；否则 $\bm Q^{k+1}=\bm Q^k\oplus\dQ_2$。
+  \end{enumerate}
+\item 若 $\|\bm r_1\|$ 超阈：输出不可行判决与活跃约束表；否则输出 $\bm Q$、$\bm\gamma$ 与差分速度。
+\end{enumerate}
+
+\section{初值：逐帧字典序 IK（步骤二）}
+
+去掉帧间约束 C6、C7 和边界 C8，问题退化为逐帧独立的
+\begin{equation}
+\min_{\bm q_t}\ f_t(\bm q_t)\quad\text{s.t. C1--C5 在第 }t\text{ 帧成立},
+\end{equation}
+按 $t=0,1,\dots$ 顺序解，每帧以上一帧的解为起点。每帧内部同样是高斯牛顿迭代，每次迭代解两个 QP：
+\begin{align}
+\dq_1&=\argmin_{\dq}\ \tfrac12\|J_{1,t}\dq-\bm e_{1,t}\|^2\quad\text{s.t.}\quad G_t\dq\le\bm g_t,\ \bm l_t\le\dq\le\bm u_t,\\
+\dq_2&=\argmin_{\dq}\ f_{2,t}(\dq)\quad\text{s.t.}\quad U_{r,t}^{\top}J_{1,t}\dq=U_{r,t}^{\top}J_{1,t}\dq_1,\ G_t\dq\le\bm g_t,\ \bm l_t\le\dq\le\bm u_t,
+\end{align}
+更新 $\bm q_t\leftarrow\bm q_t\oplus\dq_2$，收敛阈值与整段相同。它的解 $\bm Q^0$ 满足 C1--C5，但相邻帧之间没有速度界，段边界可能有折角，闭合靠尾部混合；这些正是整段 KTO 要去掉的东西。KTO 失败时它也是可交付的退路。规模小（39 个变量、最多 24 行等式），用 \code{proxqp} 稠密后端或 \code{daqp}。
+
+\section{参数默认值}
+
+\begin{center}\footnotesize
+\begin{tabular}{@{}llll@{}}
+\toprule
+参数 & 值 & 作用 & 代码名 \\
+\midrule
+$W^p_h$（脚） & $\diag(1000,1000,1000)$ & 摆动脚位置 & 生成器内置 \\
+$w^r_h$（脚） & $100$ & 摆动脚姿态 & 生成器内置 \\
+$W^p_h$（手） & $500\to2000$（随弧线进度） & 摆动手位置 & 生成器内置 \\
+$w^r_h$（手） & $50\to500$（随弧线进度） & 摆动手姿态 & 生成器内置 \\
+$W^{\mathrm{toe}}$ & $\diag(300,30,30)$ & 趾撑 & 生成器内置 \\
+$W^b$, $w^b_r$ & $\diag(30\ldots100)$, $2\ldots50$ & 基座意图 & 生成器内置 \\
+$W_\theta$ & $0.3$（右手摆 $10$） & 姿态参考 & \code{posture\_weight} \\
+$W_{\mathrm{lim}}$, $\mu_s$ & $3$, $0.10$ & 限位裕度弹簧 & \code{--limit-weight}, \code{--limit-margin-frac} \\
+$w_\gamma$ & $3$ & 万向节回零 & \code{--gimbal-return-w}（新） \\
+$w_a$ & 待定（建议 $1$，以 rad/s$^2$ 计） & 加速度平滑 & \code{--accel-weight}（新） \\
+$\lambda^2$ & $0.5$ & 阻尼 & \code{lam2} \\
+$\mu$ & $0.01$ & 关节硬带 & \code{--limit-hard-margin-frac}（新） \\
+$\gamma_{\max}$ & $2^\circ$（挡块 $3^\circ$） & 万向节行程分账 & \code{--gimbal-travel-deg}（新） \\
+$v_{\max}$, $a_{\max}$ & 实机限速 $\times0.7$；待定 & C6、C7 & \code{PHYBOT\_C2\_DEPLOY\_VELOCITY\_LIMITS}（新） \\
+$\Delta$ & $0.12$（段首节流帧 $0.003$） & 信赖域 & \code{max\_step} \\
+$\varepsilon_p,\varepsilon_r,\varepsilon_q$ & $1.5\times10^{-4}$\,m, $2\times10^{-3}$\,rad, $10^{-4}$ & 收敛 & \code{tol\_pos}, \code{tol\_rot}, \code{tol\_dq} \\
+$K_{\max}$ & $100$ & 轮数上限 & \code{iters} \\
+$\varepsilon$（截秩） & $10^{-9}$ & $U_r$ & 生成器内置 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+摆动手权重随弧线进度 $s_a$ 的变化：$w=w_{\min}+(w_{\max}-w_{\min})\max\bigl(1-\min(s_a/0.3,1),\ s_a^2\bigr)$，段首强、中段弱、落点前再强，用来把释放焊接引起的重新平衡摊到整段而不是一帧。
+
+\section{输出与证书}
+
+\textbf{输出。} 收敛后的 $\bm Q$ 给出逐帧关节角 $\bm\theta_t$、根位姿 $(\bm p_{b,t},R_{b,t})$ 和万向节角 $\bm\gamma_t$；速度用差分：
+\begin{equation}
+\dot{\bm\theta}_t=f_s(\bm\theta_{t+1}-\bm\theta_t),\qquad
+\bm v_{b,t}=f_s(\bm p_{b,t+1}-\bm p_{b,t}),\qquad
+\bm\omega_{b,t}=f_s\log\bigl(R_{b,t+1}R_{b,t}^{\top}\bigr)^{\vee},
+\end{equation}
+cycle 在 $t=N-1$ 处用 $\bm q_N=\bm q_0\oplus h\zhat$。因为 C6、C7 已成立，这些差分速度自动在实机限速之内。写入 schema v2：原有键之外新增 \code{ee\_gimbal\_angles}、\code{ik\_mode="kto"}、\code{gimbal\_travel\_deg}、\code{velocity\_bounds}、\code{handoff\_frame}、\code{recipe}。
+
+\textbf{证书。} 优化器不含接触力，力学在事后四关里：
+\begin{enumerate}[leftmargin=1.8em]
+\item 静力存在性审计：每帧求解垫力 $\bm F_h$、单侧压力 $\bm C_j$、地面力 $\bm P_k$ 与松弛 $s$，$\min s$ s.t. 力与力矩平衡、$u_h(\bm F_h)\le s$、$|\bm\tau|\le\bm\tau_{\max}$、摩擦锥；利用率
+$u=\sqrt{f_t^2+f_l^2+\max(f_n,0)^2}\big/\bigl(F_0\max(R(\vartheta,\varphi),r_{\mathrm{floor}})\bigr)$，$R$ 为 Wang-2017 包络；通过当且仅当每帧 $s^\star\le1$。
+\item 时序审计：每个放开窗 $\ge\tau_{\mathrm{cd}}+\tau_{\mathrm{db}}+\tau_{\mathrm{mv}}$；每次重新焊接到任何其它垫下一次释放 $\ge\tau_{\mathrm{ramp}}=0.25$\,s。
+\item reference-hold 回放：约束执行器下按参考播放，焊接不丢。
+\item RSI 出生稳定性门：每隔若干帧出生、deploy PD 被动保持，守卫期后种子丢失 $\le5\%$、万向节 p90 $\le2.5^\circ$、零墙碰零摔。
+\end{enumerate}
+证书不过，改的是编排参数 $\psi$（步骤五的外循环），不是本文的优化问题。
+
+\section{与现役方法的差别}
+
+现役 \code{gen\_climb\_clip.py} 是单层加权阻尼最小二乘，每次迭代一步解完：
+\begin{equation}
+\dq=\Bigl(\sum_i J_i^{\top}W_i^2J_i+D+\lambda^2I\Bigr)^{-1}\Bigl(\sum_i J_i^{\top}W_i^2\bm e_i+\bm d\Bigr),
+\end{equation}
+焊接也在求和里（$W=\diag(1000,1000,1000,500,500,500)$），万向节不在变量里（锁死为零），关节限位靠步后裁剪，没有速度界，闭合靠尾部混合。焊接只是"很重"而不是硬的，所以会漏：现役 paced 参考在摆动期焊着的垫漂移最大 $3.4$\,mm（left\_foot\_swing 的 RF 垫 $3.1$\,mm，right\_hand\_swing $3.4$\,mm），驻留段看起来是零只是因为每段开头把锚点重新坐到了当前位置。基座加速度在段边界有 $0.65\,g$ 的单帧尖峰。本文的 KTO 替换的只是求解层：编排、目标、权重全部沿用。
+
+\end{document}

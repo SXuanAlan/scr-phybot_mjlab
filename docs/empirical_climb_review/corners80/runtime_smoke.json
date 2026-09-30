@@ -1,0 +1,29 @@
+{
+  "task_id": "Mjlab-Climb-Wall-Phybot-C2-Corners-A80",
+  "num_envs": 8,
+  "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy",
+  "motion_sha256": "5073d0817de98f70362731ed9964cc938eae956f32022ca62a7d13da86c8245d",
+  "policy_steps": 12,
+  "wall_angle_deg": [
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0,
+    80.0
+  ],
+  "active_units_per_pad": 4,
+  "unit_site_names": [
+    "robot/left_hand_spine_unit_0_0",
+    "robot/left_hand_spine_unit_0_3",
+    "robot/left_hand_spine_unit_2_0",
+    "robot/left_hand_spine_unit_2_3"
+  ],
+  "required_preload_per_unit_n": 10.0,
+  "finite": true,
+  "forced_release_events": 32,
+  "terminated_episodes": 0,
+  "scope": "Runtime wiring and finite-step check with fixed initial PD targets; seeded mature contacts. Not a policy execution or successful climb."
+}

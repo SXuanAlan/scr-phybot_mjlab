@@ -1,0 +1,126 @@
+% English version of Sec. 3.2 (objective) of reference_kto_formulation.tex
+% Build: xelatex reference_kto_objective_en.tex
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2.0cm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\DeclareMathOperator{\diag}{diag}
+
+\title{Kinematic Trajectory Optimization of a Reference Clip\\[3pt]\large Objective function}
+\author{Companion to \texttt{reference\_kto\_formulation.tex}, Sec.~3.2}
+\date{2026-09-04}
+
+\begin{document}
+\maketitle
+
+\section*{Objective}
+
+The whole-clip problem minimizes
+\begin{equation}
+J(\bm Q)=\sum_{t=0}^{N-1} f_t(\bm q_t)\;+\;w_a\sum_{t}\bigl\|(\bm q_{t+1}\ominus\bm q_t)-(\bm q_t\ominus\bm q_{t-1})\bigr\|^2
+\label{eq:obj}
+\end{equation}
+over the trajectory $\bm Q=(\bm q_0,\dots,\bm q_{N-1})$, subject to the hard
+constraints (C1)--(C8) of the full formulation. The first term is the
+per-frame intent cost, the second the squared discrete acceleration
+(smoothness); $\ominus$ is the tangent-space difference (logarithm map on the
+base rotation, plain subtraction elsewhere).
+
+Let
+\begin{equation}
+\mathcal S_t=\bigl\{h:\ \sigma_{h,t}=0,\ (h,t)\notin\mathcal T_{\mathrm{rake}}\bigr\}
+\end{equation}
+denote the pads that are released and not raking at frame $t$. The per-frame
+intent cost is
+\begin{equation}
+\begin{aligned}
+f_t(\bm q)=\;&\sum_{h\in\mathcal S_t}\bigl\|W^p_h\bigl(\bm p_h(\bm q)-\bm p^*_h(t)\bigr)\bigr\|^2
+  && \text{swing-pad arc}\\
+  &+\sum_{h\in\mathcal S_t} w^r_h\bigl\|\bm e_r\bigl(R_h(\bm q),R^*_h(t)\bigr)\bigr\|^2
+  && \text{swing-pad orientation}\\
+  &+\sum_{h:\ \beta_{h,t}=1}\bigl\|W^{\mathrm{toe}}\bigl(\bm p_{\mathrm{toe},h}(\bm q)-\bm p^*_{\mathrm{toe},h}(t)\bigr)\bigr\|^2
+  && \text{toe brace}\\
+  &+\bigl\|W^b\bigl(\bm p_b-\bm p^*_b(t)\bigr)\bigr\|^2+w^b_r\bigl\|\bm e_r\bigl(R_b,R^*_b(t)\bigr)\bigr\|^2
+  && \text{base intent}\\
+  &+\bigl\|W_\theta\bigl(\bm\theta-\bm\theta^*(t)\bigr)\bigr\|^2
+  && \text{posture reference}\\
+  &+\bigl\|W_{\mathrm{lim}}(\bm\theta)\bigl(\bm\theta-\bm\theta_{\mathrm{bnd}}\bigr)\bigr\|^2
+  && \text{limit-margin spring}\\
+  &+w_\gamma^2\|\bm\gamma\|^2 .
+  && \text{gimbal return}
+\end{aligned}
+\label{eq:ft}
+\end{equation}
+Here $\bm p_h(\bm q),R_h(\bm q)$ are the pad-frame position and orientation
+from forward kinematics, $\bm e_r(R,R^*)=\tfrac12\sum_{k=1}^{3}\bm r_k\times\bm r^*_k$
+is the world-frame small-angle orientation error, $\bm p_b,R_b$ the base
+pose, $\bm\theta$ the joint angles, $\bm\gamma$ the gimbal angles, and
+$\beta_{h,t}$ the toe-brace schedule.
+
+\subsection*{Term by term}
+\begin{itemize}[leftmargin=1.6em]
+\item \textbf{Swing pad.} For every pad that is released and not yet raking,
+      the pad follows the Bezier approach arc $\bm p^*_h(t)$ toward its next
+      anchor. $W^p_h$ is a $3\times3$ diagonal weight; $w^r_h$ ramps with
+      arc progress (weak at the start of a hand swing, strong toward
+      landing). This is an intent, not a fact: the arc encodes a preference
+      (clear the wall, never drag unloaded spine tips across it), not a
+      physical constraint.
+\item \textbf{Toe brace.} $W^{\mathrm{toe}}=\diag(300,30,30)$: only the
+      wall-normal $x$ component is enforced strongly; $y$ and $z$ ride
+      freely, because the 2-DoF ankle cannot place the toe tip exactly in
+      3D.
+\item \textbf{Base intent.} $\bm p^*_b(t)$ blends linearly from the
+      segment-start position to ``press $3$\,cm toward the wall, shift
+      $2.5$\,cm toward the supporting side, rise half a step''; $R^*_b(t)$
+      interpolates back to upright. The weights are small ($30$--$100$ for
+      position, $2$--$50$ for orientation), so the welds decide where the
+      base can actually go.
+\item \textbf{Posture reference.} $\bm\theta^*(t)$ blends from the
+      segment-start angles to the stance angles with the smallest weight
+      ($0.3$); it only keeps directions that no other term constrains from
+      wandering.
+\item \textbf{Limit-margin spring.} $W_{\mathrm{lim}}(\bm\theta)$ is
+      nonzero only for joints inside the band within $\mu_s=10\%$ of their
+      range from either stop; it pulls such a joint back to the band
+      boundary $\bm\theta_{\mathrm{bnd}}$. It differs from the hard margin
+      $\bm m$ of constraint (C4): the hard margin is a wall, the spring is
+      an early nudge.
+\item \textbf{Gimbal return.} $w_\gamma$ makes the solver prefer the arm
+      joints over the passive gimbal when satisfying a weld; the gimbal
+      turns only when the arm cannot.
+\item \textbf{Smoothness.} $w_a$ in \eqref{eq:obj} penalizes the discrete
+      acceleration; constraint (C7) bounds it, $w_a$ makes the trajectory
+      smoother than the bound alone requires.
+\end{itemize}
+
+\subsection*{Default weights}
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Weight & Value & Role \\
+\midrule
+$W^p_h$ (foot) & $\diag(1000,1000,1000)$ & swing-foot position \\
+$w^r_h$ (foot) & $100$ & swing-foot orientation \\
+$W^p_h$ (hand) & $500\to2000$ with arc progress & swing-hand position \\
+$w^r_h$ (hand) & $50\to500$ with arc progress & swing-hand orientation \\
+$W^{\mathrm{toe}}$ & $\diag(300,30,30)$ & toe brace \\
+$W^b$, $w^b_r$ & $\diag(30\ldots100)$, $2\ldots50$ & base intent \\
+$W_\theta$ & $0.3$ (right-hand swing $10$) & posture reference \\
+$W_{\mathrm{lim}}$, $\mu_s$ & $3$, $0.10$ & limit-margin spring \\
+$w_\gamma$ & $3$ & gimbal return \\
+$w_a$ & to be tuned (order $1$, in rad/s$^2$) & smoothness \\
+\bottomrule
+\end{tabular}
+\end{center}
+The swing-hand weights follow
+$w=w_{\min}+(w_{\max}-w_{\min})\max\bigl(1-\min(s_a/0.3,1),\,s_a^2\bigr)$
+with arc progress $s_a$: strong at the segment start, weak mid-swing, strong
+again before landing, which spreads the re-equilibration caused by releasing a
+weld over the whole swing instead of a single frame.
+
+\end{document}

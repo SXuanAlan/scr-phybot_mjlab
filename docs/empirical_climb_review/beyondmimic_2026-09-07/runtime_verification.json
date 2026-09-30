@@ -1,0 +1,410 @@
+{
+  "created_at_utc": "2026-09-08T03:43:00.095316+00:00",
+  "no_training": true,
+  "controller": "reference joint-position PD",
+  "cases": [
+    {
+      "unit_layout": "all",
+      "wall_angle_deg": 45.0,
+      "active_units_per_pad": 12,
+      "initial_frames": [
+        118,
+        85,
+        62,
+        125,
+        223,
+        23,
+        102,
+        329
+      ],
+      "seeded_supports": [
+        4,
+        3,
+        3,
+        4,
+        4,
+        4,
+        3,
+        3
+      ],
+      "observation_shapes": {
+        "actor": [
+          8,
+          150
+        ],
+        "critic": [
+          8,
+          170
+        ]
+      },
+      "physical_seed_anchors_correct": true,
+      "reset_pose_error_m": 2.1358100639190525e-06,
+      "reset_orientation_error_rad": 5.127385520609096e-07,
+      "zero_birth_events": true,
+      "zero_reset_guard_age": true,
+      "contact_history_shape": [
+        8,
+        26,
+        10,
+        3
+      ],
+      "finite": true,
+      "termination_events": 32,
+      "timeout_events": 0,
+      "new_latches": 0,
+      "release_reasons": {
+        "8": 52,
+        "2": 67
+      },
+      "termination_reasons": {
+        "time_out": 0,
+        "base_height": 0,
+        "bad_state": 0,
+        "bad_tracking": 31,
+        "lost_support": 10
+      },
+      "max_episode_steps_before_done": 28,
+      "peak_total_contacts": 830,
+      "peak_constraint_rows_per_world": 210,
+      "overflow_substeps": 0,
+      "partial_reset_preserves_other_envs": true,
+      "failure_histogram": [
+        0.0029168713372200727,
+        0.004799652844667435,
+        0.004728681407868862,
+        0.0038444530218839645,
+        0.0019186228746548295,
+        0.0009675230248831213,
+        0.003856869414448738,
+        0.0018723150715231895,
+        0.005862406920641661
+      ],
+      "phase_probabilities": [
+        0.10727430880069733,
+        0.12167224287986755,
+        0.12112952023744583,
+        0.11436767876148224,
+        0.09964054077863693,
+        0.09236732125282288,
+        0.11446262896060944,
+        0.09928641468286514,
+        0.12979930639266968
+      ],
+      "final_supports_after_possible_resets": [
+        0,
+        1,
+        0,
+        3,
+        3,
+        0,
+        1,
+        3
+      ],
+      "policy_steps": 100,
+      "implementation_checks_passed": true
+    },
+    {
+      "unit_layout": "all",
+      "wall_angle_deg": 90.0,
+      "active_units_per_pad": 12,
+      "initial_frames": [
+        118,
+        85,
+        62,
+        125,
+        223,
+        23,
+        102,
+        329
+      ],
+      "seeded_supports": [
+        4,
+        3,
+        3,
+        4,
+        4,
+        4,
+        3,
+        3
+      ],
+      "observation_shapes": {
+        "actor": [
+          8,
+          150
+        ],
+        "critic": [
+          8,
+          170
+        ]
+      },
+      "physical_seed_anchors_correct": true,
+      "reset_pose_error_m": 1.0811303354785196e-06,
+      "reset_orientation_error_rad": 3.311240561743034e-07,
+      "zero_birth_events": true,
+      "zero_reset_guard_age": true,
+      "contact_history_shape": [
+        8,
+        26,
+        10,
+        3
+      ],
+      "finite": true,
+      "termination_events": 33,
+      "timeout_events": 0,
+      "new_latches": 0,
+      "release_reasons": {
+        "8": 44,
+        "2": 82,
+        "7": 9
+      },
+      "termination_reasons": {
+        "time_out": 0,
+        "base_height": 0,
+        "bad_state": 0,
+        "bad_tracking": 7,
+        "lost_support": 26
+      },
+      "max_episode_steps_before_done": 24,
+      "peak_total_contacts": 932,
+      "peak_constraint_rows_per_world": 266,
+      "overflow_substeps": 0,
+      "partial_reset_preserves_other_envs": true,
+      "failure_histogram": [
+        0.004834181163460016,
+        0.004759696312248707,
+        0.005668656434863806,
+        0.0009930210653692484,
+        0.007687048986554146,
+        0.003820365760475397,
+        0.0009474072139710188,
+        0.001909974729642272,
+        0.0009694609325379133
+      ],
+      "phase_probabilities": [
+        0.12117421627044678,
+        0.12060817331075668,
+        0.12751570343971252,
+        0.09198381006717682,
+        0.1428542286157608,
+        0.11346986144781113,
+        0.09163717180490494,
+        0.09895208477973938,
+        0.09180476516485214
+      ],
+      "final_supports_after_possible_resets": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "policy_steps": 100,
+      "implementation_checks_passed": true
+    },
+    {
+      "unit_layout": "corners",
+      "wall_angle_deg": 45.0,
+      "active_units_per_pad": 4,
+      "initial_frames": [
+        118,
+        85,
+        62,
+        125,
+        223,
+        23,
+        102,
+        329
+      ],
+      "seeded_supports": [
+        4,
+        3,
+        3,
+        4,
+        4,
+        4,
+        3,
+        3
+      ],
+      "observation_shapes": {
+        "actor": [
+          8,
+          150
+        ],
+        "critic": [
+          8,
+          170
+        ]
+      },
+      "physical_seed_anchors_correct": true,
+      "reset_pose_error_m": 2.1358100639190525e-06,
+      "reset_orientation_error_rad": 3.8416359871007444e-07,
+      "zero_birth_events": true,
+      "zero_reset_guard_age": true,
+      "contact_history_shape": [
+        8,
+        26,
+        10,
+        3
+      ],
+      "finite": true,
+      "termination_events": 32,
+      "timeout_events": 0,
+      "new_latches": 0,
+      "release_reasons": {
+        "2": 58,
+        "8": 7,
+        "7": 68
+      },
+      "termination_reasons": {
+        "time_out": 0,
+        "base_height": 0,
+        "bad_state": 0,
+        "bad_tracking": 32,
+        "lost_support": 19
+      },
+      "max_episode_steps_before_done": 23,
+      "peak_total_contacts": 958,
+      "peak_constraint_rows_per_world": 211,
+      "overflow_substeps": 0,
+      "partial_reset_preserves_other_envs": true,
+      "failure_histogram": [
+        0.0009258549544028938,
+        0.005722780711948872,
+        0.0037006428465247154,
+        0.0009455133695155382,
+        0.0028824335895478725,
+        0.004890477750450373,
+        0.003827968379482627,
+        0.0048209200613200665,
+        0.0029285328928381205
+      ],
+      "phase_probabilities": [
+        0.09213482588529587,
+        0.12885205447673798,
+        0.11337395012378693,
+        0.09228529781103134,
+        0.10711111128330231,
+        0.1224813386797905,
+        0.11434854567050934,
+        0.12194891273975372,
+        0.10746397078037262
+      ],
+      "final_supports_after_possible_resets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "policy_steps": 100,
+      "implementation_checks_passed": true
+    },
+    {
+      "unit_layout": "corners",
+      "wall_angle_deg": 60.0,
+      "active_units_per_pad": 4,
+      "initial_frames": [
+        118,
+        85,
+        62,
+        125,
+        223,
+        23,
+        102,
+        329
+      ],
+      "seeded_supports": [
+        4,
+        3,
+        3,
+        4,
+        4,
+        4,
+        3,
+        3
+      ],
+      "observation_shapes": {
+        "actor": [
+          8,
+          150
+        ],
+        "critic": [
+          8,
+          170
+        ]
+      },
+      "physical_seed_anchors_correct": true,
+      "reset_pose_error_m": 1.922192041092785e-06,
+      "reset_orientation_error_rad": 3.807191717442038e-07,
+      "zero_birth_events": true,
+      "zero_reset_guard_age": true,
+      "contact_history_shape": [
+        8,
+        26,
+        10,
+        3
+      ],
+      "finite": true,
+      "termination_events": 36,
+      "timeout_events": 0,
+      "new_latches": 0,
+      "release_reasons": {
+        "2": 60,
+        "8": 12,
+        "7": 77
+      },
+      "termination_reasons": {
+        "time_out": 0,
+        "base_height": 0,
+        "bad_state": 0,
+        "bad_tracking": 27,
+        "lost_support": 9
+      },
+      "max_episode_steps_before_done": 24,
+      "peak_total_contacts": 962,
+      "peak_constraint_rows_per_world": 205,
+      "overflow_substeps": 0,
+      "partial_reset_preserves_other_envs": true,
+      "failure_histogram": [
+        0.0057708630338311195,
+        0.0018858588300645351,
+        0.007555192336440086,
+        0.0019218887900933623,
+        0.0038224435411393642,
+        0.002924033673480153,
+        0.0019093690207228065,
+        0.0019005445064976811,
+        0.006731065921485424
+      ],
+      "phase_probabilities": [
+        0.12559005618095398,
+        0.09668835252523422,
+        0.13886423408985138,
+        0.09695638716220856,
+        0.11109518259763718,
+        0.10441164672374725,
+        0.09686324745416641,
+        0.09679760038852692,
+        0.1327333003282547
+      ],
+      "final_supports_after_possible_resets": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "policy_steps": 100,
+      "implementation_checks_passed": true
+    }
+  ]
+}

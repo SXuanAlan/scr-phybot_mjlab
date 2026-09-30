@@ -61,12 +61,9 @@ def test_domain_rand_switch_turns_the_package_off():
   assert "student" not in cfg.observations
 
 
-def test_default_dr_is_the_full_v3_package():
-  # v4 revival (2026-08-02): the shipped lineage carries v3's FULL
-  # walk-parity DR from birth — from-scratch-with-noise beats
-  # resume-then-inject (the graded R1/R2 ladder measured a ~0.015 permanent
-  # clean-exam tax on the noise-naive 18c line). Byte-matched against the
-  # deploypd-v3-pd100 run's params/env.yaml.
+def test_empirical_default_preserves_noncontact_dr():
+  # Measured-distribution capacity replaces the old contact randomization;
+  # observation, encoder, friction and mass randomization remain independent.
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   for name in ("body_friction", "base_mass", "encoder_bias"):
     assert name in cfg.events
@@ -86,7 +83,7 @@ def test_default_dr_is_the_full_v3_package():
     noise = cfg.observations["actor"].terms[term].noise
     assert noise is not None
     assert (noise.n_min, noise.n_max) == (-half_range, half_range)
-  assert "random_release" in cfg.events  # R4 default-on since 2026-08-03
+  assert "random_release" not in cfg.events
   assert "push_robot" not in cfg.events
 
 
@@ -97,17 +94,14 @@ def test_play_is_deterministic():
   assert cfg.observations["actor"].enable_corruption is False
 
 
-def test_release_drill_is_default_on_with_reseat_hold():
-  # R4 (2026-08-03): the drill ships in the default package now that the
-  # lineage masters exact-90 — paired with the reseat-hold clock freeze.
-  cfg = phybot_c2_climb_wall_env_cfg(play=False)
+def test_release_drill_requires_explicit_opt_in():
+  cfg = phybot_c2_climb_wall_env_cfg(play=False, robustness_release=True)
   drill = cfg.events["random_release"]
   assert drill.mode == "interval"
   assert drill.interval_range_s == (6.0, 12.0)  # gentle rung; (3, 8) later
   for name in _DR_EVENTS:
     assert name in cfg.events
-  # From-scratch retrains opt OUT until exact-90 is mastered.
-  fresh = phybot_c2_climb_wall_env_cfg(play=False, robustness_release=False)
+  fresh = phybot_c2_climb_wall_env_cfg(play=False)
   assert "random_release" not in fresh.events
   play = phybot_c2_climb_wall_env_cfg(play=True)
   assert "random_release" not in play.events
@@ -140,7 +134,8 @@ def test_student_group_contract():
     assert name in cfg.events
   # Curricula pinned to single stages (teacher-graduated difficulty).
   assert len(cfg.curriculum["wall_angle"].params["angle_stages"]) == 1
-  assert len(cfg.curriculum["tilt_peel"].params["stages"]) == 1
+  if "tilt_peel" in cfg.curriculum:  # absent on the gimbal-era plant
+    assert len(cfg.curriculum["tilt_peel"].params["stages"]) == 1
   play = phybot_c2_climb_wall_distill_env_cfg(play=True)
   assert play.observations["student"].enable_corruption is False
 
@@ -169,6 +164,7 @@ def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
     grip_enabled=True,
     reengage_cooldown_steps=cooldown,
     dr_reseat_hold_timeout_steps=75,
+    spring_field_enabled=False,
   )
   aff._num_ee = num_ee
   aff._env = SimpleNamespace(device="cpu")  # backs the read-only .device
@@ -180,6 +176,8 @@ def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
   aff._steps_since_engage = torch.ones(shape, dtype=torch.long)
   aff.forced_release_this_step = torch.zeros(shape, dtype=torch.bool)
   aff.release_reason = torch.zeros(shape, dtype=torch.int8)
+  aff._seeded = torch.zeros(shape, dtype=torch.bool)
+  aff.released_was_seeded = torch.zeros(shape, dtype=torch.bool)
   aff.dr_release_pending = torch.zeros(shape, dtype=torch.bool)
   aff._reseat_hold_steps = torch.zeros(num_envs, dtype=torch.long)
   aff._seat_scale = torch.full(shape, 0.5)
@@ -215,6 +213,20 @@ def test_force_release_mirrors_real_disengage():
   # Env 1 untouched.
   assert bool(aff._engaged[1].all())
   assert aff.sync_calls == 1
+
+
+def test_seat_charge_fraction_property():
+  # v60: the public charge readout behind the first_charge rung.
+  aff = _make_affordance_stub()
+  aff._ls_cfg = SimpleNamespace(capacity_ramp_time_s=0.25)
+  # The stub's 0.3 s of shear-loaded time overfills the 0.25 s ramp ->
+  # clamped mature, never >1.
+  assert bool((aff.seat_charge_fraction == 1.0).all())
+  aff._seat_charge = torch.full((2, 4), 0.1)
+  assert float(aff.seat_charge_fraction[0, 0]) == pytest.approx(0.4)
+  # Ramp disabled -> every grip mature by definition.
+  aff._ls_cfg = SimpleNamespace(capacity_ramp_time_s=0.0)
+  assert bool((aff.seat_charge_fraction == 1.0).all())
 
 
 def test_force_release_report_false_stays_silent():

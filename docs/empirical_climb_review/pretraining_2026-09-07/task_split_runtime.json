@@ -1,0 +1,140 @@
+{
+  "created_at_utc": "2026-09-08T03:06:35.384898+00:00",
+  "scope": "Registered training configurations, two GPU worlds each, three reference-PD steps after each selected curriculum reset; verifies wiring and finite state, not climbing success or a trained policy.",
+  "tasks": [
+    {
+      "task": "Mjlab-Climb-Wall-Phybot-C2",
+      "active_units_per_pad": 12,
+      "experiment_name": "phybot_c2_climb_wall",
+      "stages": [
+        {
+          "iteration": 0,
+          "expected_angle_range": [
+            40.0,
+            50.0
+          ],
+          "sampled_wall_angles_deg": [
+            42.254817962646484,
+            45.835445404052734
+          ],
+          "seeded_supports": [
+            3,
+            4
+          ],
+          "final_supports": [
+            2,
+            0
+          ],
+          "finite": true
+        },
+        {
+          "iteration": 5150,
+          "expected_angle_range": [
+            90.0,
+            90.0
+          ],
+          "sampled_wall_angles_deg": [
+            90.0,
+            90.0
+          ],
+          "seeded_supports": [
+            3,
+            3
+          ],
+          "final_supports": [
+            0,
+            0
+          ],
+          "finite": true
+        }
+      ]
+    },
+    {
+      "task": "Mjlab-Climb-Wall-Phybot-C2-Corners-A60",
+      "active_units_per_pad": 4,
+      "experiment_name": "phybot_c2_climb_wall_corners60",
+      "stages": [
+        {
+          "iteration": 0,
+          "expected_angle_range": [
+            40.0,
+            50.0
+          ],
+          "sampled_wall_angles_deg": [
+            42.254817962646484,
+            45.835445404052734
+          ],
+          "seeded_supports": [
+            3,
+            4
+          ],
+          "final_supports": [
+            0,
+            0
+          ],
+          "finite": true
+        },
+        {
+          "iteration": 1500,
+          "expected_angle_range": [
+            50.0,
+            60.0
+          ],
+          "sampled_wall_angles_deg": [
+            56.43972396850586,
+            58.299713134765625
+          ],
+          "seeded_supports": [
+            3,
+            4
+          ],
+          "final_supports": [
+            0,
+            0
+          ],
+          "finite": true
+        },
+        {
+          "iteration": 3300,
+          "expected_angle_range": [
+            60.0,
+            60.0
+          ],
+          "sampled_wall_angles_deg": [
+            60.0,
+            60.0
+          ],
+          "seeded_supports": [
+            3,
+            3
+          ],
+          "final_supports": [
+            0,
+            0
+          ],
+          "finite": true
+        },
+        {
+          "iteration": 12000,
+          "expected_angle_range": [
+            60.0,
+            60.0
+          ],
+          "sampled_wall_angles_deg": [
+            60.0,
+            60.0
+          ],
+          "seeded_supports": [
+            4,
+            4
+          ],
+          "final_supports": [
+            0,
+            0
+          ],
+          "finite": true
+        }
+      ]
+    }
+  ]
+}

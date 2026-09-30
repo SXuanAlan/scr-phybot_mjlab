@@ -1,5 +1,18 @@
 # Microspine 旋转柔性标定（"4°" 定案，2026-07-31）
 
+> **⚠️ 2026-08-15 被硬件重设计接替（本文档保留为考古）**：pad 与臂/胫之间
+> **更正（2026-08-22）**：实机万向节硬限位为 **±3°**，sim 常数 `PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD` 已改 3°；下文的 ±4° 为 08-15 建模时的悬挂行程估计，保留作历史记录。
+>
+> 改为真实被动万向节（3-hinge ball joint，±4° 硬限位 + k=0.7 回中弹簧，
+> 铰心=四接触点质心，`phybot_c2_constants._add_pad_gimbals`）。本文档 §2
+> 反对刚性 weld 的理由——闭链 PD 位形冲突被刚性转动行放大成假力矩——由
+> 万向节行程机械吸收，故 **weld 恢复真刚性（`anchor_torquescale` 0.01→1.0）、
+> tilt-peel 角度失效整体退役（band (0,0)、tilt 课程移除）、失效统一为
+> 力/力矩计费（per-unit）**。§1 的 5mm 悬臂行程→4° 数字现在就是万向节的
+> 机械行程本身；§3 的"PD-结构路径主导刚度"结论继续成立。旧刚性附着 plant
+> 用 `PHYBOT_C2_PAD_GIMBAL=0` 重建（A/B 考卷）。机构单测=
+> `tests/microspine/test_pad_gimbal.py`。
+
 ## 0. 结论速览
 
 | 参数 | 定案值 | 依据 |

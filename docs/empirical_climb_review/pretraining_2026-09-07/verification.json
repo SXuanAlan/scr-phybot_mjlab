@@ -1,0 +1,216 @@
+{
+  "reviewed_at_utc": "2026-09-08T01:19:40.585504+00:00",
+  "scope": "Initial review snapshot of empirical four-corner climbing, before the contact-buffer correction. Original sha256 values below belong to that initial snapshot. See training_configuration_review_followup for the current configuration and checks. No training or hardware execution.",
+  "microspine_parameters": {
+    "engage_unit_preload_n": 10.0,
+    "engage_parallel_cos_threshold": 0.25,
+    "engage_min_spine_fraction": 1.0,
+    "virtual_spine_grid": [
+      5,
+      5
+    ],
+    "virtual_spine_travel": 0.005,
+    "engage_max_antirake_vel": 0.02,
+    "engage_min_total_normal_force": 0.0,
+    "engage_consecutive_steps": 3,
+    "reengage_cooldown_steps": 10,
+    "spring_field_enabled": false,
+    "anchor_lock_rotation": true,
+    "anchor_torquescale": 1.0,
+    "reanchor_after_grace": true,
+    "anchor_reseat_mode": "down",
+    "anchor_reseat_step_cap": 0.001,
+    "anchor_project_to_wall": false,
+    "disable_contacts_while_latched": true
+  },
+  "limit_surface_parameters": {
+    "model": "empirical_unit",
+    "unit_layout": "corners",
+    "hold_judge_guard_steps": 2,
+    "seed_hold_judge_guard_steps": null,
+    "violation_consecutive_steps": 1,
+    "moment_capacity_enable": true,
+    "moment_billing_mode": "per_unit",
+    "tilt_peel_max_deg_range": [
+      0.0,
+      0.0
+    ],
+    "capacity_ramp_time_s": 0.0,
+    "capacity_ramp_floor": 1.0,
+    "hold_grace_steps": 14
+  },
+  "physics_event_scalar_config_matches_affordance": {
+    "microspine_grip": true
+  },
+  "physics_dt_s": 0.002,
+  "policy_dt_s": 0.02,
+  "active_reward_count": 25,
+  "sampling_mode": "uniform",
+  "tests": {
+    "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /home/spider/miniconda3/envs/env_mjlab15/bin/python -m pytest -q tests/microspine/test_unit_preload.py tests/microspine/test_empirical_limit_surface.py tests/microspine/test_affordance_contacts.py tests/microspine/test_release_load_reward.py tests/microspine/test_shared_pad_mechanics.py tests/microspine/test_pad_gimbal.py tests/microspine/test_climb_task_config.py tests/microspine/test_climb_motion.py tests/microspine/test_climb_rewards.py tests/microspine/test_box_contacts.py",
+    "passed": 121,
+    "warnings": 35,
+    "elapsed_seconds": 11.16
+  },
+  "prior_static_audits": {
+    "60": {
+      "checked_recorded_hashes": 17,
+      "mismatches": [],
+      "holding_passed": 463,
+      "holding_checked": 490,
+      "preload_passed": 12,
+      "preload_checked": 12,
+      "static_audit_recomputed_this_review": false
+    },
+    "80": {
+      "checked_recorded_hashes": 13,
+      "mismatches": [],
+      "holding_passed": 180,
+      "holding_checked": 490,
+      "preload_passed": 0,
+      "preload_checked": 12,
+      "static_audit_recomputed_this_review": false
+    }
+  },
+  "runtime_probe": "runtime_smoke.json",
+  "runtime_probe_interpretation": "Original two-second probe had finite observations/rewards/states and lost every seeded grip with zero new latches at both angles. Later log inspection found three narrowphase contact-buffer overflow warnings. Use the corrected-buffer follow-up for the runtime conclusion; neither probe is a trained-policy or hardware feasibility result.",
+  "findings": [
+    "Per-active-unit preload >=10 N is an OFF-to-ON minimum, not a hold compression ceiling.",
+    "Holding uses per-unit S/L-conditioned empirical normal capacity, measured-domain validity and persistent early-failure draws. First failing unit releases the whole pad.",
+    "A schedule OFF or S=L=0 is not itself a release command. Release is load-driven.",
+    "A legacy initial reseating window remains enabled: down-rake translation capped at 1 mm per step and orientation recapture until executor age 13. Hold judgment uses its separate 2-step guard.",
+    "Low-load release shaping is implemented. The agreed 16-term BeyondMimic adaptation and adaptive phase sampler remain unimplemented; current configuration has 25 rewards and uniform RSI."
+  ],
+  "user_decisions": {
+    "initial_down_rake_reseating": {
+      "status": "accepted_keep_current_behavior",
+      "nominal_window_s": 0.28,
+      "maximum_translation_per_policy_step_m": 0.001,
+      "scope": "Down-rake translation during the initial seating window. This confirmation does not decide the separate orientation-recapture behavior and is not a new physical validation result."
+    }
+  },
+  "sha256": {
+    "src/scr_phybot_mjab/microspine/affordance.py": "bc3fcc768e7938656a07517b9166eb88c2fadc0b7ee7ed03899ed553155ae53e",
+    "src/scr_phybot_mjab/microspine/config.py": "6a98a334cf8955ec27a1c54a5766e531322b9e334dd5e910d3f98d97e89ac5cc",
+    "src/scr_phybot_mjab/microspine/constraint.py": "b0b56e279b9e1b18d925f54e84edf33b5b37441d261dcc46d7dd3f8cddae7c61",
+    "src/scr_phybot_mjab/microspine/contact.py": "1b802dd04bc9b54da2d925917fcfb26afc771a6a3b8f1dc624021860aaefe3f6",
+    "src/scr_phybot_mjab/microspine/contact_sensor.py": "b2750d651c0e95075920b14ae326fb528ff15011e8ebd5d06697128a39d3757a",
+    "src/scr_phybot_mjab/microspine/empirical_limit_surface.py": "b47bfafc0a722031e1d5e6099de511cbb6431ba273f2666a4abc402b5fe4846d",
+    "src/scr_phybot_mjab/microspine/wrench.py": "e92482e691e17593f7487b5b93a59c72b2718d4e044e88a600920d5568320c2c",
+    "src/scr_phybot_mjab/microspine/pad_geometry.py": "7100178e32964d844ef8aee201d0a9ee07799cfb79f15656c571e7259ff5ffb3",
+    "src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/env_cfgs.py": "0550a5a77e47667527c970d1dda55607558825b656dff76b95997485f5d169a0",
+    "src/scr_phybot_mjab/tasks/climb_wall/mdp/rewards.py": "1dd37e0f9b9aa44876e5f53ff9c60d2d286f326952e9ed7766d6aec0c5aba3ad",
+    "src/scr_phybot_mjab/tasks/climb_wall/mdp/motion.py": "d92baf4e36e32f7d21e64b79dae2c74dbe41a401dc36ef99a73f0176016adb12",
+    "src/scr_phybot_mjab/assets/microspine/empirical_unit_v1.npz": "a657ac4d89bb8c7814da0073a005525abe96edb5eec45a099d4014bb9049465f",
+    "src/scr_phybot_mjab/assets/phybot_c2/phybot_c2_constants.py": "b2b861614c00a737311e3f0502e1a8e9d90bec584d31fe2cec58379d4fbbcd0f",
+    "src/scr_phybot_mjab/assets/phybot_c2/xml/phybot_c2.xml": "9f3132c71ffffee9072e2bf361113526d13435e449bbbdbb2a7f76703c8db33f",
+    "tests/microspine/test_unit_preload.py": "849268ac28c5a2e198decdac8ca72600a542dd26280a180e9bde612782c82d0a",
+    "tests/microspine/test_empirical_limit_surface.py": "f355fbff36788b68fcfa45d2a72757047d734ebe2d7ff8095208ba25162915a8",
+    "tests/microspine/test_affordance_contacts.py": "aaa33db4f84390a0535907caa0945aa326d435eb409bcf4d4bf9bbe168f4a466",
+    "tests/microspine/test_release_load_reward.py": "77aa11145d470b15ca1100f974b15d13c6b2d31d0377db38181f6138db067895",
+    "tests/microspine/test_shared_pad_mechanics.py": "4133cd9b65d9dc63df8bac99579315f2ecc9fd6489f9750ffc04eeeb43805aa3",
+    "tests/microspine/test_pad_gimbal.py": "44b588c4397e3f727e591c33717614439019d8a27954418a4796afde0a527efb",
+    "tests/microspine/test_climb_task_config.py": "e638acbedbf8866f2bb63f965ee80178c6dea93d9db45267b661b6220178a30a",
+    "tests/microspine/test_climb_motion.py": "8813f45c77af375469388d4ef34676a59bd512548a4214f5151d0733157fe958",
+    "tests/microspine/test_climb_rewards.py": "4c88275fdfde63957bf89f3eee634b9181ca4e3fdbb9410131740d332f67bbd1",
+    "tests/microspine/test_box_contacts.py": "0a79443383786a78f59e010e7d781d2601d9a04edd14f570d1e0cc9d2be4d522",
+    "docs/empirical_climb_review/pretraining_2026-09-07/runtime_smoke.py": "053fcec1ce029b6c22a9494319bc0f2c482033801e54184492c954dda952f65c",
+    "docs/empirical_climb_review/pretraining_2026-09-07/runtime_smoke.json": "c19efd4b694d081c87af73bb703cc0203cdf5a156afdf698df8ea6d5454f086f"
+  },
+  "training_configuration_review_followup": {
+    "reviewed_at_utc": "2026-09-08T02:47:02.054838+00:00",
+    "source_change": "Only empirical climbing contact allocation: nconmax 128 -> 256 per world. njmax remains 512. No reward, sampler, engage, hold, release, or reseating behavior changes.",
+    "training_started": false,
+    "training_settings": "training_settings.json",
+    "tests": {
+      "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /home/spider/miniconda3/envs/env_mjlab15/bin/python -m pytest -q tests/microspine/test_unit_preload.py tests/microspine/test_empirical_limit_surface.py tests/microspine/test_affordance_contacts.py tests/microspine/test_release_load_reward.py tests/microspine/test_shared_pad_mechanics.py tests/microspine/test_pad_gimbal.py tests/microspine/test_climb_task_config.py tests/microspine/test_climb_motion.py tests/microspine/test_climb_rewards.py tests/microspine/test_box_contacts.py",
+      "passed": 121,
+      "warnings": 35,
+      "elapsed_seconds": 11.57,
+      "log": "test_results_buffer_fix.txt"
+    },
+    "runtime_probe": "runtime_buffer_probe.json",
+    "runtime_probe_summary": [
+      {
+        "wall_angle_deg": 60,
+        "num_envs": 4,
+        "policy_steps": 100,
+        "step_dt": 0.02,
+        "seeded_supports": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "new_latches": 0,
+        "release_reason_counts": {
+          "2": 6,
+          "7": 9,
+          "8": 1
+        },
+        "minimum_preload_at_new_latch_n": null,
+        "termination_events": 0,
+        "truncation_events": 0,
+        "environments_with_termination": 0,
+        "observations_rewards_states_finite": true,
+        "nconmax_per_world": 256,
+        "naconmax_total": 1024,
+        "njmax_per_world": 512,
+        "peak_total_contacts_at_substep_end": 513,
+        "peak_constraints_per_world_at_substep_end": 199,
+        "overflow_substeps": 0,
+        "final_support_counts_after_possible_resets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "runtime_completed": true
+      },
+      {
+        "wall_angle_deg": 80,
+        "num_envs": 4,
+        "policy_steps": 100,
+        "step_dt": 0.02,
+        "seeded_supports": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "new_latches": 0,
+        "release_reason_counts": {
+          "7": 15,
+          "8": 1
+        },
+        "minimum_preload_at_new_latch_n": null,
+        "termination_events": 0,
+        "truncation_events": 0,
+        "environments_with_termination": 0,
+        "observations_rewards_states_finite": true,
+        "nconmax_per_world": 256,
+        "naconmax_total": 1024,
+        "njmax_per_world": 512,
+        "peak_total_contacts_at_substep_end": 512,
+        "peak_constraints_per_world_at_substep_end": 196,
+        "overflow_substeps": 0,
+        "final_support_counts_after_possible_resets": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "runtime_completed": true
+      }
+    ],
+    "interpretation": "No contact/constraint overflow in the corrected-buffer two-second probes. All seeded grips still lost at both angles, with unchanged release-reason counts and zero new latches. Birth failure remains unresolved; this does not establish learned-policy or hardware infeasibility.",
+    "sha256": {
+      "src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/env_cfgs.py": "96f0dd78b49e35025f1539e8dc67422d00b6a0f781b638a0960750f6663aeb97",
+      "docs/empirical_climb_review/pretraining_2026-09-07/runtime_buffer_probe.py": "7ec9f61b08d2f86d90a5ff8134ce9e66d4b090d3254f8e888c84efc7fbe90723",
+      "docs/empirical_climb_review/pretraining_2026-09-07/runtime_buffer_probe.json": "33646511e0a07f35d544b891320f76e75e56575a093a8dbd663e9d3ce83a407a",
+      "docs/empirical_climb_review/pretraining_2026-09-07/runtime_buffer_probe.log": "0bd924a8e889cba23dee157ee6b225904b36f20eae9f05afa4a9f2aea4181486",
+      "docs/empirical_climb_review/pretraining_2026-09-07/test_results_buffer_fix.txt": "d415c46d5cb2da657f4d0f4f52f5114a9b13443ccda529959f46848f23d10c55",
+      "docs/empirical_climb_review/pretraining_2026-09-07/training_settings.json": "383fcb546458fba7970859f58491023e7170b65dbecfc69bef0556adddd9215e"
+    }
+  }
+}

@@ -1,0 +1,472 @@
+{
+  "created_at_utc": "2026-09-06T22:10:54.502640+00:00",
+  "root_relative_paths": true,
+  "files": {
+    "README.md": {
+      "bytes": 9602,
+      "sha256": "50c7ba2f7589716b4ec136626df1760da2f5329d4c8107391617d94fb25b1078"
+    },
+    "cad_model/Assembly 1.step": {
+      "bytes": 1013690,
+      "sha256": "c7ad378e4c7d984f5409dc833426ab6be19beb4f7425748a59d6887f5623eb69"
+    },
+    "cad_model/assembly_1/urdf/assembly_1.urdf": {
+      "bytes": 57351,
+      "sha256": "51fc05f3c10ee1fe5fa42b8ef0b64e9c3905f8193e7633f29a6371282b974c40"
+    },
+    "data/microspine/README.md": {
+      "bytes": 1174,
+      "sha256": "84adfa998a56d533fa0288f9bb439d53f577b352224806f68606f06f09b09452"
+    },
+    "data/microspine/raw/20260905-110314/results.csv": {
+      "bytes": 63339,
+      "sha256": "ddabbd752802a270539d0fff4b12d7b0a3f84651d50346bd4f4b9d897c0bfd44"
+    },
+    "docs/empirical_climb_review/README.md": {
+      "bytes": 15547,
+      "sha256": "477759d0eeec24789899febc7267bb4e9e5f9519034f7f5e5c6c73385313f5ca"
+    },
+    "docs/empirical_climb_review/architecture_refactor.json": {
+      "bytes": 2634,
+      "sha256": "999ca3554d10d02c1fc5377e2bb2b40eb55f5a8b4d4ebb7ff5231ecd09ecac0d"
+    },
+    "docs/empirical_climb_review/archive/pre_rigid_cad/microspine_cad_geometry.json": {
+      "bytes": 5050,
+      "sha256": "a9ae84b4e52f44d29b8e4b854776a23cbbbe8ef37757be0d049227fe79a5cea3"
+    },
+    "docs/empirical_climb_review/archive/pre_rigid_cad/reference_audit.json": {
+      "bytes": 46445,
+      "sha256": "0a06f5158efee15f68332e960ee1d0d990af4ca779cebaf6676190d7e89315a1"
+    },
+    "docs/empirical_climb_review/archive/pre_rigid_cad/verification.json": {
+      "bytes": 4026,
+      "sha256": "567b73e7346e86ab2cc17b945cba998008bf7ddab101df2508fe6ac6e5aad8f2"
+    },
+    "docs/empirical_climb_review/cad_dimension_audit.json": {
+      "bytes": 14127,
+      "sha256": "92e051d74e35cf8b0b19012e672485edf85d256084570b5ea834d674dbd4ab6e"
+    },
+    "docs/empirical_climb_review/cad_dimension_audit.md": {
+      "bytes": 3507,
+      "sha256": "c47b527139cfb251e0110b576e34d9d95d266bd406baddcbc39cc48fc4b5bb71"
+    },
+    "docs/empirical_climb_review/climb_reference.mp4": {
+      "bytes": 567440,
+      "sha256": "b873b73fa503de72c0b8345cde0347808ac416cdcca8ce7b2f9abcf0833d4dbd"
+    },
+    "docs/empirical_climb_review/code_layout.md": {
+      "bytes": 6257,
+      "sha256": "3acd8ac7510bada3a172e2451002e93a42872859dcc2745377f2d93c00f62e54"
+    },
+    "docs/empirical_climb_review/distribution_build_log.txt": {
+      "bytes": 370,
+      "sha256": "5ed9098baf11bd0133cc66bf6c95984dcb6de02fce3c5c68eb29a364639d0c7a"
+    },
+    "docs/empirical_climb_review/hardware_protocol.md": {
+      "bytes": 5448,
+      "sha256": "62a4ca2f39ac9bfe94abe5a35fb33efd50caf0ba169f73f789cfa7d6ac286bf3"
+    },
+    "docs/empirical_climb_review/hardware_trial_log_template.csv": {
+      "bytes": 902,
+      "sha256": "e0f2bc942845cba7437f99d579889cc1b1663e1b396823bbf38f59f7802c0a5e"
+    },
+    "docs/empirical_climb_review/limit_surface/empirical_unit_v1.json": {
+      "bytes": 150649,
+      "sha256": "f4d972bb8654ea5e1a8b7addd0aa51d8bca53ea0e77377ebc84912d5e1839965"
+    },
+    "docs/empirical_climb_review/limit_surface/empirical_unit_v1_calibration.npz": {
+      "bytes": 8048,
+      "sha256": "1797df3acbffb2944c281389f956fb6d5fb6825f5cc54f3a1a0154ee6d5b39cd"
+    },
+    "docs/empirical_climb_review/limit_surface/empirical_unit_v1_raw_cells.npz": {
+      "bytes": 5906,
+      "sha256": "b5b446fe15eb1172ab6a27d7e00bfa8dcb097f6245a4d32f33fb191fbbfe582a"
+    },
+    "docs/empirical_climb_review/pad_bench_matrix.csv": {
+      "bytes": 12083,
+      "sha256": "b5d9d91d0e72601c2ae567ad9e51adc29074f9b11247c40c59ffc9bebdda2f35"
+    },
+    "docs/empirical_climb_review/raw_data_hashes.json": {
+      "bytes": 33711,
+      "sha256": "dc1c63916beb051bb58155a29728f35026dc7f9b7026a25313583320fe441030"
+    },
+    "docs/empirical_climb_review/reference_audit.json": {
+      "bytes": 551794,
+      "sha256": "2f21ddf5c513c89296fed5e5bde024261f9a4626ee189a16443c07f13f149a66"
+    },
+    "docs/empirical_climb_review/reference_static_loads.csv": {
+      "bytes": 323329,
+      "sha256": "ea6b4b0088dbff1454ae7e1a1140dcf3c233d21ab32b82e69796b14fb88bebfb"
+    },
+    "docs/empirical_climb_review/rigid_cad_asset_audit.json": {
+      "bytes": 6845,
+      "sha256": "33c6c610b59adca5428dc2776700eaaa55b0f898cf161c1e5e348df77f2bdf75"
+    },
+    "docs/empirical_climb_review/static_audit_log.txt": {
+      "bytes": 43129,
+      "sha256": "94e0a686445525db7211f08438e6807452476181160360f5965835ff5539e6f4"
+    },
+    "docs/empirical_climb_review/test_results.txt": {
+      "bytes": 673,
+      "sha256": "53dfed759fb4955f84a1f406ceca4cf8f49076b004c7614ce6ec7cb2039a2e75"
+    },
+    "docs/empirical_climb_review/verification.json": {
+      "bytes": 7304,
+      "sha256": "5edf846a9947da92edeaea620072fb6e084d421efd3db85820fa23fa88583846"
+    },
+    "docs/figures/fig_empirical_distribution_validation.caption.txt": {
+      "bytes": 506,
+      "sha256": "3d166a3c113cd94847956666d4b967fd702ae4e26602bf11c1ac25305f7ba2e0"
+    },
+    "docs/figures/fig_empirical_distribution_validation.pdf": {
+      "bytes": 17790,
+      "sha256": "9daf15f0ea80f4962c47631be7f57834d467f33b3ec76defd45d57b32365860a"
+    },
+    "docs/figures/fig_empirical_distribution_validation.png": {
+      "bytes": 187021,
+      "sha256": "fb8c165dad564ffcaf7e5f9537869b1b9455e4f9be9487c62a0f6b1c17c11d7d"
+    },
+    "docs/figures/fig_empirical_distribution_validation.svg": {
+      "bytes": 65280,
+      "sha256": "6358ce9aea1c1e4ccd4d4aa68ca79355851296fa957299304dd477821db1a60f"
+    },
+    "docs/figures/fig_empirical_model_comparison_cad.caption.txt": {
+      "bytes": 388,
+      "sha256": "8d23f57361a5318e8b72097ec5dfeca9cbb42462241e81e118c987c5ce538093"
+    },
+    "docs/figures/fig_empirical_model_comparison_cad.npz": {
+      "bytes": 3447,
+      "sha256": "bd0ccffa42bd26435f8944ac8e38a8d054255261ec615604454a56ba7fa7919b"
+    },
+    "docs/figures/fig_empirical_model_comparison_cad.pdf": {
+      "bytes": 20930,
+      "sha256": "094adb565db68e416a364d6e7cf3b6652fe66260ee51769906575533aaf5448c"
+    },
+    "docs/figures/fig_empirical_model_comparison_cad.png": {
+      "bytes": 207464,
+      "sha256": "ae87964d10402f472ef6bc843ed152d8542fc6ca6ec99bb5344071e5c766e4ad"
+    },
+    "docs/figures/fig_empirical_model_comparison_cad.svg": {
+      "bytes": 45617,
+      "sha256": "651b420c80c75e37e61805b3b494f8573d8133aa4b5ba9c6623e60a38e4097a7"
+    },
+    "docs/figures/fig_pad_limit_surface_stochastic_cad.caption.txt": {
+      "bytes": 1152,
+      "sha256": "f6ad8f0834d95d76049e8243ffe566049f76db4398f0477633a43fd73f83cc4c"
+    },
+    "docs/figures/fig_pad_limit_surface_stochastic_cad.npz": {
+      "bytes": 32324,
+      "sha256": "6026d63822bf6d99cb5af6aa539bfe5d042b8f598052df8ccab83fcafe4315d4"
+    },
+    "docs/figures/fig_pad_limit_surface_stochastic_cad.pdf": {
+      "bytes": 121657,
+      "sha256": "1f0bf87310b55c3b500f306c17b4c21b60b84a82a1d42c2233aa91be42227165"
+    },
+    "docs/figures/fig_pad_limit_surface_stochastic_cad.png": {
+      "bytes": 1069478,
+      "sha256": "fed11b3906d2eaa75d0c407a4270b7f1d14bca7f8f7fbb4444bea3e473dacb99"
+    },
+    "docs/figures/fig_pad_limit_surface_stochastic_cad.svg": {
+      "bytes": 265553,
+      "sha256": "e4fdf08366ccec60bacccf9b27d63cc0e40c4f43dafb61b0f2392b924e221cad"
+    },
+    "docs/figures/phybot_c2_cad_arm_back_detail.png": {
+      "bytes": 372142,
+      "sha256": "c2833535050a06bac6c61adb6f8720211caa87e5e825eb1e1b1c234462adcca7"
+    },
+    "docs/figures/phybot_c2_cad_arm_detail.png": {
+      "bytes": 401598,
+      "sha256": "8a9966d4d0d475a94622943c3ded361a49b3888f295420808852b4d60c0e9cf2"
+    },
+    "docs/figures/phybot_c2_cad_rigid_comparison.png": {
+      "bytes": 338849,
+      "sha256": "d8ad66ff9b765cddc457546298f47c3461037dce36dc5dc3fbb90a812080a531"
+    },
+    "docs/figures/phybot_c2_cad_robot.png": {
+      "bytes": 672034,
+      "sha256": "5994acc7cf226afa15d3f67200d62da8fb6611757fa16508d2796deb387dbfd7"
+    },
+    "docs/figures/phybot_c2_climb_initial.audit.json": {
+      "bytes": 19029,
+      "sha256": "31e30ad9b6c7cf6bc03ad963d73e3f5b47887fe29a26d64ca497b325fd8c6fe1"
+    },
+    "docs/figures/phybot_c2_climb_initial.png": {
+      "bytes": 438095,
+      "sha256": "eca08384a85fa7e6f16e9c048c77e21454cc852ad8b419f357093be811cbe216"
+    },
+    "docs/figures/phybot_c2_climb_initial_oblique.png": {
+      "bytes": 229708,
+      "sha256": "9c03f0f90c0da1558b06853113c369f05c5839a95e8c0d9280eca864c02db747"
+    },
+    "docs/figures/phybot_c2_climb_initial_side.png": {
+      "bytes": 174571,
+      "sha256": "4dba0b1130cf54e369d8e0e89cb9f59b5781c6535706e06147e514babcfc7160"
+    },
+    "docs/figures/phybot_c2_pad_box_collisions.png": {
+      "bytes": 212841,
+      "sha256": "6158651d5595d9d7e0217af6362f5ffd9da2300163e25b6af128d3b690233f3d"
+    },
+    "docs/phybot_c2_cad_asset.md": {
+      "bytes": 6191,
+      "sha256": "581382f2236487701d7830d2f68371f56f18ee04a4aa592f07ef9544c229d03d"
+    },
+    "pyproject.toml": {
+      "bytes": 1216,
+      "sha256": "0f2d5846f5a99d8a9f3d55b69c8af617b453eafbd9a1c3382c29f8b0a7a0bcba"
+    },
+    "scripts/audit_cad_climb_reference.py": {
+      "bytes": 18884,
+      "sha256": "3f6030b284dbd71150479f620e9d20df4dfb494319cfe453439c2854b0811f0d"
+    },
+    "scripts/audit_phybot_cad_asset.py": {
+      "bytes": 877,
+      "sha256": "8e21536f719bf9a5d03452de664432d474a08c77b25f4a4f0205b8765b52d6b0"
+    },
+    "scripts/build_empirical_limit_surface.py": {
+      "bytes": 918,
+      "sha256": "3d0c054a32e7e44f9782c02b26fc75779a7fd0602e2e2fd1f68b707a98839251"
+    },
+    "scripts/build_phybot_microspine_assets.py": {
+      "bytes": 18936,
+      "sha256": "3ab5277d6843d3852b9fd3faef12259c01ecd04190e0f09ba6d7333c5d959f51"
+    },
+    "scripts/compare_empirical_wang_limit_surface.py": {
+      "bytes": 10690,
+      "sha256": "1c5840850c83028b0441c6d381b8611763b64a012e9f83e56ac9b492929fb317"
+    },
+    "scripts/gen_cad_climb_reference.py": {
+      "bytes": 13322,
+      "sha256": "7ddc647ed5a044456d9d5c1f662b39943f5014620b595fad9442679952e21b3b"
+    },
+    "scripts/gen_climb_clip.py": {
+      "bytes": 9384,
+      "sha256": "2b84aecbd7ce92deac71d7e4d1f2fa4453559a18f4f063e8bd3dbdad4eabe672"
+    },
+    "scripts/gen_mount_clip.py": {
+      "bytes": 248927,
+      "sha256": "f6f06609898aa9b1587d88ddacbb284e62e243fadaf2d1f477b6ce7a067e051b"
+    },
+    "scripts/plot_empirical_pad_limit_surface.py": {
+      "bytes": 21557,
+      "sha256": "90c9731f648c4f2ec8a13e15c2af3383461192adbcca335aa11b308aba80e14e"
+    },
+    "scripts/plot_pad_limit_surface.py": {
+      "bytes": 16787,
+      "sha256": "262adedf2b7ca8f2c38f6cd90396f483b06a4a2850ed1a21184a14aa5e60687f"
+    },
+    "scripts/plot_pad_limit_surface_3d.py": {
+      "bytes": 14002,
+      "sha256": "811e07d5bef48466c99dfe38eea76206d631e3d848b8558125df5988973b92e8"
+    },
+    "scripts/plot_stochastic_pad_limit_surface.py": {
+      "bytes": 10533,
+      "sha256": "1593c0b2873af48cc1ca385d042475ba2ffd9f903e037d15dda08273571ca635"
+    },
+    "scripts/render_climb_initial.py": {
+      "bytes": 10661,
+      "sha256": "c43641e6640d63d5e388b98e08cdb86761d072b5a843fd3d21ba734a70e6cd4a"
+    },
+    "scripts/render_climb_video.py": {
+      "bytes": 9845,
+      "sha256": "bb3d8823abf3bacb630ea4c6529ca19e85e55bcf6aa3b4d31f9219517d4651b3"
+    },
+    "scripts/render_pad_collisions.py": {
+      "bytes": 3123,
+      "sha256": "474cefac48d802cb3c753cda7974523170ab64d0ea1cb0242b2e938c710f7429"
+    },
+    "scripts/render_phybot_asset.py": {
+      "bytes": 4592,
+      "sha256": "2d16339e9fb4289b5b90ab5752550fc4571d0f9dc1f13b4c697082e9a6e777a8"
+    },
+    "scripts/validate_climb_reference.py": {
+      "bytes": 37119,
+      "sha256": "2330bdd48aa59fe5bd989da312ff53f9ec5e81889fcedd53b30774d6ea55f1e9"
+    },
+    "src/scr_phybot_mjab/assets/microspine/__init__.py": {
+      "bytes": 239,
+      "sha256": "cacb45f7768709eab3d2ce3bc1b780c2b5b2a27db83cd3ae8e3877c093cde2d8"
+    },
+    "src/scr_phybot_mjab/assets/microspine/empirical_unit_v1.npz": {
+      "bytes": 9482,
+      "sha256": "af68c0d018fa79f0ab78f9b65ad0e7387e8bead8699f52caf0eb7bbcc2644b30"
+    },
+    "src/scr_phybot_mjab/assets/motions/__init__.py": {
+      "bytes": 355,
+      "sha256": "1aa3733fd22e40c095e401c80c8b8ee4e6457ad9b63e29f2eea60d8656c6fd03"
+    },
+    "src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy": {
+      "bytes": 199296,
+      "sha256": "1a9b134431ea4ce9af2c552f5778ebac47d1423975fdbd8285e2aaa421d4337e"
+    },
+    "src/scr_phybot_mjab/assets/motions/climb_cad_empirical_initial.json": {
+      "bytes": 2571,
+      "sha256": "1c6978d92b9568c7e2f1e0b0661e675dce720e754f2f9c59af532d493824b8fa"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/microspine_cad_geometry.json": {
+      "bytes": 7741,
+      "sha256": "322cf0269e158f4f1e16ca98374d316fb9c285500dea0a933cf9354c23486a54"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/new_meshes/microspine_backplate.stl": {
+      "bytes": 785484,
+      "sha256": "1f67c3aaf6b9256520b439411414381151516a69e0eb053f1690df5ddbed92e9"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/new_meshes/microspine_brackets.stl": {
+      "bytes": 1481784,
+      "sha256": "fa98d7a6e8f7b9618066efa0c4455fbf2c714520917402dd1a16f0aa19a9d664"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/new_meshes/microspine_forearm_mount.stl": {
+      "bytes": 113784,
+      "sha256": "ce767d882d1955b64ffe47faa4673b330b53331768beca540a1ea8ad93597550"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/new_meshes/microspine_unit.stl": {
+      "bytes": 2162484,
+      "sha256": "301b4865e220201dd483e5fcf6a2e3630322f7d4264b1e8eae1ec78b5986f0d4"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/phybot_c2_constants.py": {
+      "bytes": 22205,
+      "sha256": "b2b861614c00a737311e3f0502e1a8e9d90bec584d31fe2cec58379d4fbbcd0f"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/urdf/phybot_c2.urdf": {
+      "bytes": 55293,
+      "sha256": "487c89fe60277f91ed7081e09c220e5dddd4ec4ef5f3b2bfaf912559d3bcf4f3"
+    },
+    "src/scr_phybot_mjab/assets/phybot_c2/xml/phybot_c2.xml": {
+      "bytes": 59729,
+      "sha256": "9f3132c71ffffee9072e2bf361113526d13435e449bbbdbb2a7f76703c8db33f"
+    },
+    "src/scr_phybot_mjab/microspine/affordance.py": {
+      "bytes": 87609,
+      "sha256": "414539fe4ae10fc61d17a3b5976423a89e258d95dc4738d4d85d626e3efc10f8"
+    },
+    "src/scr_phybot_mjab/microspine/config.py": {
+      "bytes": 33526,
+      "sha256": "bc0e9244edfd4d53f44e7f5fc1acaa67d50e3e1f47d9cc07668e8e889e344baf"
+    },
+    "src/scr_phybot_mjab/microspine/constraint.py": {
+      "bytes": 29658,
+      "sha256": "b0b56e279b9e1b18d925f54e84edf33b5b37441d261dcc46d7dd3f8cddae7c61"
+    },
+    "src/scr_phybot_mjab/microspine/contact.py": {
+      "bytes": 15248,
+      "sha256": "eea7d031c91930d81b29c4de7727881d926c76fabd6201c593dc406b6d15b381"
+    },
+    "src/scr_phybot_mjab/microspine/empirical_limit_surface.py": {
+      "bytes": 5780,
+      "sha256": "576c05c404b6ba5e5a340b4e30eba758d3f7800072916b4fde0036830422a8a9"
+    },
+    "src/scr_phybot_mjab/microspine/pad_geometry.py": {
+      "bytes": 5651,
+      "sha256": "8fe0a9b9eab6a3c199263b0c7ac5cf99aa715c3b38afd945eed203afe7e03851"
+    },
+    "src/scr_phybot_mjab/microspine/wrench.py": {
+      "bytes": 5443,
+      "sha256": "e92482e691e17593f7487b5b93a59c72b2718d4e044e88a600920d5568320c2c"
+    },
+    "src/scr_phybot_mjab/tasks/climb_transition/mdp/mount_wbc.py": {
+      "bytes": 18381,
+      "sha256": "8351bcb843a41142d8e3bf2a6b945953fe414512c0bc0da4ebf4039a10d66c51"
+    },
+    "src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/env_cfgs.py": {
+      "bytes": 39696,
+      "sha256": "936ff9542abcb8a1a83915e5ab745865436dffbd9845729fc70572b6b8565c90"
+    },
+    "src/scr_phybot_mjab/tasks/climb_wall/mdp/motion.py": {
+      "bytes": 35084,
+      "sha256": "d92baf4e36e32f7d21e64b79dae2c74dbe41a401dc36ef99a73f0176016adb12"
+    },
+    "src/scr_phybot_mjab/tasks/climb_wall/mdp/rewards.py": {
+      "bytes": 45803,
+      "sha256": "540791ea4008f359a6f91386473151a66359782f76fa6b969a17777d0020e0a9"
+    },
+    "src/scr_phybot_mjab/tools/climbing_reference/__init__.py": {
+      "bytes": 207,
+      "sha256": "01245012d24cbf510267a93bdd2fcd26a165bd94cfa6c902e7349a93cd8481e8"
+    },
+    "src/scr_phybot_mjab/tools/climbing_reference/cycle.py": {
+      "bytes": 31504,
+      "sha256": "0fff98bee881a690d1fca11848a5e21bcd689dd7649720a43c0b8b77274fd68f"
+    },
+    "src/scr_phybot_mjab/tools/climbing_reference/kinematics.py": {
+      "bytes": 15391,
+      "sha256": "1683e175ffda2b6969c419d0b781e5028fa0c4376d2b833fae76ec8e777eaddb"
+    },
+    "src/scr_phybot_mjab/tools/climbing_reference/model.py": {
+      "bytes": 5583,
+      "sha256": "47a54957234624693903a6829d2f7cfe21c86a5d2ba989aa8516818b0bcc0cd7"
+    },
+    "src/scr_phybot_mjab/tools/microspine/__init__.py": {
+      "bytes": 84,
+      "sha256": "9bc245a0d6e461e4e59c48b07039220d2b1b09f3abfb9a9dce6c3760846c99cb"
+    },
+    "src/scr_phybot_mjab/tools/microspine/cad.py": {
+      "bytes": 6885,
+      "sha256": "9faabacb8fd1aa35cdf3a7ac5f8cdb283d95a96e9d56f4f16a3ac1007c1cde38"
+    },
+    "src/scr_phybot_mjab/tools/microspine/cad_audit.py": {
+      "bytes": 6651,
+      "sha256": "2a2836296edbf01e2e1a2346fe29eaac823df4a5db942bc1e0c7a8b58cdb164f"
+    },
+    "src/scr_phybot_mjab/tools/microspine/empirical_fitting.py": {
+      "bytes": 14060,
+      "sha256": "67bd85ef94c7c518b77a2d3e348d1ed96840734ace36c6c24899d2bfd2bea362"
+    },
+    "src/scr_phybot_mjab/tools/microspine/geometry.py": {
+      "bytes": 578,
+      "sha256": "6f3c14ab10a4ab36a592a6f0c1d77a80ffaa0a396819272347f788f33f89b690"
+    },
+    "src/scr_phybot_mjab/tools/microspine/stochastic_pad.py": {
+      "bytes": 3229,
+      "sha256": "0508aca768280f21fce948e46bb18373b04a96b22a3227408d45f6651f58d9be"
+    },
+    "src/scr_phybot_mjab/tools/microspine/wang_comparison.py": {
+      "bytes": 1506,
+      "sha256": "6d8cc8fc2aa7b9597d86899b857f63a08a981cfb9b781f98184ab6eb7c50cc6a"
+    },
+    "src/scr_phybot_mjab/tools/paths.py": {
+      "bytes": 688,
+      "sha256": "02e7a2b038db02ab6f390c4a07366210ff38b3e0178fd9212f881eedf16ee4d0"
+    },
+    "src/scr_phybot_mjab/tools/plotting.py": {
+      "bytes": 2042,
+      "sha256": "fe66c5677dd437c3f4d9fc28901975896e127993289a2801cb2a4a469040055d"
+    },
+    "tests/microspine/test_box_contacts.py": {
+      "bytes": 6650,
+      "sha256": "671c670e479edfac2397f996a995451ad6f1fbea767395b25ecf7bd383503249"
+    },
+    "tests/microspine/test_cad_asset.py": {
+      "bytes": 856,
+      "sha256": "ca5fcaf735e3968b293c6864ee7ea6e602746e3d86ec87b751fdf7b5439b81db"
+    },
+    "tests/microspine/test_empirical_limit_surface.py": {
+      "bytes": 7506,
+      "sha256": "7f8068703f18fc8641d7bc447e856d4ea41814370b47cf5ed437934466207969"
+    },
+    "tests/microspine/test_pad_gimbal.py": {
+      "bytes": 6606,
+      "sha256": "44b588c4397e3f727e591c33717614439019d8a27954418a4796afde0a527efb"
+    },
+    "tests/microspine/test_shared_pad_mechanics.py": {
+      "bytes": 4762,
+      "sha256": "f405489fa64506c86e180a78c6330ce497d329fe57c11ea6cfa291f493c116da"
+    },
+    "tests/microspine/test_cad_climb_reference.py": {
+      "bytes": 3183,
+      "sha256": "af99f5f841623c5362b77a4472a80525a1a8a8e21efebeada64c77973abae519"
+    },
+    "src/scr_phybot_mjab/assets/motions/climb_cad_empirical.mp4": {
+      "bytes": 567440,
+      "sha256": "b873b73fa503de72c0b8345cde0347808ac416cdcca8ce7b2f9abcf0833d4dbd"
+    },
+    "src/scr_phybot_mjab/assets/motions/climb_cad_empirical.audit.json": {
+      "bytes": 551794,
+      "sha256": "2f21ddf5c513c89296fed5e5bde024261f9a4626ee189a16443c07f13f149a66"
+    },
+    "src/scr_phybot_mjab/assets/motions/climb_cad_empirical.recipe.txt": {
+      "bytes": 1137,
+      "sha256": "28a67b8b04fb52dcab30e0cf0d40c24298f6ead6f9978d089ab8b51075859070"
+    }
+  },
+  "asset_revision": "rigid_cad_import",
+  "reference_regeneration_updated_at_utc": "2026-09-07T02:14:33.819855+00:00"
+}

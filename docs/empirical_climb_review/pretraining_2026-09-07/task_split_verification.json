@@ -1,0 +1,165 @@
+{
+  "created_at_utc": "2026-09-08T03:10:41.813772+00:00",
+  "scope": "Task split and curriculum wiring. No training, reward/sampler migration, or climbing success claim.",
+  "tasks": [
+    {
+      "task_id": "Mjlab-Climb-Wall-Phybot-C2",
+      "unit_layout": "all",
+      "active_units_per_pad": 12,
+      "engage_preload_minimum_n_per_unit": 10.0,
+      "train_wall_curriculum": {
+        "angle_stages": [
+          {
+            "iter": 0,
+            "angle_deg": 45.0
+          },
+          {
+            "iter": 1500,
+            "angle_deg": 75.0,
+            "jitter_deg": 12.0
+          },
+          {
+            "iter": 3300,
+            "angle_deg": 80.0,
+            "jitter_deg": 5.0
+          },
+          {
+            "iter": 3900,
+            "angle_deg": 85.0,
+            "jitter_deg": 3.0
+          },
+          {
+            "iter": 4550,
+            "angle_deg": 88.0,
+            "jitter_deg": 2.0
+          },
+          {
+            "iter": 5150,
+            "angle_deg": 90.0
+          }
+        ],
+        "steps_per_iter": 96,
+        "angle_jitter_deg": 5.0
+      },
+      "play_wall_curriculum": {
+        "angle_stages": [
+          {
+            "iter": 0,
+            "angle_deg": 90.0
+          }
+        ],
+        "steps_per_iter": 96,
+        "angle_jitter_deg": 0.0
+      },
+      "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy",
+      "experiment_name": "phybot_c2_climb_wall",
+      "reward_count": 25,
+      "sampling_mode": "uniform"
+    },
+    {
+      "task_id": "Mjlab-Climb-Wall-Phybot-C2-Corners-A60",
+      "unit_layout": "corners",
+      "active_units_per_pad": 4,
+      "engage_preload_minimum_n_per_unit": 10.0,
+      "train_wall_curriculum": {
+        "angle_stages": [
+          {
+            "iter": 0,
+            "angle_deg": 45.0,
+            "jitter_deg": 5.0
+          },
+          {
+            "iter": 1500,
+            "angle_deg": 55.0,
+            "jitter_deg": 5.0
+          },
+          {
+            "iter": 3300,
+            "angle_deg": 60.0,
+            "jitter_deg": 0.0
+          }
+        ],
+        "steps_per_iter": 96,
+        "angle_jitter_deg": 5.0
+      },
+      "play_wall_curriculum": {
+        "angle_stages": [
+          {
+            "iter": 0,
+            "angle_deg": 60.0
+          }
+        ],
+        "steps_per_iter": 96,
+        "angle_jitter_deg": 0.0
+      },
+      "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a60.npy",
+      "experiment_name": "phybot_c2_climb_wall_corners60",
+      "reward_count": 25,
+      "sampling_mode": "uniform"
+    },
+    {
+      "task_id": "Mjlab-Climb-Wall-Phybot-C2-Corners-A80",
+      "unit_layout": "corners",
+      "active_units_per_pad": 4,
+      "engage_preload_minimum_n_per_unit": 10.0,
+      "train_wall_curriculum": {
+        "angle_stages": [
+          {
+            "iter": 0,
+            "angle_deg": 80.0
+          }
+        ],
+        "steps_per_iter": 96,
+        "angle_jitter_deg": 0.0
+      },
+      "play_wall_curriculum": {
+        "angle_stages": [
+          {
+            "iter": 0,
+            "angle_deg": 80.0
+          }
+        ],
+        "steps_per_iter": 96,
+        "angle_jitter_deg": 0.0
+      },
+      "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy",
+      "experiment_name": "phybot_c2_climb_wall",
+      "reward_count": 25,
+      "sampling_mode": "uniform"
+    }
+  ],
+  "checks": {
+    "pytest_command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /home/spider/miniconda3/envs/env_mjlab15/bin/python -m pytest -q tests/microspine/test_climb_task_config.py tests/microspine/test_climb_curriculum.py tests/microspine/test_deploy_variants.py tests/microspine/test_climb_transition_config.py tests/microspine/test_climb_transition80_config.py tests/microspine/test_unit_preload.py tests/microspine/test_release_load_reward.py tests/microspine/test_shared_pad_mechanics.py tests/microspine/test_cad_climb_reference.py",
+    "passed": 127,
+    "warnings": 35,
+    "elapsed_seconds": 12.03,
+    "training_cli_help_exit_code": 0,
+    "runtime_report": "task_split_runtime.json",
+    "runtime_interpretation": "Active-unit load tensor dimensions, actual per-reset wall angles, observation dimensions and finite-state checks passed. Reference-PD grip losses remain present; no learned policy was tested.",
+    "main_initial_only_audit": {
+      "wall_angle_deg": 90.0,
+      "unit_layout": "all",
+      "active_units_per_pad": 12
+    },
+    "corners60_initial_only_audit": {
+      "wall_angle_deg": 60.0,
+      "unit_layout": "corners",
+      "active_units_per_pad": 4
+    }
+  },
+  "sha256": {
+    "README.md": "17585c36520b416d5b49b0c330d452e59cec3fbfa1396f1934644b4a179da0ad",
+    "docs/climb_env_cfg_notes.md": "40f8a41827b2dfb317778ab1d4a037f7492acff7cce661d2eea106d321dc4b51",
+    "src/scr_phybot_mjab/assets/motions/__init__.py": "2e9ebad2bdfca9f18954c03f0160c3f2f20c1472dcfdb7c8b9e8a9c7ddbd3446",
+    "src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/env_cfgs.py": "67a936651f3eba543cae5984a31686a04eb58bd2afb916ad2e1b9532cc445ad6",
+    "src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/__init__.py": "652d32e8d88b7aa364212431a3e420d2604d9ee028f0f3ada63f4736d67d6b6a",
+    "src/scr_phybot_mjab/tasks/climb_wall/mdp/curriculums.py": "8f3070da801e7be747da647c41543ad90fd0b376d98c77a754e490d2027672a4",
+    "scripts/gen_cad_climb_reference.py": "8026aa022b67d9eb46f0b09be833ef8d8a9ade1c5fd5d4f6984af04f98109623",
+    "scripts/audit_cad_climb_reference.py": "5402b73545dd841d6b56d936e3533e96ffc01c3bbe0161d4237e7c9471f348fe",
+    "tests/microspine/test_climb_task_config.py": "2cc63ddc12c3c5774a2bf346dd4b5113ca674c62c3a1828f94978d5d62799636",
+    "tests/microspine/test_climb_curriculum.py": "7bb7ec724bee1b132356bd0e7c4d8329360f0e326ee5abf554b94840cb14d5f4",
+    "docs/empirical_climb_review/pretraining_2026-09-07/runtime_smoke.py": "10f6286bf959e23089cfecadcf6991f473da6a22aba59c4700c61b323f5f7b14",
+    "docs/empirical_climb_review/pretraining_2026-09-07/runtime_buffer_probe.py": "6c1fed0b582ef03615e00a3e9933fa0260888469271393c5acbb6ad3d89b34dc",
+    "docs/empirical_climb_review/pretraining_2026-09-07/task_split_runtime.json": "1b3b4a0cd494bbab5b72f1656a3ea35262785a526c66342c5aad6b546fa8426d"
+  }
+}

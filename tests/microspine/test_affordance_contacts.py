@@ -12,6 +12,7 @@ def test_resolved_substep_contact_is_recovered_from_force_history():
     spheres_per_ee_rows=1,
     spheres_per_ee_cols=2,
     ee_body_names=("paw",),
+    spring_field_enabled=False,
   )
   term.cfg = SimpleNamespace(contact_sensor_name="contact")
   term._sensor_row_perm = None
@@ -49,6 +50,7 @@ def test_sensor_rows_permuted_to_ee_major_order():
     spheres_per_ee_rows=1,
     spheres_per_ee_cols=1,
     ee_body_names=("hand", "foot"),
+    spring_field_enabled=False,
   )
   term.cfg = SimpleNamespace(contact_sensor_name="contact")
   term._sensor_row_perm = None
@@ -73,6 +75,32 @@ def test_sensor_rows_permuted_to_ee_major_order():
   # EE-major order (hand, foot): the press must land on the HAND.
   torch.testing.assert_close(normal_force, torch.tensor([[5.0, 0.0]]))
   torch.testing.assert_close(found_count, torch.tensor([[1.0, 0.0]]))
+
+
+def test_netforce_projects_total_block_force_in_a_tilted_wall_frame():
+  term = object.__new__(MicrospineAffordance)
+  term._num_ee = 1
+  term._mcfg = SimpleNamespace(spheres_per_ee_rows=1, spheres_per_ee_cols=1,
+                              ee_body_names=("paw",), spring_field_enabled=True)
+  term.cfg = SimpleNamespace(contact_sensor_name="contact")
+  term._sensor_row_perm = None
+  inward = torch.tensor([[0.6, 0.0, 0.8]])
+  term._wall_inward_normal = lambda: inward
+  # Four simultaneous point contacts have already been summed by netforce.
+  # Force history retains an earlier 20 N compression, even with no live contact.
+  force = torch.tensor([[[12.0, -7.0, 16.0]]])
+  history = torch.stack([torch.zeros_like(force), force], dim=2)
+  sensor = SimpleNamespace(
+    cfg=SimpleNamespace(reduce="netforce", global_frame=False),
+    data=SimpleNamespace(found=torch.zeros(1, 1), force=torch.zeros_like(force),
+                         force_history=history, normal=None, tangent=None),
+    primary_names=["robot/paw_c_0_0"],
+  )
+  term._env = SimpleNamespace(num_envs=1, device="cpu", scene={"contact": sensor})
+  normal, found = term._sensor_contact_features()
+  torch.testing.assert_close(normal, torch.tensor([[10.0]]))
+  torch.testing.assert_close(found, torch.ones(1, 1))
+  torch.testing.assert_close(term._sphere_force_world, force / 2)
 
 
 def test_sphere_geom_ids_resolve_per_ee_in_ee_major_order():

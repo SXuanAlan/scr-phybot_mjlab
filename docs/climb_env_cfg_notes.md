@@ -1,5 +1,15 @@
 # Climb env cfg — tuning-decision archive (phybot_c2)
 
+Current task split (2026-09-07): `Mjlab-Climb-Wall-Phybot-C2` uses all 12 units
+per pad and retains the original curriculum to 90 degrees. The separate
+`Mjlab-Climb-Wall-Phybot-C2-Corners-A60` task uses the four corner units per
+pad and stages 45±5 degrees at iteration 0, 55±5 at 1500, and exact 60 at
+3300. Its evaluation default is exact 60. Both inherit the same current
+rewards, RSI, PD and PPO. The 16-term BeyondMimic adaptation and adaptive RSI
+are implemented; current settings and runtime limitations are in the
+[review](empirical_climb_review/beyondmimic_2026-09-07/README.md).
+The narratives below describe earlier tuning campaigns.
+
 Verbatim narrative comments moved out of
 `src/scr_phybot_mjab/tasks/climb_wall/config/phybot_c2/env_cfgs.py` during the
 2026-08-10 restructure (three-layer split: mdp machinery / base task structure /
@@ -507,6 +517,43 @@ sampling_mode="uniform",  # DeepMimic RSI: random cycle phase per episode.
 # the policy can always avoid (the reference needs <= 1.1 deg).
 ```
 
+### microspine_release_load — unload shear/lateral before release (2026-09-07)
+
+Enabled for empirical climbing, including the four-corner layout. It reads the
+hold judge's `unit_load_tln` snapshot from before the release, not the zero
+contact force left after detachment. These are local `[shear, lateral, normal]`
+forces per active unit, including the tangential forces induced by twisting
+moments. Equal and opposite unit forces cannot hide in a zero pad resultant.
+
+With `s_i = shear_i / 2 N` and `l_i = lateral_i / 2 N`, each physical release
+receives this event score before the existing safety terms:
+
+```
+bonus = exp(-max_i(s_i² + l_i²))
+cost  = min(4, max_i(0.25*s_i² + 0.10*l_i²))
+score = eligible_bonus * bonus - cost
+```
+
+The configured weight is `+1.0`; the implementation divides by policy `dt`
+so RewardManager's time scaling preserves the event amount. For a uniformly
+loaded pad, this term gives +1 at zero tangential load, about -0.98 at 4 N/unit
+shear, and about -0.38 at 4 N/unit lateral. Both signs are treated equally;
+normal load is not an unloading target and the >=10 N engage preload is unchanged.
+The 2 N values are tunable reward widths, not measured failure thresholds.
+
+The bonus requires a scheduled release (within 0.25 s before the release edge
+or during that pad's OFF window), at least three other engaged pads, and no
+DR recovery. The lead-in and OFF interval share one bonus; even an unsuccessful
+first release consumes it, so relatching and releasing again cannot earn more.
+An RSI/reset born inside a swing does not get a new bonus for that existing
+window. Loaded physical releases still incur cost off schedule or on repeats.
+External DR releases are excluded; empirical domain and early-loading failures
+cannot earn a bonus. The existing 0.5 s reset settling grace also applies.
+
+`unsafe_microspine_release` remains active. Its historical zero base cost for
+reverse-shear unhooking does not exempt a loaded reverse release from this new
+load-dependent cost. The reward does not alter the physical release predicate.
+
 ### torque_headroom — spike tax (motionref17b)  [L802-808]
 
 ```
@@ -580,33 +627,40 @@ sampling_mode="uniform",  # DeepMimic RSI: random cycle phase per episode.
 # fully retrain from iter 0; the resume-era pinned variants live in the
 # deploypd-v4-* run dirs and git history).
 #
-#    iter | gravity pool      | tilt-peel band (tax thresh/scale)
+#    iter | wall-angle pool   | tilt-peel band (tax thresh/scale)
 #   ------+-------------------+----------------------------------
 #       0 | 45 (global +-5)   | 12-15 deg (10/8)  wide birth band
 #    1200 |                   | 8-10 deg  (6.5/6)
 #    1500 | 75 +-12 (63-87)   |
 #    2400 |                   | 5-7 deg   (4/5)
 #    3000 |                   | 3.5-4.5   (3/5)   calibrated, final
-#    3550 | 85 +-3  (82-88)   |
-#    4200 | 88 +-2  (86-90)   |
-#    4800 | 90 exact          |
+#    3300 | 80 +-5  (75-85)   |
+#    3900 | 85 +-3  (82-88)   |
+#    4550 | 88 +-2  (86-90)   |
+#    5150 | 90 exact          |
 #
 # The iters transcribe the ONE validated trajectory: v3 ran 0->3300 on
 # exactly this 45/75/tilt prefix (from birth, full DR + pd100), and the
 # v4 bridge campaign took the same lineage 3300->5050 through
 # 85/88/exact-90 to the ship gate (90-deg cal-band exams
 # 0.962/0.961/0.963 across three consecutive panels, zero falls).
+# 2026-08-10 six-stage extension: the 80+-5 rung joins for the
+# band-teacher matrix (deploy bands 80+-5 / 88+-2 / 90 each mint a
+# frozen teacher at its rung's end — docs/plans/ per-band pipeline),
+# shifting the later rungs +350; band-pinned soak/distill/eval runs use
+# mdp.pin_curricula_to_band (jitter preserved), the final-stage pin
+# stays a hard angle.
 # Design rules baked into the numbers:
 #   - gravity is a function of training time alone (2026-07-21:
 #     graduation-by-height once promoted a 20x-overspeed scramble), and
-#     every hop overlaps its neighbor's pool (63-87 / 82-88 / 86-90 /
-#     90) so zero-compression arrives in-distribution — v3 died on the
+#     every hop overlaps its neighbor's pool (63-87 / 75-85 / 82-88 /
+#     86-90 / 90) so zero-compression arrives in-distribution — v3 died on the
 #     unbridged 75+-12 -> 88+-2 cliff (weld-hands basin: at 90 a hand
 #     swing leaves 3 anchors on pure shear+tension, 12.3% margin at the
 #     F0=400 worst draw). The final stage runs exactly 90; jitter there
 #     would mix in >90 overhangs, a different task.
 #   - the tilt anneal reaches the honest physics (3000) before the wall
-#     gets steep (3550): every steep rung trains AND examines on the
+#     gets steep (3300+): every steep rung trains AND examines on the
 #     calibrated band. Birth needs the wide band — cold starts on
 #     3.5-4.5 peel apart within ~1 s (motionref18: zero learning).
 #   - anneal steps and rung boundaries stay >=300 iters apart (fresh2b:
@@ -617,7 +671,7 @@ sampling_mode="uniform",  # DeepMimic RSI: random cycle phase per episode.
 #     push the later rungs OUT (the 88 rung auto-fired at 4200 mid-soak
 #     once; it survived only by luck of near-readiness).
 #   - examine ALL rungs every cycle (periodic_eval.sh probes
-#     75/85/88/90): steep-only pools erode shallow angles — accepted
+#     75/80/85/88/90): steep-only pools erode shallow angles — accepted
 #     under the ckpt-portfolio doctrine (bank each rung's graduate),
 #     but the erosion must stay measured, never silent.
 # steps_per_iter must match rl_cfg num_steps_per_env.

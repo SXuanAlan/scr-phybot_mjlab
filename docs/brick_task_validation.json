@@ -1,0 +1,80 @@
+{
+  "date": "2026-09-17",
+  "reference_sha256": "b9a10f42ef5007f2fa36aa35d8b116df180d9ef9607a1b4062599403139a19d6",
+  "reference_regenerated_from_scratch": true,
+  "reference_audit": {
+    "max_hand_error_m": 0.004173532096343987,
+    "max_foot_error_m": 1.9018385381449338e-05,
+    "max_contact_hand_error_m": 0.00018381170746235284,
+    "max_face_error_deg": 3.7530011285676905,
+    "max_brick_penetration_m": 0.0,
+    "max_contact_face_error_deg": 0.1912629779434964,
+    "min_support_margin_m": 0.01880766854867938,
+    "frames": 147,
+    "max_illegal_ground_penetration_m": 0.0,
+    "max_self_penetration_m": 0.0,
+    "worst_self_pair": [],
+    "max_preload_arm_effort_ratio": 0.363537609366418,
+    "unit_layout": "corners",
+    "preload_force_per_pad_n": 40.0,
+    "preload_audit": "Quasi-static active-arm torque with gravity and configured normal preload per pad; zero pad moment. Necessary check only.",
+    "kind": "kinematic_only",
+    "dynamic_preload_validated": false,
+    "passed": true
+  },
+  "tests": {
+    "passed": 106,
+    "includes_warp_cpu_integration_cases": 5,
+    "final_backend": "cpu",
+    "final_gpu_retest": "Unavailable after the execution permission profile changed; five GPU variant/reset cases had passed before the residual-action change."
+  },
+  "ppo_smoke": {
+    "device": "cpu",
+    "num_envs": 8,
+    "iterations": 2,
+    "steps_per_env_per_iteration": 16,
+    "finite_updates": true
+  },
+  "torchscript_self_test": {
+    "steps": 8,
+    "max_absolute_action_error": 0.0,
+    "normalization_embedded": true
+  },
+  "smoke_policy_evaluation": {
+    "kind": "policy_evaluation",
+    "stage": "hold",
+    "unit_layout": "corners",
+    "reference_sha256": "b9a10f42ef5007f2fa36aa35d8b116df180d9ef9607a1b4062599403139a19d6",
+    "policy_sha256": "25c13683209128c992b6883eabd351e1a0872f0b1bb89cfdc99a46435781b8d6",
+    "seed": 17,
+    "randomize": false,
+    "grip_enabled": true,
+    "steps": 30,
+    "episodes": 4,
+    "successes": 0,
+    "stage_completions": 0,
+    "failures": 4,
+    "timeouts": 0,
+    "lifted": 0,
+    "carried": 0,
+    "success_rate": 0.0,
+    "terminal_phase_counts": [
+      0,
+      0,
+      0,
+      4,
+      0,
+      0,
+      0
+    ],
+    "max_anchor_component_n": 2.906856060028076,
+    "release_reason_counts": {
+      "2": 11
+    },
+    "max_foot_drift_m": 0.006352354772388935,
+    "actor_dim": 1170,
+    "critic_dim": 164
+  },
+  "converged_policy_available": false,
+  "hardware_validated": false
+}

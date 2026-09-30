@@ -1,0 +1,873 @@
+{
+  "task": "climb_wall",
+  "configuration": "play=True; real reset; no simulation steps",
+  "motion_file": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy",
+  "reset_reference_frame": 0,
+  "wall_point_world_m": [
+    1.5,
+    0.0,
+    1.0
+  ],
+  "wall_normal_world": [
+    -1.0000000000000002,
+    -0.0,
+    0.0
+  ],
+  "gap_sign": "positive = outside wall; negative = inside wall",
+  "pads": {
+    "left_hand_spine": {
+      "center_world_m": [
+        1.500000041796867,
+        0.17748035894793213,
+        1.8543381702971498
+      ],
+      "center_wall_gap_mm": -4.179686707850295e-05,
+      "unit_wall_gap_range_mm": [
+        -5.7196701819250975e-05,
+        -3.933914882736645e-05
+      ],
+      "face_angle_to_wall_deg": 1.2074182697257333e-06,
+      "reference_engaged": true,
+      "field_center_error_m": 4.3200928522745445e-08,
+      "weld_anchor_pad_local_m": [
+        1.5090744653889487e-08,
+        -0.04750002175569534,
+        0.07798416912555695
+      ]
+    },
+    "right_hand_spine": {
+      "center_world_m": [
+        1.5000000643313276,
+        -0.17748032252173926,
+        1.8543381677390067
+      ],
+      "center_wall_gap_mm": -6.433132759831041e-05,
+      "unit_wall_gap_range_mm": [
+        -7.968823911852498e-05,
+        -5.99476805973609e-05
+      ],
+      "face_angle_to_wall_deg": 3.306651113363206e-06,
+      "reference_engaged": true,
+      "field_center_error_m": 6.66782918146274e-08,
+      "weld_anchor_pad_local_m": [
+        1.5090744653889487e-08,
+        -0.04750002175569534,
+        0.07798416912555695
+      ]
+    },
+    "left_foot_spine": {
+      "center_world_m": [
+        1.4999999743575265,
+        0.20072610344741743,
+        0.6279930166043395
+      ],
+      "center_wall_gap_mm": 2.5642473477915935e-05,
+      "unit_wall_gap_range_mm": [
+        1.0096672609094527e-05,
+        2.823122691175684e-05
+      ],
+      "face_angle_to_wall_deg": 0.0,
+      "reference_engaged": true,
+      "field_center_error_m": 4.2763710785722034e-08,
+      "weld_anchor_pad_local_m": [
+        1.5090744653889487e-08,
+        -0.04750002175569534,
+        0.07798416912555695
+      ]
+    },
+    "right_foot_spine": {
+      "center_world_m": [
+        1.4999999743575265,
+        -0.2007260738468051,
+        0.627993010711455
+      ],
+      "center_wall_gap_mm": 2.5642473477915935e-05,
+      "unit_wall_gap_range_mm": [
+        1.0602074995702539e-05,
+        2.8736629298364853e-05
+      ],
+      "face_angle_to_wall_deg": 0.0,
+      "reference_engaged": true,
+      "field_center_error_m": 8.662429232654908e-08,
+      "weld_anchor_pad_local_m": [
+        1.5090744653889487e-08,
+        -0.04750002175569534,
+        0.07798416912555695
+      ]
+    }
+  },
+  "collision_geoms": [
+    {
+      "name": "robot/base_link_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_hip_roll_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_hip_yaw_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_knee_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_ankle_pitch_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_ankle_roll_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_foot_spine_collision",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_foot_spine_c_0_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_foot_spine_c_0_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_foot_spine_c_1_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_foot_spine_c_1_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_hip_roll_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_hip_yaw_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_knee_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_ankle_pitch_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_ankle_roll_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_foot_spine_collision",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_foot_spine_c_0_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_foot_spine_c_0_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_foot_spine_c_1_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_foot_spine_c_1_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/torso_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/neck_pitch_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_shoulder_roll_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_shoulder_yaw_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_elbow_pitch_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_elbow_pitch_motor_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_forearm_pad_mount_sleeve_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_forearm_pad_mount_web_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/left_hand_spine_collision",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_hand_spine_c_0_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_hand_spine_c_0_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_hand_spine_c_1_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/left_hand_spine_c_1_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_shoulder_roll_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_shoulder_yaw_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_elbow_pitch_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_elbow_pitch_motor_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_forearm_pad_mount_sleeve_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_forearm_pad_mount_web_collision",
+      "contype": 1,
+      "conaffinity": 1
+    },
+    {
+      "name": "robot/right_hand_spine_collision",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_hand_spine_c_0_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_hand_spine_c_0_1",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_hand_spine_c_1_0",
+      "contype": 0,
+      "conaffinity": 0
+    },
+    {
+      "name": "robot/right_hand_spine_c_1_1",
+      "contype": 0,
+      "conaffinity": 0
+    }
+  ],
+  "explicit_wall_pairs": [
+    [
+      "robot/left_ankle_roll_toe",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_foot_spine_c_0_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_foot_spine_c_0_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_foot_spine_c_1_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_foot_spine_c_1_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_ankle_roll_toe",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_foot_spine_c_0_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_foot_spine_c_0_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_foot_spine_c_1_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_foot_spine_c_1_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_hand_spine_c_0_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_hand_spine_c_0_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_hand_spine_c_1_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/left_hand_spine_c_1_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_hand_spine_c_0_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_hand_spine_c_0_1",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_hand_spine_c_1_0",
+      "wall/wall_geom"
+    ],
+    [
+      "robot/right_hand_spine_c_1_1",
+      "wall/wall_geom"
+    ]
+  ],
+  "contacts_at_reset": [
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.7402848589222484e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.7570714473609814e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.7692580775381948e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.7860446659769278e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.579735129855376e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.596521718294109e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.6087083484713225e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.6254949369100555e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8002357920289822e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8170223804677152e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8292090106449286e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8459955990836616e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.6396860407576495e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.6564726291963825e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.6686592593735958e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.685445847812329e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.807611708226243e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.79082511978751e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.8365849268421894e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_0"
+      ],
+      "distance_mm": 2.8197983384034564e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.5459814574288475e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.5291948689901145e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.574954676044794e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_0_1"
+      ],
+      "distance_mm": 2.558168087606061e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8675626191285164e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8507760306897834e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8965358377444628e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_0"
+      ],
+      "distance_mm": 2.8797492493057297e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.605932368331121e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.5891457798923878e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.6349055869470672e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_foot_spine_c_1_1"
+      ],
+      "distance_mm": 2.6181189985083342e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_0"
+      ],
+      "distance_mm": -3.939106281436455e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_0"
+      ],
+      "distance_mm": -3.932016032735797e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_0"
+      ],
+      "distance_mm": -3.935807739441355e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_0"
+      ],
+      "distance_mm": -3.928717490740696e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_1"
+      ],
+      "distance_mm": -4.1288493027313855e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_1"
+      ],
+      "distance_mm": -4.121759054030727e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_1"
+      ],
+      "distance_mm": -4.125550760736285e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_0_1"
+      ],
+      "distance_mm": -4.1184605120356266e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_0"
+      ],
+      "distance_mm": -3.943676891993153e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_0"
+      ],
+      "distance_mm": -3.9365866432924945e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_0"
+      ],
+      "distance_mm": -3.940378349998053e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_0"
+      ],
+      "distance_mm": -3.933288101297394e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_1"
+      ],
+      "distance_mm": -4.133419913288083e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_1"
+      ],
+      "distance_mm": -4.126329664587425e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_1"
+      ],
+      "distance_mm": -4.130121371292983e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/left_hand_spine_c_1_1"
+      ],
+      "distance_mm": -4.1230311225923244e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_0"
+      ],
+      "distance_mm": -5.923604477157257e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_0"
+      ],
+      "distance_mm": -5.9193656397511785e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_0"
+      ],
+      "distance_mm": -6.0701644843431934e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_0"
+      ],
+      "distance_mm": -6.065925646937115e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_1"
+      ],
+      "distance_mm": -6.121932386807943e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_1"
+      ],
+      "distance_mm": -6.117693549401865e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_1"
+      ],
+      "distance_mm": -6.26849239399388e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_0_1"
+      ],
+      "distance_mm": -6.264253556587801e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_0"
+      ],
+      "distance_mm": -6.304775949320801e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_0"
+      ],
+      "distance_mm": -6.300537111914722e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_0"
+      ],
+      "distance_mm": -6.451335956506737e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_0"
+      ],
+      "distance_mm": -6.447097119100659e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_1"
+      ],
+      "distance_mm": -6.503103858971487e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_1"
+      ],
+      "distance_mm": -6.498865021565409e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_1"
+      ],
+      "distance_mm": -6.649663866157424e-05
+    },
+    {
+      "geoms": [
+        "wall/wall_geom",
+        "robot/right_hand_spine_c_1_1"
+      ],
+      "distance_mm": -6.645425028751345e-05
+    }
+  ],
+  "host_gpu_site_max_error_m": 8.978075227705773e-08,
+  "empirical_runtime": {
+    "table": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/microspine/empirical_unit_v1.npz",
+    "strength_draw_shape": [
+      1,
+      4,
+      12
+    ],
+    "loading_draw_shape": [
+      1,
+      4,
+      12
+    ],
+    "distinct_strength_draws_at_reset": 48,
+    "unit_order_max_error_m": 4.758093877232916e-09
+  },
+  "reference_collision_audit": {
+    "frames": 490,
+    "max_active_contact_penetration_mm": 0.00015364004800691444,
+    "unexpected_penetrating_pairs": {},
+    "collision_pass": true,
+    "scope": "Actual task collision masks/pairs; disabled visual/chassis geometry excluded; no dynamics steps"
+  }
+}

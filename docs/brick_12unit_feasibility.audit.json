@@ -1,0 +1,27 @@
+{
+  "max_hand_error_m": 0.027329419959339008,
+  "max_foot_error_m": 0.013123778334051825,
+  "max_face_error_deg": 4.193889100772035,
+  "max_brick_penetration_m": 0.0003929215401375939,
+  "max_contact_face_error_deg": 4.031760359600941,
+  "min_support_margin_m": 0.007522861389833463,
+  "frames": 147,
+  "max_illegal_ground_penetration_m": 0.0,
+  "max_self_penetration_m": 0.0010388509180034803,
+  "worst_self_pair": [
+    "left_hip_yaw_collision",
+    "torso_collision"
+  ],
+  "max_preload_arm_effort_ratio": 0.9857046899190647,
+  "preload_audit": "Quasi-static active-arm torque with gravity and 120 N normal force per pad; zero pad moment. Necessary check only.",
+  "kind": "kinematic_only",
+  "dynamic_preload_validated": false,
+  "passed": false,
+  "note": "Diagnostic for all 12 units per pad. Not a training reference; geometric and torque constraints did not pass together.",
+  "initial_geometric_reference_preload": {
+    "approx_shoulder_roll_peak_nm": 63.4,
+    "shoulder_roll_limit_nm": 58.0,
+    "units_per_pad": 12,
+    "preload_per_unit_n": 10.0
+  }
+}

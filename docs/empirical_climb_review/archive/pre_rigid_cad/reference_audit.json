@@ -1,0 +1,1328 @@
+{
+  "motion": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy",
+  "motion_sha256": "67f5b167ce68c07471237ed7440b407f0f915144895ddd2e56806db96e8470ea",
+  "geometry": {
+    "frames": 490,
+    "cycle_frames": 450,
+    "cycle_duration_s": 9.0,
+    "file_duration_s": 9.8,
+    "step_height_m": 0.019999999552965164,
+    "min_engaged": 3,
+    "max_engaged_center_wall_gap_mm": 0.00020516226517663938,
+    "max_engaged_anchor_drift_mm": 0.0005419423100285874,
+    "max_unit_box_wall_penetration_mm": 0.0002055722947424954,
+    "minimum_actuated_joint_range_fraction": 0.033373032422626715,
+    "minimum_gimbal_stop_clearance_deg": -8.348260531046762e-08,
+    "max_joint_speed_rad_s": 2.930295467376709,
+    "max_passive_speed_rad_s": 2.2029528617858887,
+    "max_braced_toe_gap_mm": 0.003652968647360061,
+    "loop_joint_closure_rad": 0.0,
+    "loop_passive_closure_rad": 0.0,
+    "geometry_pass": true,
+    "gimbal_stop_support": "lower x stop throughout; unilateral stop strength unvalidated"
+  },
+  "statics": [
+    {
+      "frame": 0,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.121889411578482,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0341796875,
+        "right_hand_spine": 0.04150390625,
+        "left_foot_spine": 0.5517578125,
+        "right_foot_spine": 0.56591796875
+      },
+      "max_actuator_torque_ratio": 0.4421842128893348,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.649769474654625,
+        "right_hand_spine_gimbal_x": 6.649212113092774,
+        "left_foot_spine_gimbal_x": 0.2978664283235631,
+        "right_foot_spine_gimbal_x": 0.2980581039606096
+      }
+    },
+    {
+      "frame": 20,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.114056249334892,
+      "equality_error": 3.552713678800501e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.03173828125,
+        "right_hand_spine": 0.0341796875,
+        "left_foot_spine": 0.541015625,
+        "right_foot_spine": 0.56982421875
+      },
+      "max_actuator_torque_ratio": 0.44010642359774255,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.61777895929978,
+        "right_hand_spine_gimbal_x": 6.596702711846928,
+        "left_foot_spine_gimbal_x": 0.33712430972577545,
+        "right_foot_spine_gimbal_x": 0.3455927972988011
+      }
+    },
+    {
+      "frame": 29,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.111924922835553,
+      "equality_error": 8.881784197001252e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0361328125,
+        "right_hand_spine": 0.037109375,
+        "left_foot_spine": 0.55419921875,
+        "right_foot_spine": 0.55859375
+      },
+      "max_actuator_torque_ratio": 0.43923314513614586,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.60506611306443,
+        "right_hand_spine_gimbal_x": 6.581989752715505,
+        "left_foot_spine_gimbal_x": 0.3508117112254401,
+        "right_foot_spine_gimbal_x": 0.36007809975785954
+      }
+    },
+    {
+      "frame": 30,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.5127195660781845,
+      "equality_error": 7.355227538141662e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.1025390625,
+        "right_hand_spine": 0.001953125,
+        "right_foot_spine": 0.59033203125
+      },
+      "max_actuator_torque_ratio": 0.35318242044485115,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 4.792277083756228,
+        "right_hand_spine_gimbal_x": 6.135323562146352,
+        "right_foot_spine_gimbal_x": 2.9078039741586648
+      }
+    },
+    {
+      "frame": 40,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0683038622095617,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 3.137558512505857e-13,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00244140625,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0615234375,
+        "right_hand_spine": 0.041015625,
+        "right_foot_spine": 0.6435546875
+      },
+      "max_actuator_torque_ratio": 0.4821786352102178,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [
+        "left_foot_spine"
+      ],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 5.6399271041596,
+        "right_hand_spine_gimbal_x": 7.289318878466891,
+        "right_foot_spine_gimbal_x": 0.18298896258498418
+      }
+    },
+    {
+      "frame": 60,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0285234986182483,
+      "equality_error": 7.105427357601002e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00439453125,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.05810546875,
+        "right_hand_spine": 0.12451171875,
+        "right_foot_spine": 0.6982421875
+      },
+      "max_actuator_torque_ratio": 0.47992586240675594,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [
+        "left_foot_spine"
+      ],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 5.536530500496087,
+        "right_hand_spine_gimbal_x": 7.289875638490021,
+        "right_foot_spine_gimbal_x": 0.43059424588842465
+      }
+    },
+    {
+      "frame": 80,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -1.9843439983878555,
+      "equality_error": 3.552713678800501e-15,
+      "linear_inequality_error": 1.4210854715202004e-14,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00048828125,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0556640625,
+        "right_hand_spine": 0.029296875,
+        "right_foot_spine": 0.70654296875
+      },
+      "max_actuator_torque_ratio": 0.4512663412071097,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [
+        "left_foot_spine"
+      ],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 5.566698103930333,
+        "right_hand_spine_gimbal_x": 7.015703011135501,
+        "right_foot_spine_gimbal_x": 0.7166633956564123
+      }
+    },
+    {
+      "frame": 100,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.4343711698762105,
+      "equality_error": 5.329070518200751e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.10595703125,
+        "right_hand_spine": 0.0,
+        "right_foot_spine": 0.521484375
+      },
+      "max_actuator_torque_ratio": 0.33667987593946397,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 4.285146046278426,
+        "right_hand_spine_gimbal_x": 6.102704529862934,
+        "right_foot_spine_gimbal_x": 3.2834476108704256
+      }
+    },
+    {
+      "frame": 104,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.43710410922432796,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.09716796875,
+        "right_hand_spine": 0.0,
+        "right_foot_spine": 0.5439453125
+      },
+      "max_actuator_torque_ratio": 0.3360499076250327,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 4.286553163526302,
+        "right_hand_spine_gimbal_x": 6.104818821415048,
+        "right_foot_spine_gimbal_x": 3.2806097440402624
+      }
+    },
+    {
+      "frame": 105,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0368864226892374,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.04638671875,
+        "right_hand_spine": 0.03564453125,
+        "left_foot_spine": 0.5185546875,
+        "right_foot_spine": 0.5703125
+      },
+      "max_actuator_torque_ratio": 0.4825104106488755,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.336074494310819,
+        "right_hand_spine_gimbal_x": 7.295847242962161,
+        "left_foot_spine_gimbal_x": 0.24463203176581977,
+        "right_foot_spine_gimbal_x": 2.636779683484747e-16
+      }
+    },
+    {
+      "frame": 120,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0355346687681224,
+      "equality_error": 8.43769498715119e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.04296875,
+        "right_hand_spine": 0.0322265625,
+        "left_foot_spine": 0.54638671875,
+        "right_foot_spine": 0.55126953125
+      },
+      "max_actuator_torque_ratio": 0.4836587176534197,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.337993862992204,
+        "right_hand_spine_gimbal_x": 7.311567059157984,
+        "left_foot_spine_gimbal_x": 0.22610151644394383,
+        "right_foot_spine_gimbal_x": 7.022160630754115e-15
+      }
+    },
+    {
+      "frame": 134,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.032378629393472,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 4.232725281383409e-15,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00146484375,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0400390625,
+        "right_hand_spine": 0.0361328125,
+        "left_foot_spine": 0.55322265625,
+        "right_foot_spine": 0.55810546875
+      },
+      "max_actuator_torque_ratio": 0.4845016060610835,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.321821619290464,
+        "right_hand_spine_gimbal_x": 7.320556882100273,
+        "left_foot_spine_gimbal_x": 0.23362028728123113,
+        "right_foot_spine_gimbal_x": -4.315992008230296e-15
+      }
+    },
+    {
+      "frame": 135,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.34737980026578175,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0,
+        "right_hand_spine": 0.0615234375,
+        "left_foot_spine": 0.50341796875
+      },
+      "max_actuator_torque_ratio": 0.3916890800425547,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.026074702425304,
+        "right_hand_spine_gimbal_x": 5.049303616141678,
+        "left_foot_spine_gimbal_x": 2.8172026034224005
+      }
+    },
+    {
+      "frame": 140,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0290743637332973,
+      "equality_error": 3.552713678800501e-15,
+      "linear_inequality_error": 2.71605487175275e-12,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0009765625,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.033203125,
+        "right_hand_spine": 0.05224609375,
+        "left_foot_spine": 0.62841796875
+      },
+      "max_actuator_torque_ratio": 0.5022619259122699,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine"
+      ],
+      "toe_contacts": [
+        "right_foot_spine"
+      ],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.779054247315943,
+        "right_hand_spine_gimbal_x": 5.850860658454837,
+        "left_foot_spine_gimbal_x": 0.2626915597469742
+      }
+    },
+    {
+      "frame": 160,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0345024584466183,
+      "equality_error": 1.0658141036401503e-14,
+      "linear_inequality_error": 5.053606722376901e-13,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0009765625,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.02685546875,
+        "right_hand_spine": 0.05615234375,
+        "left_foot_spine": 0.615234375
+      },
+      "max_actuator_torque_ratio": 0.5134779353809125,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine"
+      ],
+      "toe_contacts": [
+        "right_foot_spine"
+      ],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.943792357098491,
+        "right_hand_spine_gimbal_x": 5.820360952145107,
+        "left_foot_spine_gimbal_x": 0.13186061631667445
+      }
+    },
+    {
+      "frame": 180,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.0070341415147808,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 1.2406742300186124e-13,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.001953125,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0390625,
+        "right_hand_spine": 0.0576171875,
+        "left_foot_spine": 0.63818359375
+      },
+      "max_actuator_torque_ratio": 0.548546568312506,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine"
+      ],
+      "toe_contacts": [
+        "right_foot_spine"
+      ],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 7.374152266710064,
+        "right_hand_spine_gimbal_x": 5.638136993903286,
+        "left_foot_spine_gimbal_x": 8.271161533457416e-15
+      }
+    },
+    {
+      "frame": 200,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.21424082259215815,
+      "equality_error": 2.1316282072803006e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0,
+        "right_hand_spine": 0.052734375,
+        "left_foot_spine": 0.48876953125
+      },
+      "max_actuator_torque_ratio": 0.3735460812558895,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 5.848884136779459,
+        "right_hand_spine_gimbal_x": 4.578480276422594,
+        "left_foot_spine_gimbal_x": 3.2764629293930962
+      }
+    },
+    {
+      "frame": 209,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.2198532116789682,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.00048828125,
+        "right_hand_spine": 0.04931640625,
+        "left_foot_spine": 0.49365234375
+      },
+      "max_actuator_torque_ratio": 0.37402591394481044,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 5.860553638668175,
+        "right_hand_spine_gimbal_x": 4.616632089935139,
+        "left_foot_spine_gimbal_x": 3.247533927955029
+      }
+    },
+    {
+      "frame": 210,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.14406854244573,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.029296875,
+        "right_hand_spine": 0.0302734375,
+        "left_foot_spine": 0.5615234375,
+        "right_foot_spine": 0.56640625
+      },
+      "max_actuator_torque_ratio": 0.5291254571179261,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.9012388091598105,
+        "right_hand_spine_gimbal_x": 6.987806710246373,
+        "left_foot_spine_gimbal_x": 0.002872635760245587,
+        "right_foot_spine_gimbal_x": 2.569056078982612e-13
+      }
+    },
+    {
+      "frame": 220,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.1436222917764485,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 1.9483026303390716e-13,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.02392578125,
+        "right_hand_spine": 0.02978515625,
+        "left_foot_spine": 0.552734375,
+        "right_foot_spine": 0.56982421875
+      },
+      "max_actuator_torque_ratio": 0.5300425612192423,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.8982592403515035,
+        "right_hand_spine_gimbal_x": 7.002041546250387,
+        "left_foot_spine_gimbal_x": -1.9483026303390716e-13,
+        "right_foot_spine_gimbal_x": -1.7283396935852124e-13
+      }
+    },
+    {
+      "frame": 240,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.1395991187609287,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 1.012800954214299e-13,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0361328125,
+        "right_hand_spine": 0.03173828125,
+        "left_foot_spine": 0.55859375,
+        "right_foot_spine": 0.55419921875
+      },
+      "max_actuator_torque_ratio": 0.5302647771989539,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.891542322292232,
+        "right_hand_spine_gimbal_x": 7.013304691387672,
+        "left_foot_spine_gimbal_x": -1.012800954214299e-13,
+        "right_foot_spine_gimbal_x": -7.985279104616438e-14
+      }
+    },
+    {
+      "frame": 249,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.1395985728583584,
+      "equality_error": 1.0880185641326534e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.03515625,
+        "right_hand_spine": 0.03173828125,
+        "left_foot_spine": 0.56884765625,
+        "right_foot_spine": 0.58251953125
+      },
+      "max_actuator_torque_ratio": 0.5302728320983736,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.891504312470922,
+        "right_hand_spine_gimbal_x": 7.013333261029105,
+        "left_foot_spine_gimbal_x": 2.1094237467877974e-15,
+        "right_foot_spine_gimbal_x": 2.914335439641036e-15
+      }
+    },
+    {
+      "frame": 250,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.4517504766801981,
+      "equality_error": 7.105427357601002e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "right_hand_spine": 0.00048828125,
+        "left_foot_spine": 0.05078125,
+        "right_foot_spine": 0.61474609375
+      },
+      "max_actuator_torque_ratio": 0.4047600472840581,
+      "evaluated_contacts": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "right_hand_spine_gimbal_x": 6.073093981403406,
+        "left_foot_spine_gimbal_x": 6.390708654671102,
+        "right_foot_spine_gimbal_x": 1.1157367845399573
+      }
+    },
+    {
+      "frame": 260,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.45419839968370734,
+      "equality_error": 1.4210854715202004e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "right_hand_spine": 0.0,
+        "left_foot_spine": 0.05419921875,
+        "right_foot_spine": 0.6201171875
+      },
+      "max_actuator_torque_ratio": 0.40528758297361206,
+      "evaluated_contacts": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "right_hand_spine_gimbal_x": 6.075487447693632,
+        "left_foot_spine_gimbal_x": 6.390715434885952,
+        "right_foot_spine_gimbal_x": 1.1156911785930756
+      }
+    },
+    {
+      "frame": 280,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.46328113858088216,
+      "equality_error": 7.105427357601002e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "right_hand_spine": 0.00048828125,
+        "left_foot_spine": 0.06396484375,
+        "right_foot_spine": 0.64404296875
+      },
+      "max_actuator_torque_ratio": 0.40798882996795766,
+      "evaluated_contacts": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "right_hand_spine_gimbal_x": 6.0841877674390235,
+        "left_foot_spine_gimbal_x": 6.356961999494478,
+        "right_foot_spine_gimbal_x": 1.1791407299530245
+      }
+    },
+    {
+      "frame": 300,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.550199119227365,
+      "equality_error": 7.993605777301127e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "right_hand_spine": 0.0009765625,
+        "left_foot_spine": 0.076171875,
+        "right_foot_spine": 0.6572265625
+      },
+      "max_actuator_torque_ratio": 0.42354529317927253,
+      "evaluated_contacts": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "right_hand_spine_gimbal_x": 6.167482752374755,
+        "left_foot_spine_gimbal_x": 6.399103071772177,
+        "right_foot_spine_gimbal_x": 1.1120452791863769
+      }
+    },
+    {
+      "frame": 320,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.5736566896351816,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "right_hand_spine": 0.00390625,
+        "left_foot_spine": 0.07080078125,
+        "right_foot_spine": 0.66015625
+      },
+      "max_actuator_torque_ratio": 0.4277414784698877,
+      "evaluated_contacts": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "right_hand_spine_gimbal_x": 6.1899703942098405,
+        "left_foot_spine_gimbal_x": 6.401731494128264,
+        "right_foot_spine_gimbal_x": 1.1104947463172674
+      }
+    },
+    {
+      "frame": 329,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.5605328150451836,
+      "equality_error": 8.881784197001252e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00048828125,
+      "model_iid_pad_hold_fractions": {
+        "right_hand_spine": 0.00341796875,
+        "left_foot_spine": 0.06640625,
+        "right_foot_spine": 0.66943359375
+      },
+      "max_actuator_torque_ratio": 0.42549064906695316,
+      "evaluated_contacts": [
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "right_hand_spine_gimbal_x": 6.177328727297387,
+        "left_foot_spine_gimbal_x": 6.385149639126203,
+        "right_foot_spine_gimbal_x": 1.139269746128509
+      }
+    },
+    {
+      "frame": 330,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.1352735209819356,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.03271484375,
+        "right_hand_spine": 0.037109375,
+        "left_foot_spine": 0.56884765625,
+        "right_foot_spine": 0.54638671875
+      },
+      "max_actuator_torque_ratio": 0.5291131802597336,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.8244484773674285,
+        "right_hand_spine_gimbal_x": 6.90093223952213,
+        "left_foot_spine_gimbal_x": 0.1148232589193953,
+        "right_foot_spine_gimbal_x": 0.05708631851748608
+      }
+    },
+    {
+      "frame": 340,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.1352735209819356,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00048828125,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.04345703125,
+        "right_hand_spine": 0.033203125,
+        "left_foot_spine": 0.55712890625,
+        "right_foot_spine": 0.56103515625
+      },
+      "max_actuator_torque_ratio": 0.5291131802597336,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.8244484773674285,
+        "right_hand_spine_gimbal_x": 6.90093223952213,
+        "left_foot_spine_gimbal_x": 0.1148232589193953,
+        "right_foot_spine_gimbal_x": 0.05708631851748608
+      }
+    },
+    {
+      "frame": 360,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.1352735209819356,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.033203125,
+        "right_hand_spine": 0.0400390625,
+        "left_foot_spine": 0.54248046875,
+        "right_foot_spine": 0.54150390625
+      },
+      "max_actuator_torque_ratio": 0.5291131802597336,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.8244484773674285,
+        "right_hand_spine_gimbal_x": 6.90093223952213,
+        "left_foot_spine_gimbal_x": 0.1148232589193953,
+        "right_foot_spine_gimbal_x": 0.05708631851748608
+      }
+    },
+    {
+      "frame": 369,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.135282809912079,
+      "equality_error": 1.7763568394002505e-15,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0009765625,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0341796875,
+        "right_hand_spine": 0.03369140625,
+        "left_foot_spine": 0.55712890625,
+        "right_foot_spine": 0.56689453125
+      },
+      "max_actuator_torque_ratio": 0.5290888866818946,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.8245260696638255,
+        "right_hand_spine_gimbal_x": 6.900791432332074,
+        "left_foot_spine_gimbal_x": 0.11473196613416664,
+        "right_foot_spine_gimbal_x": 0.05723533102834019
+      }
+    },
+    {
+      "frame": 370,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.6201130280640017,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.001953125,
+        "left_foot_spine": 0.65869140625,
+        "right_foot_spine": 0.08203125
+      },
+      "max_actuator_torque_ratio": 0.3319987716006298,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.239490097996872,
+        "left_foot_spine_gimbal_x": 1.062080358590743,
+        "right_foot_spine_gimbal_x": 6.458680830309498
+      }
+    },
+    {
+      "frame": 380,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.6222848569952415,
+      "equality_error": 1.4210854715202004e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.00146484375,
+        "left_foot_spine": 0.67236328125,
+        "right_foot_spine": 0.07666015625
+      },
+      "max_actuator_torque_ratio": 0.33242785604221897,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.241531000832702,
+        "left_foot_spine_gimbal_x": 1.0619268727807392,
+        "right_foot_spine_gimbal_x": 6.4589547814758
+      }
+    },
+    {
+      "frame": 400,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.6309160953357298,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.00537109375,
+        "left_foot_spine": 0.69140625,
+        "right_foot_spine": 0.076171875
+      },
+      "max_actuator_torque_ratio": 0.3352999682871324,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.249591482542576,
+        "left_foot_spine_gimbal_x": 1.0600664621423947,
+        "right_foot_spine_gimbal_x": 6.461526397107313
+      }
+    },
+    {
+      "frame": 420,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.7113853295682451,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.00048828125,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.00732421875,
+        "left_foot_spine": 0.64111328125,
+        "right_foot_spine": 0.09130859375
+      },
+      "max_actuator_torque_ratio": 0.35316696817132387,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.325364733088055,
+        "left_foot_spine_gimbal_x": 1.0586438657315387,
+        "right_foot_spine_gimbal_x": 6.466525699970273
+      }
+    },
+    {
+      "frame": 440,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.7337030870137515,
+      "equality_error": 1.4210854715202004e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0009765625,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.00927734375,
+        "left_foot_spine": 0.65283203125,
+        "right_foot_spine": 0.09033203125
+      },
+      "max_actuator_torque_ratio": 0.3607358380391542,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.344211704638422,
+        "left_foot_spine_gimbal_x": 1.0876868048701143,
+        "right_foot_spine_gimbal_x": 6.433476473675633
+      }
+    },
+    {
+      "frame": 449,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -0.7220568997175132,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0009765625,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.00537109375,
+        "left_foot_spine": 0.658203125,
+        "right_foot_spine": 0.083984375
+      },
+      "max_actuator_torque_ratio": 0.35842502118494596,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": true,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.332857054361507,
+        "left_foot_spine_gimbal_x": 1.0923289378639687,
+        "right_foot_spine_gimbal_x": 6.4279377177654435
+      }
+    },
+    {
+      "frame": 450,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.121889411668773,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.0341796875,
+        "right_hand_spine": 0.03564453125,
+        "left_foot_spine": 0.5595703125,
+        "right_foot_spine": 0.54833984375
+      },
+      "max_actuator_torque_ratio": 0.44218421289653737,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.649769474760954,
+        "right_hand_spine_gimbal_x": 6.649212113210475,
+        "left_foot_spine_gimbal_x": 0.29786642818392123,
+        "right_foot_spine_gimbal_x": 0.29805810382085274
+      }
+    },
+    {
+      "frame": 460,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.121889411668773,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.03857421875,
+        "right_hand_spine": 0.03076171875,
+        "left_foot_spine": 0.5634765625,
+        "right_foot_spine": 0.5458984375
+      },
+      "max_actuator_torque_ratio": 0.44218421289653737,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.649769474760954,
+        "right_hand_spine_gimbal_x": 6.649212113210475,
+        "left_foot_spine_gimbal_x": 0.29786642818392123,
+        "right_foot_spine_gimbal_x": 0.29805810382085274
+      }
+    },
+    {
+      "frame": 480,
+      "unit_quantile": 0.5,
+      "linear_feasible": true,
+      "solver_success": true,
+      "solver_message": "Optimization terminated successfully",
+      "max_unit_normal_excess_n": -2.121889411668773,
+      "equality_error": 5.684341886080802e-14,
+      "linear_inequality_error": 0.0,
+      "characteristic_feasible": true,
+      "model_iid_all_contacts_hold_fraction": 0.0,
+      "model_iid_pad_hold_fractions": {
+        "left_hand_spine": 0.03076171875,
+        "right_hand_spine": 0.037109375,
+        "left_foot_spine": 0.55322265625,
+        "right_foot_spine": 0.5458984375
+      },
+      "max_actuator_torque_ratio": 0.44218421289653737,
+      "evaluated_contacts": [
+        "left_hand_spine",
+        "right_hand_spine",
+        "left_foot_spine",
+        "right_foot_spine"
+      ],
+      "toe_contacts": [],
+      "any_censored_tail": false,
+      "stop_reaction_nm": {
+        "left_hand_spine_gimbal_x": 6.649769474760954,
+        "right_hand_spine_gimbal_x": 6.649212113210475,
+        "left_foot_spine_gimbal_x": 0.29786642818392123,
+        "right_foot_spine_gimbal_x": 0.29805810382085274
+      }
+    }
+  ],
+  "static_all_characteristic_feasible": true,
+  "limitations": [
+    "No physics steps, policy execution or training",
+    "Static necessary-condition relaxation: only engaged passive gimbals balanced; free swinging gimbals and acceleration excluded",
+    "SLSQP nonconvex local solution: a failure is not proof that all allocations are impossible",
+    "Equal median unit quantiles are a characteristic audit, not median pad capacity",
+    "IID survival fractions are model estimates on fixed reference-derived loads, not observed reliability",
+    "120 N total seating gate is an unvalidated uniform 12x10 N approximation; seeded mature contacts bypass seating"
+  ]
+}

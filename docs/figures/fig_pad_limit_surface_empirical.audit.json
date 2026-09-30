@@ -1,0 +1,42 @@
+{
+  "source": "/home/spider/projects/scr-phybot_mjlab/src/scr_phybot_mjab/microspine/limit_surface/20260905-110314/results.csv",
+  "source_sha256": "ddabbd752802a270539d0fff4b12d7b0a3f84651d50346bd4f4b9d897c0bfd44",
+  "n_summary_trials": 296,
+  "outcomes": {
+    "detached_normal": 275,
+    "detached_drag": 2,
+    "detached_lateral": 18,
+    "held": 1
+  },
+  "n_cells": 69,
+  "n_terminal_cells": 69,
+  "cell_terminal_repeats_min": 1,
+  "cell_terminal_repeats_max": 11,
+  "geometry": {
+    "rows": 3,
+    "cols": 4,
+    "span_rake_m": 0.0746,
+    "span_lateral_m": 0.096
+  },
+  "normal_preload_n": 10.0,
+  "normal_dwell_s": 3.0,
+  "normal_step_n": 0.5,
+  "protocol_source": "User-supplied acquisition definition",
+  "boundary_column": "fz_cmd_n",
+  "statistic": "median within nominal (side*S, L) cells",
+  "interpolation": "piecewise-linear Delaunay, within measured positive-lateral convex hull",
+  "negative_lateral": "assumed reflection symmetry, not measured",
+  "early_failures": "reported separately; excluded only from conditional normal-boundary statistic",
+  "censored_holds": "reported separately and shown as lower-bound markers, not fitted as failures",
+  "outlier_policy": "No detached_normal trials excluded",
+  "pad_status": "Prediction from identical conditional characteristic units, not hardware-validated",
+  "uncertainty": "No pad survival probability or confidence interval inferred",
+  "moment_capacity": "First failure from zero moment; data-domain exits reported as lower bounds",
+  "unlisted_trace_files": [
+    "20260905-111342_T297_Dp_S20_L5_R1.csv"
+  ],
+  "checks": {
+    "wrench_reconstruction_max_abs_error": 8.215650382226158e-15,
+    "zero_moment_scaling_max_abs_error_n": 0.0
+  }
+}
