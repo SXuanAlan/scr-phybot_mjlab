@@ -16,7 +16,7 @@ side. A separate `phybot_c2_cad_arm_back_detail.png` shows the rear.
 ## CAD mounting references
 
 `tools/microspine/cad.py` reads the assembled URDF/GLTF geometry and analytic
-cylinders in `cad_model/Assembly 1.step`. It identifies the sleeve stop and
+cylinders in `data/cad_model/Assembly 1.step`. It identifies the sleeve stop and
 the midpoint of the bearing seat without hard-coding STEP entity numbers.
 
 In the connector's original local frame (metres):

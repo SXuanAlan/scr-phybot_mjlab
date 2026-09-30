@@ -19,12 +19,12 @@ from scipy.spatial.transform import Rotation
 import mjlab  # noqa: F401  # Initialize plugins before project tool imports.
 
 from scr_phybot_mjab.tools.microspine.cad import (
-  CadPadAssembly, load_cad_pad_assembly,
+  CAD_DIRECTORY, CAD_STEP, CadPadAssembly, load_cad_pad_assembly,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSET = ROOT / "src/scr_phybot_mjab/assets/phybot_c2"
-CAD = ROOT / "cad_model/assembly_1"
+CAD = CAD_DIRECTORY
 PLA_DENSITY = 1240.0  # kg/m^3, provisional solid-PLA estimate, no infill claim.
 SPINES = tuple(f"{side}_{limb}_spine" for limb in ("foot", "hand") for side in ("left", "right"))
 
@@ -340,10 +340,10 @@ def main():
   path.write_text(text)
   sync_urdf(pads, mounts, forearms)
   manifest = {
-    "source": "cad_model/assembly_1/urdf/assembly_1.urdf",
+    "source": "data/cad_model/assembly_1/urdf/assembly_1.urdf",
     "source_sha256": hashlib.sha256((CAD / "urdf/assembly_1.urdf").read_bytes()).hexdigest(),
-    "source_step": "cad_model/Assembly 1.step",
-    "source_step_sha256": hashlib.sha256((ROOT / "cad_model/Assembly 1.step").read_bytes()).hexdigest(),
+    "source_step": "data/cad_model/Assembly 1.step",
+    "source_step_sha256": hashlib.sha256(CAD_STEP.read_bytes()).hexdigest(),
     "geometry_mode": "rigid_cad_import",
     "cad_features_in_connector_frame": assembly.features,
     "pla_density_kg_m3": PLA_DENSITY,

@@ -16,10 +16,10 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 import trimesh
 
-from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import CAD_MODEL_DIR
 
-CAD_DIRECTORY = REPOSITORY_ROOT / "cad_model/assembly_1"
-CAD_STEP = REPOSITORY_ROOT / "cad_model/Assembly 1.step"
+CAD_DIRECTORY = CAD_MODEL_DIR / "assembly_1"
+CAD_STEP = CAD_MODEL_DIR / "Assembly 1.step"
 
 
 def origin_transform(origin: ET.Element | None) -> np.ndarray:

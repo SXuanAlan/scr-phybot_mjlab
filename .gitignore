@@ -44,7 +44,5 @@ docs/reference/WoCoCo/
 /.claude/worktrees/
 /.claude/settings.local.json
 
-# Loose root files (moved out of the repo during cleanup).
-/cad_image.png
-/*.stl
-/sharpa_manip_final.png
+# Hardware CAD exports kept beside the CAD model, not needed to build assets.
+/data/cad_model/hardware/
