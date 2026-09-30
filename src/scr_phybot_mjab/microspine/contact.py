@@ -8,10 +8,11 @@ import mujoco
 import numpy as np
 
 from scr_phybot_mjab.microspine.config import MicrospineCfg
+from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 
 
 def sphere_names(ee_body_name: str, rows: int, cols: int) -> list[str]:
-  """Return sphere body/geom names for one end-effector."""
+  """Return contact body/geom names (legacy API name; boxes or spheres)."""
   return [
     f"{ee_body_name}_c_{row}_{col}"
     for row in range(rows)
@@ -19,12 +20,65 @@ def sphere_names(ee_body_name: str, rows: int, cols: int) -> list[str]:
   ]
 
 
+def contact_face_offset(geom_type, size, face_axis, quat=(1, 0, 0, 0)) -> np.ndarray:
+  """Vector from a proxy's center to its nominal pad-facing surface center.
+
+  The result is in the geom's parent-body frame. Boxes must present one of
+  their faces along the pad normal; spheres use the point along that normal.
+  Runtime retraction is deliberately excluded from this geometric reference.
+  """
+  axis = np.asarray(face_axis, dtype=float)
+  axis = axis / np.linalg.norm(axis)
+  kind = np.asarray(geom_type).item()
+  if kind == int(mujoco.mjtGeom.mjGEOM_SPHERE):
+    return float(size[0]) * axis
+  if kind == int(mujoco.mjtGeom.mjGEOM_BOX):
+    rotation = np.empty(9)
+    mujoco.mju_quat2Mat(rotation, np.asarray(quat, dtype=float))
+    rotation = rotation.reshape(3, 3)
+    local = rotation.T @ axis
+    i = int(np.argmax(np.abs(local)))
+    if not np.isclose(abs(local[i]), 1.0, atol=1e-6):
+      raise ValueError("A contact box face must align with the pad face axis")
+    return float(size[i]) * axis
+  raise ValueError(f"Unsupported microspine contact geom type: {geom_type}")
+
+
+def pad_contact_face_centers(source, cfg: MicrospineCfg, ee: str,
+                             robot_prefix: str = "robot") -> np.ndarray:
+  """Nominal corner surface centers in the pad body frame, from spec or model."""
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  points = []
+  for name in sphere_names(ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols):
+    body, geom = source.body(prefix + name), source.geom(prefix + name)
+    rotation = np.empty(9)
+    mujoco.mju_quat2Mat(rotation, np.asarray(body.quat, dtype=float))
+    rotation = rotation.reshape(3, 3)
+    face = rotation.T @ np.asarray(cfg.face_local_axis)
+    offset = contact_face_offset(geom.type, geom.size, face, geom.quat)
+    points.append(np.asarray(body.pos) + rotation @ (np.asarray(geom.pos) + offset))
+  return np.asarray(points)
+
+
+def pad_contact_center(source, cfg: MicrospineCfg, ee: str,
+                       robot_prefix: str = "robot") -> np.ndarray:
+  """Use the authored array centre C; legacy proxy-only rigs use their mean."""
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  try:
+    site = source.site(prefix + ee + "_contact_center")
+  except KeyError:
+    site = None
+  if site is not None:
+    return np.asarray(site.pos, dtype=float).copy()
+  return pad_contact_face_centers(source, cfg, ee, robot_prefix).mean(axis=0)
+
+
 def pad_grid_spans(
   spec: mujoco.MjSpec,
   cfg: MicrospineCfg,
   robot_prefix: str = "robot",
 ) -> tuple[float, float]:
-  """Contact-sphere grid extents (rake_span_m, lateral_span_m) from the spec.
+  """Unit-center extents (rake_span_m, lateral_span_m) from the spec.
 
   Single source of truth for the physical pad size: the moment-billing
   fields ``MicrospineLimitSurfaceCfg.pad_span_rake_m`` /
@@ -32,11 +86,21 @@ def pad_grid_spans(
   (see the climb env cfg) instead of being hand-maintained constants, and
   clip-generation / analysis scripts can import the same numbers.
 
-  Spans are measured between sphere-center extremes along the pad-local rake
+  Explicit ``<ee>_unit_<row>_<col>`` sites define the load-bearing array.
+  Older assets without these sites fall back to the contact-sphere grid.
+  Spans are measured between center extremes along the pad-local rake
   axis (``limit_surface.ee_rake_local_axis``) and the lateral axis
   (``face_local_axis x rake``). All EEs must agree to within 1 mm — one
   scalar pair parameterizes the billing model.
   """
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  if any(site.name and site.name.startswith(f"{prefix}{cfg.ee_body_names[0]}_unit_")
+         for site in spec.sites):
+    return matching_pad_geometry(spec, cfg.ee_body_names, robot_prefix,
+      rake_local_axis=cfg.limit_surface.ee_rake_local_axis,
+      face_local_axis=cfg.face_local_axis,
+      unit_layout=cfg.limit_surface.unit_layout).spans
+
   rake = np.asarray(cfg.limit_surface.ee_rake_local_axis, dtype=float)
   rake = rake / max(float(np.linalg.norm(rake)), 1.0e-9)
   face = np.asarray(cfg.face_local_axis, dtype=float)
@@ -47,8 +111,12 @@ def pad_grid_spans(
   prefix = f"{robot_prefix}/" if robot_prefix else ""
   spans: list[tuple[float, float]] = []
   for ee in cfg.ee_body_names:
+    unit_sites = [
+      site for site in spec.sites
+      if site.name and site.name.startswith(f"{prefix}{ee}_unit_")
+    ]
     centers = np.asarray(
-      [
+      [site.pos for site in unit_sites] if unit_sites else [
         spec.body(f"{prefix}{name}").pos
         for name in sphere_names(
           ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols
@@ -181,21 +249,53 @@ def get_sphere_geom_names(cfg: MicrospineCfg) -> tuple[str, ...]:
   )
 
 
+def add_arm_wall_contact_pairs(
+  spec: mujoco.MjSpec,
+  cfg: MicrospineCfg,
+  robot_prefix: str = "robot",
+) -> None:
+  """Explicit arm-vs-wall pairs (v6 dare, 2026-08-24, user decision).
+
+  The upper arms and elbows leave the wall-contact FENCE (death on touch)
+  and become ordinary physical contacts instead -- the robot may lean an
+  arm on the wall and take support through it, like the hardware would.
+  Same wall contact parameters as the toe pairs; the palm plates stay out
+  (the weld system owns them). Enabled per task via
+  ``cfg.arm_wall_contact_geoms`` (empty = legacy plant, climb untouched).
+  """
+  prefix = f"{robot_prefix}/" if robot_prefix else ""
+  for geom_name in cfg.arm_wall_contact_geoms:
+    pair = spec.add_pair()
+    pair.geomname1 = f"{prefix}{geom_name}"
+    pair.geomname2 = cfg.wall_geom_name
+    pair.condim = cfg.contact_condim
+    pair.friction = list(cfg.contact_friction)
+    pair.solref = list(cfg.contact_solref)
+    pair.solimp = list(cfg.contact_solimp)
+    pair.solreffriction = list(cfg.contact_solref)
+    pair.margin = cfg.contact_margin
+    pair.gap = cfg.contact_gap
+
+
 def add_contact_pairs(
   spec: mujoco.MjSpec,
   cfg: MicrospineCfg,
   robot_prefix: str = "robot",
 ) -> None:
-  """Add ordinary sphere-to-wall contacts used with constraint grip.
+  """Add ordinary contact-proxy-to-wall pairs used with constraint grip.
 
   These contacts model compression and pre-engagement sliding only. The
   equality anchor and limit surface own tangential grip and pull-off behavior,
   so no high-friction or external-adhesion approximation is needed.
   """
-  for geom_name in get_sphere_geom_names(cfg):
+  surfaces = cfg.ordered_surfaces()
+  target_geoms = [
+    s.scoped_geom for s in surfaces for _ in range(get_spheres_per_ee(cfg))
+  ] if surfaces else [cfg.wall_geom_name] * len(get_sphere_geom_names(cfg))
+  for geom_name, target_geom in zip(get_sphere_geom_names(cfg), target_geoms):
     pair = spec.add_pair()
     pair.geomname1 = f"{robot_prefix}/{geom_name}"
-    pair.geomname2 = cfg.wall_geom_name
+    pair.geomname2 = target_geom
     pair.condim = cfg.contact_condim
     pair.friction = list(cfg.contact_friction)
     pair.solref = list(cfg.contact_solref)
@@ -242,12 +342,12 @@ def add_pad_wall_contact_excludes(
   robot_prefix: str = "robot",
   wall_body_name: str = "wall/wall_body",
 ) -> None:
-  """Exclude each pad's coarse collision box from the wall.
+  """Exclude each pad's chassis collision proxies from the wall.
 
-  The pad body owns a coarse box while its child bodies own the contact-sphere
+  The pad body owns the chassis boxes; its children own the corner-contact
   grid. Letting both representations collide with the wall duplicates and
   over-constrains the contact patch. MuJoCo body-pair excludes apply only to
-  the named bodies, not their children, so all explicit sphere-wall pairs
+  the named bodies, not their children, so all explicit corner-wall pairs
   added by :func:`add_contact_pairs` remain active.
   """
   for ee_body_name in cfg.ee_body_names:
@@ -277,11 +377,12 @@ def virtual_spine_fraction(
   at sphere-center height), is within ``travel``.
 
   Args:
-    corner_pos: (..., 4, 3) world positions of the four corner sphere centers.
+    corner_pos: (..., 4, 3) world positions of the four corner surface centers
+      when sphere_radius=0, or legacy sphere centers otherwise.
     wall_point: (..., 3) any point on the wall surface.
     wall_normal: (..., 3) unit wall normal pointing off the surface toward
       the robot side.
-    sphere_radius: contact sphere radius [m].
+    sphere_radius: legacy radius [m]; use zero for explicit surface points.
     grid: (rows, cols) virtual field resolution.
     travel: spine reach beyond the sphere contact surface [m] (le_max).
 

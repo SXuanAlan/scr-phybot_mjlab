@@ -14,7 +14,7 @@ class MicrospineLimitSurfaceCfg:
   """Spine limit-surface (hold envelope) parameters.
 
   The anchor load is decomposed in the engage frame (t̂ = rake/engage
-  direction down the wall, l̂ = lateral, n̂ = outward wall normal). Two hold
+  direction down the wall, l̂ = lateral, n̂ = outward wall normal). Three hold
   envelopes are available via ``model``:
 
   ``"wedge"`` (legacy piecewise-linear cone): an engaged spine HOLDs iff
@@ -37,8 +37,15 @@ class MicrospineLimitSurfaceCfg:
   ignored in this mode. Compression is judged at phi = 0; pressing in rides
   the ordinary sphere-wall contacts (the paper's Sec 3.4 friction extension).
 
-  All ``*_range`` fields are per-env uniform sampling bounds drawn at reset —
-  built-in domain randomization. Wedge ranges map 1:1 to bench pull-off tests
+  ``"empirical_unit"``: a conditional inverse CDF fitted to single-unit bench
+  observations supplies each unit's normal-load threshold at its current
+  shear/lateral load. Two independent quantiles per unit are held for an
+  entire engagement: strength and early loading failure. Unit independence,
+  cross-direction rank coupling and first-unit pad release are unvalidated
+  array assumptions. No legacy capacity multipliers or uniform ranges apply.
+
+  In legacy modes, ``*_range`` fields are per-env uniform sampling bounds
+  drawn at reset. Wedge ranges map 1:1 to bench pull-off tests
   (scripts/fit_limit_surface.py); the wang2017 shape parameters are fit to
   the paper's Fig 8 anchors (scripts/plot_wang_limit_surface.py).
   """
@@ -47,7 +54,13 @@ class MicrospineLimitSurfaceCfg:
   """Evaluate the hold envelope. False keeps engaged spines latched forever."""
 
   model: str = "wedge"
-  """Hold-envelope model: "wedge" (legacy linear cone) or "wang2017"."""
+  """Hold-envelope model: "wedge", "wang2017", or "empirical_unit"."""
+
+  empirical_table_path: str | None = None
+  """Single-unit conditional inverse-CDF NPZ. None selects the packaged table.
+  Empirical mode ignores legacy strength ranges. It requires per-unit moment
+  billing, disables seat/ramp/ticket capacity multipliers, and samples two
+  persistent per-unit variates at reset and each new engagement."""
 
   rake_mode: str = "gravity"
   """Engage direction source: "gravity" (gravity projected onto the wall) or
@@ -157,6 +170,24 @@ class MicrospineLimitSurfaceCfg:
   capacity_ramp_shear_n: float = 10.0
   """Rake-shear threshold [N] above which recruitment time accumulates."""
 
+  unit_catch_empty_prob: float = 0.08
+  """Probability that a spine unit catches NOTHING at a latch (empty
+  ticket, capacity 0). Spring-field mode only, drawn iid per unit per
+  latch. Wang 2017 Fig 6: a large fraction of single-spine placements
+  fail near zero (usable-asperity area 34-42% on their concretes), and
+  smooth patches correlate whole bolt-group regions (Jiang 2018
+  stochastic arrays). An empty unit carries no load (the weighted
+  distribution routes around it) and shrinks the pad total. At 0.08,
+  ~63% of grips carry at least one empty unit."""
+
+  unit_catch_capacity_range: tuple[float, float] = (30.0, 65.0)
+  """Non-empty catch ticket [N] per unit, drawn iid per latch in
+  spring-field mode: the unit's pure rake-shear capacity at full seating
+  quality. Calibrated so the pad-total expectation lands in the bench
+  band: 12 units x (1 - 0.08) x mean 47.5 N ~ 525 N. Replaces the
+  pad-level ``f_t_max_range`` draw when the spring field is enabled (pad
+  F0 = quality-weighted SUM of unit tickets)."""
+
   moment_capacity_enable: bool = True
   """Bill weld moments against the force envelope.
 
@@ -165,8 +196,8 @@ class MicrospineLimitSurfaceCfg:
   array. ``moment_billing_mode`` selects how the billing is computed."""
 
   moment_billing_mode: str = "worst_edge"
-  """How weld moments reach the hold envelope. wang2017 mode only; wedge
-  always uses the legacy fold.
+  """How weld moments reach the hold envelope. Empirical mode requires
+  per_unit; wang2017 permits either option; wedge uses the legacy fold.
 
   "worst_edge" (legacy): fold moments into effective PAD-scale loads
 
@@ -189,7 +220,18 @@ class MicrospineLimitSurfaceCfg:
   physics). The pad releases when its worst unit leaves the envelope (edge
   pull-out unzips the array). Handles combined moments with exact signs
   and honest edge concentration: single-axis prying reproduces the exact
-  discrete-row arm span*(N+1)/(6*(N-1)) per axis."""
+  discrete-row arm span*(N+1)/(6*(N-1)) per axis. Empirical mode uses the
+  measured conditional distribution per unit instead of F0/N. Equal
+  stiffness and whole-pad release at the first unit failure remain model
+  assumptions, not conclusions established by the single-unit dataset."""
+
+  unit_layout: str = "all"
+  """Active empirical unit sites: "all" or the four outer "corners".
+
+  The disabled units contribute neither preload nor holding capacity. This
+  changes the load-bearing array, not the four ordinary contact proxies.
+  Empirical task configs derive rows/cols from the selected CAD sites.
+  """
 
   unit_rows_rake: int = 3
   """Spine-unit rows along the rake direction for "per_unit" billing.
@@ -205,12 +247,12 @@ class MicrospineLimitSurfaceCfg:
   """Spine-patch extent along the rake direction [m].
 
   Fallback only — the climb env derives the real value from the robot XML's
-  contact-sphere grid via ``contact.pad_grid_spans`` (74.7 mm on phybot C2)
+  unit sites via ``contact.pad_grid_spans`` (63 mm on the updated phybot C2)
   so billing always matches the compiled geometry."""
 
   pad_span_lateral_m: float = 0.04
   """Spine-patch extent along the lateral direction [m]. Fallback only; see
-  ``pad_span_rake_m`` (96 mm on phybot C2 via ``pad_grid_spans``)."""
+  ``pad_span_rake_m`` (84 mm on phybot C2 via ``pad_grid_spans``)."""
 
   moment_arm_fraction: float = 0.25
   """Effective edge-force arm as a fraction of pad span.
@@ -239,6 +281,17 @@ class MicrospineLimitSurfaceCfg:
   as F0: every grip lands on different asperities with different travel
   headroom). (0, 0) disables the check (legacy behavior: rotation soft and
   unlimited)."""
+
+  seed_hold_judge_guard_steps: int | None = None
+  """Guard for SEEDED (RSI born-welded) latches; None = use
+  ``hold_judge_guard_steps``. The 08-16 mount probe: a whole-body RSI
+  settle dumps a one-shot ~90 N shear + ~40 N tension transient into the
+  hand welds at exactly the first judged step (readout settling + settle
+  peak coincide), instant-ripping ~40% of hand_set_hold RH seeds under a
+  HOLD-STILL policy — the crane classroom demolished by physics before the
+  policy acts. Steady state two steps later is benign (margin +0.96).
+  Seeds are only seeds while continuously engaged since birth, so a longer
+  guard here never shields in-play engagements."""
 
   hold_grace_steps: int = 14
   """Re-seat window length in policy steps (the judging role moved to
@@ -271,11 +324,51 @@ class MicrospineLimitSurfaceCfg:
   stick-slip) is reserved for a later milestone and currently rejected."""
 
 
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class MicrospineSurfaceCfg:
+  """A finite rectangular grasp face, expressed in its target body's frame.
+
+  ``normal`` points out of the object; ``tangent`` spans the first half-extent.
+  The second tangent is normal cross tangent. Names are entity-local.
+  """
+
+  ee_body_name: str
+  entity_name: str
+  body_name: str
+  geom_name: str
+  point: tuple[float, float, float]
+  normal: tuple[float, float, float]
+  tangent: tuple[float, float, float]
+  half_extents: tuple[float, float]
+
+  def __post_init__(self):
+    import math
+
+    if any(len(axis) != 3 for axis in (self.point, self.normal, self.tangent)) or len(self.half_extents) != 2:
+      raise ValueError("Surface point and axes must be 3D; half-extents must have two entries")
+    if not all(math.isfinite(v) for row in (self.point, self.normal, self.tangent, self.half_extents) for v in row):
+      raise ValueError("Surface geometry must be finite")
+    if any(v <= 0 for v in self.half_extents):
+      raise ValueError("Surface half-extents must be positive")
+    if any(abs(sum(v * v for v in axis) - 1.0) > 1e-6 for axis in (self.normal, self.tangent)):
+      raise ValueError("Surface axes must be unit vectors")
+    if abs(sum(a * b for a, b in zip(self.normal, self.tangent))) > 1e-6:
+      raise ValueError("Surface normal and tangent must be orthogonal")
+
+  @property
+  def scoped_body(self) -> str:
+    return f"{self.entity_name}/{self.body_name}"
+
+  @property
+  def scoped_geom(self) -> str:
+    return f"{self.entity_name}/{self.geom_name}"
+
+
 @dataclasses.dataclass(kw_only=True)
 class MicrospineCfg:
   """Configuration for constraint-based microspine wall contact.
 
-  This config owns the physical layout, ordinary sphere-wall contact pairs,
+  This config owns the physical layout, ordinary corner-wall contact pairs,
   equality anchors, limit surface, and affordance engage/release thresholds.
   """
 
@@ -283,10 +376,10 @@ class MicrospineCfg:
   """End-effector body names that have microspine contact surfaces."""
 
   spheres_per_ee_rows: int
-  """Rows in the per-EE contact-sphere grid."""
+  """Rows in the per-EE contact-proxy grid (legacy field name)."""
 
   spheres_per_ee_cols: int
-  """Columns in the per-EE contact-sphere grid."""
+  """Columns in the per-EE contact-proxy grid (legacy field name)."""
 
   grip_enabled: bool = True
   """Enable physical latch engagement. False is the explicit ablation mode."""
@@ -295,6 +388,12 @@ class MicrospineCfg:
   """Command-manager term name that provides the per-EE engage state."""
 
   wall_geom_name: str = "wall/wall_geom"
+  surfaces: tuple[MicrospineSurfaceCfg, ...] = ()
+  """Optional per-EE moving faces. Empty preserves the legacy wall/world anchor."""
+  # v6 dare: arm collision geoms given ORDINARY physical wall contact via
+  # explicit pairs (add_arm_wall_contact_pairs) instead of the lethal fence.
+  # Empty = legacy plant (climb keeps its checkpoints valid).
+  arm_wall_contact_geoms: tuple[str, ...] = ()
   """Scoped wall geom name used by generated sphere-wall contact pairs."""
 
   contact_friction: tuple[float, float, float, float, float] = (
@@ -343,18 +442,35 @@ class MicrospineCfg:
   ``geom_pos`` every step."""
 
   latched_contact_retract: float = 0.05
-  """Retraction depth [m] of a latched pad's contact spheres along the face
-  axis (into the pad). Must exceed sphere radius + contact margin so no
-  sphere-wall contact can be generated while latched."""
+  """Retraction depth [m] of a latched pad's contact proxies along the face
+  axis (into the pad). Must clear penetration and the contact margin over
+  the supported pad-tilt range; box edges must also clear the wall."""
 
   debug: bool = False
   """Print engage-state diagnostics. This causes CPU-GPU sync and is slow."""
 
   engage_normal_force_threshold: float = 3.0
-  """Minimum per-sphere normal compression [N] used by the engage condition."""
+  """Legacy per-proxy compression threshold [N], bypassed by unit preload."""
+
+  engage_unit_preload_n: float = 0.0
+  """Minimum estimated normal compression [N] on EVERY active unit before latching.
+
+  Uses the C-referenced contact wrench and the equal-stiffness unit allocator,
+  including bending moments. Empirical climbing uses 10 N. This is a model
+  estimate from corner contacts, not a measurement of individual units.
+  Requires per-unit billing and a netforce sensor with synchronized force,
+  torque and position histories. Incompatible with the legacy spring field.
+  Only gates OFF -> ON; unloading after latching is judged by the hold surface.
+  Zero preserves the legacy engagement gates.
+  """
 
   engage_min_fraction: float = 0.25
   """Fraction of an EE's spheres that must pass the normal-force threshold."""
+
+  engage_min_total_normal_force: float = 0.0
+  """Optional legacy total-pad compression gate [N]. Total force alone cannot
+  establish per-unit preload under bending; empirical climbing uses
+  ``engage_unit_preload_n`` instead. Zero disables this extra gate."""
 
   engage_min_spheres: int = 1
   """If > 0, overrides engage_min_fraction with an absolute sphere count.
@@ -404,6 +520,68 @@ class MicrospineCfg:
   mid-scramble the hardware would never grant. Downward sliding and
   stationary pads latch normally, so a falling pad still catches (the
   microspine's whole point). ≤ 0 disables the gate."""
+
+  # --- virtual spring field (v3 plant, 08-18) ------------------------------
+  spring_field_enabled: bool = False
+  """Master switch for the per-unit virtual spring field (the real pad's
+  spine suspension, Wang 2017 Sec 2.3, virtualized). OFF preserves the
+  legacy rigid-pad physics byte-for-byte (cycle task, old-plant replay).
+
+  When ON: (a) each spine unit of the per-unit billing grid carries one
+  equivalent serial spring whose tip touches the wall 2-5 mm before the
+  hard contact spheres and pushes back along the spine axis — the soft
+  approach layer that absorbs arrival momentum; (b) the engage gate
+  switches to CONTACT + DOWN-SHEAR (``engage_shear_threshold_n``): the
+  normal-force threshold and the virtual-spine-fraction gate retire,
+  their jobs taken by the hard-sphere touch boolean and the spring
+  field's remaining-length seating quality; (c) unit capacities come
+  from seating quality x per-unit catch lottery
+  (``LimitSurfaceCfg.unit_catch_*``). Requires per_unit moment billing
+  (the spring units ARE those units)."""
+
+  spring_axis_tilt_deg: float = 15.0
+  """Spine-axis tilt FROM THE PAD NORMAL, toward the rake (down-wall)
+  direction, in the pad frame (rides the gimbal). Wang 2017 Sec 2.3:
+  beta = 15 deg 'works well on many concrete, stone and stucco
+  surfaces'. Force split: cos15 = 0.97 normal, sin15 = 0.26 down-drag —
+  pressing buys a tan15 = 0.27 seating-drag bias, not the full charge
+  current (hang weight still required)."""
+
+  spring_free_length_range: tuple[float, float] = (0.002, 0.005)
+  """Per-unit free spine protrusion [m] beyond the hard-sphere contact
+  plane, drawn iid per (env, EE, unit) at reset. Wang 2017 Sec 2.3:
+  le_max = 5 mm maximum extension; the low end models wear/backlash
+  scatter. Seating quality at engage = compression / free length (the
+  remaining-length rule), so short units saturate quality earlier."""
+
+  spring_k_unit_range: tuple[float, float] = (80.0, 180.0)
+  """Per-unit axial suspension stiffness [N/m], drawn iid per (env, EE,
+  unit) at reset. Provenance: k_n = 5 mN/mm = 5 N/m per spine (Wang
+  2017 Sec 2.3) x ~16-36 spines per bolt-group unit. Deliberately soft:
+  full-field 3 mm compression carries only a few newtons — the field is
+  a conformity/impact layer, not a load path (loads go through the weld
+  once latched, through the hard spheres once bottomed out)."""
+
+  spring_damping_range: tuple[float, float] = (0.2, 0.8)
+  """Per-unit viscous damping c [N*s/m], drawn iid like the stiffness.
+
+  Wang 2017 publishes the suspension stiffness but NO damping value; a
+  real steel-flexure suspension still dissipates (structural damping),
+  and a purely elastic virtual field made light presses hop off the pad
+  (undamped spring + PD arm = limit-cycle bounce, 08-19 video verdict).
+  Kept LIGHT per the user's call: against the summed unit stiffness and
+  a ~0.7 kg arm-pad this range is pad-level zeta ~ 0.04-0.15 — enough
+  to sink the bounce-back, not a shock absorber. Bench calibration owns
+  the final range. The damped per-unit axial force (k*comp + c*rate) is
+  clamped at zero from below: a contact field never pulls."""
+
+  engage_shear_threshold_n: float = 10.0
+  """Whole-pad down-wall shear [N] required to WELD in spring-field mode
+  (touch + drag = catch). Measured from hard-sphere contact forces
+  reconstructed in the world frame and projected on the engage-frame
+  rake axis. Replaces the retired normal-force gate: spines catch when
+  dragged down their rake under contact, not when pressed (Wang 2017
+  Sec 2)."""
 
   seat_quality_scales_capacity: bool = True
   """Scale the wang2017 hold capacity F0 by the engaged spine fraction
@@ -493,8 +671,9 @@ class MicrospineCfg:
   do.
 
   "down": the anchor follows only the pad's down-the-wall rake component,
-  ``anchor_reseat_step_cap`` per step, orientation frozen at the engage
-  frame. This is the honest Wang 2017 seating motion — spines seat by
+  ``anchor_reseat_step_cap`` per step. Weld orientation also conforms during
+  that window, then freezes with the position. RSI mature-anchor setup skips
+  this seating lifecycle. Spines seat by
   dragging down into asperities; they never relocate outward, upward or
   sideways. The anchor also stays in the wall plane (the rake direction is
   in-plane), killing the hovering-pad visual."""
@@ -550,12 +729,24 @@ class MicrospineCfg:
       )
     return tuple(name in selected for name in self.ee_body_names)
 
+  def ordered_surfaces(self) -> tuple[MicrospineSurfaceCfg, ...]:
+    if not self.surfaces:
+      return ()
+    by_name = {s.ee_body_name: s for s in self.surfaces}
+    if len(by_name) != len(self.surfaces) or set(by_name) != set(self.ee_body_names):
+      raise ValueError("surfaces must bind every configured EE exactly once")
+    if self.spring_field_enabled:
+      raise ValueError("Moving surfaces currently support the per-unit constraint model, not spring fields")
+    return tuple(by_name[name] for name in self.ee_body_names)
+
 
 @dataclasses.dataclass(kw_only=True)
 class MicrospineAffordanceCfg:
   """Configuration for the environment-side microspine state machine."""
 
   microspine_cfg: MicrospineCfg
+  skip_zero_time_update: bool = False
+  """Do not advance contact debouncing or hold ages during reset compute(dt=0)."""
   asset_name: str = "robot"
   contact_sensor_name: str
   physics_event_name: str = "microspine_grip"

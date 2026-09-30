@@ -1,9 +1,14 @@
 """PHYBot C2 robot constants and configuration.
 
 23-DOF humanoid (2 legs x 6, waist yaw, 2 arms x 4, neck yaw/pitch).
-The 4 hand/foot spines are rigid attachments (URDF fixed joints / no MuJoCo joint).
+The 4 hand/foot spine pads mount through passive ball-joint gimbals
+(``PHYBOT_C2_PAD_GIMBAL``); the legacy plant kept them rigidly fixed
+(URDF fixed joints / no MuJoCo joint).
 """
 
+import json
+import math
+import os
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -29,6 +34,52 @@ SPINE_BODY_NAMES = (
   "left_hand_spine",
   "right_hand_spine",
 )
+
+##
+# Passive pad gimbal (2026-08-15).
+#
+# The microspine pad chassis mounts to the arm/shin through a passive ball
+# joint — three coincident hinges (mjlab rejects a literal ball joint carrying
+# joint springs). The explicit ball-center site B is distinct from the
+# contact-array center C: C-B = (0, -40, +75) mm in pad coordinates.
+# Travel hard-stops at +-3 deg — the REAL hardware stop (user, 2026-08-22;
+# the 08-15 build used +-4 deg, the suspension-travel figure behind the old
+# tilt-peel calibration). A weak centering spring re-zeros the pad whenever
+# it is unloaded, so joint zero is the nominal CAD mounting orientation.
+#
+# Consequences wired in the climb cfg: the weld goes rotationally RIGID
+# (anchor_torquescale 1.0) and angle-based release (tilt-peel) retires —
+# failure is unified onto the force/moment billing. The 07-31 objection to
+# a rigid weld (docs/microspine_tilt_calibration.md par.2: closed-chain PD
+# conflicts amplified into ~6 N*m parasitic weld moments) is resolved
+# mechanically: those conflicts now live inside the gimbal travel at
+# ~0.05 N*m of spring torque.
+#
+# PHYBOT_C2_PAD_GIMBAL=0 fixes the CURRENT geometry at its nominal orientation;
+# it does not restore the geometry or inertias of older checkpoints.
+##
+
+PHYBOT_C2_PAD_GIMBAL = os.environ.get("PHYBOT_C2_PAD_GIMBAL", "1") != "0"
+PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD = math.radians(3.0)  # real stop (was 4.0 until 2026-08-22)
+# Centering spring per hinge. Sized for recentering only (bench 07-31:
+# k~0.7, d~0.015 settles a ~1e-4 kg*m^2 pad near-critically); under load it
+# is deliberately negligible next to the PD-structure path (~50-260
+# N*m/rad, see the calibration doc par.3).
+PHYBOT_C2_PAD_GIMBAL_STIFFNESS = 0.7  # N*m/rad
+PHYBOT_C2_PAD_GIMBAL_DAMPING = 0.015  # N*m*s/rad
+PHYBOT_C2_PAD_GIMBAL_STOP_SOLREF = (0.004, 1.0)  # +-3 deg hard stops
+# The XML's phybot_c2 default class stamps armature=0.1 (motor reflected
+# inertia) on every joint — 1000x the pad's own ~1.5e-4 kg*m^2, which would
+# slow recentering to a ~1 s crawl. A passive ball joint carries none;
+# 1e-5 keeps the solver comfortable without burying the pad dynamics.
+PHYBOT_C2_PAD_GIMBAL_ARMATURE = 1.0e-5
+# Provisional solid-PLA volume integrals from the adjusted CAD. Full COM
+# tensors live in the XML, separately for moving pads and fixed arm mounts.
+# Replace these estimates with weighed assemblies when available.
+PHYBOT_C2_PAD_GEOMETRY = json.loads(
+  (PHYBOT_C2_XML.parent.parent / "microspine_cad_geometry.json").read_text()
+)
+PHYBOT_C2_PAD_MASS = PHYBOT_C2_PAD_GEOMETRY["moving_pad"]["mass_kg"]
 PHYBOT_C2_FOOT_SITES = (
   ("left_ankle_roll", "left_foot"),
   ("right_ankle_roll", "right_foot"),
@@ -269,23 +320,30 @@ def get_assets(meshdir: str) -> dict[str, bytes]:
   return assets
 
 
-def _is_spine_attachment(name: str | None) -> bool:
-  if not name:
-    return False
-  return any(name == spine or name.startswith(f"{spine}_") for spine in SPINE_BODY_NAMES)
-
-
-def _disable_spine_inertials(spec: mujoco.MjSpec) -> None:
-  for body in spec.bodies:
-    if _is_spine_attachment(body.name):
-      body.mass = 0.0
-      body.ipos = [0.0, 0.0, 0.0]
-      body.inertia = [0.0, 0.0, 0.0]
-
-  for geom in spec.geoms:
-    if _is_spine_attachment(geom.name):
-      geom.mass = 0.0
-      geom.density = 0.0
+def _add_pad_gimbals(spec: mujoco.MjSpec) -> None:
+  """Add passive hinges at B, retaining the CAD-based XML inertial at COM."""
+  travel = PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD
+  for spine in SPINE_BODY_NAMES:
+    body = next(b for b in spec.bodies if b.name == spine)
+    pivot = next(s for s in spec.sites if s.name == f"{spine}_ball_center")
+    anchor = [float(v) for v in pivot.pos]
+    for axis_name, axis in (
+      ("x", [1.0, 0.0, 0.0]),
+      ("y", [0.0, 1.0, 0.0]),
+      ("z", [0.0, 0.0, 1.0]),
+    ):
+      joint = body.add_joint(
+        name=f"{spine}_gimbal_{axis_name}",
+        type=mujoco.mjtJoint.mjJNT_HINGE,
+        pos=anchor,
+        axis=axis,
+        stiffness=PHYBOT_C2_PAD_GIMBAL_STIFFNESS,
+        damping=PHYBOT_C2_PAD_GIMBAL_DAMPING,
+        armature=PHYBOT_C2_PAD_GIMBAL_ARMATURE,
+        limited=mujoco.mjtLimited.mjLIMITED_TRUE,
+        range=[-travel, travel],
+      )
+      joint.solref_limit = list(PHYBOT_C2_PAD_GIMBAL_STOP_SOLREF)
 
 
 def _add_foot_sites(spec: mujoco.MjSpec) -> None:
@@ -391,6 +449,26 @@ def _reset_global_fields_for_scene_attach(spec: mujoco.MjSpec) -> None:
   spec.nconmax = defaults.nconmax
 
 
+def _trim_spine_pad_visuals(spec: mujoco.MjSpec) -> None:
+  """Replace each spine pad's LONG visual mesh with a box matching its
+  collision plate (user call 2026-08-25: the stalk part of the visual is
+  not the hardware's pad and reads as a 30 cm blade once the gimbal swings
+  free). Visual-only: collision plate, contact spheres, toe caps, masses
+  (explicit inertials) and every physics quantity stay bit-identical."""
+  for spine in SPINE_BODY_NAMES:
+    vis = next((g for g in spec.geoms if g.name == f"{spine}_visual"), None)
+    col = next((g for g in spec.geoms if g.name == f"{spine}_collision"), None)
+    if vis is None or col is None:
+      continue
+    if vis.meshname.startswith("microspine_"):
+      continue  # Calibrated CAD backplate, not the retired long stalk mesh.
+    vis.type = mujoco.mjtGeom.mjGEOM_BOX
+    vis.meshname = ""
+    vis.size = [float(v) for v in col.size]
+    vis.pos = [float(v) for v in col.pos]
+    vis.quat = [float(v) for v in col.quat]
+
+
 def get_spec() -> mujoco.MjSpec:
   spec = mujoco.MjSpec.from_file(str(PHYBOT_C2_XML))
   spec.assets = get_assets(spec.meshdir)
@@ -399,9 +477,11 @@ def get_spec() -> mujoco.MjSpec:
   _delete_embedded_keyframes(spec)
   _delete_embedded_actuators(spec)
   _sync_joint_force_limits_to_ctrlrange(spec)
-  _disable_spine_inertials(spec)
+  if PHYBOT_C2_PAD_GIMBAL:
+    _add_pad_gimbals(spec)
   _add_resting_self_collision_excludes(spec)
   _add_foot_sites(spec)
+  _trim_spine_pad_visuals(spec)
   return spec
 
 

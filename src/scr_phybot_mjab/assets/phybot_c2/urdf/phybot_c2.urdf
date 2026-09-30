@@ -459,35 +459,23 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="meshes/left_elbow_pitch.STL" />
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/left_forearm_no_hand.stl" />
       </geometry>
       <material name="left_elbow_pitch_mat">
-        <color rgba="0.86667059 0.86667059 0.88627843 1.00000000"/>
+        <color rgba="0.86667059 0.86667059 0.88627843 1.00000000" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 -0.17" rpy="0 0 0" />
+      <origin xyz="0 0 -0.128" rpy="0 0 0" />
       <geometry>
-        <cylinder radius="0.035" length="0.22" />
+        <cylinder radius="0.021" length="0.120" />
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="-0.001901 0.0050267 -0.1473653" rpy="0 0 0" />
+      <origin xyz="-0.00605221457438 0.00655756206421 -0.0696994769547" rpy="0 0 0" />
       <mass value="0.8519917" />
-      <inertia ixx="0.0077667" ixy="-0.0001316" ixz="0.0004271" iyy="0.0076219" iyz="0.0009349" izz="0.0007139" />
+      <inertia ixx="0.00328195773606" ixy="-3.93314482898e-05" ixz="0.00018970232754" iyy="0.00324134812202" iyz="-0.00040518380148" izz="0.000625605669044" />
     </inertial>
-  </link>
-
-  <link name="left_wrist_yaw">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0" />
-      <geometry>
-        <sphere radius="0.05" />
-      </geometry>
-      <material name="left_wrist_yaw_mat">
-        <color rgba="1.00000000 0.00000392 0.00000392 1.00000000"/>
-      </material>
-    </visual>
   </link>
 
   <link name="right_shoulder_pitch">
@@ -557,127 +545,679 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="meshes/right_elbow_pitch.STL" />
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/right_forearm_no_hand.stl" />
       </geometry>
       <material name="right_elbow_pitch_mat">
-        <color rgba="0.86667059 0.86667059 0.88627843 1.00000000"/>
+        <color rgba="0.86667059 0.86667059 0.88627843 1.00000000" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 -0.17" rpy="0 0 0" />
+      <origin xyz="0 0 -0.128" rpy="0 0 0" />
       <geometry>
-        <cylinder radius="0.035" length="0.22" />
+        <cylinder radius="0.021" length="0.120" />
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="-0.0019004 -0.0050306 -0.1473509" rpy="0 0 0" />
+      <origin xyz="-0.00605225910751 -0.00656768604186 -0.0696943586226" rpy="0 0 0" />
       <mass value="0.8520918" />
-      <inertia ixx="0.0077681" ixy="0.0001316" ixz="0.0004271" iyy="0.0076233" iyz="-0.0009348" izz="0.0007139" />
+      <inertia ixx="0.00328171463108" ixy="3.93708492129e-05" ixz="0.000189490478474" iyy="0.00324102173713" iyz="0.000405293863771" izz="0.000625452343277" />
     </inertial>
-  </link>
-
-  <link name="right_wrist_yaw">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0" />
-      <geometry>
-        <sphere radius="0.05" />
-      </geometry>
-      <material name="right_wrist_yaw_mat">
-        <color rgba="1.00000000 0.00000392 0.00000392 1.00000000"/>
-      </material>
-    </visual>
   </link>
 
   <link name="left_hand_spine">
+    <inertial>
+      <origin xyz="1.29975035838e-05 -0.0364597975996 0.0466784711589" rpy="0 0 0" />
+      <mass value="0.186895738903" />
+      <inertia ixx="0.000437249698435" iyy="0.000637443606267" izz="0.00020836879676" ixy="1.35935257087e-08" ixz="-1.89711501128e-07" iyz="2.02133285055e-05" />
+    </inertial>
     <visual>
-      <origin xyz="0 0 0.2" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="meshes/left_hand_spine.stl" />
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_backplate.stl" />
       </geometry>
-      <material name="left_hand_spine_mat">
-        <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
+      <material name="left_hand_spine_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_brackets.stl" />
+      </geometry>
+      <material name="left_hand_spine_brackets_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.041999977409 -0.0475000198375 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_0_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.013999977409 -0.0475000205411 0.0464841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_0_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.013999992591 -0.0475000212448 0.0464841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_0_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.042000022591 -0.0475000219484 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_0_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774091 -0.0475000377365 0.0779841906643" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_1_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774093 -0.0475000206054 0.0779841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_1_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925907 -0.047500021309 0.0779841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_1_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225907 -0.0475000220127 0.0779841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_1_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774095 -0.047500019966 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_2_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774095 -0.0475000206697 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_2_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925905 -0.0475000213733 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_2_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225905 -0.047500022077 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_hand_spine_unit_2_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
       </material>
     </visual>
     <collision>
-      <origin xyz="-0.0009236 -0.006 0.1804657" rpy="0 0 0" />
+      <origin xyz="-1.13635172105e-08 -0.03249999231 0.0462495946292" rpy="0 0 0" />
       <geometry>
-        <box size="0.12 0.012 0.2573595" />
+        <box size="0.126000002178 0.0110000026946 0.167499996735" />
       </geometry>
     </collision>
-    <inertial>
-      <origin xyz="0 0 0.25" rpy="0 0 0" />
-      <mass value="1" />
-      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1" />
-    </inertial>
+    <collision name="left_hand_spine_c_0_0">
+      <origin xyz="-0.041999977409 -0.039999970045 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="left_hand_spine_c_0_1">
+      <origin xyz="0.042000022591 -0.0399999721559 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="left_hand_spine_c_1_0">
+      <origin xyz="-0.0419999774095 -0.0399999701736 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="left_hand_spine_c_1_1">
+      <origin xyz="0.0420000225905 -0.0399999722845 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
   </link>
 
   <link name="right_hand_spine">
+    <inertial>
+      <origin xyz="1.29975035838e-05 -0.0364597975996 0.0466784711589" rpy="0 0 0" />
+      <mass value="0.186895738903" />
+      <inertia ixx="0.000437249698435" iyy="0.000637443606267" izz="0.00020836879676" ixy="1.35935257087e-08" ixz="-1.89711501128e-07" iyz="2.02133285055e-05" />
+    </inertial>
     <visual>
-      <origin xyz="0 0 0.2" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="meshes/right_hand_spine.STL" />
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_backplate.stl" />
       </geometry>
-      <material name="right_hand_spine_mat">
-        <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
+      <material name="right_hand_spine_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_brackets.stl" />
+      </geometry>
+      <material name="right_hand_spine_brackets_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.041999977409 -0.0475000198375 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_0_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.013999977409 -0.0475000205411 0.0464841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_0_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.013999992591 -0.0475000212448 0.0464841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_0_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.042000022591 -0.0475000219484 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_0_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774091 -0.0475000377365 0.0779841906643" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_1_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774093 -0.0475000206054 0.0779841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_1_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925907 -0.047500021309 0.0779841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_1_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225907 -0.0475000220127 0.0779841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_1_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774095 -0.047500019966 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_2_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774095 -0.0475000206697 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_2_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925905 -0.0475000213733 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_2_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225905 -0.047500022077 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_hand_spine_unit_2_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
       </material>
     </visual>
     <collision>
-      <origin xyz="-0.0009236 -0.006 0.1804657" rpy="0 0 0" />
+      <origin xyz="-1.13635172105e-08 -0.03249999231 0.0462495946292" rpy="0 0 0" />
       <geometry>
-        <box size="0.12 0.012 0.2573595" />
+        <box size="0.126000002178 0.0110000026946 0.167499996735" />
       </geometry>
     </collision>
-    <inertial>
-      <origin xyz="0 0 0.25" rpy="0 0 0" />
-      <mass value="1" />
-      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1" />
-    </inertial>
+    <collision name="right_hand_spine_c_0_0">
+      <origin xyz="-0.041999977409 -0.039999970045 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="right_hand_spine_c_0_1">
+      <origin xyz="0.042000022591 -0.0399999721559 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="right_hand_spine_c_1_0">
+      <origin xyz="-0.0419999774095 -0.0399999701736 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="right_hand_spine_c_1_1">
+      <origin xyz="0.0420000225905 -0.0399999722845 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
   </link>
 
   <link name="left_foot_spine">
+    <inertial>
+      <origin xyz="1.29975035838e-05 -0.0364597975996 0.0466784711589" rpy="0 0 0" />
+      <mass value="0.186895738903" />
+      <inertia ixx="0.000437249698435" iyy="0.000637443606267" izz="0.00020836879676" ixy="1.35935257087e-08" ixz="-1.89711501128e-07" iyz="2.02133285055e-05" />
+    </inertial>
     <visual>
-      <origin xyz="0 0 -0.15" rpy="0 3.1415927 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="meshes/left_foot_spine.stl" />
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_backplate.stl" />
       </geometry>
-      <material name="link_1777151390465_mat">
-        <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
+      <material name="left_foot_spine_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_brackets.stl" />
+      </geometry>
+      <material name="left_foot_spine_brackets_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.041999977409 -0.0475000198375 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_0_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.013999977409 -0.0475000205411 0.0464841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_0_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.013999992591 -0.0475000212448 0.0464841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_0_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.042000022591 -0.0475000219484 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_0_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774091 -0.0475000377365 0.0779841906643" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_1_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774093 -0.0475000206054 0.0779841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_1_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925907 -0.047500021309 0.0779841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_1_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225907 -0.0475000220127 0.0779841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_1_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774095 -0.047500019966 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_2_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774095 -0.0475000206697 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_2_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925905 -0.0475000213733 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_2_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225905 -0.047500022077 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="left_foot_spine_unit_2_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 -0.11" rpy="0 3.1415927 0" />
+      <origin xyz="-1.13635172105e-08 -0.03249999231 0.0462495946292" rpy="0 0 0" />
       <geometry>
-        <box size="0.12 0.012 0.1974" />
+        <box size="0.126000002178 0.0110000026946 0.167499996735" />
       </geometry>
     </collision>
-    <inertial>
-      <origin xyz="0 0 0.25" rpy="0 0 0" />
-      <mass value="1" />
-      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1" />
-    </inertial>
+    <collision name="left_foot_spine_c_0_0">
+      <origin xyz="-0.041999977409 -0.039999970045 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="left_foot_spine_c_0_1">
+      <origin xyz="0.042000022591 -0.0399999721559 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="left_foot_spine_c_1_0">
+      <origin xyz="-0.0419999774095 -0.0399999701736 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="left_foot_spine_c_1_1">
+      <origin xyz="0.0420000225905 -0.0399999722845 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
   </link>
 
   <link name="right_foot_spine">
+    <inertial>
+      <origin xyz="1.29975035838e-05 -0.0364597975996 0.0466784711589" rpy="0 0 0" />
+      <mass value="0.186895738903" />
+      <inertia ixx="0.000437249698435" iyy="0.000637443606267" izz="0.00020836879676" ixy="1.35935257087e-08" ixz="-1.89711501128e-07" iyz="2.02133285055e-05" />
+    </inertial>
     <visual>
-      <origin xyz="0 0 -0.15" rpy="0 3.1415927 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="meshes/right_foot_spine.stl" />
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_backplate.stl" />
       </geometry>
-      <material name="link_1777151847643_mat">
-        <color rgba="0.94902353 0.94118039 0.90980784 1.00000000"/>
+      <material name="right_foot_spine_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_brackets.stl" />
+      </geometry>
+      <material name="right_foot_spine_brackets_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.041999977409 -0.0475000198375 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_0_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.013999977409 -0.0475000205411 0.0464841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_0_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.013999992591 -0.0475000212448 0.0464841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_0_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.042000022591 -0.0475000219484 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_0_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774091 -0.0475000377365 0.0779841906643" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_1_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774093 -0.0475000206054 0.0779841706644" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_1_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925907 -0.047500021309 0.0779841706646" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_1_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225907 -0.0475000220127 0.0779841706648" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_1_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0419999774095 -0.047500019966 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_2_0_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0139999774095 -0.0475000206697 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_2_1_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0139999925905 -0.0475000213733 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_2_2_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.0420000225905 -0.047500022077 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_unit.stl" />
+      </geometry>
+      <material name="right_foot_spine_unit_2_3_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 -0.11" rpy="0 3.1415927 0" />
+      <origin xyz="-1.13635172105e-08 -0.03249999231 0.0462495946292" rpy="0 0 0" />
       <geometry>
-        <box size="0.12 0.012 0.1974" />
+        <box size="0.126000002178 0.0110000026946 0.167499996735" />
       </geometry>
     </collision>
-    <inertial>
-      <origin xyz="0 0 0.25" rpy="0 0 0" />
-      <mass value="1" />
-      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1" />
-    </inertial>
+    <collision name="right_foot_spine_c_0_0">
+      <origin xyz="-0.041999977409 -0.039999970045 0.0464841706642" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="right_foot_spine_c_0_1">
+      <origin xyz="0.042000022591 -0.0399999721559 0.0464841706648" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="right_foot_spine_c_1_0">
+      <origin xyz="-0.0419999774095 -0.0399999701736 0.109484170664" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
+    <collision name="right_foot_spine_c_1_1">
+      <origin xyz="0.0420000225905 -0.0399999722845 0.109484170665" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0279000083712 0.0150000995849 0.025069218463" />
+      </geometry>
+    </collision>
   </link>
 
   <joint name="left_hip_pitch" type="revolute">
@@ -834,12 +1374,6 @@
     <limit lower="-2.36" upper="0" effort="90" velocity="98.16" />
   </joint>
 
-  <joint name="left_wrist_yaw" type="fixed">
-    <parent link="left_elbow_pitch" />
-    <child link="left_wrist_yaw" />
-    <origin xyz="0 0 -0.27" rpy="0 0 0" />
-  </joint>
-
   <joint name="right_shoulder_pitch" type="revolute">
     <parent link="torso" />
     <child link="right_shoulder_pitch" />
@@ -872,34 +1406,94 @@
     <limit lower="-2.36" upper="0" effort="90" velocity="98.37" />
   </joint>
 
-  <joint name="right_wrist_yaw" type="fixed">
-    <parent link="right_elbow_pitch" />
-    <child link="right_wrist_yaw" />
-    <origin xyz="0 0 -0.27" rpy="0 0 0" />
-  </joint>
-
   <joint name="left_hand_spine" type="fixed">
     <parent link="left_elbow_pitch" />
     <child link="left_hand_spine" />
-    <origin xyz="-0.04 0 0" rpy="0 3.1415927 -1.5707963" />
+    <origin xyz="0.01225 0 -0.243500023365" rpy="3.14159265359 0 1.57079632679" />
   </joint>
 
   <joint name="right_hand_spine" type="fixed">
     <parent link="right_elbow_pitch" />
     <child link="right_hand_spine" />
-    <origin xyz="-0.04 0 0" rpy="0 3.1415927 -1.5707963" />
+    <origin xyz="0.01225 0 -0.243500023365" rpy="3.14159265359 0 1.57079632679" />
   </joint>
 
   <joint name="left_foot_spine" type="fixed">
     <parent link="left_knee" />
     <child link="left_foot_spine" />
-    <origin xyz="0.05 0 0" rpy="0 0 1.5707963" />
+    <origin xyz="0.068 0 -0.15935" rpy="0 0 1.57079632679" />
   </joint>
 
   <joint name="right_foot_spine" type="fixed">
     <parent link="right_knee" />
     <child link="right_foot_spine" />
-    <origin xyz="0.05 0 0" rpy="0 0 1.5707963" />
+    <origin xyz="0.068 0 -0.15935" rpy="0 0 1.57079632679" />
   </joint>
 
+  <link name="left_forearm_pad_mount">
+    <inertial>
+      <origin xyz="6.85820387754e-07 -0.00949409830512 -0.03321419433" rpy="0 0 0" />
+      <mass value="0.205979717001" />
+      <inertia ixx="0.00020580783469" iyy="0.000229032321103" izz="0.000101366995145" ixy="-1.19597691113e-09" ixz="-4.78239785163e-09" iyz="-1.32474741032e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_forearm_mount.stl" />
+      </geometry>
+      <material name="left_forearm_pad_mount_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 -0.01225 -0.073" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.0275" length="0.035" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 -0.01225 -0.0180000002235" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0799999982118 0.0549193359912 0.074999999255" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="left_forearm_pad_mount" type="fixed">
+    <parent link="left_elbow_pitch" />
+    <child link="left_forearm_pad_mount" />
+    <origin xyz="0.01225 0 -0.243500023365" rpy="3.14159265359 0 1.57079632679" />
+  </joint>
+  <link name="right_forearm_pad_mount">
+    <inertial>
+      <origin xyz="6.85820387754e-07 -0.00949409830512 -0.03321419433" rpy="0 0 0" />
+      <mass value="0.205979717001" />
+      <inertia ixx="0.00020580783469" iyy="0.000229032321103" izz="0.000101366995145" ixy="-1.19597691113e-09" ixz="-4.78239785163e-09" iyz="-1.32474741032e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://DY-CR1-000 小人形机器人AURDF-A/new_meshes/microspine_forearm_mount.stl" />
+      </geometry>
+      <material name="right_forearm_pad_mount_visual">
+        <color rgba="0.615686 0.811765 0.929412 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 -0.01225 -0.073" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.0275" length="0.035" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 -0.01225 -0.0180000002235" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0799999982118 0.0549193359912 0.074999999255" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_forearm_pad_mount" type="fixed">
+    <parent link="right_elbow_pitch" />
+    <child link="right_forearm_pad_mount" />
+    <origin xyz="0.01225 0 -0.243500023365" rpy="3.14159265359 0 1.57079632679" />
+  </joint>
 </robot>

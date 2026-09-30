@@ -34,6 +34,11 @@
       <material name="body" texture="body" texuniform="true" rgba="0.8 0.6 .4 1"/>
       <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
       <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance="0.02"/>
+
+    <mesh name="microspine_unit" file="microspine_unit.stl"/>
+    <mesh name="microspine_backplate" file="microspine_backplate.stl"/>
+    <mesh name="microspine_brackets" file="microspine_brackets.stl"/>
+    <mesh name="microspine_forearm_mount" file="microspine_forearm_mount.stl"/>
   </asset>
   <asset>
     <mesh name="base_link" file="base_link.STL"/>
@@ -56,68 +61,62 @@
     <mesh name="left_shoulder_pitch" file="left_shoulder_pitch.STL"/>
     <mesh name="left_shoulder_roll" file="left_shoulder_roll.STL"/>
     <mesh name="left_shoulder_yaw" file="left_shoulder_yaw.STL"/>
-    <mesh name="left_elbow_pitch" file="left_elbow_pitch.STL"/>
+    <mesh name="left_elbow_pitch" file="left_forearm_no_hand.stl"/>
     <mesh name="right_shoulder_pitch" file="right_shoulder_pitch.STL"/>
     <mesh name="right_shoulder_roll" file="right_shoulder_roll.STL"/>
     <mesh name="right_shoulder_yaw" file="right_shoulder_yaw.STL"/>
-    <mesh name="right_elbow_pitch" file="right_elbow_pitch.STL"/>
-    <mesh name="left_hand_spine" file="left_hand_spine.stl"/>
-    <mesh name="right_hand_spine" file="right_hand_spine.STL"/>
-    <mesh name="left_foot_spine" file="left_foot_spine.STL"/>
-    <mesh name="right_foot_spine" file="right_foot_spine.STL"/>
+    <mesh name="right_elbow_pitch" file="right_forearm_no_hand.stl"/>
+
     <texture builtin="gradient" height="100" rgb1=".4 .5 .6" rgb2="0 0 0" type="skybox" width="100"/>
     <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="100" height="100"/>
     <material name="MatPlane" reflectance="0.5" texture="texplane" texrepeat="1 1" texuniform="true"/>
-  </asset>
 
+  </asset>
 
   <worldbody>
     <!-- <geom name="floor" friction="1 .5 .5" pos="0 0 0.0" size="50 50 0.125" type="plane" material="MatPlane" condim="3" conaffinity="1" contype="1" group="2" rgba="0.8 0.9 0.8 1"></geom>
     <light cutoff="100" diffuse="1 1 1" dir="-0 0 -1.3" directional="true" exponent="1" pos="0 0 1.3" specular=".1 .1 .1" castshadow="false"/>
     <body name="torso" pos="0 -0.0 1.0" euler="0 0 1.5708" childclass="phybot_c2" > -->
 
-
     <geom name="floor" friction="1 .5 .5" pos="0 0 0.0" size="50 50 0.125" type="plane" material="MatPlane" condim="3" conaffinity="1" contype="1" group="2" rgba="0.8 0.9 0.8 1"></geom>
     <light cutoff="100" diffuse="1 1 1" dir="-0 0 -1.3" directional="true" exponent="1" pos="0 0 1.3" specular=".1 .1 .1" castshadow="false"/>
     <body name="torso" pos="0 -0.0 0.3" euler="0 1.5708 0" childclass="phybot_c2" >
-
-
 
       <inertial pos="-0.00024439 -5.2676e-07 0.024482" quat="0.999993 4.23739e-06 0.00376009 -1.59331e-08" mass="3.2436" diaginertia="0.0145507 0.0120128 0.00611311"/>
       <joint name="floating_base_joint" type="free" limited="false" actuatorfrclimited="false"/>
       <geom name="base_link_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.79216 0.81961 0.93333 1" mesh="base_link"/>
       <geom name="base_link_collision" type="sphere" rgba="0.79216 0.81961 0.93333 1" size="0.07" pos="0 0 0.0"/>
-      
+
       <body name="left_hip_pitch" pos="0 0.062831 -0.011079" quat="0.996195 -0.0871543 0 0">
         <inertial pos="-0.0068877 0.061463 -2.976e-05" quat="0.367644 0.602703 -0.258198 0.659485" mass="0.91042" diaginertia="0.00112874 0.000934659 0.000828387"/>
         <joint name="left_hip_pitch" pos="0 0 0" axis="0 1 0" range="-3.05 2.09" actuatorfrcrange="-160 160"/>
         <geom name="left_hip_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.8902 0.8902 0.91373 1" mesh="left_hip_pitch"/>
         <!-- <geom name="left_hip_pitch_collision" type="mesh" rgba="0.8902 0.8902 0.91373 1" mesh="left_hip_pitch"/> -->
-        
+
         <body name="left_hip_roll" pos="0 0.0695 0" quat="0.996195 0.0871543 0 0">
           <inertial pos="0.016679 4.1639e-06 -0.027771" quat="0.942743 0.000219041 -0.333521 -0.000387685" mass="0.23681" diaginertia="0.000356717 0.00029702 0.000232613"/>
           <joint name="left_hip_roll" pos="0 0 0" axis="1 0 0" range="-0.44 3.05" actuatorfrcrange="-80 80"/>
           <geom name="left_hip_roll_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.79216 0.81961 0.93333 1" mesh="left_hip_roll"/>
           <geom name="left_hip_roll_collision" type="sphere" rgba="0.79216 0.81961 0.93333 1" size="0.05" pos="0 0 -0.0"/>
-          
+
           <body name="left_hip_yaw" pos="0 0 -0.059">
             <inertial pos="-0.000459194 0.000394776 -0.0628997" quat="0.999918 0.00805423 0.00871723 0.00482246" mass="1.00442" diaginertia="0.00398001 0.00385881 0.000600058"/>
             <joint name="left_hip_yaw" pos="0 0 0" axis="0 0 1" range="-2.53 2.53" actuatorfrcrange="-58 58"/>
             <geom name="left_hip_yaw_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.890196 0.890196 0.913725 1" mesh="left_hip_yaw"/>
             <geom name="left_hip_yaw_collision" type="cylinder" rgba="0.890196 0.890196 0.913725 1" size="0.04 0.09" pos="0 0 -0.12"/>
-            
+
             <body name="left_knee" pos="-0.015 0 -0.22">
               <inertial pos="0.00690022 -0.00119037 -0.0724208" quat="0.99959 0.00551972 -0.0280404 -0.00190095" mass="1.35068" diaginertia="0.0154112 0.0150837 0.00136788"/>
               <joint name="left_knee" pos="0 0 0" axis="0 1 0" range="-0.05 2.36" actuatorfrcrange="-80 80"/>
               <geom name="left_knee_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="left_knee"/>
               <geom name="left_knee_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.04 0.08" pos="0.01 0 -0.13"/>
-              
+
               <body name="left_ankle_pitch" pos="0.014708 0 -0.279">
                 <inertial pos="0.00164957 -0.00318301 -0.0458428" quat="0.720007 0.0141704 -0.0387847 0.692737" mass="1.55163" diaginertia="0.00395688 0.00395467 0.000888985"/>
                 <joint name="left_ankle_pitch" pos="0 0 0" axis="0 1 0" range="-1.57 1.57" actuatorfrcrange="-58 58"/>
                 <geom name="left_ankle_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="left_ankle_pitch"/>
                 <geom name="left_ankle_pitch_collision" type="sphere" rgba="1 1 1 1" size="0.045" pos="0 0 -0.018"/>
-                
+
                 <body name="left_ankle_roll" pos="0.00029206 0 -0.09">
                   <inertial pos="0.05041 1.88535e-07 -0.027486" quat="0 0.704858 0 0.709349" mass="0.38801" diaginertia="0.00166203 0.00154222 0.000277934"/>
                   <joint name="left_ankle_roll" pos="0 0 0" axis="1 0 0" range="-1.13 1.13" actuatorfrcrange="-58 58"/>
@@ -130,62 +129,89 @@
 
               </body>
 
-              <body name="left_foot_spine" pos="0.05 0 0" quat="0.7071068 0 0 0.7071068">
-                <inertial pos="0 0 0.25" mass="1" diaginertia="0.1 0.1 0.1"/>
-                <geom name="left_foot_spine_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.94902 0.94118 0.90981 1" mesh="left_foot_spine" pos="0 0 -0.15" quat="0 0 1 0"/>
-                <geom name="left_foot_spine_collision" type="box" size="0.06 0.006 0.04935" pos="0 0 -0.15935"/>
-                <body name="left_foot_spine_c_0_0" pos="-0.048 -0.006 -0.122">
-                  <geom name="left_foot_spine_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+              <body name="left_foot_spine" pos="0.068 0 -0.15935" quat="0.7071068 0 0 0.7071068">
+                <inertial pos="1.29975035838e-05 -0.0364597975996 0.0466784711589" mass="0.186895738903" fullinertia="0.000437249698435 0.000637443606267 0.00020836879676 1.35935257087e-08 -1.89711501128e-07 2.02133285055e-05" />
+                <geom name="left_foot_spine_visual" type="mesh" mesh="microspine_backplate" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <geom name="left_foot_spine_brackets_visual" type="mesh" mesh="microspine_brackets" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <geom name="left_foot_spine_unit_0_0_visual" type="mesh" mesh="microspine_unit" pos="-0.041999977409 -0.0475000198375 0.0464841706642" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_0_0" pos="-0.041999977409 -0.0475000198375 0.0464841706642" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_0_1_visual" type="mesh" mesh="microspine_unit" pos="-0.013999977409 -0.0475000205411 0.0464841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_0_1" pos="-0.013999977409 -0.0475000205411 0.0464841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_0_2_visual" type="mesh" mesh="microspine_unit" pos="0.013999992591 -0.0475000212448 0.0464841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_0_2" pos="0.013999992591 -0.0475000212448 0.0464841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_0_3_visual" type="mesh" mesh="microspine_unit" pos="0.042000022591 -0.0475000219484 0.0464841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_0_3" pos="0.042000022591 -0.0475000219484 0.0464841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_1_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_1_0" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_1_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_1_1" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_1_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925907 -0.047500021309 0.0779841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_1_2" pos="0.0139999925907 -0.047500021309 0.0779841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_1_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225907 -0.0475000220127 0.0779841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_1_3" pos="0.0420000225907 -0.0475000220127 0.0779841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_2_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774095 -0.047500019966 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_2_0" pos="-0.0419999774095 -0.047500019966 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_2_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774095 -0.0475000206697 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_2_1" pos="-0.0139999774095 -0.0475000206697 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_2_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925905 -0.0475000213733 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_2_2" pos="0.0139999925905 -0.0475000213733 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_unit_2_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225905 -0.047500022077 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="left_foot_spine_unit_2_3" pos="0.0420000225905 -0.047500022077 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="left_foot_spine_collision" type="box" size="0.063000001089 0.00550000134732 0.0837499983674" pos="-1.13635172105e-08 -0.03249999231 0.0462495946292" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                <site name="left_foot_spine_ball_center" pos="0 0 0" size="0.003" group="4" rgba="0.1 0.5 1 1" />
+                <site name="left_foot_spine_contact_center" pos="1.50907449841e-08 -0.0475000224434 0.0779841723312" size="0.003" group="4" rgba="1 0.25 0.1 1" />
+                <body name="left_foot_spine_c_0_0" pos="-0.041999977409 -0.039999970045 0.0464841706642">
+                  <geom name="left_foot_spine_c_0_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
-                <body name="left_foot_spine_c_0_1" pos="0.048 -0.006 -0.122">
-                  <geom name="left_foot_spine_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="left_foot_spine_c_0_1" pos="0.042000022591 -0.0399999721559 0.0464841706648">
+                  <geom name="left_foot_spine_c_0_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
-                <body name="left_foot_spine_c_1_0" pos="-0.048 -0.006 -0.1967">
-                  <geom name="left_foot_spine_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="left_foot_spine_c_1_0" pos="-0.0419999774095 -0.0399999701736 0.109484170664">
+                  <geom name="left_foot_spine_c_1_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
-                <body name="left_foot_spine_c_1_1" pos="0.048 -0.006 -0.1967">
-                  <geom name="left_foot_spine_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="left_foot_spine_c_1_1" pos="0.0420000225905 -0.0399999722845 0.109484170665">
+                  <geom name="left_foot_spine_c_1_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
               </body>
-            
+
             </body>
-          
+
           </body>
-        
+
         </body>
-      
+
       </body>
-      
+
       <body name="right_hip_pitch" pos="0 -0.062831 -0.011079" quat="0.996195 0.0871543 0 0">
         <inertial pos="-0.00688772 -0.0614633 2.9735e-05" quat="0.604637 0.368786 -0.657391 0.257386" mass="0.910417" diaginertia="0.00112875 0.000934664 0.000828388"/>
         <joint name="right_hip_pitch" pos="0 0 0" axis="0 1 0" range="-3.05 2.09" actuatorfrcrange="-160 160"/>
         <geom name="right_hip_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.890196 0.890196 0.913725 1" mesh="right_hip_pitch"/>
         <!-- <geom name="right_hip_pitch_collision" type="mesh" rgba="0.890196 0.890196 0.913725 1" mesh="right_hip_pitch"/> -->
-        
+
         <body name="right_hip_roll" pos="0 -0.0695 0" quat="0.996195 -0.0871543 0 0">
           <inertial pos="0.0166791 4.00953e-06 -0.0277714" quat="0.942744 0.000217144 -0.333517 -0.000385613" mass="0.236809" diaginertia="0.000356719 0.00029702 0.000232614"/>
           <joint name="right_hip_roll" pos="0 0 0" axis="1 0 0" range="-3.05 0.44" actuatorfrcrange="-80 80"/>
           <geom name="right_hip_roll_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="right_hip_roll"/>
           <geom name="right_hip_roll_collision" type="sphere" rgba="0.792157 0.819608 0.933333 1" size="0.05" pos="0 0 -0.0"/>
-          
+
           <body name="right_hip_yaw" pos="0 0 -0.056">
             <inertial pos="-0.000459238 -0.000395081 -0.0661388" quat="0.999919 -0.00798709 0.00864289 -0.00483433" mass="1.00443" diaginertia="0.0040263 0.0039051 0.000600063"/>
             <joint name="right_hip_yaw" pos="0 0 0" axis="0 0 1" range="-2.53 2.53" actuatorfrcrange="-58 58"/>
             <geom name="right_hip_yaw_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.890196 0.890196 0.913725 1" mesh="right_hip_yaw"/>
             <geom name="right_hip_yaw_collision" type="cylinder" rgba="0.890196 0.890196 0.913725 1" size="0.04 0.09" pos="0 0 -0.12"/>
-            
+
             <body name="right_knee" pos="-0.015 0 -0.223">
               <inertial pos="0.00695884 0.00119035 -0.0724208" quat="0.999576 -0.00552526 -0.0285095 0.00206248" mass="1.35068" diaginertia="0.0154127 0.0150849 0.00136764"/>
               <joint name="right_knee" pos="0 0 0" axis="0 1 0" range="-0.05 2.36" actuatorfrcrange="-80 80"/>
               <geom name="right_knee_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="right_knee"/>
               <geom name="right_knee_collision" type="cylinder" rgba="1 1 1 1" size="0.04 0.08" pos="0.01 0 -0.13"/>
-              
+
               <body name="right_ankle_pitch" pos="0.015 0 -0.279">
                 <inertial pos="0.00164662 0.00318309 -0.0458428" quat="0.693183 -0.0387686 0.0141704 0.719579" mass="1.55163" diaginertia="0.00395653 0.00395465 0.00088865"/>
                 <joint name="right_ankle_pitch" pos="0 0 0" axis="0 1 0" range="-1.57 1.57" actuatorfrcrange="-58 58"/>
                 <geom name="right_ankle_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="right_ankle_pitch"/>
                 <geom name="right_ankle_pitch_collision" type="sphere" rgba="1 1 1 1" size="0.045" pos="0 0 -0.018"/>
-                
+
                 <body name="right_ankle_roll" pos="0 0 -0.09">
                   <inertial pos="0.0519608 -8.08718e-08 -0.0273831" quat="0 0.704249 0 0.709953" mass="0.397122" diaginertia="0.00170518 0.00158339 0.000280517"/>
                   <joint name="right_ankle_roll" pos="0 0 0" axis="1 0 0" range="-1.13 1.13" actuatorfrcrange="-58 58"/>
@@ -198,165 +224,260 @@
 
               </body>
 
-              <body name="right_foot_spine" pos="0.05 0 0" quat="0.7071068 0 0 0.7071068">
-                <inertial pos="0 0 0.25" mass="1" diaginertia="0.1 0.1 0.1"/>
-                <geom name="right_foot_spine_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.94902 0.94118 0.90981 1" mesh="right_foot_spine" pos="0 0 -0.15" quat="0 0 1 0"/>
-                <geom name="right_foot_spine_collision" type="box" size="0.06 0.006 0.04935" pos="0 0 -0.15935"/>
-                <body name="right_foot_spine_c_0_0" pos="-0.048 -0.006 -0.122">
-                  <geom name="right_foot_spine_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+              <body name="right_foot_spine" pos="0.068 0 -0.15935" quat="0.7071068 0 0 0.7071068">
+                <inertial pos="1.29975035838e-05 -0.0364597975996 0.0466784711589" mass="0.186895738903" fullinertia="0.000437249698435 0.000637443606267 0.00020836879676 1.35935257087e-08 -1.89711501128e-07 2.02133285055e-05" />
+                <geom name="right_foot_spine_visual" type="mesh" mesh="microspine_backplate" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <geom name="right_foot_spine_brackets_visual" type="mesh" mesh="microspine_brackets" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <geom name="right_foot_spine_unit_0_0_visual" type="mesh" mesh="microspine_unit" pos="-0.041999977409 -0.0475000198375 0.0464841706642" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_0_0" pos="-0.041999977409 -0.0475000198375 0.0464841706642" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_0_1_visual" type="mesh" mesh="microspine_unit" pos="-0.013999977409 -0.0475000205411 0.0464841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_0_1" pos="-0.013999977409 -0.0475000205411 0.0464841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_0_2_visual" type="mesh" mesh="microspine_unit" pos="0.013999992591 -0.0475000212448 0.0464841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_0_2" pos="0.013999992591 -0.0475000212448 0.0464841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_0_3_visual" type="mesh" mesh="microspine_unit" pos="0.042000022591 -0.0475000219484 0.0464841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_0_3" pos="0.042000022591 -0.0475000219484 0.0464841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_1_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_1_0" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_1_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_1_1" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_1_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925907 -0.047500021309 0.0779841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_1_2" pos="0.0139999925907 -0.047500021309 0.0779841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_1_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225907 -0.0475000220127 0.0779841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_1_3" pos="0.0420000225907 -0.0475000220127 0.0779841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_2_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774095 -0.047500019966 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_2_0" pos="-0.0419999774095 -0.047500019966 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_2_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774095 -0.0475000206697 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_2_1" pos="-0.0139999774095 -0.0475000206697 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_2_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925905 -0.0475000213733 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_2_2" pos="0.0139999925905 -0.0475000213733 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_unit_2_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225905 -0.047500022077 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                <site name="right_foot_spine_unit_2_3" pos="0.0420000225905 -0.047500022077 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                <geom name="right_foot_spine_collision" type="box" size="0.063000001089 0.00550000134732 0.0837499983674" pos="-1.13635172105e-08 -0.03249999231 0.0462495946292" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                <site name="right_foot_spine_ball_center" pos="0 0 0" size="0.003" group="4" rgba="0.1 0.5 1 1" />
+                <site name="right_foot_spine_contact_center" pos="1.50907449841e-08 -0.0475000224434 0.0779841723312" size="0.003" group="4" rgba="1 0.25 0.1 1" />
+                <body name="right_foot_spine_c_0_0" pos="-0.041999977409 -0.039999970045 0.0464841706642">
+                  <geom name="right_foot_spine_c_0_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
-                <body name="right_foot_spine_c_0_1" pos="0.048 -0.006 -0.122">
-                  <geom name="right_foot_spine_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="right_foot_spine_c_0_1" pos="0.042000022591 -0.0399999721559 0.0464841706648">
+                  <geom name="right_foot_spine_c_0_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
-                <body name="right_foot_spine_c_1_0" pos="-0.048 -0.006 -0.1967">
-                  <geom name="right_foot_spine_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="right_foot_spine_c_1_0" pos="-0.0419999774095 -0.0399999701736 0.109484170664">
+                  <geom name="right_foot_spine_c_1_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
-                <body name="right_foot_spine_c_1_1" pos="0.048 -0.006 -0.1967">
-                  <geom name="right_foot_spine_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="right_foot_spine_c_1_1" pos="0.0420000225905 -0.0399999722845 0.109484170665">
+                  <geom name="right_foot_spine_c_1_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                 </body>
               </body>
-            
+
             </body>
-          
+
           </body>
-        
+
         </body>
-      
+
       </body>
-      
+
       <body name="waist_yaw" pos="0 0 0.146">
         <inertial pos="0.000266551 1.54533e-08 0.0161369" quat="0.495747 0.495747 -0.504217 0.504217" mass="0.209173" diaginertia="0.000478773 0.000383208 0.000111742"/>
         <joint name="waist_yaw" pos="0 0 0" axis="0 0 1" range="-2.62 2.62" actuatorfrcrange="-58 58"/>
         <geom name="waist_yaw_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.901961 0.901961 0.901961 1" mesh="waist_yaw"/>
         <!-- <geom name="waist_yaw_collision" type="mesh" rgba="0.901961 0.901961 0.901961 1" mesh="waist_yaw"/> -->
-        
+
         <body name="torso_upper" pos="0 0 0.107">
           <inertial pos="-0.00191627 0.00018503 0.048216" quat="0.999955 0.00162884 0.00932487 0.00016583" mass="11.895" diaginertia="0.0757057 0.0592586 0.0383877"/>
           <geom name="torso_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="torso"/>
           <geom name="torso_collision" type="box" rgba="1 1 1 1" size="0.07 0.09 0.14" pos="0 0 0.03"/>
-          
+
           <body name="neck_yaw" pos="0 0 0.158">
             <inertial pos="-5.76691e-05 0.0013838 0.0621098" quat="0.99527 -0.0969612 0.00589601 0.000761033" mass="0.42862" diaginertia="0.000318556 0.000236742 0.000205272"/>
             <geom name="neck_yaw_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="neck_yaw"/>
             <!-- <geom name="neck_yaw_collision" type="mesh" rgba="0.792157 0.819608 0.933333 1" mesh="neck_yaw"/> -->
             <joint name="neck_yaw" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" actuatorfrcrange="-30 30"/>
-            
+
             <body name="neck_pitch" pos="0 0 0.069">
               <joint name="neck_pitch" pos="0 0 0" axis="0 1 0" range="-0.785 0.785" actuatorfrcrange="-30 30"/>
               <geom name="neck_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="neck_pitch"/>
               <geom name="neck_pitch_collision" type="sphere" rgba="1 1 1 1" size="0.07" pos="0 0 0.065"/>
             </body>
-          
+
           </body>
-          
+
           <body name="left_shoulder_pitch" pos="0 0.105 0.113">
             <inertial pos="0.00237654 0.06439 -7.26662e-08" quat="0.518984 0.480279 -0.518972 0.480266" mass="0.827963" diaginertia="0.00060543 0.000526296 0.000456794"/>
             <joint name="left_shoulder_pitch" pos="0 0 0" axis="0 1 0" range="-3.58 2.01" actuatorfrcrange="-58 58"/>
             <geom name="left_shoulder_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 0.945098 1" mesh="left_shoulder_pitch"/>
             <!-- <geom name="left_shoulder_pitch_collision" type="mesh" rgba="1 1 0.945098 1" mesh="left_shoulder_pitch"/> -->
-            
+
             <body name="left_shoulder_roll" pos="0 0.068 0">
               <inertial pos="0.0163774 0.00380027 -0.0215458" quat="0.937715 0.0820588 0.33629 0.0294263" mass="0.224784" diaginertia="0.000341804 0.000266151 0.000173681"/>
               <joint name="left_shoulder_roll" pos="0 0 0" axis="1 0 0" range="-0.35 3.05" actuatorfrcrange="-58 58"/>
               <geom name="left_shoulder_roll_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="left_shoulder_roll"/>
               <geom name="left_shoulder_roll_collision" type="sphere" rgba="0.866667 0.866667 0.890196 1" size="0.05" pos="0.0 0 0.0"/>
-              
+
               <body name="left_shoulder_yaw" pos="-0.00052455 0.0085956 -0.048748" quat="0.996195 0.0871543 0 0">
                 <inertial pos="-3.44141e-05 -0.000724952 -0.0981352" quat="0.996703 0.0811367 -0.000451202 -0.000171674" mass="1.59289" diaginertia="0.00683808 0.00673927 0.000812023"/>
                 <joint name="left_shoulder_yaw" pos="0 0 0" axis="0 0 1" range="-2.53 2.53" actuatorfrcrange="-58 58"/>
                 <geom name="left_shoulder_yaw_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="left_shoulder_yaw"/>
                 <geom name="left_shoulder_yaw_collision" type="cylinder" rgba="1 1 1 1" size="0.03 0.07" pos="0 0 -0.09"/>
-                
-                <body name="left_elbow_pitch" pos="0 0 -0.16">
-                  <inertial pos="-0.00190097 0.00502666 -0.147365" quat="0.947591 0.0724999 -0.00842496 -0.311038" mass="0.851992" diaginertia="0.00784763 0.00769217 0.000562646"/>
-                  <joint name="left_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-58 58"/>
-                  <geom name="left_elbow_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="left_elbow_pitch"/>
-                  <geom name="left_elbow_pitch_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.035 0.11" pos="0 0 -0.17"/>
 
-                  <body name="left_hand_spine" pos="-0.04 0 0" quat="0 0.7071068 0.7071068 0">
-                    <inertial pos="0 0 0.25" mass="1" diaginertia="0.1 0.1 0.1"/>
-                    <geom name="left_hand_spine_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.94902 0.94118 0.90981 1" mesh="left_hand_spine" pos="0 0 0.2"/>
-                    <geom name="left_hand_spine_collision" type="box" size="0.06 0.006 0.04935" pos="-0.0009236 -0.006 0.20830"/>
-                    <body name="left_hand_spine_c_0_0" pos="-0.04892 -0.012 0.171">
-                      <geom name="left_hand_spine_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="left_elbow_pitch" pos="0 0 -0.16">
+                  <joint name="left_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-58 58" />
+                  <geom name="left_elbow_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="left_elbow_pitch" />
+                  <geom name="left_elbow_pitch_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.021 0.060" pos="0 0 -0.128" />
+                  <body name="left_forearm_pad_mount" pos="0.01225 0 -0.243500023365" quat="0 0.7071068 0.7071068 0">
+                    <inertial pos="6.85820387754e-07 -0.00949409830512 -0.03321419433" mass="0.205979717001" fullinertia="0.00020580783469 0.000229032321103 0.000101366995145 -1.19597691113e-09 -4.78239785163e-09 -1.32474741032e-05" />
+                    <geom name="left_forearm_pad_mount_visual" type="mesh" mesh="microspine_forearm_mount" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <geom name="left_forearm_pad_mount_sleeve_collision" type="cylinder" size="0.0275 0.0175" pos="0 -0.01225 -0.073" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                    <geom name="left_forearm_pad_mount_web_collision" type="box" size="0.0399999991059 0.0274596679956 0.0374999996275" pos="0 -0.01225 -0.0180000002235" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                    <site name="left_forearm_end" pos="0 -0.01225 -0.0555" size="0.002" group="4" />
+                  </body>
+                  <body name="left_hand_spine" pos="0.01225 0 -0.243500023365" quat="0 0.7071068 0.7071068 0">
+                    <inertial pos="1.29975035838e-05 -0.0364597975996 0.0466784711589" mass="0.186895738903" fullinertia="0.000437249698435 0.000637443606267 0.00020836879676 1.35935257087e-08 -1.89711501128e-07 2.02133285055e-05" />
+                    <geom name="left_hand_spine_visual" type="mesh" mesh="microspine_backplate" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <geom name="left_hand_spine_brackets_visual" type="mesh" mesh="microspine_brackets" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <geom name="left_hand_spine_unit_0_0_visual" type="mesh" mesh="microspine_unit" pos="-0.041999977409 -0.0475000198375 0.0464841706642" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_0_0" pos="-0.041999977409 -0.0475000198375 0.0464841706642" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_0_1_visual" type="mesh" mesh="microspine_unit" pos="-0.013999977409 -0.0475000205411 0.0464841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_0_1" pos="-0.013999977409 -0.0475000205411 0.0464841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_0_2_visual" type="mesh" mesh="microspine_unit" pos="0.013999992591 -0.0475000212448 0.0464841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_0_2" pos="0.013999992591 -0.0475000212448 0.0464841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_0_3_visual" type="mesh" mesh="microspine_unit" pos="0.042000022591 -0.0475000219484 0.0464841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_0_3" pos="0.042000022591 -0.0475000219484 0.0464841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_1_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_1_0" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_1_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_1_1" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_1_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925907 -0.047500021309 0.0779841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_1_2" pos="0.0139999925907 -0.047500021309 0.0779841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_1_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225907 -0.0475000220127 0.0779841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_1_3" pos="0.0420000225907 -0.0475000220127 0.0779841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_2_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774095 -0.047500019966 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_2_0" pos="-0.0419999774095 -0.047500019966 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_2_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774095 -0.0475000206697 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_2_1" pos="-0.0139999774095 -0.0475000206697 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_2_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925905 -0.0475000213733 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_2_2" pos="0.0139999925905 -0.0475000213733 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_unit_2_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225905 -0.047500022077 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="left_hand_spine_unit_2_3" pos="0.0420000225905 -0.047500022077 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="left_hand_spine_collision" type="box" size="0.063000001089 0.00550000134732 0.0837499983674" pos="-1.13635172105e-08 -0.03249999231 0.0462495946292" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                    <site name="left_hand_spine_ball_center" pos="0 0 0" size="0.003" group="4" rgba="0.1 0.5 1 1" />
+                    <site name="left_hand_spine_contact_center" pos="1.50907449841e-08 -0.0475000224434 0.0779841723312" size="0.003" group="4" rgba="1 0.25 0.1 1" />
+                    <body name="left_hand_spine_c_0_0" pos="-0.041999977409 -0.039999970045 0.0464841706642">
+                      <geom name="left_hand_spine_c_0_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
-                    <body name="left_hand_spine_c_0_1" pos="0.04708 -0.012 0.171">
-                      <geom name="left_hand_spine_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                    <body name="left_hand_spine_c_0_1" pos="0.042000022591 -0.0399999721559 0.0464841706648">
+                      <geom name="left_hand_spine_c_0_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
-                    <body name="left_hand_spine_c_1_0" pos="-0.04892 -0.012 0.2456">
-                      <geom name="left_hand_spine_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                    <body name="left_hand_spine_c_1_0" pos="-0.0419999774095 -0.0399999701736 0.109484170664">
+                      <geom name="left_hand_spine_c_1_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
-                    <body name="left_hand_spine_c_1_1" pos="0.04708 -0.012 0.2456">
-                      <geom name="left_hand_spine_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                    <body name="left_hand_spine_c_1_1" pos="0.0420000225905 -0.0399999722845 0.109484170665">
+                      <geom name="left_hand_spine_c_1_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
                   </body>
+                  <geom name="left_elbow_pitch_motor_collision" type="capsule" size="0.04" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" fromto="0 0 -0.040 0 0 0" />
+                  <inertial pos="-0.00605221457438 0.00655756206421 -0.0696994769547" mass="0.851992" fullinertia="0.00328195773606 0.00324134812202 0.000625605669044 -3.93314482898e-05 0.00018970232754 -0.00040518380148" />
                 </body>
-              
+
               </body>
-            
+
             </body>
-          
+
           </body>
-          
+
           <body name="right_shoulder_pitch" pos="0 -0.105 0.113">
             <inertial pos="0.00237647 -0.06439 -2.28412e-06" quat="0.480517 0.518956 -0.479955 0.519068" mass="0.827963" diaginertia="0.00060543 0.000526297 0.000456793"/>
             <joint name="right_shoulder_pitch" pos="0 0 0" axis="0 1 0" range="-3.58 2.01" actuatorfrcrange="-58 58"/>
             <geom name="right_shoulder_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="right_shoulder_pitch"/>
             <!-- <geom name="right_shoulder_pitch_collision" type="mesh" rgba="1 1 1 1" mesh="right_shoulder_pitch"/> -->
-            
+
             <body name="right_shoulder_roll" pos="0 -0.068 0">
               <inertial pos="0.0163763 -0.00379761 -0.0215459" quat="0.937717 -0.0820205 0.336294 -0.0294153" mass="0.224783" diaginertia="0.000341803 0.000266151 0.00017368"/>
               <joint name="right_shoulder_roll" pos="0 0 0" axis="1 0 0" range="-3.05 0.35" actuatorfrcrange="-58 58"/>
               <geom name="right_shoulder_roll_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="right_shoulder_roll"/>
               <geom name="right_shoulder_roll_collision" type="sphere" rgba="0.866667 0.866667 0.890196 1" size="0.05" pos="0.0 0 0.0"/>
-              
+
               <body name="right_shoulder_yaw" pos="-0.00052455 -0.0085956 -0.048748" quat="0.996195 -0.0871543 0 0">
                 <inertial pos="-3.44141e-05 0.000724952 -0.0981352" quat="0.996703 -0.0811367 -0.000451202 0.000171674" mass="1.59289" diaginertia="0.00683808 0.00673927 0.000812023"/>
                 <joint name="right_shoulder_yaw" pos="0 0 0" axis="0 0 1" range="-2.53 2.53" actuatorfrcrange="-58 58"/>
                 <geom name="right_shoulder_yaw_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.890196 0.890196 0.913725 1" mesh="right_shoulder_yaw"/>
                 <geom name="right_shoulder_yaw_collision" type="cylinder" rgba="0.890196 0.890196 0.913725 1" size="0.03 0.07" pos="0 0 -0.09"/>
-                
-                <body name="right_elbow_pitch" pos="0 0 -0.16">
-                  <inertial pos="-0.00190041 -0.00503062 -0.147351" quat="0.947605 -0.0724808 -0.00842657 0.310999" mass="0.852092" diaginertia="0.00784905 0.00769352 0.000562706"/>
-                  <joint name="right_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-58 58"/>
-                  <geom name="right_elbow_pitch_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="right_elbow_pitch"/>
-                  <geom name="right_elbow_pitch_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.035 0.11" pos="0 0 -0.17"/>
 
-                  <body name="right_hand_spine" pos="-0.04 0 0" quat="0 0.7071068 0.7071068 0">
-                    <inertial pos="0 0 0.25" mass="1" diaginertia="0.1 0.1 0.1"/>
-                    <geom name="right_hand_spine_visual"    type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.94902 0.94118 0.90981 1" mesh="right_hand_spine" pos="0 0 0.2"/>
-                    <geom name="right_hand_spine_collision" type="box" size="0.06 0.006 0.04935" pos="-0.0009236 -0.006 0.20830"/>
-                    <body name="right_hand_spine_c_0_0" pos="-0.04892 -0.012 0.171">
-                      <geom name="right_hand_spine_c_0_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                <body name="right_elbow_pitch" pos="0 0 -0.16">
+                  <joint name="right_elbow_pitch" pos="0 0 0" axis="0 1 0" range="-2.36 0" actuatorfrcrange="-58 58" />
+                  <geom name="right_elbow_pitch_visual" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.866667 0.866667 0.890196 1" mesh="right_elbow_pitch" />
+                  <geom name="right_elbow_pitch_collision" type="cylinder" rgba="0.866667 0.866667 0.890196 1" size="0.021 0.060" pos="0 0 -0.128" />
+                  <body name="right_forearm_pad_mount" pos="0.01225 0 -0.243500023365" quat="0 0.7071068 0.7071068 0">
+                    <inertial pos="6.85820387754e-07 -0.00949409830512 -0.03321419433" mass="0.205979717001" fullinertia="0.00020580783469 0.000229032321103 0.000101366995145 -1.19597691113e-09 -4.78239785163e-09 -1.32474741032e-05" />
+                    <geom name="right_forearm_pad_mount_visual" type="mesh" mesh="microspine_forearm_mount" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <geom name="right_forearm_pad_mount_sleeve_collision" type="cylinder" size="0.0275 0.0175" pos="0 -0.01225 -0.073" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                    <geom name="right_forearm_pad_mount_web_collision" type="box" size="0.0399999991059 0.0274596679956 0.0374999996275" pos="0 -0.01225 -0.0180000002235" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                    <site name="right_forearm_end" pos="0 -0.01225 -0.0555" size="0.002" group="4" />
+                  </body>
+                  <body name="right_hand_spine" pos="0.01225 0 -0.243500023365" quat="0 0.7071068 0.7071068 0">
+                    <inertial pos="1.29975035838e-05 -0.0364597975996 0.0466784711589" mass="0.186895738903" fullinertia="0.000437249698435 0.000637443606267 0.00020836879676 1.35935257087e-08 -1.89711501128e-07 2.02133285055e-05" />
+                    <geom name="right_hand_spine_visual" type="mesh" mesh="microspine_backplate" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <geom name="right_hand_spine_brackets_visual" type="mesh" mesh="microspine_brackets" pos="0 0 0" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <geom name="right_hand_spine_unit_0_0_visual" type="mesh" mesh="microspine_unit" pos="-0.041999977409 -0.0475000198375 0.0464841706642" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_0_0" pos="-0.041999977409 -0.0475000198375 0.0464841706642" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_0_1_visual" type="mesh" mesh="microspine_unit" pos="-0.013999977409 -0.0475000205411 0.0464841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_0_1" pos="-0.013999977409 -0.0475000205411 0.0464841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_0_2_visual" type="mesh" mesh="microspine_unit" pos="0.013999992591 -0.0475000212448 0.0464841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_0_2" pos="0.013999992591 -0.0475000212448 0.0464841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_0_3_visual" type="mesh" mesh="microspine_unit" pos="0.042000022591 -0.0475000219484 0.0464841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_0_3" pos="0.042000022591 -0.0475000219484 0.0464841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_1_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_1_0" pos="-0.0419999774091 -0.0475000377365 0.0779841906643" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_1_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_1_1" pos="-0.0139999774093 -0.0475000206054 0.0779841706644" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_1_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925907 -0.047500021309 0.0779841706646" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_1_2" pos="0.0139999925907 -0.047500021309 0.0779841706646" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_1_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225907 -0.0475000220127 0.0779841706648" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_1_3" pos="0.0420000225907 -0.0475000220127 0.0779841706648" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_2_0_visual" type="mesh" mesh="microspine_unit" pos="-0.0419999774095 -0.047500019966 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_2_0" pos="-0.0419999774095 -0.047500019966 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_2_1_visual" type="mesh" mesh="microspine_unit" pos="-0.0139999774095 -0.0475000206697 0.109484170664" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_2_1" pos="-0.0139999774095 -0.0475000206697 0.109484170664" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_2_2_visual" type="mesh" mesh="microspine_unit" pos="0.0139999925905 -0.0475000213733 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_2_2" pos="0.0139999925905 -0.0475000213733 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_unit_2_3_visual" type="mesh" mesh="microspine_unit" pos="0.0420000225905 -0.047500022077 0.109484170665" contype="0" conaffinity="0" density="0" group="1" rgba="0.615686 0.811765 0.929412 1" />
+                    <site name="right_hand_spine_unit_2_3" pos="0.0420000225905 -0.047500022077 0.109484170665" size="0.0015" group="4" rgba="1 0.55 0.1 1" />
+                    <geom name="right_hand_spine_collision" type="box" size="0.063000001089 0.00550000134732 0.0837499983674" pos="-1.13635172105e-08 -0.03249999231 0.0462495946292" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" />
+                    <site name="right_hand_spine_ball_center" pos="0 0 0" size="0.003" group="4" rgba="0.1 0.5 1 1" />
+                    <site name="right_hand_spine_contact_center" pos="1.50907449841e-08 -0.0475000224434 0.0779841723312" size="0.003" group="4" rgba="1 0.25 0.1 1" />
+                    <body name="right_hand_spine_c_0_0" pos="-0.041999977409 -0.039999970045 0.0464841706642">
+                      <geom name="right_hand_spine_c_0_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
-                    <body name="right_hand_spine_c_0_1" pos="0.04708 -0.012 0.171">
-                      <geom name="right_hand_spine_c_0_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                    <body name="right_hand_spine_c_0_1" pos="0.042000022591 -0.0399999721559 0.0464841706648">
+                      <geom name="right_hand_spine_c_0_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
-                    <body name="right_hand_spine_c_1_0" pos="-0.04892 -0.012 0.2456">
-                      <geom name="right_hand_spine_c_1_0" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                    <body name="right_hand_spine_c_1_0" pos="-0.0419999774095 -0.0399999701736 0.109484170664">
+                      <geom name="right_hand_spine_c_1_0" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
-                    <body name="right_hand_spine_c_1_1" pos="0.04708 -0.012 0.2456">
-                      <geom name="right_hand_spine_c_1_1" type="sphere" size="0.012" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0.0" mass="0.001"/>
+                    <body name="right_hand_spine_c_1_1" pos="0.0420000225905 -0.0399999722845 0.109484170665">
+                      <geom name="right_hand_spine_c_1_1" type="box" size="0.0139500041856 0.00750004979247 0.0125346092315" contype="1" conaffinity="1" condim="6" priority="1" friction="30.0 0.01 0.01" solref="0.02 1.5" solimp="0.9 0.99 0.001 0.5 2" rgba="0.9 0.7 0.5 0" mass="0" />
                     </body>
                   </body>
+                  <geom name="right_elbow_pitch_motor_collision" type="capsule" size="0.04" mass="0" density="0" group="3" rgba="0.25 0.55 0.85 0.25" fromto="0 0 -0.040 0 0 0" />
+                  <inertial pos="-0.00605225910751 -0.00656768604186 -0.0696943586226" mass="0.852092" fullinertia="0.00328171463108 0.00324102173713 0.000625452343277 3.93708492129e-05 0.000189490478474 0.000405293863771" />
                 </body>
-              
+
               </body>
-            
+
             </body>
-          
+
           </body>
-        
+
         </body>
-      
+
       </body>
-      
+
       <body name="imu_link" pos="0.0 0 0.0">
         <inertial pos="0 0 0" mass="0" diaginertia="0 0 0" />
         <geom class="visual" type="sphere" rgba="0.792157 0.819608 0.933333 1" size="0.02" />
         <site name="site_imu" pos="0.01 0 0" size='0.01 0.01 0.01' group="4"/>
       </body>  
-    
+
     </body>
   </worldbody>
 
