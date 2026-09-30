@@ -106,10 +106,7 @@ Output schema == gen_climb_clip.py plus:
                                     ``toe_list``/``foot_sites_list``)
 
 Validate:
-    python scripts/validate_climb_reference.py \
-      src/scr_phybot_mjab/assets/motions/climb_mount_prologue.npy
-    (ground-contact aware static audit; the acyclic timing audit engages
-    automatically via the foot_on_ground key)
+    python scripts/audit_mount_reference.py <clip.npy>
 """
 
 from __future__ import annotations
@@ -5204,9 +5201,8 @@ def generate_mount_clip(
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
-    "--output",
-    type=Path,
-    default=_REPO / "src/scr_phybot_mjab/assets/motions/climb_mount_prologue.npy",
+    "--output", type=Path, required=True,
+    help="Clip to write (the committed one is assets/motions/climb_mount_prologue_a80.npy).",
   )
   parser.add_argument("--fps", type=float, default=50.0)
   parser.add_argument(

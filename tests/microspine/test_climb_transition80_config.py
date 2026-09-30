@@ -1,7 +1,6 @@
 """Config contract of the 80-degree transition task (``tasks/climb_transition80``).
 
-A PARALLEL package built by mutating the climb builder's output, DECOUPLED
-from climb_transition. Promises asserted here: the real-robot PD table, the
+A package built by mutating the climb builder's output. Promises asserted here: the real-robot PD table, the
 explicit v2 observation contract (actor 238 / critic 419, dead climb lanes
 retired, BeyondMimic reference lanes, pad faces, wall face corners), the BeyondMimic-minimal
 reward table, the termination-first table with the engage cone in CaT
@@ -14,6 +13,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
+
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
 
 from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import (
   TRANSITION80_ACTOR_DIM,
@@ -35,12 +36,6 @@ from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import (
   adaptive_bin_probabilities,
   build_fk_tables,
   finite_difference_velocities,
-)
-from scr_phybot_mjab.tasks.climb_transition.config.phybot_c2.env_cfgs import (
-  phybot_c2_climb_transition_env_cfg,
-)
-from scr_phybot_mjab.tasks.climb_transition.mdp.motion import (
-  MountMotionCommandCfg,
 )
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
@@ -89,7 +84,6 @@ _NOISY_PROPRIO = (
 def test_transition80_observation_contract() -> None:
   """v2 (2026-08-21): the contract is written out in env_cfgs, not inherited."""
   cfg = phybot_c2_climb_transition80_env_cfg()
-  trans = phybot_c2_climb_transition_env_cfg()
   actor = cfg.observations["actor"]
   critic = cfg.observations["critic"]
   assert tuple(actor.terms) == TRANSITION80_ACTOR_TERMS
@@ -100,11 +94,8 @@ def test_transition80_observation_contract() -> None:
     assert name not in actor.terms and name not in critic.terms, name
   assert tuple(cfg.commands) == ("microspine_affordance", "climb_motion")
   assert "climb_velocity" not in cfg.commands
-  assert tuple(cfg.actions) == tuple(trans.actions)
-  assert (
-    cfg.actions["joint_pos"].actuator_names
-    == trans.actions["joint_pos"].actuator_names
-  )
+  assert tuple(cfg.actions) == ("joint_pos",)
+  assert tuple(cfg.actions["joint_pos"].actuator_names) == tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
   # The reference lanes read the motion command; the pad lanes the affordance.
   for name in TRANSITION80_ACTOR_TERMS[11:17]:
     assert actor.terms[name].params == {"command_name": "climb_motion"}, name
@@ -392,17 +383,6 @@ def test_sibling_packages_are_untouched() -> None:
   assert "engage_progress" not in climb.rewards
   assert "engage_constraint" not in climb.terminations
   assert "anchor_rip" not in climb.terminations
-  trans = phybot_c2_climb_transition_env_cfg()
-  assert type(trans.commands["climb_motion"]) is MountMotionCommandCfg
-  assert "engage_progress" not in trans.rewards
-  assert "motion_scheduled_press" in trans.rewards
-  assert "engage_constraint" not in trans.terminations
-  assert "spawn_bias_window" in trans.curriculum
-  assert (
-    trans.commands["microspine_affordance"].microspine_cfg.limit_surface
-    .seed_hold_judge_guard_steps
-    == 2
-  )
   from mjlab.tasks.registry import list_tasks
 
   assert "Mjlab-Climb-Mount80-Phybot-C2" not in list_tasks()
@@ -541,24 +521,6 @@ def test_pd_table_is_the_real_robot_firmware_table() -> None:
   assert climb["waist_yaw"] == (100.0, 10.0)
   custom = _gains(phybot_c2_climb_transition80_env_cfg(arm_pd=(75.0, 7.5), waist_pd=(50.0, 10.0)))
   assert custom[".*_elbow_pitch"] == (75.0, 7.5) and custom["waist_yaw"] == (50.0, 10.0)
-
-
-def test_package_is_decoupled_from_climb_transition() -> None:
-  """Static contract: no source file of the package imports climb_transition
-  (comments/docstrings may mention it by name)."""
-  import ast
-
-  root = Path(__file__).resolve().parents[2] / "src/scr_phybot_mjab/tasks/climb_transition80"
-  for path in sorted(root.rglob("*.py")):
-    tree = ast.parse(path.read_text())
-    for node in ast.walk(tree):
-      names = []
-      if isinstance(node, ast.Import):
-        names = [a.name for a in node.names]
-      elif isinstance(node, ast.ImportFrom) and node.module:
-        names = [node.module]
-      for name in names:
-        assert not name.startswith("scr_phybot_mjab.tasks.climb_transition.") and name != "scr_phybot_mjab.tasks.climb_transition", (path, name)
 
 
 def test_pose_kernels_carry_the_climb_mismatch_gate() -> None:

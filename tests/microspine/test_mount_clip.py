@@ -1,9 +1,8 @@
-"""Handoff contract of the mount prologue clip (gen_mount_clip.py).
+"""Handoff contract of the a80 mount prologue clip (gen_mount_clip.py).
 
-The standalone mount policy ends where the climb policy's world begins, so
-the committed prologue asset must land EXACTLY on the climb cycle's frame 0
-("climb zero" / hold_start) modulo a rigid vertical shift, with all four
-pads engaged and the loader machinery accepting the acyclic schema.
+The mount ends where the climb cycle begins: the committed prologue must land
+on the climb clip's frame 0 modulo a rigid vertical shift with all four pads
+engaged, and the motion loader must accept its acyclic schema.
 """
 
 from pathlib import Path
@@ -11,58 +10,26 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from scr_phybot_mjab.tasks.climb_transition.mdp.motion import (
-  rebuild_acyclic_schedule,
-)
+from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import rebuild_acyclic_schedule
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionClip
 
-_ASSETS = (
-  Path(__file__).resolve().parents[2]
-  / "src/scr_phybot_mjab/assets/motions"
-)
-_MOUNT = _ASSETS / "climb_mount_prologue.npy"
-_CYCLE = _ASSETS / "climb_cycle_moment_safe.npy"
-# The band-teacher clip family (gen_mount_clip --wall-angle-deg): NATIVE-a
-# clips stored DE-ROTATED to the canonical frame, so every structural
-# contract below (handoff == state-1 + dz*z, schedule shape, acyclic
-# tables) holds for every family member VERBATIM — the same assertions run
-# per clip.
-_MOUNT_FAMILY = sorted(_ASSETS.glob("climb_mount_prologue*.npy"))
-
-pytestmark = pytest.mark.skipif(
-  not (_MOUNT.exists() and _CYCLE.exists()),
-  reason="mount/cycle clip assets not generated",
-)
+_ASSETS = Path(__file__).resolve().parents[2] / "src/scr_phybot_mjab/assets/motions"
+_MOUNT = "climb_mount_prologue_a80.npy"
 
 
-@pytest.fixture(
-  scope="module",
-  params=[p.name for p in _MOUNT_FAMILY] or ["climb_mount_prologue.npy"],
-)
-def mount(request) -> dict:
-  data = np.load(_ASSETS / request.param, allow_pickle=True).item()
-  data["_file"] = request.param
-  return data
+@pytest.fixture(scope="module")
+def mount() -> dict:
+  return np.load(_ASSETS / _MOUNT, allow_pickle=True).item()
 
 
 @pytest.fixture(scope="module")
 def cycle(mount: dict) -> dict:
-  path = _ASSETS / mount.get("handoff_motion", _CYCLE.name)
-  return np.load(path, allow_pickle=True).item()
+  return np.load(_ASSETS / mount["handoff_motion"], allow_pickle=True).item()
 
 
 def test_mount_wall_angle_metadata(mount: dict) -> None:
-  """Native angle key matches the filename; canonical storage means the
-  frame data itself is angle-invariant (checked by the other tests)."""
-  name = mount["_file"]
-  angle = float(mount.get("wall_angle", 90.0))
-  if name == "climb_mount_prologue.npy":
-    assert angle == 90.0  # the shipped 90 clip predates the key or carries 90
-  else:
-    stem = name.removesuffix(".npy")
-    assert stem.startswith("climb_mount_prologue_a")
-    assert angle == float(stem.removeprefix("climb_mount_prologue_a"))
-    assert 0.0 < angle <= 90.0
+  """The clip is stored in the canonical frame; its native wall angle is metadata."""
+  assert float(mount["wall_angle"]) == 80.0
 
 
 def test_handoff_frame_matches_climb_state1(mount: dict, cycle: dict) -> None:
