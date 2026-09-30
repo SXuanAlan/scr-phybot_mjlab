@@ -46,7 +46,7 @@ class MicrospineLimitSurfaceCfg:
 
   In legacy modes, ``*_range`` fields are per-env uniform sampling bounds
   drawn at reset. Wedge ranges map 1:1 to bench pull-off tests
-  (scripts/fit_limit_surface.py); the wang2017 shape parameters are fit to
+  (fit script in tag archive/pre-cleanup-2026-09); the wang2017 shape parameters are fit to
   the paper's Fig 8 anchors (scripts/plot_wang_limit_surface.py).
   """
 

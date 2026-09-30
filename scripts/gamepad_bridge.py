@@ -2,8 +2,7 @@
 
 Left stick drives linear x/y velocity, right stick drives yaw rate. Shoulder
 buttons cycle the speed preset (slow / medium / fast; medium is the default).
-Mirrors scripts/spacemouse_bridge.py: this streams stick packets to the play
-process over TCP. ``scripts/play.py --gamepad`` starts it automatically for
+It streams stick packets to the play process over TCP. ``scripts/play.py --gamepad`` starts it automatically for
 same-machine play.
 
 Typical usage:

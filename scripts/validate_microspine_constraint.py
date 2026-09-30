@@ -6,9 +6,8 @@ Subcommands:
            sag, jitter, NaNs, or efc overflow.
   reference-hold
            GPU controller-settling stress test from sampled reference
-           snapshots. This is intentionally not a static feasibility proof;
-           use validate_climb_reference.py for the force-only equilibrium
-           audit. Releases during the artificial gravity ramp are settle
+           snapshots. This is intentionally not a static feasibility proof.
+           Releases during the artificial gravity ramp are settle
            transients: tolerated on <= 5% of frames (one anchor at most,
            stance stable on the rest). A release at held full gravity, any
            cascade, or a frame ending two anchors short always fails.

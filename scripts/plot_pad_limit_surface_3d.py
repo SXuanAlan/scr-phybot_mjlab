@@ -15,7 +15,7 @@ Three surfaces, each with the full rake-shear axis including its reverse
 The moment bodies are built by per-shear radial scans in the moment plane
 (the affine slice is not radial in the 6D wrench, so each cross-section is
 scanned for its first occ = 1 crossing). Measured release points from the
-rollout validation (``rollout_pad_wrench_surface.py`` cache) that lie in
+rollout validation cache (``fig_pad_limit_surface_validation.npz``) that lie in
 each slice are overlaid.
 
 Run inside the env_mjlab15 environment:

@@ -20,8 +20,8 @@ pure-moment capacities, force-moment interaction peaks), verifies the
 zero-moment collapse onto the aggregate surface F0*R, and renders the paper
 figure ``docs/figures/fig_pad_limit_surface.{svg,pdf,png}``.
 
-``scripts/rollout_pad_wrench_surface.py`` imports the theory/panel helpers
-here and overlays measured GPU-rollout release points on the same panels.
+The validation figure overlays measured GPU-rollout release points (cached
+in ``docs/figures/fig_pad_limit_surface_validation.npz``) on these panels.
 
 Conventions: engage frame (t = rake, down-wall; l = lateral; n = outward
 normal). m_l is the pitch/peel bending about l (loads rake-edge rows in

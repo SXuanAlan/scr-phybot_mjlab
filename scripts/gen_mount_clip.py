@@ -5130,8 +5130,7 @@ def generate_mount_clip(
   if com_margin_min[1] >= 0:
     print(
       f"  standing CoM support margin min {com_margin_min[0] * 1000.0:6.1f} mm "
-      f"@f{com_margin_min[1]} (pre-engage frames; statics audited properly by "
-      "validate_climb_reference.py)"
+      f"@f{com_margin_min[1]} (pre-engage frames)"
     )
   for seg_name_c, (dy_min, dx_max) in com_single.items():
     print(

@@ -23,7 +23,6 @@ Expected project tasks:
 - `Mjlab-Climb-Wall-Phybot-C2`
 - `Mjlab-Climb-Wall-Phybot-C2-Corners-A60`
 - `Mjlab-Climb-Wall-Phybot-C2-Corners-A80` (fixed-angle diagnostic variant)
-- `Mjlab-Microspine-Rizon4`
 - `Mjlab-Walk-Phybot-C2`
 - `Mjlab-Microspine-Brick-Phybot-C2` (dual-hand floor pickup, carry and placement;
   `-Hold`, `-Engage`, `-Place`, `-DR`, and `-NoGrip` variants)
@@ -36,14 +35,8 @@ deployment interface.
 ## Setup
 
 ```bash
-conda activate env_mjlab
+conda activate env_mjlab15
 pip install -e .
-```
-
-For 3Dconnexion SpaceMouse teleop:
-
-```bash
-pip install -e ".[teleop]"
 ```
 
 ## Common Commands
@@ -131,75 +124,6 @@ Play the walk task with zero actions:
 
 ```bash
 python scripts/play.py Mjlab-Walk-Phybot-C2 --agent zero --num-envs 1
-```
-
-Run the Rizon4 microspine Cartesian teleop task:
-
-```bash
-python scripts/teleop_rizon4_microspine.py --input spacemouse
-```
-
-Run the same task over SSH with Viser browser controls. When the remote process
-has no `DISPLAY`/`WAYLAND_DISPLAY`, `--viewer auto` also selects Viser:
-
-```bash
-ssh -L 8080:localhost:8080 <remote-host>
-python scripts/teleop_rizon4_microspine.py --viewer viser --input viser
-```
-
-Then open `http://localhost:8080`.
-
-If the 3Dconnexion SpaceMouse is plugged into the remote host, combine it with
-Viser display and browser controls:
-
-```bash
-python scripts/teleop_rizon4_microspine.py --viewer viser --input spacemouse --spacemouse-source hid
-```
-
-If the SpaceMouse is plugged into your local computer while MuJoCo runs on the
-remote host, forward it through SSH:
-
-```bash
-ssh -L 8080:localhost:8080 -L 8765:localhost:8765 <remote-host>
-```
-
-On the remote host:
-
-```bash
-python scripts/teleop_rizon4_microspine.py \
-  --viewer viser \
-  --input spacemouse \
-  --spacemouse-source bridge
-```
-
-On the local computer:
-
-```bash
-python scripts/spacemouse_bridge.py --host 127.0.0.1 --port 8765
-```
-
-If Linux sees the SpaceMouse in `lsusb` but `hidapi` cannot open it, add USB
-and hidraw udev rules and reconnect the device. The USB rule is needed when
-Python `hidapi` uses the libusb backend; the hidraw rule is needed when it uses
-the hidraw backend.
-
-```bash
-sudo groupadd -f plugdev
-sudo usermod -aG plugdev $USER
-cat <<'EOF' | sudo tee /etc/udev/rules.d/99-3dconnexion.rules
-SUBSYSTEM=="usb", ATTR{idVendor}=="256f", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-EOF
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-```
-
-Then unplug/replug the SpaceMouse and start a new login shell.
-
-Keyboard fallback:
-
-```bash
-python scripts/teleop_rizon4_microspine.py --input keyboard
 ```
 
 Play from a checkpoint:
@@ -345,7 +269,6 @@ src/scr_phybot_mjab/
     motions/           # Runtime motion clips and shared clip/initial-state paths.
     microspine/        # Packaged empirical unit distribution; no raw bench logs.
     phybot_c2/          # PHYBot C2 MJCF, meshes, actuator config.
-    rizon4/             # Flexiv Rizon4 URDF/meshes and microspine pad config.
     wall/               # Wall entity.
   microspine/
     config.py           # Microspine config and affordance command cfg.
@@ -361,7 +284,6 @@ src/scr_phybot_mjab/
     plotting.py         # Shared figure style/export helpers.
   tasks/
     climb_wall/         # C2 wall-climbing task.
-    microspine_rizon4/  # Rizon4 Cartesian-control microspine test task.
     walk/               # C2 walking task.
 ```
 
