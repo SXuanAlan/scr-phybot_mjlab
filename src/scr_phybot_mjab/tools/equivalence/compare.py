@@ -21,13 +21,15 @@ _MAX_DETAIL_LINES = 40
 # envs): quiet columns such as reward terms differ by ~1e-8 between same-code
 # runs, busy ones such as joint velocities by ~1e-3. A column's floor is the
 # 99.9% quantile of its same-code |difference|, which leaves out a rare
-# threshold flip. New code may exceed _FLOOR_MARGIN x floor in at most
-# _OUTLIER_SHARE of a column's entries (never fewer than _MIN_OUTLIERS).
+# threshold flip. A flip keeps an env off the baseline for the rest of its
+# reset segment, so new code may exceed _FLOOR_MARGIN x floor in up to
+# _MIN_OUTLIERS entries (one segment) or _OUTLIER_SHARE of the column,
+# whichever is larger. A real logic change moves far more entries.
 _NOISE_QUANTILE = 0.999
 _FLOOR_MARGIN = 10.0
 _EPS = 1e-7
-_OUTLIER_SHARE = 0.002
-_MIN_OUTLIERS = 1
+_OUTLIER_SHARE = 0.01
+_MIN_OUTLIERS = 5
 
 
 @dataclass(frozen=True)
