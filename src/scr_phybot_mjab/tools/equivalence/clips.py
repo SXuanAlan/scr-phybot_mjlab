@@ -59,14 +59,14 @@ def clip_jobs() -> list[ClipJob]:
 
 
 def recipe_args(clip: str, script: str) -> tuple[str, ...]:
-  """Generator arguments recorded in ``<clip>.recipe.txt``."""
+  """Generator arguments recorded in ``<clip>.recipe.txt``, minus its ``--output``."""
   for line in (MOTIONS_DIR / f"{clip}.recipe.txt").read_text().splitlines():
     tokens = shlex.split(line)
     if script in tokens:
-      args = tuple(tokens[tokens.index(script) + 1:])
+      args = list(tokens[tokens.index(script) + 1:])
       if "--output" in args:
-        raise ValueError(f"{clip} recipe must not pin --output")
-      return args
+        del args[args.index("--output"):args.index("--output") + 2]
+      return tuple(args)
   raise ValueError(f"No '{script}' command in the {clip} recipe")
 
 
