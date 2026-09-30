@@ -50,7 +50,7 @@ SPINE_BODY_NAMES = (
 # Consequences wired in the climb cfg: the weld goes rotationally RIGID
 # (anchor_torquescale 1.0) and angle-based release (tilt-peel) retires —
 # failure is unified onto the force/moment billing. The 07-31 objection to
-# a rigid weld (docs/microspine_tilt_calibration.md par.2: closed-chain PD
+# a rigid weld (docs/archive/microspine_tilt_calibration.md par.2: closed-chain PD
 # conflicts amplified into ~6 N*m parasitic weld moments) is resolved
 # mechanically: those conflicts now live inside the gimbal travel at
 # ~0.05 N*m of spring torque.

@@ -25,6 +25,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from scr_phybot_mjab.tools.paths import LIMIT_SURFACE_ANALYSIS_DIR  # noqa: E402
 from scr_phybot_mjab.tools.microspine.first_failure import (  # noqa: E402
     DetectorConfig, analyze_trial, cell_statistics, csv_rows, fit_surface,
     predict_surface, prepare_trace, sha256,
@@ -479,7 +480,7 @@ def main():
     parser.add_argument("--skip-audit-pdf", action="store_true", help="Skip the full per-trial review PDF during iteration")
     args = parser.parse_args()
     data = args.data.resolve()
-    out = (args.out or ROOT / "docs/empirical_climb_review/limit_surface" / data.name).resolve()
+    out = (args.out or LIMIT_SURFACE_ANALYSIS_DIR / data.name).resolve()
     if out == data or data in out.parents:
         raise ValueError("Analysis outputs must be outside the raw data directory")
     out.mkdir(parents=True, exist_ok=True)

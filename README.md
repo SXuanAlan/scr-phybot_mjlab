@@ -29,7 +29,7 @@ Expected project tasks:
   `-Hold`, `-Engage`, `-Place`, `-DR`, and `-NoGrip` variants)
 
 The brick task keeps both feet planted and uses a free rigid brick with
-body-relative microspine anchors. See [the brick task guide](docs/brick_task.md)
+body-relative microspine anchors. See [the brick task guide](docs/tasks/brick/README.md)
 for staged training, reference generation, evaluation, and the external-pose
 deployment interface.
 
@@ -288,7 +288,7 @@ scales and low-shear/lateral release shaping are retained. The mismatch gate
 applies to body position, body orientation and root orientation. There is no
 explicit survival reward. Legacy Wang transition rewards are unchanged.
 
-See the [reward/reset review and verification results](docs/empirical_climb_review/beyondmimic_2026-09-07/README.md)
+See the [reward/reset review and verification results](docs/reports/empirical_climb/beyondmimic_2026-09-07/README.md)
 before training. Reset/reward/termination integration passes GPU checks, but
 reference-position PD still loses grips rapidly and has not demonstrated a
 successful climb or regrip. The reference contains kinematics, not force or
@@ -367,7 +367,8 @@ src/scr_phybot_mjab/
     walk/               # C2 walking task.
 ```
 
-Raw microspine trials live in `data/microspine/raw/`; fitting reports and
-calibration/baseline tables live in `docs/empirical_climb_review/limit_surface/`.
-See [the empirical climbing code layout](docs/empirical_climb_review/code_layout.md)
+Raw microspine trials live in `data/microspine/raw/` (not in git); the fit
+report and calibration/baseline tables live in `data/microspine/empirical_unit_v1/`;
+generated analyses go to the ignored `artifacts/`.
+See [the empirical climbing code layout](docs/reports/empirical_climb/code_layout.md)
 for active resource paths, shared computations, and regeneration commands.

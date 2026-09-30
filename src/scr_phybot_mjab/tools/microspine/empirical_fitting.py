@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
 from scr_phybot_mjab.microspine.empirical_limit_surface import DEFAULT_TABLE, EmpiricalLimitSurface
-from scr_phybot_mjab.tools.paths import DEFAULT_UNIT_TRIALS, LIMIT_SURFACE_ANALYSIS_DIR
+from scr_phybot_mjab.tools.paths import DEFAULT_UNIT_TRIALS, EMPIRICAL_UNIT_DIR
 
 EARLY = {"detached_drag", "detached_lateral"}
 
@@ -193,7 +193,7 @@ def holdout_report(rows, table):
 
 
 def build_empirical_model(data_path=DEFAULT_UNIT_TRIALS, output=DEFAULT_TABLE,
-                          analysis_dir=LIMIT_SURFACE_ANALYSIS_DIR):
+                          analysis_dir=EMPIRICAL_UNIT_DIR):
   """Write one runtime table; keep calibration, baseline and reports in analysis_dir."""
   data_path, output, analysis_dir = Path(data_path), Path(output), Path(analysis_dir)
   analysis_dir.mkdir(parents=True, exist_ok=True)

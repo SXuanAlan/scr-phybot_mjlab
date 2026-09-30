@@ -10,7 +10,7 @@ metrics, curriculum) lives in ``climb_wall_env_cfg.py``; reusable machinery
 (stage tables, curriculum pin, obs-group builders) in ``mdp``; this file binds
 the PHYBot C2 robot — microspine pad physics, stance, PD table, sensors, DR —
 and owns the reward table. Each ``(notes: <key>)`` pointer references the full
-campaign narrative in docs/climb_env_cfg_notes.md.
+campaign narrative in docs/archive/climb_env_cfg_notes.md.
 
 C2-specific notes:
   * 4 grip end-effectors: left/right hand_spine + left/right foot_spine.
@@ -206,7 +206,7 @@ def phybot_c2_climb_wall_env_cfg(
     # wrist ball joint, so the weld is honestly RIGID — a latched pad does
     # not move relative to the wall. The 07-31 objection to rigid rotation
     # rows (closed-chain PD conflicts billed as ~6 N*m parasitic moments,
-    # docs/microspine_tilt_calibration.md par.2) is resolved mechanically:
+    # docs/archive/microspine_tilt_calibration.md par.2) is resolved mechanically:
     # within the +-3 deg free travel only spring torque is transmitted.
     # At the stops, structural reaction also enters the weld moment. The
     # new reference uses the lower x stop; its PLA strength is unmeasured.

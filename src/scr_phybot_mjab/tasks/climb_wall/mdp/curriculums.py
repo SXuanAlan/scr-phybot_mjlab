@@ -151,7 +151,7 @@ def resolve_wall_angle(current_iter: int, angle_stages: list[WallAngleStage]) ->
 # gate) and are CEILINGS driven by mastery gates; every angle hop overlaps
 # its neighbor's jitter pool, and the tilt anneal reaches the calibrated
 # physics (3000) before the wall gets steep (3300+). Full doctrine + design
-# rules: docs/climb_env_cfg_notes.md ("Curriculum").
+# rules: docs/archive/climb_env_cfg_notes.md ("Curriculum").
 # 2026-08-10 six-stage extension: the 80+-5 rung is inserted for the
 # band-teacher matrix (deploy bands 80+-5 / 88+-2 / 90 each get a minted
 # teacher at its rung's end — the per-band mount+climb pipeline in

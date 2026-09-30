@@ -392,7 +392,7 @@ def student_observation_group(
   clock pause). Deliberately absent: base_lin_vel / height_above_spawn (no
   estimator on the robot), the microspine latch state (no engagement
   sensing), the constant velocity_command, and prev/prev_prev_action (the
-  history covers them). Full design narrative: docs/climb_env_cfg_notes.md
+  history covers them). Full design narrative: docs/archive/climb_env_cfg_notes.md
   ("student group").
   """
   student_terms = {

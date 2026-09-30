@@ -11,7 +11,7 @@ The three storage roles are separate:
 | --- | --- |
 | Original observations | `data/microspine/raw/` |
 | Packaged runtime distribution | `src/scr_phybot_mjab/assets/microspine/empirical_unit_v1.npz` |
-| Fitting report and calibration/baseline tables | `docs/empirical_climb_review/limit_surface/` |
+| Fitting report and calibration/baseline tables | `data/microspine/empirical_unit_v1/` |
 
 Run `scripts/build_empirical_limit_surface.py` to rebuild. Its `--data`,
 `--output`, and `--analysis-dir` arguments select these three destinations
@@ -19,7 +19,7 @@ independently. Runtime tasks only read the packaged distribution table.
 Calibration and raw-cell baseline tables are analysis artifacts, not inputs
 to the active climbing task. The report records the raw summary's SHA256.
 
-See [the code layout](../../docs/empirical_climb_review/code_layout.md) for
+See [the code layout](../../docs/reports/empirical_climb/code_layout.md) for
 shared geometry, mechanics, reference-generation tools and the import flow.
 
 `raw/20260922-163807/` contains the newer 231-trial, 3 N preload experiment,
@@ -30,7 +30,7 @@ across drag, lateral and normal loading with:
 python scripts/analyze_microspine_first_failure.py --data data/microspine/raw/20260922-163807
 ```
 
-The [first-failure report](../../docs/empirical_climb_review/limit_surface/20260922-163807/README.md)
+The first-failure report (generated locally into the ignored `artifacts/limit_surface/20260922-163807/README.md`)
 contains classification and surface figures, per-trial event tables, threshold
 sensitivity flags and all-trial review plots. It uses force and TCP pose to
 estimate the first event before any re-engagement, while retaining the robot's

@@ -1,7 +1,7 @@
 # 参考合成流水线（服务 motion tracking RL）：契约 → 逐帧字典序 IK → 整段运动学优化 → 出生稳定性门 → 参考族 → MotionGraphCommand
 
 > 状态：计划书待审（2026-09-04）；代码未动。
-> 关系：接续 [`2026-08-11_band_matrix_pipeline_plan.md`](2026-08-11_band_matrix_pipeline_plan.md) 的 L-B 层（分角度 mount clip），把"参考从哪来"升级为一个独立、可发表的方法；论文方法节草稿见 `docs/reference_synthesis_method.tex`（Sec 4.1-4.5 为本计划步骤二、三的目标形式）。
+> 关系：接续 [`2026-08-11_band_matrix_pipeline_plan.md`](../archive/plans/2026-08-11_band_matrix_pipeline_plan.md) 的 L-B 层（分角度 mount clip），把"参考从哪来"升级为一个独立、可发表的方法；论文方法节草稿见 `docs/reference_synthesis_method.tex`（Sec 4.1-4.5 为本计划步骤二、三的目标形式）。
 > 已定决策（用户 09-04 拍板）：
 > 1. **优化阶段不建模接触。** 接触只以运动学事实进优化器：焊接位姿等式、万向节有界变量、关节硬带、rake 帧路径等式、闭合/交接等式、墙面净空。力学（Wang 包络、招募斜坡、摩擦锥、力矩限）只出现在证书里。
 > 2. **参考族 = motion graph。** 节点 = 共享状态（交接状态、各档 cycle 第 0 帧），边 = 过证书的参考。"符合数据集"定义为图上任意路径加有界减速；**否决逐帧最近邻打分**（拼接怪物 / 停滞雕像 / 时刻表失真）。
@@ -23,7 +23,7 @@
 | 万向节在 IK 里锁死 | `sel_all` 不含 `*_gimbal_*`，a80 v6g recipe 未开 `--weld-gimbal-deg` | gen_climb_clip / a80 recipe |
 | 段边界加速度尖峰 | 基座 |a| 中位 0.017 g、p95 0.11 g、4/224 帧 >0.2 g（均在 left_foot_swing 内） | paced clip 差分 |
 | 闭合靠尾部混合 | 末 40% 帧线性混合到 state1+h | gen_climb_clip `closure` |
-| 时长手调、单 clip | paced 三版血统靠人试 | docs/climb_env_cfg_notes.md |
+| 时长手调、单 clip | paced 三版血统靠人试 | docs/archive/climb_env_cfg_notes.md |
 
 **环境**：`qpsolvers 4.11`（`proxqp 0.7.2` 稀疏/稠密后端、`daqp` 可用；`osqp` 无）、`mink` 可用、`scipy 1.17`、`xelatex` 可用；`cma` **未装**。
 **实机限值**：`PHYBOT_C2_DEPLOY_TORQUE_LIMITS` 存在；**没有关节限速常量**（步骤三需补）。
