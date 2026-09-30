@@ -1179,7 +1179,7 @@ def torque_headroom_penalty(
   torque = asset.data.actuator_force
   limits = getattr(asset, "_torque_headroom_limits", None)
   if limits is None or limits.shape[0] != torque.shape[1]:
-    # Same model-level readout engage_raster.py uses for its torque lanes.
+    # Model-level actuator force ranges.
     fr = torch.as_tensor(env.sim.model.actuator_forcerange)
     if fr.ndim == 3:
       fr = fr[0]

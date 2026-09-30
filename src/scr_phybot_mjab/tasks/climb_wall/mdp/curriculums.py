@@ -213,35 +213,11 @@ def pin_curricula_to_final_stage(cfg: ManagerBasedRlEnvCfg) -> None:
   tilt-peel band (the annealing ladder is a training aid, not physics).
   The pinned stage carries no ``jitter_deg``, and with the terminal rung at
   90 the sampler is jitter-exempt anyway (``jitter_below_deg``), so pinned
-  runs execute a HARD single angle — for a band-jittered pinned run use
-  :func:`pin_curricula_to_band` instead.
+  runs execute a HARD single angle.
   """
   final_angle = cfg.curriculum["wall_angle"].params["angle_stages"][-1]
   cfg.curriculum["wall_angle"].params["angle_stages"] = [
     {"iter": 0, "angle_deg": final_angle["angle_deg"]}
-  ]
-  # Gimbal-era cfgs carry no tilt-peel ladder (angle release retired).
-  if "tilt_peel" in cfg.curriculum:
-    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
-    cfg.curriculum["tilt_peel"].params["stages"] = [
-      {"iter": 0, "deg_range": final_tilt["deg_range"]}
-    ]
-
-
-def pin_curricula_to_band(
-  cfg: ManagerBasedRlEnvCfg, angle_deg: float, jitter_deg: float
-) -> None:
-  """Pin the ladder to a single BAND stage — jitter preserved.
-
-  The per-band knob of the band-teacher matrix: soak/distill/eval runs that
-  must live inside one deploy band (80+-5, 88+-2) rather than at a hard
-  angle. Writes one stage carrying the band half-width and pins tilt-peel
-  to the calibrated physics, exactly like the final-stage pin. Note the
-  sampler clamps nothing at 90: a band like 88+-2 legitimately samples up
-  to 90, and a base at/above ``jitter_below_deg`` (default 90) stays exact.
-  """
-  cfg.curriculum["wall_angle"].params["angle_stages"] = [
-    {"iter": 0, "angle_deg": angle_deg, "jitter_deg": jitter_deg}
   ]
   # Gimbal-era cfgs carry no tilt-peel ladder (angle release retired).
   if "tilt_peel" in cfg.curriculum:

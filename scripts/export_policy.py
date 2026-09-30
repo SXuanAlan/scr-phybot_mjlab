@@ -70,10 +70,7 @@ def run_export(task_id: str, cfg: ExportConfig):
   env_cfg = load_env_cfg(task_id, play=True)
   agent_cfg = load_rl_cfg(task_id)
   env_cfg.scene.num_envs = 1
-  # Distillation runs export the student; everything else exports the actor.
-  # Loading a distillation checkpoint with {"actor": True} would be a SILENT
-  # no-op (random student weights), hence the cfg-driven key.
-  policy_set = "student" if hasattr(agent_cfg, "student") else "actor"
+  policy_set = "actor"
   obs_group = agent_cfg.obs_groups[policy_set][0]
   env_cfg.observations[obs_group].enable_corruption = False
 

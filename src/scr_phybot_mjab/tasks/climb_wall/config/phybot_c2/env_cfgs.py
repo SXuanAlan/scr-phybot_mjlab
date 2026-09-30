@@ -112,7 +112,6 @@ def _policy_joint_cfg() -> SceneEntityCfg:
 def phybot_c2_climb_wall_env_cfg(
   play: bool = False,
   domain_rand: bool = True,
-  student_obs: bool = False,
   robustness_release: bool = False,
   contact_model: str = "empirical_unit",
   unit_layout: str | None = None,
@@ -127,9 +126,6 @@ def phybot_c2_climb_wall_env_cfg(
     play: evaluation mode (single env, pinned curriculum, no corruption).
     domain_rand: s2r hardening — obs noise, encoder bias, friction/mass DR,
       random forced-release events (walk/squat parity minus push_robot).
-    student_obs: add the deployable "student" observation group (distillation
-      target). Off for plain PPO variants: the extra 850-dim group costs
-      ~1.3 GB of rollout storage at 4096 envs.
     robustness_release: inject random unscheduled latch releases. A FINAL
       stage on a policy that already masters exact-90 — see the block that
       installs it for why it is not part of the base DR package.
@@ -956,18 +952,6 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.observations["actor"], command_name=MICROSPINE_AFFORDANCE_COMMAND
   )
 
-  if student_obs:
-    # Deployable student contract: hardware-measurable terms only, 89 dims x
-    # 50-frame history = 4450, APPEND-ONLY layout (C++ packer offsets) — see
-    # mdp.student_observation_group. (notes: student group design)
-    cfg.observations["student"] = mdp.student_observation_group(
-      policy_joint_cfg=_policy_joint_cfg(),
-      motion_command_name=MOTION_COMMAND,
-      affordance_command_name=MICROSPINE_AFFORDANCE_COMMAND,
-      gyro_sensor_name="robot/baselink-gyro",
-      quat_sensor_name="robot/baselink-quat",
-    )
-
   if play:
     ##
     # Play overrides — deterministic single-env evaluation on the final task.
@@ -978,8 +962,6 @@ def phybot_c2_climb_wall_env_cfg(
     cfg.scene.num_envs = 1
     cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
-    if "student" in cfg.observations:
-      cfg.observations["student"].enable_corruption = False
     # Deterministic physics probes: drop the DR events entirely (neutral
     # ranges would still overwrite XML frictions under operation="abs").
     for dr_event in ("encoder_bias", "body_friction", "base_mass", "random_release"):
@@ -1034,51 +1016,4 @@ def phybot_c2_climb_wall_corners80_env_cfg(play: bool = False) -> ManagerBasedRl
   from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS80_MOTION
   cfg = phybot_c2_climb_wall_env_cfg(play=play,unit_layout="corners",wall_angle_deg=80.)
   cfg.commands[MOTION_COMMAND].motion_file = str(CAD_CLIMB_CORNERS80_MOTION)
-  return cfg
-
-
-def phybot_c2_climb_wall_distill_env_cfg(
-  play: bool = False,
-) -> ManagerBasedRlEnvCfg:
-  """Distillation variant: the climb task plus the student observation group.
-
-  The teacher (loaded from a climb PPO checkpoint) reads the actor group, so
-  its corruption is switched off — labels come from clean privileged state;
-  the student group keeps noise + history. The wall-angle curriculum is
-  pinned to the ladder's final angle — a HARD angle: the pinned stage
-  carries no jitter and the terminal 90 is sampler-exempt anyway
-  (``jitter_below_deg``). For band-jittered distill rollouts (a band
-  teacher's neighborhood), re-pin with ``mdp.pin_curricula_to_band``.
-  """
-  cfg = phybot_c2_climb_wall_env_cfg(
-    play=play, student_obs=True, robustness_release=False
-  )
-  # No release drills: DAgger/estimator rollouts want the undisturbed
-  # schedule — drills add student label variance and, in RL settings,
-  # subsidize welding (the polish-v1 post-mortem). (notes: distill no-drill)
-  cfg.observations["actor"].enable_corruption = False
-  if not play:
-    mdp.pin_curricula_to_final_stage(cfg)
-  return cfg
-
-
-def phybot_c2_climb_wall_polish_env_cfg(
-  play: bool = False,
-) -> ManagerBasedRlEnvCfg:
-  """Phase-3 RL polish: PPO with the STUDENT group as the actor input.
-
-  BC-init + RL polish breaks the distillation ceiling: the distilled student
-  only imitates states its all-knowing teacher visits, so active information
-  gathering (probe-loading a pad before committing) can only emerge here,
-  where the acting policy pays for its own engage-state uncertainty. Same
-  pinned curricula as the distill variant; unlike it the actor group's
-  corruption is NOT disabled — there is no teacher reading it, and the
-  acting (student) group carries its own noise regardless. The runner cfg
-  points obs_groups at {"actor": ("student",), "critic": ("critic",)}.
-  """
-  cfg = phybot_c2_climb_wall_env_cfg(
-    play=play, student_obs=True, robustness_release=False
-  )
-  if not play:
-    mdp.pin_curricula_to_final_stage(cfg)
   return cfg

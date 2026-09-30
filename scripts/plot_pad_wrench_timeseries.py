@@ -88,7 +88,7 @@ def parse_args() -> argparse.Namespace:
       "override the tilt-peel release band 'lo,hi' [deg] (legacy rigid-pad "
       "plant only; '0,0' disables). Play pins the FINAL ladder stage "
       "(3.5-4.5 deg), which a low-angle-era checkpoint never trained under "
-      "(stage 0 is 12-15 deg) — same semantics as engage_raster tiltband=."
+      "(stage 0 is 12-15 deg)."
     ),
   )
   p.add_argument(

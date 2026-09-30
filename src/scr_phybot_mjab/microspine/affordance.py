@@ -839,7 +839,7 @@ class MicrospineAffordance(CommandTerm):
       # the equal-stiffness distribution is uniform and the per-unit test
       # collapses to the aggregate radial test, so the aggregate margin IS
       # the moment-free per-unit margin. Same moment-tax semantics as the
-      # worst_edge path (engage_raster diagnostics).
+      # worst_edge path (diagnostics).
       margin_raw = self._wang_margin(f_t, f_l, f_n)
     elif self._wang_lut is not None:
       self.anchor_effective_load_tnl = torch.stack(
@@ -850,7 +850,7 @@ class MicrospineAffordance(CommandTerm):
       )
       # Force-only margin (moment billing excluded): the gap to the billed
       # margin is the moment tax, and a release with margin_raw > 0 was
-      # caused by the moment fold alone. Diagnostics (engage_raster) only.
+      # caused by the moment fold alone. Diagnostics only.
       margin_raw = self._wang_margin(f_t, f_l, f_n)
     else:
       self.anchor_effective_load_tnl = torch.stack(

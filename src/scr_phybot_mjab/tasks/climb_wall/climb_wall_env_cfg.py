@@ -23,9 +23,9 @@ from scr_phybot_mjab.tasks.climb_wall import mdp
 
 ##
 # Manager-key names — single source of truth, shared by this base factory,
-# the robot configs, and climb_transition. FROZEN: the keys are public API
-# (tyro CLI paths, params/env.yaml, wandb names, phi_meta.json, and scripts
-# hard-code them — engage_raster / priv_ablate / export_policy / play).
+# the robot configs and climb_transition80. FROZEN: the keys are public API
+# (tyro CLI paths, params/env.yaml, wandb names, and scripts such as
+# export_policy / play hard-code them).
 ##
 
 VELOCITY_COMMAND = "climb_velocity"

@@ -1,16 +1,9 @@
 """RL configuration for PHYBot C2 wall-climbing task."""
 
-import dataclasses
-
 from mjlab.rl import (
   RslRlModelCfg,
   RslRlOnPolicyRunnerCfg,
   RslRlPpoAlgorithmCfg,
-)
-
-from scr_phybot_mjab.rl import (
-  RslRlDistillationAlgorithmCfg,
-  RslRlDistillationRunnerCfg,
 )
 
 
@@ -77,82 +70,4 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
     # credit across four 24-step fragments.
     num_steps_per_env=96,
     max_iterations=12_000,
-  )
-
-
-def phybot_c2_distill_runner_cfg() -> RslRlDistillationRunnerCfg:
-  """Distill the privileged DeployPd teacher into the deployable student.
-
-  The teacher model cfg must equal the teacher run's actor cfg
-  field-for-field: ``actor_state_dict`` (normalizer statistics and
-  ``distribution.std_param`` included) is loaded strict. Its init_std value
-  is irrelevant — the checkpoint overwrites it.
-  """
-  teacher = dataclasses.replace(phybot_c2_ppo_runner_cfg().actor)
-  return RslRlDistillationRunnerCfg(
-    student=RslRlModelCfg(
-      hidden_dims=(256, 128, 64),
-      activation="elu",
-      obs_normalization=True,
-      distribution_cfg={
-        # Under the MSE-on-mean distillation loss the std parameter receives
-        # no gradient and stays at init forever; its only role is DAgger
-        # rollout exploration. Match the teacher's CONVERGED std (healthy
-        # runs settle at 0.2-0.5, see the PPO cfg note above) — the PPO
-        # init 0.6 is wider than convergence and drags rollouts away from
-        # states the teacher can demonstrate on.
-        "class_name": "GaussianDistribution",
-        "init_std": 0.3,
-        "std_type": "scalar",
-      },
-    ),
-    teacher=teacher,
-    obs_groups={"student": ("student",), "teacher": ("actor",)},
-    algorithm=RslRlDistillationAlgorithmCfg(
-      num_learning_epochs=1,
-      gradient_length=15,
-      learning_rate=1.0e-3,
-      max_grad_norm=1.0,
-      loss_type="mse",
-    ),
-    experiment_name="phybot_c2_climb_wall_distill",
-    logger="wandb",
-    wandb_project="scr_phybot_mjab-climb-wall",
-    wandb_tags=("phybot_c2", "distill"),
-    save_interval=25,
-    num_steps_per_env=96,
-    max_iterations=3_000,
-  )
-
-
-def phybot_c2_ppo_polish_runner_cfg() -> RslRlOnPolicyRunnerCfg:
-  """Phase-3 polish: PPO whose ACTOR reads the student observation group.
-
-  rsl_rl decouples obs-set names from env group names, so pointing the
-  "actor" set at the ("student",) group is the whole wiring — the model's
-  input width follows the group automatically. The actor model cfg must
-  equal the distillation student cfg field-for-field so the distilled
-  ``student_state_dict`` loads strict (scripts/train_polish.py); the critic
-  cfg is unchanged so the teacher PPO checkpoint's 170-dim critic seeds it
-  strict. init_std here is documentation only — the loaded
-  ``distribution.std_param`` (0.3, the distill value) wins; overwrite that
-  tensor explicitly to widen exploration, not this field.
-  """
-  base = phybot_c2_ppo_runner_cfg()
-  distill_student = phybot_c2_distill_runner_cfg().student
-  return dataclasses.replace(
-    base,
-    actor=dataclasses.replace(distill_student),
-    obs_groups={"actor": ("student",), "critic": ("critic",)},
-    algorithm=dataclasses.replace(
-      base.algorithm,
-      # A BC-initialized actor trips the adaptive-KL controller (it shrinks
-      # LR against the loaded policy's own rollouts); fix the schedule low
-      # instead and let the polish run be short.
-      learning_rate=1.0e-4,
-      schedule="fixed",
-    ),
-    experiment_name="phybot_c2_climb_wall_polish",
-    wandb_tags=("phybot_c2", "polish"),
-    max_iterations=1_000,
   )

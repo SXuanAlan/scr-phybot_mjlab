@@ -1,4 +1,4 @@
-"""Contracts for the deploy-PD / DR / distillation variants (2026-08-01)."""
+"""Contracts for the deploy PD gains, the s2r DR package and forced releases."""
 
 from types import SimpleNamespace
 
@@ -10,12 +10,7 @@ from scr_phybot_mjab.microspine.affordance import (
   MicrospineAffordance,
 )
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
-  phybot_c2_climb_wall_distill_env_cfg,
   phybot_c2_climb_wall_env_cfg,
-)
-from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
-  phybot_c2_distill_runner_cfg,
-  phybot_c2_ppo_runner_cfg,
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.events import random_microspine_release
 
@@ -105,57 +100,6 @@ def test_release_drill_requires_explicit_opt_in():
   assert "random_release" not in fresh.events
   play = phybot_c2_climb_wall_env_cfg(play=True)
   assert "random_release" not in play.events
-
-
-def test_student_group_contract():
-  cfg = phybot_c2_climb_wall_distill_env_cfg(play=False)
-  student = cfg.observations["student"]
-  # Deployable terms only, in the exported (C++) order. pad_normal_force
-  # (2026-08-03) is APPEND-ONLY at the tail: inserting mid-list shifts every
-  # downstream block of the exported offset table.
-  assert list(student.terms.keys()) == [
-    "base_ang_vel",
-    "projected_gravity",
-    "joint_pos_rel",
-    "joint_vel_rel",
-    "last_action",
-    "motion_command",
-    "pad_normal_force",
-  ]
-  assert student.history_length == 50  # 1.0 s: spans the 0.6 s cooldown
-  assert student.enable_corruption is True
-  # 89 dims/frame x 50 frames = 4450 — the C++ packer contract.
-  pad = student.terms["pad_normal_force"]
-  assert pad.scale == 0.01 and pad.clip == (0.0, 200.0)
-  assert (pad.delay_min_lag, pad.delay_max_lag) == (1, 2)
-  # Clean teacher labels; the physical DR stays on.
-  assert cfg.observations["actor"].enable_corruption is False
-  for name in _DR_EVENTS:
-    assert name in cfg.events
-  # Curricula pinned to single stages (teacher-graduated difficulty).
-  assert len(cfg.curriculum["wall_angle"].params["angle_stages"]) == 1
-  if "tilt_peel" in cfg.curriculum:  # absent on the gimbal-era plant
-    assert len(cfg.curriculum["tilt_peel"].params["stages"]) == 1
-  play = phybot_c2_climb_wall_distill_env_cfg(play=True)
-  assert play.observations["student"].enable_corruption is False
-
-
-def test_distill_runner_cfg_contract():
-  distill = phybot_c2_distill_runner_cfg()
-  ppo = phybot_c2_ppo_runner_cfg()
-  # The teacher model cfg must equal the teacher run's actor cfg: the ckpt's
-  # actor_state_dict (normalizer + std_param included) is loaded strict.
-  assert distill.teacher == ppo.actor
-  assert distill.obs_groups == {"student": ("student",), "teacher": ("actor",)}
-  assert distill.algorithm.class_name == "Distillation"
-  assert distill.teacher_checkpoint is None
-  # Rollout exploration std: teacher-converged scale, not the PPO birth 0.6.
-  assert distill.student.distribution_cfg["init_std"] == 0.3
-  assert distill.student.obs_normalization is True
-  # The scripts' policy-set discriminator: distillation cfgs expose `student`,
-  # PPO cfgs must not — {"actor": True} on a distill ckpt is a silent no-op.
-  assert hasattr(distill, "student")
-  assert not hasattr(ppo, "student")
 
 
 def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):

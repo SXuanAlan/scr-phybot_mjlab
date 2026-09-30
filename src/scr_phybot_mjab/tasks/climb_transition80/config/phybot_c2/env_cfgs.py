@@ -630,7 +630,6 @@ def transition80_observation_groups(
 def phybot_c2_climb_transition80_env_cfg(
   play: bool = False,
   domain_rand: bool = True,
-  student_obs: bool = False,
   wall_angle_deg: float = TRANSITION80_WALL_ANGLE_DEG,
   constraint_mode: str = "cat",
   relative_frame: str = "world",
@@ -646,8 +645,6 @@ def phybot_c2_climb_transition80_env_cfg(
       constraint cone off, curricula pinned).
     domain_rand: the climb s2r DR package (obs noise, encoder bias,
       friction/mass) — climb parity.
-    student_obs: not supported (no transition80 student contract exists;
-      the v2 actor contract IS the deployable one) — raises.
     wall_angle_deg: wall slope from horizontal; the clip asset must be the
       matching native-angle prologue (``climb_mount_prologue_a<deg>``).
     constraint_mode: engage cone mode, ``"cat"`` (soft) | ``"hard"``.
@@ -660,13 +657,10 @@ def phybot_c2_climb_transition80_env_cfg(
   """
   if constraint_mode not in ("cat", "hard"):
     raise ValueError("constraint_mode must be 'cat' or 'hard'.")
-  if student_obs:
-    raise ValueError("transition80 has no student observation contract.")
   cfg = phybot_c2_climb_wall_env_cfg(
     contact_model="wang2017",  # preserve the separate legacy spring-field recipe
     play=play,
     domain_rand=domain_rand,
-    student_obs=student_obs,
     robustness_release=False,
   )
 

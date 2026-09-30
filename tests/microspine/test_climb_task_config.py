@@ -502,22 +502,6 @@ def test_climb_curriculum_retrains_from_scratch():
     play_tilt = play_cfg.curriculum["tilt_peel"].params["stages"]
     assert play_tilt[-1]["deg_range"] == (3.5, 4.5)
 
-  # Band pin (band-teacher matrix knob): one stage, jitter PRESERVED —
-  # unlike the final-stage pin, which runs a hard angle.
-  from scr_phybot_mjab.tasks.climb_wall import mdp as climb_mdp
-
-  band_cfg = phybot_c2_climb_wall_env_cfg(play=False)
-  climb_mdp.pin_curricula_to_band(band_cfg, 80.0, 5.0)
-  assert band_cfg.curriculum["wall_angle"].params["angle_stages"] == [
-    {"iter": 0, "angle_deg": 80.0, "jitter_deg": 5.0}
-  ]
-  if PHYBOT_C2_PAD_GIMBAL:
-    assert "tilt_peel" not in band_cfg.curriculum
-  else:
-    assert band_cfg.curriculum["tilt_peel"].params["stages"] == [
-      {"iter": 0, "deg_range": (3.5, 4.5)}
-    ]
-
 
 def test_climb_action_contract_is_bounded_in_target_space_only():
   cfg = phybot_c2_climb_wall_env_cfg(play=False)

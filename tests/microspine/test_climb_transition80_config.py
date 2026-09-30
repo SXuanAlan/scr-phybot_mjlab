@@ -129,8 +129,6 @@ def test_transition80_obs_noise_and_critic_copies() -> None:
   play = phybot_c2_climb_transition80_env_cfg(play=True)
   assert play.observations["actor"].enable_corruption is False
   assert tuple(play.observations["actor"].terms) == TRANSITION80_ACTOR_TERMS
-  with pytest.raises(ValueError):
-    phybot_c2_climb_transition80_env_cfg(student_obs=True)
 
 
 def test_wall_face_corner_constants_match_the_asset() -> None:
