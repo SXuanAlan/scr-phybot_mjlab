@@ -9,7 +9,7 @@ one world-frame force at the center of each scheduled engaged pad such that:
 * every engaged-pad force stays inside the Wang-2017 limit surface at
   ``--f0``;
 * a scheduled-off pad whose face is physically on the wall (the pre-engage
-  rake) may provide normal compression only, and a scheduled-off FOOT whose
+  rake) may press the wall inside a Coulomb cone, and a scheduled-off FOOT whose
   bracing toe (``PHYBOT_C2_FOOT_TOES``) is on the wall may push through that
   toe — no adhesion, no shear, and no moment in either case;
 * a foot the clip schedules as a FLOOR support (mount prologue clips carry a
@@ -61,10 +61,12 @@ from scr_phybot_mjab.microspine.config import MicrospineLimitSurfaceCfg
 from scr_phybot_mjab.microspine.contact import (
   ToeContact,
   add_toe_geoms,
-  sphere_names,
   toe_site_name,
 )
 from scr_phybot_mjab.microspine.wang_limit_surface import build_capacity_lut
+from scr_phybot_mjab.tools.climbing_reference.model import (
+  WallGeometry, joint_group, build_reference_model, engage_basis,
+)
 
 _DEFAULT_CLIP = (
   _REPO
@@ -92,110 +94,12 @@ class _FrameResult:
   ground_cone_min: float = np.inf
 
 
-def _joint_group(name: str) -> str:
-  return name.removeprefix("left_").removeprefix("right_")
-
-
 def _skew(v: np.ndarray) -> np.ndarray:
   x, y, z = v
   return np.array(
     [[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]],
     dtype=np.float64,
   )
-
-
-def _build_model(
-  ee_names: tuple[str, ...],
-) -> tuple[
-  mujoco.MjModel,
-  dict[str, int],
-  dict[str, int],
-  dict[str, tuple[int, float]],
-]:
-  """Compile the robot with pad-center sites and the foot bracing-toe sites.
-
-  Returns (model, pad_site_ids, ee_body_ids, toe_sites) where ``toe_sites``
-  maps a foot EE to its (toe site id, toe sphere radius).
-  """
-  spec = get_spec()
-  pad_site_names: dict[str, str] = {}
-  for ee in ee_names:
-    centers = np.asarray(
-      [spec.body(name).pos for name in sphere_names(ee, 2, 2)],
-      dtype=np.float64,
-    )
-    site_name = f"{ee}_static_audit_center"
-    spec.body(ee).add_site(
-      name=site_name,
-      pos=centers.mean(axis=0),
-      size=[0.005, 0.005, 0.005],
-    )
-    pad_site_names[ee] = site_name
-
-  toes = {
-    ee: ToeContact(ee_body_name=ee, body_name=body, pos=pos, radius=radius)
-    for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
-    if ee in ee_names
-  }
-  add_toe_geoms(
-    spec, tuple(toes.values()), robot_prefix="", with_sites=True
-  )
-
-  model = spec.compile()
-  pad_site_ids = {
-    ee: mujoco.mj_name2id(
-      model, mujoco.mjtObj.mjOBJ_SITE, pad_site_names[ee]
-    )
-    for ee in ee_names
-  }
-  ee_body_ids = {
-    ee: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, ee)
-    for ee in ee_names
-  }
-  toe_sites = {
-    ee: (
-      mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_SITE, toe_site_name(toe)
-      ),
-      toe.radius,
-    )
-    for ee, toe in toes.items()
-  }
-
-  # Floor-support sole points (mount prologue frames): heel and toe of each
-  # foot at sole level, from the union AABB of the foot body's COLLISION
-  # geoms in body frame. Two points let a flat foot carry a pitch couple,
-  # which a single mid-sole point cannot.
-  corner_signs = np.array(
-    [[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)],
-    dtype=np.float64,
-  )
-  ground_points: dict[str, tuple[int, list[np.ndarray]]] = {}
-  for ee, toe in toes.items():
-    bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, toe.body_name)
-    lo = np.full(3, np.inf)
-    hi = np.full(3, -np.inf)
-    for g in range(model.ngeom):
-      if model.geom_bodyid[g] != bid:
-        continue
-      if model.geom_contype[g] == 0 and model.geom_conaffinity[g] == 0:
-        continue
-      rot = np.zeros(9)
-      mujoco.mju_quat2Mat(rot, model.geom_quat[g])
-      corners = model.geom_pos[g] + (
-        model.geom_aabb[g, :3] + model.geom_aabb[g, 3:] * corner_signs
-      ) @ rot.reshape(3, 3).T
-      lo = np.minimum(lo, corners.min(axis=0))
-      hi = np.maximum(hi, corners.max(axis=0))
-    sole_z = float(lo[2]) + 0.002
-    ground_points[ee] = (
-      bid,
-      [
-        np.array([float(lo[0]) + 0.01, 0.0, sole_z]),
-        np.array([float(hi[0]) - 0.01, 0.0, sole_z]),
-      ],
-    )
-  return model, pad_site_ids, ee_body_ids, toe_sites, ground_points
 
 
 def _set_motion_frame(
@@ -205,19 +109,37 @@ def _set_motion_frame(
   frame: int,
   joint_qpos_addr: np.ndarray,
   free_qpos_addr: int,
+  wall: WallGeometry | None = None,
 ) -> None:
   data.qpos[:] = model.qpos0
   data.qvel[:] = 0.0
   data.qacc[:] = 0.0
-  data.qpos[free_qpos_addr : free_qpos_addr + 3] = clip["root_position"][frame]
   q_xyzw = clip["root_quaternion"][frame]
-  data.qpos[free_qpos_addr + 3 : free_qpos_addr + 7] = (
-    q_xyzw[3],
-    q_xyzw[0],
-    q_xyzw[1],
-    q_xyzw[2],
-  )
+  if wall is None or wall.identity:
+    data.qpos[free_qpos_addr : free_qpos_addr + 3] = clip["root_position"][
+      frame
+    ]
+    data.qpos[free_qpos_addr + 3 : free_qpos_addr + 7] = (
+      q_xyzw[3],
+      q_xyzw[0],
+      q_xyzw[1],
+      q_xyzw[2],
+    )
+  else:
+    # Canonical-frame clip -> native tilted world: rotate the root about
+    # the wall base line (joints are frame-invariant).
+    data.qpos[free_qpos_addr : free_qpos_addr + 3] = wall.rotate_point(
+      np.asarray(clip["root_position"][frame], dtype=np.float64)
+    )
+    q_wxyz = np.array(
+      [q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]], dtype=np.float64
+    )
+    rotated = np.zeros(4)
+    mujoco.mju_mulQuat(rotated, wall.quat, q_wxyz)
+    data.qpos[free_qpos_addr + 3 : free_qpos_addr + 7] = rotated
   data.qpos[joint_qpos_addr] = clip["joint_positions"][frame]
+  for i, name in enumerate(clip.get("passive_joint_names", ())):
+    data.qpos[model.joint(name).qposadr[0]] = clip["passive_joint_positions"][frame, i]
   mujoco.mj_forward(model, data)
 
 
@@ -302,23 +224,6 @@ def _sample_capacity_ratio_smooth(
   )
 
 
-def _engage_basis(
-  data: mujoco.MjData,
-  body_id: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-  n_hat = _WALL_OUTWARD_W
-  raw = data.xmat[body_id].reshape(3, 3) @ _RAKE_LOCAL
-  tangent = raw - raw.dot(n_hat) * n_hat
-  norm = np.linalg.norm(tangent)
-  if norm < 1.0e-9:
-    tangent = np.array([0.0, 0.0, -1.0], dtype=np.float64)
-    tangent -= tangent.dot(n_hat) * n_hat
-    norm = np.linalg.norm(tangent)
-  t_hat = tangent / norm
-  l_hat = np.cross(n_hat, t_hat)
-  return t_hat, l_hat, n_hat
-
-
 def _solve_frame(
   *,
   model: mujoco.MjModel,
@@ -329,6 +234,7 @@ def _solve_frame(
   compression_contacts: list[tuple[str, int]],
   ground_contacts: list[tuple[str, int, np.ndarray]],
   ground_friction: float,
+  toe_wall_friction: float,
   pad_site_ids: dict[str, int],
   ee_body_ids: dict[str, int],
   joint_dof_addr: np.ndarray,
@@ -338,6 +244,7 @@ def _solve_frame(
   r_floor: float,
   max_compression_force: float,
   max_iterations: int,
+  wall_outward: np.ndarray = _WALL_OUTWARD_W,
 ) -> _FrameResult:
   mass = float(model.body_mass.sum())
   com = np.einsum("i,ij->j", model.body_mass, data.xipos) / mass
@@ -345,7 +252,7 @@ def _solve_frame(
   n_anchor = len(engaged_names)
   anchor_force_dim = 3 * n_anchor
   n_comp = len(compression_contacts)
-  ground_offset = anchor_force_dim + n_comp
+  ground_offset = anchor_force_dim + 3 * n_comp
   load_dim = ground_offset + 3 * len(ground_contacts)
   equilibrium = np.zeros((6, load_dim), dtype=np.float64)
   torque_map = np.zeros(
@@ -365,22 +272,27 @@ def _solve_frame(
     # F is pad-on-wall load, hence wall-on-robot is -F.  Static actuator
     # torque is bias - passive - J.T(-F) = bias - passive + J.T F.
     torque_map[:, sl] = jacp[:, joint_dof_addr].T
-    bases.append(_engage_basis(data, ee_body_ids[ee]))
+    bases.append(engage_basis(data, ee_body_ids[ee], wall_outward))
 
   # Released support contacts: the raking pad face and/or the planted foot
-  # toe. Each admits only robot-on-wall compression along +x (opposite
-  # n_out) at its own contact point: no tangential grip, no tensile
-  # reaction, no moment.
-  compression_direction = -_WALL_OUTWARD_W
+  # toe. Each is a unilateral Coulomb contact at its own point: compression
+  # INTO the surface (opposite the outward normal) plus tangential friction
+  # inside a ``--toe-wall-friction`` cone — the toe-against-wall press is a
+  # DESIGNED support that forms force couples with the hand microspines
+  # (the sim's sphere-wall pairs carry mu 0.8, condim 3; the audit runs a
+  # margined 0.5 by default). No tensile reaction, no local moment.
+  compression_direction = -wall_outward
+  comp_t2 = np.array([0.0, 1.0, 0.0])
+  comp_t1 = np.cross(compression_direction, comp_t2)
+  comp_basis = (compression_direction, comp_t1, comp_t2)
   for i, (_, site_id) in enumerate(compression_contacts):
-    column = anchor_force_dim + i
     pos = data.site_xpos[site_id]
-    equilibrium[0:3, column] = compression_direction
-    equilibrium[3:6, column] = _skew(pos - com) @ compression_direction
     mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
-    torque_map[:, column] = (
-      jacp[:, joint_dof_addr].T @ compression_direction
-    )
+    for a, direction in enumerate(comp_basis):
+      column = anchor_force_dim + 3 * i + a
+      equilibrium[0:3, column] = direction
+      equilibrium[3:6, column] = _skew(pos - com) @ direction
+      torque_map[:, column] = jacp[:, joint_dof_addr].T @ direction
 
   # Floor supports: a 3D ROBOT-ON-GROUND force P at each scheduled sole
   # point, same sign convention as the anchors (P enters the balance
@@ -455,6 +367,17 @@ def _solve_frame(
       )
     return vals
 
+  def toe_cone(z: np.ndarray) -> np.ndarray:
+    if not compression_contacts:
+      return np.zeros(1)
+    vals = np.zeros(n_comp)
+    for i in range(n_comp):
+      c = z[anchor_force_dim + 3 * i : anchor_force_dim + 3 * i + 3]
+      vals[i] = toe_wall_friction * c[0] - float(
+        np.sqrt(c[1] * c[1] + c[2] * c[2] + 1.0e-4) - 1.0e-2
+      )
+    return vals
+
   constraints = (
     {
       "type": "eq",
@@ -476,10 +399,20 @@ def _solve_frame(
       "type": "ineq",
       "fun": ground_cone,
     },
+    {
+      "type": "ineq",
+      "fun": toe_cone,
+    },
   )
+  tangential_cap = toe_wall_friction * max_compression_force
   bounds = (
     [(-2000.0, 2000.0)] * anchor_force_dim
-    + [(0.0, max_compression_force)] * len(compression_contacts)
+    + [
+      (0.0, max_compression_force),
+      (-tangential_cap, tangential_cap),
+      (-tangential_cap, tangential_cap),
+    ]
+    * len(compression_contacts)
     + [(-2000.0, 2000.0), (-2000.0, 2000.0), (-2000.0, 0.0)]
     * len(ground_contacts)
     + [(0.0, 50.0)]
@@ -525,7 +458,11 @@ def _solve_frame(
 
   load = result.x[:load_dim]
   force = load[:anchor_force_dim]
-  compression = load[anchor_force_dim:ground_offset]
+  compression = (
+    load[anchor_force_dim:ground_offset].reshape(-1, 3)[:, 0]
+    if n_comp
+    else load[anchor_force_dim:ground_offset]
+  )
   ground = load[ground_offset:].reshape(-1, 3)
   util = utilization(result.x)
   tau = torque(result.x)
@@ -547,6 +484,7 @@ def _solve_frame(
     float(result.x[-1] - util.max()),
     float((torque_limits - np.abs(tau)).min()),
     float(cone.min()) if ground_contacts else np.inf,
+    float(toe_cone(result.x).min()) if compression_contacts else np.inf,
   )
   # Inequality tolerance 1e-4 (N / N*m): a sub-millinewton cone or torque
   # exit violation is SLSQP numerical noise, not a physical infeasibility.
@@ -556,6 +494,11 @@ def _solve_frame(
     and float(util.max()) <= 1.0 + 1.0e-5
     and float(tau_util.max()) <= 1.0 + 1.0e-5
   )
+  if not accepted:
+    print(
+      f"   frame {frame}: {result.message}; "
+      f"minimum inequality residual {inequality_residual:.3e}"
+    )
   return _FrameResult(
     frame=frame,
     segment=segment,
@@ -707,6 +650,12 @@ def timing_audit(clip: dict, args: argparse.Namespace) -> bool:
 def audit(args: argparse.Namespace) -> bool:
   path = args.motion_file.resolve()
   clip = np.load(path, allow_pickle=True).item()
+  if clip.get("generator") == "scripts/gen_cad_climb_reference.py":
+    raise ValueError(
+      "The new empirical CAD reference includes passive gimbal coordinates "
+      "and empirical unit capacities. Use scripts/audit_cad_climb_reference.py "
+      "instead of this legacy Wang audit."
+    )
   ee_names = tuple(str(name) for name in clip["ee_list"])
   clip_joint_names = tuple(str(name) for name in clip["joints_list"])
   if clip_joint_names != PHYBOT_C2_POLICY_JOINT_NAMES:
@@ -718,7 +667,7 @@ def audit(args: argparse.Namespace) -> bool:
   if not args.skip_timing:
     timing_ok = timing_audit(clip, args)
 
-  model, pad_site_ids, ee_body_ids, toe_sites, ground_points = _build_model(
+  model, pad_site_ids, ee_body_ids, toe_sites, ground_points = build_reference_model(
     ee_names
   )
   data = mujoco.MjData(model)
@@ -739,7 +688,7 @@ def audit(args: argparse.Namespace) -> bool:
   joint_dof_addr = model.jnt_dofadr[joint_ids].astype(np.int32)
   torque_limits = np.asarray(
     [
-      PHYBOT_C2_DEPLOY_TORQUE_LIMITS[_joint_group(name)]
+      PHYBOT_C2_DEPLOY_TORQUE_LIMITS[joint_group(name)]
       for name in clip_joint_names
     ],
     dtype=np.float64,
@@ -755,9 +704,14 @@ def audit(args: argparse.Namespace) -> bool:
     dtype=np.int64,
   )
   cycle_frames = np.flatnonzero(cycle_index == cycle_index.min())
-  frames = cycle_frames[:: args.frame_stride]
-  if frames[-1] != cycle_frames[-1]:
-    frames = np.append(frames, cycle_frames[-1])
+  if getattr(args, "frames", None):
+    frames = np.unique(np.asarray(args.frames, dtype=np.int64))
+    if not np.isin(frames, cycle_frames).all():
+      raise ValueError("--frames must select frames from the first cycle")
+  else:
+    frames = cycle_frames[:: args.frame_stride]
+    if frames[-1] != cycle_frames[-1]:
+      frames = np.append(frames, cycle_frames[-1])
 
   print(
     f"== static moment-free audit: {path}\n"
@@ -776,8 +730,18 @@ def audit(args: argparse.Namespace) -> bool:
   results: list[_FrameResult] = []
   engaged = np.asarray(clip["ee_engaged"], dtype=bool)
   phases = np.asarray(clip["phase_segment"], dtype=np.int64)
-  pad_touch_x = float(clip["pad_touch_x"])
   wall_surface_x = float(clip["wall_surface_x"])
+  # Audit the current asset's actual face C, including when the clip's old
+  # metadata described a contact-sphere center behind that face.
+  pad_touch_x = wall_surface_x
+  wall = WallGeometry(float(clip.get("wall_angle", 90.0)), wall_surface_x)
+  pad_touch_offset = 0.0
+  if not wall.identity:
+    print(
+      f"   native wall angle {wall.angle_deg:.1f} deg: canonical frames "
+      "rotated back about the base line, statics audited in the tilted "
+      "native world (real gravity, horizontal floor)"
+    )
   foot_on_ground = np.asarray(
     clip.get("foot_on_ground", np.zeros((len(engaged), 2))), dtype=bool
   )
@@ -795,6 +759,7 @@ def audit(args: argparse.Namespace) -> bool:
       int(frame),
       joint_qpos_addr,
       free_qpos_addr,
+      wall,
     )
     engaged_names = [
       ee for i, ee in enumerate(ee_names) if engaged[frame, i]
@@ -805,10 +770,16 @@ def audit(args: argparse.Namespace) -> bool:
       for i, ee in enumerate(ee_names):
         # Pad face on the wall: the pre-engage rake press (released pads
         # only — an engaged pad's face load is the anchor force itself).
-        if not engaged[frame, i] and (
-          data.site_xpos[pad_site_ids[ee], 0]
-          >= pad_touch_x - tolerance_m
-        ):
+        if wall.identity:
+          pad_on_wall = (
+            data.site_xpos[pad_site_ids[ee], 0] >= pad_touch_x - tolerance_m
+          )
+        else:
+          pad_on_wall = (
+            wall.distance(data.site_xpos[pad_site_ids[ee]])
+            <= pad_touch_offset + tolerance_m
+          )
+        if not engaged[frame, i] and pad_on_wall:
           compression_contacts.append((ee, pad_site_ids[ee]))
         # Planted bracing toe (feet only) — REGARDLESS of the pad's engaged
         # state: a toe cap touching the wall is a unilateral compression
@@ -816,10 +787,17 @@ def audit(args: argparse.Namespace) -> bool:
         # prologue braces the toes of engaged feet through its hand steps).
         if ee in toe_sites:
           toe_site_id, toe_radius = toe_sites[ee]
-          if (
-            data.site_xpos[toe_site_id, 0]
-            >= wall_surface_x - toe_radius - tolerance_m
-          ):
+          if wall.identity:
+            toe_on_wall = (
+              data.site_xpos[toe_site_id, 0]
+              >= wall_surface_x - toe_radius - tolerance_m
+            )
+          else:
+            toe_on_wall = (
+              wall.distance(data.site_xpos[toe_site_id])
+              <= toe_radius + tolerance_m
+            )
+          if toe_on_wall:
             compression_contacts.append((f"{ee}@toe", toe_site_id))
     ground_contacts: list[tuple[str, int, np.ndarray]] = []
     for gi, ee in enumerate(foot_ees):
@@ -851,7 +829,7 @@ def audit(args: argparse.Namespace) -> bool:
         forces={},
       )
     else:
-      result = _solve_frame(
+      solve_kwargs = dict(
         model=model,
         data=data,
         frame=int(frame),
@@ -860,6 +838,7 @@ def audit(args: argparse.Namespace) -> bool:
         compression_contacts=compression_contacts,
         ground_contacts=ground_contacts,
         ground_friction=args.ground_friction,
+        toe_wall_friction=args.toe_wall_friction,
         pad_site_ids=pad_site_ids,
         ee_body_ids=ee_body_ids,
         joint_dof_addr=joint_dof_addr,
@@ -869,7 +848,21 @@ def audit(args: argparse.Namespace) -> bool:
         r_floor=ls_cfg.wang_r_floor,
         max_compression_force=args.max_compression_force,
         max_iterations=args.max_iterations,
+        wall_outward=wall.outward,
       )
+      result = _solve_frame(**solve_kwargs)
+      retry_iterations = getattr(args, "retry_iterations", 3000)
+      if (
+        not result.accepted and not result.solver_success
+        and retry_iterations > args.max_iterations
+      ):
+        # A failed nonlinear solve is not a proof of infeasibility. Give
+        # the same frame more iterations without changing any constraint
+        # or acceptance tolerance (CAD A80 frame 582 needs this fallback).
+        print(f"   retry frame {frame} with {retry_iterations} iterations")
+        retry = _solve_frame(**{**solve_kwargs, "max_iterations": retry_iterations})
+        if retry.accepted:
+          result = retry
     results.append(result)
     if args.progress_every and (
       count % args.progress_every == 0 or count == len(frames)
@@ -944,7 +937,7 @@ def audit(args: argparse.Namespace) -> bool:
         _set_motion_frame(
           model, data, clip, result.frame, joint_qpos_addr, free_qpos_addr
         )
-        t_hat, l_hat, n_hat = _engage_basis(
+        t_hat, l_hat, n_hat = engage_basis(
           data, ee_body_ids[result.anchor_name]
         )
         decomp = (
@@ -1000,12 +993,26 @@ def main() -> None:
     default=300,
     help="maximum SLSQP iterations per frame",
   )
+  parser.add_argument("--frames", type=int, nargs="+", help="audit only these frame indices (overrides stride)")
+  parser.add_argument(
+    "--retry-iterations", type=int, default=3000,
+    help="iteration budget for an unaccepted, unsuccessful solve; 0 disables retry",
+  )
   parser.add_argument(
     "--compression-contact-tolerance-mm",
     type=float,
     default=0.5,
     help="scheduled-off pads this close to the wall may push normally; "
     "negative disables released-pad contact (default: 0.5 mm)",
+  )
+  parser.add_argument(
+    "--toe-wall-friction",
+    type=float,
+    default=0.5,
+    help="Coulomb friction for released toe/pad wall presses (the sim's "
+    "sphere-wall pairs carry 0.8 condim 3; 0.5 is the audit's margin — "
+    "the toe press is a designed support forming couples with the "
+    "microspine hands)",
   )
   parser.add_argument(
     "--max-compression-force",

@@ -31,6 +31,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scr_phybot_mjab.tools.plotting import style_slice, style_3d
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from plot_pad_limit_surface import (  # noqa: E402
@@ -176,37 +177,6 @@ def force_slice_grid(surf: PadSurface, ft: float, fl_max: float, fn_lo: float, f
     torch.full_like(fl2, float(ft)), fl2, fn2, zeros, zeros, zeros
   )
   return fl.numpy(), fn.numpy(), occ.numpy()
-
-
-def style_slice(ax, xlabel, ylabel, title):
-  ax.grid(alpha=0.25, linewidth=0.5)
-  ax.spines[["top", "right"]].set_visible(False)
-  ax.axhline(0.0, color=SEC, lw=0.5, alpha=0.5)
-  ax.axvline(0.0, color=SEC, lw=0.5, alpha=0.5)
-  ax.set_xlabel(xlabel)
-  ax.set_ylabel(ylabel)
-  ax.set_title(title, fontsize=7.5)
-
-
-def style_3d(ax, xlabel, ylabel, zlabel, box_aspect):
-  ax.set_xlabel(xlabel, labelpad=-4)
-  ax.set_ylabel(ylabel, labelpad=-1)
-  # mplot3d's own z label is unreliable inside tight multi-panel margins;
-  # pin it in axes coordinates beside the z spine instead.
-  ax.set_zlabel("")
-  ax.text2D(
-    1.0, 0.875, zlabel, transform=ax.transAxes,
-    ha="right", va="bottom", fontsize=6.8, color=INK,
-  )
-  ax.set_box_aspect(box_aspect)
-  ax.tick_params(pad=-2, labelsize=5.5)
-  for pane in (ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane):
-    pane.set_alpha(0.04)
-  try:  # Private mplot3d styling; purely cosmetic if it goes away.
-    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
-      axis._axinfo["grid"].update(linewidth=0.3, color="#c9c8c2")
-  except (AttributeError, KeyError):
-    pass
 
 
 def main() -> int:

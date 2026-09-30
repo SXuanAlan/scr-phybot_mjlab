@@ -47,7 +47,7 @@ REWARD_SCHEDULES: list[tuple[str, list[tuple[int, float]], str]] = [
 ]
 
 # STALE hand-transcribed sketch of a retired ladder (never matched the
-# shipped 45/75/85/88/90 schedule — see mdp.curriculums.WALL_ANGLE_STAGES).
+# shipped 45/75/80/85/88/90 schedule — see mdp.curriculums.WALL_ANGLE_STAGES).
 WALL_ANGLE_SKETCH: list[tuple[int, float]] = [(0, 30.0), (P1_END, 30.0), (P2_END, 90.0)]
 
 

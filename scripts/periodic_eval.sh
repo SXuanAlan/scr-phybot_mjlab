@@ -24,7 +24,8 @@ last=0
 # lines are captured because a single limb overholding (occ_pol - occ_ref
 # > +0.04) is the weld early warning, visible well before match drops.
 probe_angles() {
-  echo "75 85 88 90"
+  # 80 joined 2026-08-10 with the six-stage ladder (80+-5 band-teacher rung).
+  echo "75 80 85 88 90"
 }
 
 training_band() {

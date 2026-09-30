@@ -209,6 +209,7 @@ _argv = [
       "ablate=",
       "estimator=",
       "estfreeze=",
+      "gravity=",
     )
   )
 ]
@@ -263,6 +264,32 @@ if "wall_angle" in env_cfg.curriculum:
   ]
 # else: no angle curriculum at all (transition task) — the vertical wall IS
 # the operating point; an explicit non-90 ANGLE has no effect.
+# Exams grade at the CURRICULUM's gravity (user call, 08-19 evening):
+# resolve the v62e gravity ladder at this checkpoint's iteration;
+# `gravity=<scale>` overrides (the graduation exam pins 1.0). Reference
+# replays and ladder-free tasks (climb_wall) run 1.0 untouched.
+from scr_phybot_mjab.tasks.climb_transition.mdp.curriculums import (
+  gravity_scale_at,
+)
+
+_glad = env_cfg.curriculum.pop("gravity_ladder", None)
+_gravity_tok = next(
+  (a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("gravity=")), None
+)
+if _gravity_tok is not None:
+  _gscale = float(_gravity_tok)
+elif _glad is not None and CKPT is not None:
+  _digits = "".join(ch for ch in CKPT.stem if ch.isdigit())
+  _gscale = (
+    gravity_scale_at(_glad.params["stages"], int(_digits)) if _digits else 1.0
+  )
+else:
+  _gscale = 1.0
+if _gscale != 1.0:
+  env_cfg.sim.mujoco.gravity = tuple(
+    c * _gscale for c in env_cfg.sim.mujoco.gravity
+  )
+print(f"[exam] gravity scale = {_gscale:g}")
 if WORST_F0:
   # Pin the per-grip F0 lottery at its worst draw. A collapsed range redraws
   # the same value at every latch (bench determinism, see
@@ -275,8 +302,9 @@ if CLIP_OVERRIDE:
 
   _clip_path = str(Path(CLIP_OVERRIDE).resolve())
   env_cfg.commands["climb_motion"].motion_file = _clip_path
-  _vz = _mdp.clip_average_climb_rate(_clip_path)
-  env_cfg.commands["climb_velocity"].ranges.lin_vel_z = (_vz, _vz)
+  if "climb_velocity" in env_cfg.commands:  # transition80 has no velocity command
+    _vz = _mdp.clip_average_climb_rate(_clip_path)
+    env_cfg.commands["climb_velocity"].ranges.lin_vel_z = (_vz, _vz)
 if TILT_BAND is not None:
   # Sensitivity sweeps over the peel-band calibration: override both the
   # static cfg AND the pinned curriculum stage (the schedule rewrites the

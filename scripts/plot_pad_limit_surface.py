@@ -1,4 +1,7 @@
-"""Equivalent whole-pad limit surface under per-unit moment billing.
+"""Legacy Wang whole-pad limit surface under per-unit moment billing.
+
+For the active empirical model use plot_stochastic_pad_limit_surface.py.
+This script explicitly selects the legacy Wang configuration for comparison.
 
 Since 2026-08-04 the climb hold envelope (``moment_billing_mode="per_unit"``)
 judges the pad's 6D anchor wrench by distributing it onto the 3x4 spine-unit
@@ -40,8 +43,9 @@ import sys
 from pathlib import Path
 
 import torch
+from scr_phybot_mjab.tools.plotting import CAT, ORDINAL, INK, SEC, MUT, RC_PARAMS, save_three
 
-from scr_phybot_mjab.microspine.affordance import distribute_wrench_to_units
+from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 from scr_phybot_mjab.microspine.wang_limit_surface import (
   build_capacity_lut,
   capacity_ratio,
@@ -49,29 +53,8 @@ from scr_phybot_mjab.microspine.wang_limit_surface import (
 
 # Categorical slots (validated trio) for the three moment axes; ordinal blue
 # ramp (light -> dark with |m_l|) for the panel-A family; neutral inks.
-CAT = {"ml": "#2a78d6", "mt": "#eb6834", "mn": "#1baf7a"}
-ORDINAL = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"]
-INK, SEC, MUT = "#0b0b0b", "#52514e", "#9b9a94"
 HANG_FT, HANG_FN = 70.0, 14.0  # 90-deg frame-0 per-hand hang load [N].
 BEND_LEVELS = (HANG_FT, 200.0)  # Panel-c shear preloads [N].
-
-RC_PARAMS = {
-  "font.size": 7.5,
-  "axes.titlesize": 8.0,
-  "axes.labelsize": 7.5,
-  "xtick.labelsize": 6.5,
-  "ytick.labelsize": 6.5,
-  "legend.fontsize": 6.5,
-  "axes.linewidth": 0.6,
-  "xtick.major.width": 0.6,
-  "ytick.major.width": 0.6,
-  "axes.edgecolor": SEC,
-  "axes.labelcolor": INK,
-  "xtick.color": SEC,
-  "ytick.color": SEC,
-  "svg.fonttype": "none",
-  "pdf.fonttype": 42,
-}
 
 
 def load_limit_surface_cfg(use_defaults: bool):
@@ -84,7 +67,7 @@ def load_limit_surface_cfg(use_defaults: bool):
   )
 
   return (
-    phybot_c2_climb_wall_env_cfg(play=True)
+    phybot_c2_climb_wall_env_cfg(play=True, contact_model="wang2017")
     .commands["microspine_affordance"]
     .microspine_cfg.limit_surface
   )
@@ -351,13 +334,6 @@ def draw_theory_panels(axs, th: dict, f0: float) -> None:
   ax.set_ylabel("$m_t$ [N·m]  (roll)")
   ax.set_aspect("equal")
   ax.set_title("(c) bending interaction", fontsize=7.5)
-
-
-def save_three(fig, stem: Path) -> None:
-  stem.parent.mkdir(parents=True, exist_ok=True)
-  for suffix, kwargs in ((".svg", {}), (".pdf", {}), (".png", {"dpi": 300})):
-    fig.savefig(stem.with_suffix(suffix), **kwargs)
-  print(f"figure saved to {stem}.{{svg,pdf,png}}")
 
 
 def main() -> int:
