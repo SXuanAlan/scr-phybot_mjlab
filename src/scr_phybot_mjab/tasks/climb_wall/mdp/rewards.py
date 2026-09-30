@@ -1,20 +1,16 @@
 """Reward functions for the wall-climbing task.
 
-DeepMimic-style split (2026-07-21 redesign):
-
-  * ``motion_*`` tracking terms (exp kernels against the IK cycle clip) teach
-    the regrip MOTION. None of them references a global position — joint
-    space, root-frame EE positions, and root orientation only.
-  * Height/velocity progress terms remain the task DRIVE: climbing is paid
-    for by actual base rise, not by reproducing the clip's world trajectory.
-  * Microspine engage/safety terms remain the PHYSICS contract: minimum
-    support, controlled releases, no sliding of engaged pads.
+Empirical tasks select 16 terms: BeyondMimic body tracking, climbing progress
+and landing, contact schedule/support/release shaping, regularization and a
+failure penalty. No explicit survival reward is used. Legacy joint/EE and
+auxiliary terms remain available to the Wang transition configurations.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import mujoco
 import torch
 
 from mjlab.entity import Entity
@@ -27,24 +23,24 @@ if TYPE_CHECKING:
 
 
 class _SphereGeomCache:
-  """Lazily caches per-sphere geom IDs, radii, and wall geometry.
+  """Contact-proxy geometry cache (legacy class name), for boxes and spheres.
 
   Wall pose is queried per-step from the wall entity's mocap state so that
   curriculum-driven tilts are reflected in the derived surface/normal maths.
   """
   _instance: _SphereGeomCache | None = None
   geom_ids: torch.Tensor
-  radii: torch.Tensor  # per-geom radius for surface distance
+  sizes: torch.Tensor
+  is_box: torch.Tensor
   wall_half: float
   initialized: bool = False
 
   @classmethod
   def get(cls, env: ManagerBasedRlEnv) -> _SphereGeomCache:
-    if cls._instance is None or not cls._instance.initialized:
+    if cls._instance is None or getattr(cls._instance, "model", None) is not env.sim.mj_model:
       cls._instance = cls()
       mj = env.sim.mj_model
       ids = []
-      radii = []
       for ee_name in (
         "left_hand_spine",
         "right_hand_spine",
@@ -55,9 +51,12 @@ class _SphereGeomCache:
           for j in range(2):
             gid = mj.geom(f"robot/{ee_name}_c_{i}_{j}").id
             ids.append(gid)
-            radii.append(float(mj.geom_size[gid, 0]))
       cls._instance.geom_ids = torch.tensor(ids, dtype=torch.long, device=env.device)
-      cls._instance.radii = torch.tensor(radii, dtype=torch.float32, device=env.device)
+      cls._instance.model = mj
+      cls._instance.sizes = torch.tensor(mj.geom_size[ids], dtype=torch.float32, device=env.device)
+      cls._instance.is_box = torch.tensor(mj.geom_type[ids] == mujoco.mjtGeom.mjGEOM_BOX, device=env.device)
+      if not all(t in (mujoco.mjtGeom.mjGEOM_BOX, mujoco.mjtGeom.mjGEOM_SPHERE) for t in mj.geom_type[ids]):
+        raise ValueError("Pad distance supports only box and sphere contact proxies")
       wall_geom_id = mj.geom("wall/wall_geom").id
       cls._instance.wall_half = float(mj.geom_size[wall_geom_id, 0])
       cls._instance.initialized = True
@@ -84,8 +83,8 @@ class _SphereGeomCache:
 
   @classmethod
   def surface_distances(cls, env: ManagerBasedRlEnv) -> torch.Tensor:
-    """Per-sphere surface-to-wall signed distance. (E, 16).
-    Positive=gap (sphere surface hasn't reached wall yet).
+    """Per-proxy closest-surface-to-wall signed distance. (E, 16).
+    Positive=gap (contact surface hasn't reached wall yet).
     Negative=penetration.
     Zero=touching.
     """
@@ -95,15 +94,18 @@ class _SphereGeomCache:
     delta = geom_pos - wall_pos.unsqueeze(1)  # (E, 16, 3)
     # Signed perpendicular distance from geom center to wall plane:
     signed = (delta * normal.unsqueeze(1)).sum(dim=-1) - c.wall_half  # (E, 16)
-    # Subtract sphere radius to get gap at closest surface point.
-    return signed - c.radii.unsqueeze(0)
+    # Box support along the wall normal depends on its full orientation;
+    # treating size[0] as a radius is incorrect, especially at tilted poses.
+    rotations = env.sim.data.geom_xmat[:, c.geom_ids].reshape(-1, len(c.geom_ids), 3, 3)
+    local_normal = torch.einsum("egij,ei->egj", rotations, normal)
+    extent = (local_normal.abs() * c.sizes.unsqueeze(0)).sum(-1)
+    extent = torch.where(c.is_box.unsqueeze(0), extent, c.sizes[:, 0].unsqueeze(0))
+    return signed - extent
 
 
 # ---------------------------------------------------------------------------
-# DeepMimic-style motion tracking. All terms read the ``climb_motion`` command
-# (mdp.motion.ClimbMotionCommand) and use the BeyondMimic/mjlab exp kernel
-# ``exp(-error / std**2)``. No term references a global position: the drive to
-# actually gain height stays with the progress rewards below.
+# Tracking terms read the climb_motion command and use exp(-error/std**2).
+# Body poses align in XY/yaw; body velocities stay in the world frame.
 # ---------------------------------------------------------------------------
 
 
@@ -189,6 +191,62 @@ def motion_joint_pos_error_exp(
       motion, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction
     )
   return reward
+
+
+def motion_body_position_error_exp(
+  env, command_name="climb_motion", std=0.1, engage_gate_floor=None,
+  engage_gate_grace_s=0.25, engage_gate_grace_fraction=None,
+):
+  """BeyondMimic mean body-origin position error after XY/yaw alignment."""
+  motion = _motion(env, command_name)
+  reference, _ = motion.aligned_body_reference()
+  error = (reference - motion.robot_body_pos_w).square().sum(-1).mean(-1)
+  reward = torch.exp(-error / std**2)
+  if engage_gate_floor is not None:
+    reward *= _engage_match_gate(motion, engage_gate_floor,
+      engage_gate_grace_s, engage_gate_grace_fraction)
+  return reward
+
+
+def motion_body_orientation_error_exp(
+  env, command_name="climb_motion", std=0.3, engage_gate_floor=None,
+  engage_gate_grace_s=0.25, engage_gate_grace_fraction=None,
+):
+  """BeyondMimic mean squared geodesic body orientation error."""
+  from mjlab.utils.lab_api.math import quat_error_magnitude
+  motion = _motion(env, command_name)
+  _, reference = motion.aligned_body_reference()
+  error = quat_error_magnitude(reference, motion.robot_body_quat_w).square().mean(-1)
+  reward = torch.exp(-error / std**2)
+  if engage_gate_floor is not None:
+    reward *= _engage_match_gate(motion, engage_gate_floor,
+      engage_gate_grace_s, engage_gate_grace_fraction)
+  return reward
+
+
+def motion_body_linear_velocity_error_exp(env, command_name="climb_motion", std=1.0):
+  motion = _motion(env, command_name)
+  error = (motion.ref_body_lin_vel_w - motion.robot_body_lin_vel_w).square().sum(-1).mean(-1)
+  return torch.exp(-error / std**2)
+
+
+def motion_body_angular_velocity_error_exp(env, command_name="climb_motion", std=3.14):
+  motion = _motion(env, command_name)
+  error = (motion.ref_body_ang_vel_w - motion.robot_body_ang_vel_w).square().sum(-1).mean(-1)
+  return torch.exp(-error / std**2)
+
+
+def undesired_body_contacts(env, sensor_name="climb_undesired_contact", threshold=1.0):
+  """Count unwanted body contacts exceeding threshold during a policy step.
+
+  The sensor excludes expected pad/toe bodies; a peak over substeps retains
+  brief impacts. maxforce reduction prevents opposing contacts cancelling.
+  """
+  data = env.scene.sensors[sensor_name].data
+  forces = data.force_history
+  if forces is None:
+    forces = data.force.unsqueeze(2)
+  return (forces.norm(dim=-1).amax(-1) > threshold).float().sum(-1)
 
 
 def motion_joint_vel_error_exp(
@@ -938,6 +996,76 @@ def microspine_support_loss(
   return shortfall.clamp_min(0).float()
 
 
+def microspine_release_load_reward():
+  """Factory: reward scheduled unloading, penalize tangentially loaded release.
+
+  Uses the empirical judge's PRE-release unit loads, including twist-induced
+  shear/lateral loads that can cancel in the pad resultant. Normal force is
+  not an unloading target. The physical release rules remain with the judge.
+  Each scheduled release window (lead-in plus OFF interval) can pay once;
+  repeated releases still incur the load cost. External DR releases pay/cost
+  nothing. Divide by dt so the configured weight is a per-event amount.
+  """
+  state: dict[str, torch.Tensor | None] = {"paid": None}
+
+  def call(
+    env: ManagerBasedRlEnv,
+    *,
+    command_name: str = "microspine_affordance",
+    motion_command_name: str = "climb_motion",
+    shear_scale_n: float = 2.0,
+    lateral_scale_n: float = 2.0,
+    shear_cost: float = 0.25,
+    lateral_cost: float = 0.1,
+    max_load_cost: float = 4.0,
+    minimum_supports: int = 3,
+    release_lead_time_s: float = 0.25,
+    settle_time_s: float = 0.5,
+  ) -> torch.Tensor:
+    """Scales are N per active unit; the most loaded unit sets the score."""
+    if min(shear_scale_n, lateral_scale_n) <= 0 or max_load_cost <= 0:
+      raise ValueError("Release-load scales and maximum cost must be positive")
+    if min(shear_cost, lateral_cost, release_lead_time_s) < 0:
+      raise ValueError("Release-load costs and lead time must be nonnegative")
+    affordance = env.command_manager.get_term(command_name)
+    motion = _motion(env, motion_command_name)
+    # Populated before the latch falling edge; do not read post-release
+    # contacts, whose force has already vanished. Axes are [shear,lateral,normal].
+    loads = affordance.unit_load_tln
+    finite = torch.isfinite(loads).all(dim=-1).all(dim=-1)
+    shear_sq = (loads[..., 0] / shear_scale_n).square()
+    lateral_sq = (loads[..., 1] / lateral_scale_n).square()
+    quality = torch.exp(-(shear_sq + lateral_sq).amax(dim=-1))
+    load_cost = (shear_cost*shear_sq + lateral_cost*lateral_sq).amax(dim=-1)
+    load_cost = torch.where(finite, load_cost.clamp(max=max_load_cost), max_load_cost)
+
+    reason = affordance.release_reason
+    released = affordance.forced_release_this_step & (reason > 0) & (reason != 6)
+    release_soon = motion.ref_edge_countdowns[..., 0] * motion.cycle_time_s <= release_lead_time_s
+    window = ~motion.ref_engaged | release_soon
+    paid = state["paid"]
+    if paid is None or paid.shape != window.shape or paid.device != window.device:
+      paid = torch.zeros_like(window)
+    # An RSI/reset born inside an existing swing cannot earn a fresh release
+    # bonus by relatching there. Partial resets only touch their own env rows.
+    fresh = (env.episode_length_buf <= 1).unsqueeze(-1)
+    paid = torch.where(fresh, window, paid) & window
+    support_ok = affordance.engaged.sum(dim=-1) >= minimum_supports
+    recovering = affordance.dr_release_pending.any(dim=-1)
+    # Unknown/early empirical failures are not successful controlled releases.
+    controlled_reason = (reason >= 1) & (reason <= 5)
+    pay = (released & controlled_reason & finite & window & ~paid
+           & support_ok.unsqueeze(-1) & ~recovering.unsqueeze(-1))
+    # Consume even an unsuccessful first release: relatch/release retries in
+    # the same window cannot turn a bad release into extra positive income.
+    state["paid"] = paid | (released & window)
+    score = (torch.where(pay, quality, 0.) - torch.where(released, load_cost, 0.)).sum(dim=-1)
+    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
+    return torch.where(settling, 0., score / env.step_dt)
+
+  return call
+
+
 def unsafe_microspine_release_penalty(
   env: ManagerBasedRlEnv,
   command_name: str = "microspine_affordance",
@@ -956,7 +1084,8 @@ def unsafe_microspine_release_penalty(
   """Per-event cost that distinguishes controlled and failed disengagement.
 
   Reason 1 (reverse shear) is the passive spine's intended unhooking path and
-  is free while sufficient support remains. Pull-off, lateral, and ultimate
+  has no base reason cost while sufficient support remains. The separate
+  release-load reward can still penalize its tangential load. Pull-off, lateral, and ultimate
   failures carry increasing costs. Dividing by ``step_dt`` makes the configured
   weight an actual one-shot event cost after RewardManager's dt scaling.
 
@@ -977,6 +1106,8 @@ def unsafe_microspine_release_penalty(
     (3, lateral_release_cost),
     (4, ultimate_release_cost),
     (5, tilt_release_cost),  # tilt-peel: rotated the patch off its grip
+    (7, ultimate_release_cost),  # empirical measured-domain rejection
+    (8, tension_release_cost),  # empirical early-loading failure
   )
   for reason_id, value in reason_costs:
     cost += (released & (reason == reason_id)).float() * value

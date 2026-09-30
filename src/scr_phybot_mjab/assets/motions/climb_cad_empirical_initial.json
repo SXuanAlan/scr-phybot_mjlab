@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "reference_point": "C",
+  "wall_surface_x": 1.5,
+  "root_position": [
+    1.3249228439057354,
+    0.0,
+    1.0
+  ],
+  "root_quaternion_wxyz": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "joint_positions": {
+    "left_hip_pitch": -0.32005118699909196,
+    "left_hip_roll": 0.17923761461446533,
+    "left_hip_yaw": -0.1143237377969638,
+    "left_knee": 0.3519538932304301,
+    "left_ankle_pitch": 1.256,
+    "left_ankle_roll": -4.681328168390203e-19,
+    "right_hip_pitch": -0.32005118666308024,
+    "right_hip_roll": -0.17923761186930767,
+    "right_hip_yaw": 0.11432373682702943,
+    "right_knee": 0.3519538932304378,
+    "right_ankle_pitch": 1.256,
+    "right_ankle_roll": 6.196563343518972e-22,
+    "waist_yaw": 9.449458859286107e-09,
+    "neck_yaw": -1.0375614110311465e-22,
+    "neck_pitch": -6.750932272721135e-23,
+    "left_shoulder_pitch": -2.4923982962597835,
+    "left_shoulder_roll": -0.167226854544162,
+    "left_shoulder_yaw": 0.005542509317937038,
+    "left_elbow_pitch": -0.5968142597878414,
+    "right_shoulder_pitch": -2.492398316025419,
+    "right_shoulder_roll": 0.1672268477828826,
+    "right_shoulder_yaw": -0.005542490497551334,
+    "right_elbow_pitch": -0.5968142401588331,
+    "left_hand_spine_gimbal_x": -0.05235987755982989,
+    "left_hand_spine_gimbal_y": 0.0,
+    "left_hand_spine_gimbal_z": 0.0,
+    "right_hand_spine_gimbal_x": -0.05235987755982989,
+    "right_hand_spine_gimbal_y": 0.0,
+    "right_hand_spine_gimbal_z": 0.0,
+    "left_foot_spine_gimbal_x": -0.05235987755982989,
+    "left_foot_spine_gimbal_y": 0.0,
+    "left_foot_spine_gimbal_z": 0.0,
+    "right_foot_spine_gimbal_x": -0.05235987755982989,
+    "right_foot_spine_gimbal_y": 0.0,
+    "right_foot_spine_gimbal_z": 0.0
+  },
+  "pad_centers_world_m": {
+    "left_hand_spine": [
+      1.500000073869996,
+      0.17748035718961797,
+      1.8543381755143415
+    ],
+    "right_hand_spine": [
+      1.5000000738700046,
+      -0.17748032409645187,
+      1.8543381783120338
+    ],
+    "left_foot_spine": [
+      1.500000016481216,
+      0.20072610139440245,
+      0.6279930152504929
+    ],
+    "right_foot_spine": [
+      1.5000000164812177,
+      -0.2007260707848826,
+      0.6279930091567558
+    ]
+  },
+  "max_center_wall_error_m": 7.387000455771897e-08,
+  "gimbal_angles": "x at lower -3 degree stop; y,z zero; passive RSI state, never actuator targets",
+  "generator": "scripts/gen_cad_climb_reference.py",
+  "protocol_note": "Four seeded mature contacts with lower-stop support. Stop strength, seating and dynamic stability are not hardware validated"
+}

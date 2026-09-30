@@ -1,0 +1,265 @@
+{
+  "clip": "climb_mount_prologue_a80.npy",
+  "clip_sha256": "4452b6cfd3d03b733472bcfb205b056f8701c5fca92b67359e31a180e4adcd88",
+  "asset_xml_sha256": "9f3132c71ffffee9072e2bf361113526d13435e449bbbdbb2a7f76703c8db33f",
+  "frames": 1280,
+  "fps": 50.0,
+  "wall_angle_deg": 80.0,
+  "body_fk_max_mm": 0.0002456103038112109,
+  "contact_c_fk_max_mm": 0.00024614025652710733,
+  "quaternion_dot_error": 4.6629367034256575e-15,
+  "engaged_anchor_drift_max_mm": 2.6573463371100825,
+  "checks": {
+    "asset_xml_matches": true,
+    "body_fk_within_2mm": true,
+    "contact_c_fk_within_2mm": true,
+    "body_orientation_matches": true,
+    "engaged_anchor_drift_within_5mm": true,
+    "floor_penetration_within_3mm": true,
+    "wall_penetration_within_2mm": true
+  },
+  "passed": true,
+  "scope": "Saved-frame FK, wall and floor collision geometry; excludes self-collision, force/preload feasibility and dynamic policy tracking.",
+  "clearances": {
+    "floor": {
+      "gap_mm": -1.914990914161814,
+      "frame": 160,
+      "geom": "right_ankle_roll_collision",
+      "segment": "hand_place"
+    },
+    "wall": {
+      "gap_mm": -1.8280697568074464,
+      "frame": 567,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "right_foot_mount"
+    },
+    "floor/ground_stand": {
+      "gap_mm": 0.09499193923281218,
+      "frame": 0,
+      "geom": "right_ankle_roll_collision",
+      "segment": "ground_stand"
+    },
+    "wall/ground_stand": {
+      "gap_mm": 29.71147393789335,
+      "frame": 0,
+      "geom": "left_ankle_roll_collision",
+      "segment": "ground_stand"
+    },
+    "floor/hand_raise": {
+      "gap_mm": -0.5087090453608709,
+      "frame": 129,
+      "geom": "right_ankle_roll_collision",
+      "segment": "hand_raise"
+    },
+    "wall/hand_raise": {
+      "gap_mm": 29.606594049691335,
+      "frame": 129,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_raise"
+    },
+    "floor/hand_place": {
+      "gap_mm": -1.914990914161814,
+      "frame": 160,
+      "geom": "right_ankle_roll_collision",
+      "segment": "hand_place"
+    },
+    "wall/hand_place": {
+      "gap_mm": 0.005090290336208329,
+      "frame": 219,
+      "geom": "left_hand_spine_c_1_0",
+      "segment": "hand_place"
+    },
+    "floor/hand_set_left": {
+      "gap_mm": -0.641079355521261,
+      "frame": 220,
+      "geom": "right_ankle_roll_collision",
+      "segment": "hand_set_left"
+    },
+    "wall/hand_set_left": {
+      "gap_mm": 0.0051646173498199124,
+      "frame": 220,
+      "geom": "left_hand_spine_c_1_0",
+      "segment": "hand_set_left"
+    },
+    "floor/hand_raise_right": {
+      "gap_mm": -0.4187523565994458,
+      "frame": 339,
+      "geom": "right_ankle_roll_collision",
+      "segment": "hand_raise_right"
+    },
+    "wall/hand_raise_right": {
+      "gap_mm": 0.007103144849462777,
+      "frame": 339,
+      "geom": "left_hand_spine_c_1_0",
+      "segment": "hand_raise_right"
+    },
+    "floor/hand_place_right": {
+      "gap_mm": -1.9038855211729842,
+      "frame": 359,
+      "geom": "right_ankle_roll_collision",
+      "segment": "hand_place_right"
+    },
+    "wall/hand_place_right": {
+      "gap_mm": -0.966853727127303,
+      "frame": 408,
+      "geom": "left_hand_spine_c_1_0",
+      "segment": "hand_place_right"
+    },
+    "floor/hand_set_right": {
+      "gap_mm": -0.5327034134102494,
+      "frame": 430,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_set_right"
+    },
+    "wall/hand_set_right": {
+      "gap_mm": -0.46678318038793476,
+      "frame": 430,
+      "geom": "left_hand_spine_c_1_0",
+      "segment": "hand_set_right"
+    },
+    "floor/right_foot_mount": {
+      "gap_mm": -1.766626064146088,
+      "frame": 480,
+      "geom": "left_ankle_roll_collision",
+      "segment": "right_foot_mount"
+    },
+    "wall/right_foot_mount": {
+      "gap_mm": -1.8280697568074464,
+      "frame": 567,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "right_foot_mount"
+    },
+    "floor/foot_switch_hold": {
+      "gap_mm": -0.05274579330849169,
+      "frame": 590,
+      "geom": "left_ankle_roll_collision",
+      "segment": "foot_switch_hold"
+    },
+    "wall/foot_switch_hold": {
+      "gap_mm": -1.6622279533993123,
+      "frame": 611,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "foot_switch_hold"
+    },
+    "floor/hand_set_hold": {
+      "gap_mm": -0.2759026637493764,
+      "frame": 632,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_set_hold"
+    },
+    "wall/hand_set_hold": {
+      "gap_mm": -1.7868408737853467,
+      "frame": 653,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "hand_set_hold"
+    },
+    "floor/left_foot_mount": {
+      "gap_mm": 8.236584810560693,
+      "frame": 722,
+      "geom": "left_ankle_roll_collision",
+      "segment": "left_foot_mount"
+    },
+    "wall/left_foot_mount": {
+      "gap_mm": -1.807213315189276,
+      "frame": 680,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "left_foot_mount"
+    },
+    "floor/brace_hold": {
+      "gap_mm": 18.10797864500692,
+      "frame": 783,
+      "geom": "left_ankle_roll_collision",
+      "segment": "brace_hold"
+    },
+    "wall/brace_hold": {
+      "gap_mm": -1.7563273247620848,
+      "frame": 783,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "brace_hold"
+    },
+    "floor/hand_up_right": {
+      "gap_mm": 24.884344770013485,
+      "frame": 924,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_up_right"
+    },
+    "wall/hand_up_right": {
+      "gap_mm": -1.7562936909323772,
+      "frame": 797,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "hand_up_right"
+    },
+    "floor/hand_up_hold": {
+      "gap_mm": 24.88421910143482,
+      "frame": 926,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_up_hold"
+    },
+    "wall/hand_up_hold": {
+      "gap_mm": -1.6300225079377475,
+      "frame": 944,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "hand_up_hold"
+    },
+    "floor/hand_up_left_mid": {
+      "gap_mm": 24.783125467622387,
+      "frame": 1023,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_up_left_mid"
+    },
+    "wall/hand_up_left_mid": {
+      "gap_mm": -1.6773584413969662,
+      "frame": 998,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "hand_up_left_mid"
+    },
+    "floor/hand_up_left_hold": {
+      "gap_mm": 24.91141831644575,
+      "frame": 1075,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_up_left_hold"
+    },
+    "wall/hand_up_left_hold": {
+      "gap_mm": -1.6313115960857067,
+      "frame": 1093,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "hand_up_left_hold"
+    },
+    "floor/hand_up_left": {
+      "gap_mm": 17.482393701169816,
+      "frame": 1174,
+      "geom": "left_ankle_roll_collision",
+      "segment": "hand_up_left"
+    },
+    "wall/hand_up_left": {
+      "gap_mm": -1.6340196710106554,
+      "frame": 1129,
+      "geom": "right_foot_spine_c_0_0",
+      "segment": "hand_up_left"
+    },
+    "floor/handoff_hold": {
+      "gap_mm": 67.93108915432867,
+      "frame": 1225,
+      "geom": "left_ankle_roll_collision",
+      "segment": "handoff_hold"
+    },
+    "wall/handoff_hold": {
+      "gap_mm": -6.604107056357167e-05,
+      "frame": 1225,
+      "geom": "right_hand_spine_c_1_1",
+      "segment": "handoff_hold"
+    },
+    "floor/end_hold": {
+      "gap_mm": 67.93108915432867,
+      "frame": 1250,
+      "geom": "left_ankle_roll_collision",
+      "segment": "end_hold"
+    },
+    "wall/end_hold": {
+      "gap_mm": -6.604107056357167e-05,
+      "frame": 1250,
+      "geom": "right_hand_spine_c_1_1",
+      "segment": "end_hold"
+    }
+  }
+}

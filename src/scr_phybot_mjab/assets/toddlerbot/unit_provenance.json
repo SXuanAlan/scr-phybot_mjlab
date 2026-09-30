@@ -1,0 +1,6 @@
+{
+  "source": "src/scr_phybot_mjab/assets/phybot_c2/new_meshes/microspine_unit.stl",
+  "sha256": "301b4865e220201dd483e5fcf6a2e3630322f7d4264b1e8eae1ec78b5986f0d4",
+  "unit_and_adapter_mass_kg": 0.015,
+  "preload_hypothesis_n": 1.5
+}

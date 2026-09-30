@@ -66,6 +66,48 @@ def motion_tracking_divergence(
   return error > threshold
 
 
+def motion_body_tracking_divergence(
+  env, command_name="climb_motion", position_threshold=0.3,
+  orientation_threshold=1.0, height_threshold=0.25,
+):
+  """End large body-pose departures; retain a wall-frame progress check.
+
+  Pose errors use the same XY/yaw alignment as body tracking. Along-wall
+  height and global root orientation prevent that alignment hiding a fall.
+  These are failure thresholds, independent of reward error scales.
+  """
+  from mjlab.utils.lab_api.math import quat_error_magnitude
+  motion = env.command_manager.get_term(command_name)
+  reference_pos, _ = motion.aligned_body_reference()
+  position_error = (reference_pos - motion.robot_body_pos_w).norm(dim=-1).amax(-1)
+  orientation_error = quat_error_magnitude(motion.ref_root_quat_w, motion.robot_root_quat_w)
+  height_error = ((motion.robot.data.root_link_pos_w - motion.ref_root_pos_w)
+                  * motion.wall_up_w).sum(-1).abs()
+  return ((position_error > position_threshold) | (orientation_error > orientation_threshold)
+          | (height_error > height_threshold))
+
+
+def prolonged_support_loss():
+  """End a continuous no-anchor interval, allowing a short recovery attempt."""
+  elapsed = None
+
+  def call(env, command_name="microspine_affordance", timeout_s=0.4):
+    nonlocal elapsed
+    engaged = env.command_manager.get_term(command_name).engaged
+    if elapsed is None:
+      elapsed = torch.zeros(env.num_envs, device=env.device)
+    elapsed = torch.where(engaged.any(-1), torch.zeros_like(elapsed), elapsed + env.step_dt)
+    return elapsed >= timeout_s - 1.e-7
+
+  def reset(env_ids=None):
+    if elapsed is not None:
+      elapsed[slice(None) if env_ids is None else env_ids] = 0.0
+    return {}
+
+  call.reset = reset
+  return call
+
+
 def no_progress_stall():
   """Factory for terminating commanded climbs that make no new height.
 

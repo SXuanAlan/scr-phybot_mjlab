@@ -1,0 +1,23 @@
+CAD A80 mount reference, regenerated 2026-09-06: 1280 frames / 25.60 s / 50 Hz. Contact reference C; 21 policy joints + 12 recorded passive gimbal coordinates.
+--sequence cross --wall-angle-deg 80 --standoff 0.19 --hand-z 1.64 --hand-z-low 1.34 --hand-z-mid 1.53 --stand-s 1.0 --raise-s 1.6 --place-s 1.8 --set-left-s 0.8 --foot-swing-s 2.2 --switch-hold-s 0.5 --place-right-s 1.8 --set-hold-s 0.8 --foot-swing-right-s 2.4 --brace-hold-s 0.6 --hand-up-s 2.6 --handoff-hold-s 0.5 --end-hold-s 0.6 --place-bulge 0.0 --raise-roll 0.8 --raise-roll-right 1.2 --swing-press 0.04 --step-hips-in 0.06 --pivot-out -0.03 --raise-pitch-end -1.8 --raise-pitch-end-right -2.4 --touch-below 0 --place-bow 0.0 --smooth-sigma 1.5 --rake-s 0.5 --rake-dist 0.004 --foot-rake-s 0.3 --foot-rake-dist 0.002 --rake-right-s 0.4 --rh-first --pivot-fold-u0 0.15 --stance-width 0.16 --close-rh-first --place-right-pitch 0.1 --set-hold-press 0.10 --pivot-ctl-up 0.08 --weld-w-scale 4 --hand-up-left-mid 1.57 --rh-raise-lateral --raise-yaw 0.8 --place-right-base-dz 0.02 --output src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --handoff-motion src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy
+
+Generate from the repository root (MuJoCo 3.10.0, mjlab 1.5.0):
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/gen_mount_clip.py --sequence cross --wall-angle-deg 80 --standoff 0.19 --hand-z 1.64 --hand-z-low 1.34 --hand-z-mid 1.53 --stand-s 1.0 --raise-s 1.6 --place-s 1.8 --set-left-s 0.8 --foot-swing-s 2.2 --switch-hold-s 0.5 --place-right-s 1.8 --set-hold-s 0.8 --foot-swing-right-s 2.4 --brace-hold-s 0.6 --hand-up-s 2.6 --handoff-hold-s 0.5 --end-hold-s 0.6 --place-bulge 0.0 --raise-roll 0.8 --raise-roll-right 1.2 --swing-press 0.04 --step-hips-in 0.06 --pivot-out -0.03 --raise-pitch-end -1.8 --raise-pitch-end-right -2.4 --touch-below 0 --place-bow 0.0 --smooth-sigma 1.5 --rake-s 0.5 --rake-dist 0.004 --foot-rake-s 0.3 --foot-rake-dist 0.002 --rake-right-s 0.4 --rh-first --pivot-fold-u0 0.15 --stance-width 0.16 --close-rh-first --place-right-pitch 0.1 --set-hold-press 0.10 --pivot-ctl-up 0.08 --weld-w-scale 4 --hand-up-left-mid 1.57 --rh-raise-lateral --raise-yaw 0.8 --place-right-base-dz 0.02 --output src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --handoff-motion src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy
+
+Geometry audit (all frames, actual collision mesh vertices and primitives):
+python scripts/audit_mount_reference.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy
+Body FK max error 0.00024561 mm; contact C FK max error 0.00024614 mm; engaged-anchor drift max 2.6573 mm.
+Worst floor clearance -1.9150 mm (2 mm floor seating bias); worst wall clearance -1.8281 mm.
+
+Static audit command (legacy Transition80 Wang-2017 model, F0=400 N, moment-free pads):
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/validate_climb_reference.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --frame-stride 1
+
+Static result: all 1280 frames verified (1279 in the initial sweep; frame 582 converged on the 3000-iteration retry, with unchanged constraints and tolerances). Maximum anchor utilization 0.9211; maximum actuator utilization 0.5552. Full evidence: climb_mount_prologue_a80.static.json.
+Regression: 142 tests passed. GPU smoke: 2 environments (standing and handoff RSI), complete passive state and FK tables, 12 finite steps. No new policy training was run.
+
+Render:
+MUJOCO_GL=egl python scripts/render_climb_video.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --azimuth 95 --elevation -10 --distance 2.5 --width 1280 --height 720
+
+Handoff: climb_cad_empirical.npy frame 0, with a rigid along-wall height shift; policy joints, passive joints, root orientation and relative contact positions match.
+Retargeting: hand ladder shifted up 120 mm from the old recipe; mirrored shoulder yaw during arm folding; right raise endpoint -2.4 rad; right placement trunk pitch 0.1 rad with 20 mm base rise.
+The clip is a kinematic reference. These checks do not establish dynamic policy success or achievement of the empirical 10 N/unit engage preload. That condition is checked by runtime contact forces.

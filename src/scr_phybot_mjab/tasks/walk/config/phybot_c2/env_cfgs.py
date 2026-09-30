@@ -64,7 +64,7 @@ _FEET_GROUND_CONTACT_SENSOR = "feet_ground_contact"
 # (mu ~ 0.5-1.0) that gait falls over. Climb imports this exact CollisionCfg so
 # its robot-side collision geometry and parameters cannot diverge from walk.
 _FOOT_COLLISION_GEOMS = r"^(left|right)_ankle_roll_collision$"
-_SPINE_PLATE_GEOMS = r"^(left|right)_(foot|hand)_spine_collision$"
+_SPINE_PLATE_GEOMS = r"^(left|right)_(foot|hand)_spine(?:_.*)?_collision$"
 PHYBOT_C2_WALK_COLLISION = CollisionCfg(
   geom_names_expr=(".*_collision.*",),
   # Spine plates are climbing hardware; the foot plate box bottom sits below

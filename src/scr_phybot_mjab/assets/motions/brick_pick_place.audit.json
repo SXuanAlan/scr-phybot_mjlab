@@ -1,0 +1,20 @@
+{
+  "max_hand_error_m": 0.004173532096343987,
+  "max_foot_error_m": 1.9018385381449338e-05,
+  "max_contact_hand_error_m": 0.00018381170746235284,
+  "max_face_error_deg": 3.7530011285676905,
+  "max_brick_penetration_m": 0.0,
+  "max_contact_face_error_deg": 0.1912629779434964,
+  "min_support_margin_m": 0.01880766854867938,
+  "frames": 147,
+  "max_illegal_ground_penetration_m": 0.0,
+  "max_self_penetration_m": 0.0,
+  "worst_self_pair": [],
+  "max_preload_arm_effort_ratio": 0.363537609366418,
+  "unit_layout": "corners",
+  "preload_force_per_pad_n": 40.0,
+  "preload_audit": "Quasi-static active-arm torque with gravity and configured normal preload per pad; zero pad moment. Necessary check only.",
+  "kind": "kinematic_only",
+  "dynamic_preload_validated": false,
+  "passed": true
+}

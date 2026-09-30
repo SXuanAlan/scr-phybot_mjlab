@@ -24,7 +24,11 @@ def reward_weight(
   env_ids: torch.Tensor,
   reward_name: str,
   weight_stages: list[RewardWeightStage],
-  steps_per_iter: int = 24,
+  steps_per_iter: int = 96,  # matches BOTH live tasks' rl_cfg
+  # num_steps_per_env (was 24 until 08-19 — a fossil from the early climb
+  # era; a full-repo audit found every live wiring passes this explicitly:
+  # climb via the tested _STEPS_PER_ITER constant, transition via literal
+  # 96s plus a test guard. walk has its own step-keyed scheduler).
 ) -> torch.Tensor:
   """Update a reward term's weight based on training iteration stages.
 
@@ -75,7 +79,11 @@ def tilt_peel_schedule(
   stages: list[TiltPeelStage],
   command_name: str = "microspine_affordance",
   tax_term_name: str | None = "engaged_tilt",
-  steps_per_iter: int = 24,
+  steps_per_iter: int = 96,  # matches BOTH live tasks' rl_cfg
+  # num_steps_per_env (was 24 until 08-19 — a fossil from the early climb
+  # era; a full-repo audit found every live wiring passes this explicitly:
+  # climb via the tested _STEPS_PER_ITER constant, transition via literal
+  # 96s plus a test guard. walk has its own step-keyed scheduler).
 ) -> torch.Tensor:
   """Anneal the tilt-peel band toward the calibrated physics by iteration.
 
@@ -142,16 +150,32 @@ def resolve_wall_angle(current_iter: int, angle_stages: list[WallAngleStage]) ->
 # 45/75/tilt prefix, v4 bridge 3300->5050 through 85/88/exact-90 to the ship
 # gate) and are CEILINGS driven by mastery gates; every angle hop overlaps
 # its neighbor's jitter pool, and the tilt anneal reaches the calibrated
-# physics (3000) before the wall gets steep (3550). Full doctrine + design
+# physics (3000) before the wall gets steep (3300+). Full doctrine + design
 # rules: docs/climb_env_cfg_notes.md ("Curriculum").
+# 2026-08-10 six-stage extension: the 80+-5 rung is inserted for the
+# band-teacher matrix (deploy bands 80+-5 / 88+-2 / 90 each get a minted
+# teacher at its rung's end — the per-band mount+climb pipeline in
+# docs/plans/). Later rungs shift +350; every boundary re-checked >=300
+# iters from a tilt-anneal step and every pool still overlaps its neighbor
+# (75+-12 = 63-87 covers 80+-5 = 75-85 covers 85+-3 = 82-88).
 # Consumers must copy at use ([dict(s) for s in ...]): these tuples are shared
 # module state and env cfgs are built eagerly at import time.
 WALL_ANGLE_STAGES: tuple[WallAngleStage, ...] = (
   {"iter": 0, "angle_deg": 45.0},
   {"iter": 1500, "angle_deg": 75.0, "jitter_deg": 12.0},
-  {"iter": 3550, "angle_deg": 85.0, "jitter_deg": 3.0},
-  {"iter": 4200, "angle_deg": 88.0, "jitter_deg": 2.0},
-  {"iter": 4800, "angle_deg": 90.0},
+  {"iter": 3300, "angle_deg": 80.0, "jitter_deg": 5.0},
+  {"iter": 3900, "angle_deg": 85.0, "jitter_deg": 3.0},
+  {"iter": 4550, "angle_deg": 88.0, "jitter_deg": 2.0},
+  {"iter": 5150, "angle_deg": 90.0},
+)
+# Reduced-hardware task: keep the legacy iteration-driven ladder and
+# per-reset angle draws, with an intermediate band bounded by the 60-degree
+# target. The terminal rung must disable jitter explicitly (unlike 90, it
+# is not exempted by sample_wall_angles). Copy these dicts into each cfg.
+CORNERS60_WALL_ANGLE_STAGES: tuple[WallAngleStage, ...] = (
+  {"iter": 0, "angle_deg": 45.0, "jitter_deg": 5.0},
+  {"iter": 1500, "angle_deg": 55.0, "jitter_deg": 5.0},
+  {"iter": 3300, "angle_deg": 60.0, "jitter_deg": 0.0},
 )
 TILT_PEEL_STAGES: tuple[TiltPeelStage, ...] = (
   {
@@ -187,18 +211,44 @@ def pin_curricula_to_final_stage(cfg: ManagerBasedRlEnvCfg) -> None:
   Play/eval and the distill/polish variants run the final task only: the
   single remaining stage is the ladder's last angle and the CALIBRATED
   tilt-peel band (the annealing ladder is a training aid, not physics).
-  Deliberately leaves ``angle_jitter_deg`` untouched — play zeroes it
-  separately for deterministic rollouts, while distill keeps the training
-  jitter so rollouts cover the neighborhood the teacher graduated on.
+  The pinned stage carries no ``jitter_deg``, and with the terminal rung at
+  90 the sampler is jitter-exempt anyway (``jitter_below_deg``), so pinned
+  runs execute a HARD single angle — for a band-jittered pinned run use
+  :func:`pin_curricula_to_band` instead.
   """
   final_angle = cfg.curriculum["wall_angle"].params["angle_stages"][-1]
   cfg.curriculum["wall_angle"].params["angle_stages"] = [
     {"iter": 0, "angle_deg": final_angle["angle_deg"]}
   ]
-  final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
-  cfg.curriculum["tilt_peel"].params["stages"] = [
-    {"iter": 0, "deg_range": final_tilt["deg_range"]}
+  # Gimbal-era cfgs carry no tilt-peel ladder (angle release retired).
+  if "tilt_peel" in cfg.curriculum:
+    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
+    cfg.curriculum["tilt_peel"].params["stages"] = [
+      {"iter": 0, "deg_range": final_tilt["deg_range"]}
+    ]
+
+
+def pin_curricula_to_band(
+  cfg: ManagerBasedRlEnvCfg, angle_deg: float, jitter_deg: float
+) -> None:
+  """Pin the ladder to a single BAND stage — jitter preserved.
+
+  The per-band knob of the band-teacher matrix: soak/distill/eval runs that
+  must live inside one deploy band (80+-5, 88+-2) rather than at a hard
+  angle. Writes one stage carrying the band half-width and pins tilt-peel
+  to the calibrated physics, exactly like the final-stage pin. Note the
+  sampler clamps nothing at 90: a band like 88+-2 legitimately samples up
+  to 90, and a base at/above ``jitter_below_deg`` (default 90) stays exact.
+  """
+  cfg.curriculum["wall_angle"].params["angle_stages"] = [
+    {"iter": 0, "angle_deg": angle_deg, "jitter_deg": jitter_deg}
   ]
+  # Gimbal-era cfgs carry no tilt-peel ladder (angle release retired).
+  if "tilt_peel" in cfg.curriculum:
+    final_tilt = cfg.curriculum["tilt_peel"].params["stages"][-1]
+    cfg.curriculum["tilt_peel"].params["stages"] = [
+      {"iter": 0, "deg_range": final_tilt["deg_range"]}
+    ]
 
 
 def resolve_climb_velocity_ranges(
@@ -305,7 +355,11 @@ def wall_angle(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,
   angle_stages: list[WallAngleStage],
-  steps_per_iter: int = 24,
+  steps_per_iter: int = 96,  # matches BOTH live tasks' rl_cfg
+  # num_steps_per_env (was 24 until 08-19 — a fossil from the early climb
+  # era; a full-repo audit found every live wiring passes this explicitly:
+  # climb via the tested _STEPS_PER_ITER constant, transition via literal
+  # 96s plus a test guard. walk has its own step-keyed scheduler).
   angle_jitter_deg: float = 0.0,
   jitter_below_deg: float = 90.0,
   wall_entity_name: str = "wall",
@@ -354,7 +408,11 @@ def climb_velocity_command_ranges(
   env_ids: torch.Tensor,
   command_name: str,
   range_stages: list[ClimbVelocityRangeStage],
-  steps_per_iter: int = 24,
+  steps_per_iter: int = 96,  # matches BOTH live tasks' rl_cfg
+  # num_steps_per_env (was 24 until 08-19 — a fossil from the early climb
+  # era; a full-repo audit found every live wiring passes this explicitly:
+  # climb via the tested _STEPS_PER_ITER constant, transition via literal
+  # 96s plus a test guard. walk has its own step-keyed scheduler).
 ) -> dict[str, torch.Tensor]:
   """Curriculum that updates climb velocity command ranges by iteration."""
   del env_ids  # Unused.

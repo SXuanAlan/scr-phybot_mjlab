@@ -24,5 +24,6 @@ def mount_handoff_ready(
   """
   motion = env.command_manager.get_term(command_name)
   affordance = env.command_manager.get_term(affordance_command_name)
-  at_end = motion.time_steps >= (motion.clip.cycle_frames - 1)
-  return (at_end & affordance.engaged.all(dim=1)).float()
+  # Band-aware: MountMotionCommand exposes the per-env terminal frame (in
+  # band mode each env's clip window has its own end).
+  return (motion.at_terminal_hold & affordance.engaged.all(dim=1)).float()
