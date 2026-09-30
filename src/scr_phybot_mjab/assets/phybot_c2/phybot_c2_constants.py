@@ -213,6 +213,9 @@ PHYBOT_C2_POLICY_JOINT_NAMES = (
   "right_shoulder_yaw",
   "right_elbow_pitch",
 )
+# Every joint of the robot body: the policy joints plus the PD-held neck. The
+# passive pad gimbals are excluded; a ".*" joint pattern would include them.
+PHYBOT_C2_BODY_JOINT_NAMES = (*PHYBOT_C2_POLICY_JOINT_NAMES, "neck_yaw", "neck_pitch")
 PHYBOT_C2_ACTION_SCALE = 0.25
 PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP = {
   "hip_pitch": 10.0,

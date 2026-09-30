@@ -31,6 +31,7 @@ from scr_phybot_mjab.tasks.walk.config.phybot_c2.amp_rl_cfg import AmpDatasetCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  PHYBOT_C2_BODY_JOINT_NAMES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP,
   PHYBOT_C2_STANDING_JOINT_POS,
@@ -316,6 +317,9 @@ def phybot_c2_walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   )
 
   cfg.rewards["base_height"].weight = 0.5
+  # Body joints only, in model order to match the per-joint std tables; ".*"
+  # would also pull in the passive pad gimbals.
+  cfg.rewards["pose"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names=PHYBOT_C2_BODY_JOINT_NAMES)
 
   if play:
     twist_cmd = cfg.commands["twist"]
