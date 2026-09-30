@@ -34,7 +34,6 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.package-data]
 "scr_phybot_mjab.assets.microspine" = ["*.npz"]
 "scr_phybot_mjab.assets.motions" = ["*.npy", "*.npz", "*.json"]
-"scr_phybot_mjab.assets.toddlerbot" = ["*.json", "*.md", "meshes/*.stl", "upstream/*.xml", "upstream/*.yml", "upstream/LICENSE", "upstream/*.md", "upstream/assets/*.stl"]
 
 [tool.ruff]
 line-length = 120

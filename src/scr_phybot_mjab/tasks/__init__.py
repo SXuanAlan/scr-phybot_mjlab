@@ -17,4 +17,3 @@ import scr_phybot_mjab.tasks.climb_transition80  # noqa: F401,E402
 
 import scr_phybot_mjab.tasks.brick  # noqa: F401,E402
 
-import scr_phybot_mjab.tasks.toddler_climb  # noqa: F401,E402
