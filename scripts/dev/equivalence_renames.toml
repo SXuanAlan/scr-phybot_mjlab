@@ -1,0 +1,4 @@
+# Functions and classes that moved during the cleanup, applied to baseline
+# config dumps before comparing: "old.module.qualname" = "new.module.qualname".
+# Only pure moves belong here; any other config change must show up as a diff.
+[renames]
