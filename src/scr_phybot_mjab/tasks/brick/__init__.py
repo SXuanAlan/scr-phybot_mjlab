@@ -2,18 +2,20 @@
 
 from mjlab.tasks.registry import register_mjlab_task
 
-from scr_phybot_mjab.tasks.squat.config.phybot_c2.rl_cfg import phybot_c2_squat_ppo_runner_cfg
+from scr_phybot_mjab.tasks.common.rl_cfg import plain_ppo_runner_cfg
 
 from .env_cfg import brick_env_cfg
 
 
 def runner_cfg():
-  cfg = phybot_c2_squat_ppo_runner_cfg()
-  cfg.experiment_name = "phybot_c2_microspine_brick"
+  cfg = plain_ppo_runner_cfg(
+    experiment_name="phybot_c2_microspine_brick",
+    wandb_project="scr_phybot_mjab-brick",
+    wandb_tags=("phybot_c2", "microspine", "brick"),
+    max_iterations=15_000,
+  )
   cfg.logger = "tensorboard"
   cfg.actor.distribution_cfg["init_std"] = 0.2
-  cfg.wandb_project = "scr_phybot_mjab-brick"
-  cfg.wandb_tags = ("phybot_c2", "microspine", "brick")
   return cfg
 
 

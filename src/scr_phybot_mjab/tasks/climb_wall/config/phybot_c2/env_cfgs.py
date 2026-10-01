@@ -93,17 +93,12 @@ from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   VELOCITY_COMMAND,
   make_climb_wall_env_cfg,
 )
-from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
-  PHYBOT_C2_WALK_COLLISION,
+from scr_phybot_mjab.tasks.common.phybot_c2 import (
+  BASE_ANG_VEL_SENSOR,
+  BASE_LIN_VEL_SENSOR,
+  BASE_QUAT_SENSOR,
+  policy_joint_cfg,
 )
-
-
-def _policy_joint_cfg() -> SceneEntityCfg:
-  return SceneEntityCfg(
-    "robot",
-    joint_names=PHYBOT_C2_POLICY_JOINT_NAMES,
-    preserve_order=True,
-  )
 
 
 def phybot_c2_climb_wall_env_cfg(
@@ -228,11 +223,11 @@ def phybot_c2_climb_wall_env_cfg(
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
   terms = cfg.observations["actor"].terms
   terms["base_lin_vel"].func = mdp.builtin_sensor
-  terms["base_lin_vel"].params = {"sensor_name": "robot/baselink-velocity"}
+  terms["base_lin_vel"].params = {"sensor_name": BASE_LIN_VEL_SENSOR}
   terms["base_ang_vel"].func = mdp.builtin_sensor
-  terms["base_ang_vel"].params = {"sensor_name": "robot/baselink-gyro"}
+  terms["base_ang_vel"].params = {"sensor_name": BASE_ANG_VEL_SENSOR}
   terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
-  terms["projected_gravity"].params = {"sensor_name": "robot/baselink-quat"}
+  terms["projected_gravity"].params = {"sensor_name": BASE_QUAT_SENSOR}
 
   ##
   # Commands.
@@ -310,9 +305,6 @@ def phybot_c2_climb_wall_env_cfg(
     return spec
 
   robot_cfg.spec_fn = _robot_spec_with_toes
-  # One shared CollisionCfg is the source of truth for both tasks. Climb adds
-  # sphere-wall pairs and grip equalities, but does not alter robot geoms.
-  robot_cfg.collisions = (PHYBOT_C2_WALK_COLLISION,)
 
   # Override init state at task level (do NOT mutate the shared keyframe
   # singleton on robot_cfg.init_state — other c2 tasks reuse it). The CAD
@@ -645,7 +637,7 @@ def phybot_c2_climb_wall_env_cfg(
     "dof_pos_limits": RewardTermCfg(
       func=mdp.joint_pos_limits,
       weight=-5.0,
-      params={"asset_cfg": _policy_joint_cfg()},
+      params={"asset_cfg": policy_joint_cfg()},
     ),
     # RewardManager scales by dt, so -500 is a -10 one-shot failure cost.
     "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-500.0),
@@ -674,8 +666,8 @@ def phybot_c2_climb_wall_env_cfg(
   ##
 
   actor_terms = cfg.observations["actor"].terms
-  actor_terms["joint_pos_rel"].params = {"asset_cfg": _policy_joint_cfg()}
-  actor_terms["joint_vel_rel"].params = {"asset_cfg": _policy_joint_cfg()}
+  actor_terms["joint_pos_rel"].params = {"asset_cfg": policy_joint_cfg()}
+  actor_terms["joint_vel_rel"].params = {"asset_cfg": policy_joint_cfg()}
   actor_terms["microspine_engaged_state"] = ObservationTermCfg(
     func=mdp.microspine_engaged_state,
     params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},

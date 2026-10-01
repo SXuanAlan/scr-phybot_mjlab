@@ -60,10 +60,8 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   configure_phybot_c2_floor_geom,
 )
 from scr_phybot_mjab.tasks.climb_transition80 import mdp
-from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
-  _policy_joint_cfg,
-  phybot_c2_climb_wall_env_cfg,
-)
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
+from scr_phybot_mjab.tasks.common.phybot_c2 import policy_joint_cfg
 
 _STEPS_PER_ITER = 96  # climb PPO num_steps_per_env (test-guarded)
 _MOTIONS_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
@@ -777,7 +775,7 @@ def phybot_c2_climb_transition80_env_cfg(
     "dof_pos_limits": RewardTermCfg(
       func=mdp.joint_pos_limits,
       weight=-10.0,
-      params={"asset_cfg": _policy_joint_cfg()},
+      params={"asset_cfg": policy_joint_cfg()},
     ),
   }
   if asym_arm_tracking:

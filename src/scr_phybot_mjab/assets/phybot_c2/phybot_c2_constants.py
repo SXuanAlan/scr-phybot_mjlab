@@ -578,22 +578,31 @@ DEFAULT_KEYFRAME = EntityCfg.InitialStateCfg(
 )
 
 ##
-# Collision config.
+# Collision config, shared by every task.
+#
+# Feet get real-ground friction (mu 0.7, condim 3) so a gait cannot balance on
+# a heel point that a real floor would let slip. The spine plates are
+# climbing hardware: their box bottoms sit below the shoe sole, so they never
+# collide through contype/conaffinity (climbing contacts are explicit pairs).
 ##
 
+PHYBOT_C2_FOOT_COLLISION_GEOMS = r"^(left|right)_ankle_roll_collision$"
+_SPINE_PLATE_GEOMS = r"^(left|right)_(foot|hand)_spine(?:_.*)?_collision$"
 PHYBOT_C2_COLLISION = CollisionCfg(
   geom_names_expr=(".*_collision.*",),
-  condim={
-    r"^(left|right)_ankle_roll_collision$": 6,
-    ".*": 3,
-  },
+  contype={_SPINE_PLATE_GEOMS: 0, ".*": 1},
+  conaffinity={_SPINE_PLATE_GEOMS: 0, ".*": 1},
+  condim={".*": 3},
   friction={
-    r"^(left|right)_ankle_roll_collision$": (30.0, 0.01, 0.01),
+    PHYBOT_C2_FOOT_COLLISION_GEOMS: (0.7, 0.005, 0.0001),
     ".*": (1.0, 0.1, 0.1),
   },
-  priority={
-    r"^(left|right)_ankle_roll_collision$": 1,
-  },
+  # Feet keep priority so their friction/solref win against the terrain plane.
+  priority={PHYBOT_C2_FOOT_COLLISION_GEOMS: 1},
+  # The XML default solref timeconst (0.001) violates MuJoCo's stability
+  # guideline (>= 2*timestep = 0.01 at dt=0.005) and causes visible foot
+  # penetration. Critically damped at the guideline minimum.
+  solref={".*": (0.01, 1.0)},
 )
 
 ##

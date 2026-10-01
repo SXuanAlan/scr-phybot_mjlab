@@ -32,7 +32,12 @@ from scr_phybot_mjab.microspine.constraint import add_attachment_equalities, mak
 from scr_phybot_mjab.microspine.contact import add_contact_pairs, get_sphere_geom_names
 from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
-from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import _apply_real_pd_actuator_damping
+from scr_phybot_mjab.tasks.common.phybot_c2 import (
+  BASE_ANG_VEL_SENSOR,
+  BASE_QUAT_SENSOR,
+  apply_real_pd_damping,
+  policy_joint_cfg,
+)
 from scr_phybot_mjab.tasks.walk.mdp import projected_gravity_from_framequat_sensor
 
 from . import mdp
@@ -99,11 +104,11 @@ def brick_env_cfg(
   ls.hold_grace_steps = 1
   robot = get_phybot_c2_robot_cfg()
   robot.collisions = (brick_robot_collision(),)
-  asset = SceneEntityCfg("robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True)
+  asset = policy_joint_cfg()
   actor = {
-    "base_ang_vel": ObservationTermCfg(func=base_mdp.builtin_sensor, params={"sensor_name": "robot/baselink-gyro"}),
+    "base_ang_vel": ObservationTermCfg(func=base_mdp.builtin_sensor, params={"sensor_name": BASE_ANG_VEL_SENSOR}),
     "projected_gravity": ObservationTermCfg(
-      func=projected_gravity_from_framequat_sensor, params={"sensor_name": "robot/baselink-quat"}
+      func=projected_gravity_from_framequat_sensor, params={"sensor_name": BASE_QUAT_SENSOR}
     ),
     "joint_pos": ObservationTermCfg(
       func=base_mdp.joint_pos_rel, params={"asset_cfg": asset}, noise=UniformNoiseCfg(n_min=-0.01, n_max=0.01)
@@ -277,6 +282,6 @@ def brick_env_cfg(
       "success": TerminationTermCfg(func=mdp.finished),
     },
   )
-  _apply_real_pd_actuator_damping(cfg)
+  apply_real_pd_damping(cfg)
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
   return cfg

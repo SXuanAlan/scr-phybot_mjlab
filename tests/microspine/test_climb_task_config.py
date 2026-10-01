@@ -3,6 +3,7 @@ import mujoco
 import pytest
 
 import scr_phybot_mjab.tasks  # noqa: F401  # Initialize the registry before task modules.
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_COLLISION
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   _CLIMB_MOTION_FILE,
   phybot_c2_climb_wall_corners60_env_cfg,
@@ -12,9 +13,6 @@ from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
   phybot_c2_ppo_runner_cfg,
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import clip_average_climb_rate
-from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
-  PHYBOT_C2_WALK_COLLISION,
-)
 
 
 def test_climb_microspine_contract_and_command_ordering():
@@ -269,12 +267,12 @@ def test_climb_play_defaults_to_one_env_without_sync_debug():
   assert cfg.commands["climb_motion"].joint_pos_noise == 0.0
 
 
-def test_climb_reuses_walk_robot_collision_config():
+def test_climb_uses_the_shared_robot_collision_config():
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   collisions = cfg.scene.entities["robot"].collisions
 
   assert len(collisions) == 1
-  assert collisions[0] is PHYBOT_C2_WALK_COLLISION
+  assert collisions[0] is PHYBOT_C2_COLLISION
 
 
 def test_climb_wall_keeps_visual_box_but_collides_as_surface_plane():

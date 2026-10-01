@@ -1,52 +1,18 @@
-"""RSL-RL (plain PPO) configuration for the PHYBot C2 squat tracking task.
+"""RSL-RL configuration for the PHYBot C2 squat tracking task.
 
-Same PPO baseline as the walk task; DeepMimic-style tracking needs no AMP
-discriminator, so this uses the default on-policy runner.
+DeepMimic-style tracking needs no AMP discriminator, so this is the plain PPO
+baseline shared with walk.
 """
 
-from mjlab.rl import (
-  RslRlModelCfg,
-  RslRlOnPolicyRunnerCfg,
-  RslRlPpoAlgorithmCfg,
-)
+from mjlab.rl import RslRlOnPolicyRunnerCfg
+
+from scr_phybot_mjab.tasks.common.rl_cfg import plain_ppo_runner_cfg
 
 
 def phybot_c2_squat_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
-  return RslRlOnPolicyRunnerCfg(
-    actor=RslRlModelCfg(
-      hidden_dims=(512, 256, 128),
-      activation="elu",
-      obs_normalization=True,
-      distribution_cfg={
-        "class_name": "GaussianDistribution",
-        "init_std": 1.0,
-        "std_type": "scalar",
-      },
-    ),
-    critic=RslRlModelCfg(
-      hidden_dims=(512, 256, 128),
-      activation="elu",
-      obs_normalization=True,
-    ),
-    algorithm=RslRlPpoAlgorithmCfg(
-      value_loss_coef=1.0,
-      use_clipped_value_loss=True,
-      clip_param=0.2,
-      entropy_coef=0.01,
-      num_learning_epochs=5,
-      num_mini_batches=4,
-      learning_rate=1.0e-3,
-      schedule="adaptive",
-      gamma=0.99,
-      lam=0.95,
-      desired_kl=0.01,
-      max_grad_norm=1.0,
-    ),
+  return plain_ppo_runner_cfg(
     experiment_name="phybot_c2_squat",
-    logger="wandb",
     wandb_project="scr_phybot_mjab-squat",
     wandb_tags=("phybot_c2", "squat"),
-    save_interval=50,
-    num_steps_per_env=24,
     max_iterations=15_000,
   )

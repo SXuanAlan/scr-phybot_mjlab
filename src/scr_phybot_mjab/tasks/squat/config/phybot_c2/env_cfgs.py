@@ -7,7 +7,6 @@ reference and the velocity-tracking rewards for lower-body + base tracking.
 
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 
 import numpy as np
@@ -23,16 +22,22 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
+  PHYBOT_C2_FOOT_COLLISION_GEOMS,
   PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
-  PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP,
   PHYBOT_C2_STANDING_JOINT_POS,
   get_phybot_c2_robot_cfg,
+)
+from scr_phybot_mjab.tasks.common.phybot_c2 import (
+  BASE_ANG_VEL_SENSOR,
+  BASE_LIN_VEL_SENSOR,
+  BASE_QUAT_SENSOR,
+  apply_real_pd_damping,
+  policy_joint_cfg,
 )
 from scr_phybot_mjab.tasks.squat import mdp
 from scr_phybot_mjab.tasks.squat.mdp import SquatMotionCommandCfg
 from scr_phybot_mjab.tasks.squat.squat_env_cfg import make_squat_env_cfg
-from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import PHYBOT_C2_WALK_COLLISION
 
 _TORSO_BODY = "torso"
 _FEET_ROOT_BODIES = r"^(left_ankle_roll|right_ankle_roll)$"
@@ -43,10 +48,6 @@ _ILLEGAL_GROUND_BODIES = (
   r"|left_elbow_pitch|right_elbow_pitch"
   r"|torso|torso_upper)$"
 )
-_FOOT_COLLISION_GEOMS = r"^(left|right)_ankle_roll_collision$"
-_BASE_QUAT_SENSOR = "robot/baselink-quat"
-_BASE_LIN_VEL_SENSOR = "robot/baselink-velocity"
-_BASE_ANG_VEL_SENSOR = "robot/baselink-gyro"
 
 # All 21 policy joints are motion-tracked. The neck is not policy-controlled and
 # is intentionally absent from both this list and squat.npy.
@@ -131,22 +132,6 @@ _SQUAT_STANDING_KEYFRAME = EntityCfg.InitialStateCfg(
 )
 
 
-def _apply_real_pd_actuator_damping(cfg: ManagerBasedRlEnvCfg) -> None:
-  """Match hip/knee damping to the deployed mini PD (kd 5 -> 10)."""
-  robot_cfg = copy.deepcopy(cfg.scene.entities["robot"])
-  damping_by_target_expr = {(f".*_{group}",): damping for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()}
-  updated = set()
-  for actuator in robot_cfg.articulation.actuators:
-    target_expr = tuple(actuator.target_names_expr)
-    if target_expr in damping_by_target_expr:
-      actuator.damping = damping_by_target_expr[target_expr]
-      updated.add(target_expr)
-  missing = set(damping_by_target_expr) - updated
-  if missing:
-    raise ValueError(f"Missing PHYBot C2 real-PD actuator damping targets: {sorted(missing)}")
-  cfg.scene.entities["robot"] = robot_cfg
-
-
 def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create the PHYBot C2 flat-terrain squat tracking configuration."""
   cfg = make_squat_env_cfg()
@@ -157,7 +142,6 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   robot_cfg = get_phybot_c2_robot_cfg()
   robot_cfg.init_state = _SQUAT_STANDING_KEYFRAME
-  robot_cfg.collisions = (PHYBOT_C2_WALK_COLLISION,)
   cfg.scene.entities = {"robot": robot_cfg}
 
   ##
@@ -165,14 +149,12 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   ##
 
   actor_terms = cfg.observations["actor"].terms
-  actor_terms["base_ang_vel"].params = {"sensor_name": _BASE_ANG_VEL_SENSOR}
+  actor_terms["base_ang_vel"].params = {"sensor_name": BASE_ANG_VEL_SENSOR}
   actor_terms["projected_gravity"].func = mdp.projected_gravity_from_framequat_sensor
-  actor_terms["projected_gravity"].params = {"sensor_name": _BASE_QUAT_SENSOR}
+  actor_terms["projected_gravity"].params = {"sensor_name": BASE_QUAT_SENSOR}
   for term_name in ("joint_pos", "joint_vel"):
-    actor_terms[term_name].params = {
-      "asset_cfg": SceneEntityCfg("robot", joint_names=PHYBOT_C2_POLICY_JOINT_NAMES, preserve_order=True)
-    }
-  cfg.observations["critic"].terms["base_lin_vel"].params = {"sensor_name": _BASE_LIN_VEL_SENSOR}
+    actor_terms[term_name].params = {"asset_cfg": policy_joint_cfg()}
+  cfg.observations["critic"].terms["base_lin_vel"].params = {"sensor_name": BASE_LIN_VEL_SENSOR}
 
   ##
   # Actions
@@ -305,7 +287,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     mode="startup",
     func=dr.geom_friction,
     params={
-      "asset_cfg": SceneEntityCfg("robot", geom_names=(_FOOT_COLLISION_GEOMS,)),
+      "asset_cfg": SceneEntityCfg("robot", geom_names=(PHYBOT_C2_FOOT_COLLISION_GEOMS,)),
       "operation": "abs",
       "ranges": (0.4, 1.0),
       "shared_random": False,
@@ -333,7 +315,7 @@ def phybot_c2_squat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # Sim to real: match hip/knee PD to the deployed mini gains.
   ##
 
-  _apply_real_pd_actuator_damping(cfg)
+  apply_real_pd_damping(cfg)
 
   ##
   # Play mode
