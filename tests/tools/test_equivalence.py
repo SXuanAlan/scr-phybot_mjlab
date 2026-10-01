@@ -46,6 +46,22 @@ def test_renames_rewrite_moved_functions_only():
   assert renamed == ["cfg.func = fn:new.mod.kernel", "cfg.name = s:'old.mod.kernel'"]
 
 
+def test_renames_cover_instances_and_enum_members_of_moved_classes():
+  lines = [
+    "cfg.toe = dataclass:old.mod.Toe",
+    "cfg.obj = object:old.mod.Toe",
+    "cfg.kind = enum:old.mod.Kind.A",
+    "cfg.other = dataclass:old.mod.Toes",
+  ]
+  renamed = apply_renames(lines, {"old.mod.Toe": "new.mod.Toe", "old.mod.Kind": "new.mod.Kind"})
+  assert renamed == [
+    "cfg.toe = dataclass:new.mod.Toe",
+    "cfg.obj = object:new.mod.Toe",
+    "cfg.kind = enum:new.mod.Kind.A",
+    "cfg.other = dataclass:old.mod.Toes",
+  ]
+
+
 def test_rollout_judging_tolerates_noise_but_not_a_changed_column():
   rng = np.random.default_rng(0)
   base = rng.normal(size=(150, 8, 3)).astype(np.float32)

@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 _SITE_ROOT = Path(np.__file__).resolve().parents[1]
 _HOME = str(Path.home())
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")
-_NAME_TOKEN = re.compile(r"\b(fn|cls|method):([\w.<>]+)")
+_NAME_TOKEN = re.compile(r"\b(fn|cls|method|dataclass|object|enum|depth-limit):([\w.<>]+)")
 _MAX_DEPTH = 80
 
 
@@ -36,12 +36,25 @@ def canonical_lines(obj: Any, root: str) -> list[str]:
 
 
 def apply_renames(lines: list[str], renames: dict[str, str]) -> list[str]:
-  """Rewrite function/class names that moved, so a baseline matches new code."""
+  """Rewrite function/class names that moved, so a baseline matches new code.
+
+  A rename of ``mod.Class`` also covers the names nested in it, such as an
+  enum member ``mod.Class.MEMBER``.
+  """
   if not renames:
     return lines
 
+  def renamed(name: str) -> str:
+    head, tail = name, ""
+    while head:
+      if head in renames:
+        return renames[head] + tail
+      head, _, last = head.rpartition(".")
+      tail = f".{last}{tail}"
+    return name
+
   def swap(match: re.Match) -> str:
-    return f"{match.group(1)}:{renames.get(match.group(2), match.group(2))}"
+    return f"{match.group(1)}:{renamed(match.group(2))}"
 
   return [_NAME_TOKEN.sub(swap, line) for line in lines]
 
