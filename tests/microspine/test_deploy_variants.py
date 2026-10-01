@@ -5,10 +5,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from scr_phybot_mjab.microspine.affordance import (
-  RELEASE_REASON_DR_FORCED,
-  MicrospineAffordance,
-)
+from scr_phybot_mjab.microspine.affordance import MicrospineAffordance
+from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
 )
@@ -146,7 +144,7 @@ def test_force_release_mirrors_real_disengage():
   assert aff._engage_count[0, 1] == 0 and aff._violation_count[0, 1] == 0
   assert bool(aff.forced_release_this_step[0, 1])
   assert bool(aff.forced_release_this_step[0, 3])  # OR semantics
-  assert int(aff.release_reason[0, 1]) == RELEASE_REASON_DR_FORCED
+  assert int(aff.release_reason[0, 1]) == ReleaseReason.EXTERNAL
   assert int(aff.release_reason[0, 3]) == 2  # untouched
   # Env 1 untouched.
   assert bool(aff._engaged[1].all())

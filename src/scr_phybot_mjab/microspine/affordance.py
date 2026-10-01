@@ -16,16 +16,13 @@ from scr_phybot_mjab.microspine.empirical_limit_surface import (
   EmpiricalLimitSurface,
 )
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
+from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, pad_face_vertices, rotate
+from scr_phybot_mjab.microspine.wall import wall_inward_normal
 from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
-
-# release_reason code for releases commanded from outside the limit-surface
-# judgement (DR random-release event, scripted diagnostics). Physical faces
-# use 1-4.
-RELEASE_REASON_DR_FORCED = 6
 
 
 def _quat_rotate(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
@@ -143,12 +140,9 @@ class MicrospineAffordance(CommandTerm):
     # placement of initially engaged anchors.
     self.engaged_this_step = torch.zeros(shape, dtype=torch.bool, device=self.device)
     # HUD/debug readouts (pure GPU writes; no host syncs in the step path).
-    # release_reason: which envelope face fired on a forced release —
-    # 0 none, 1 reverse-shear, 2 normal threshold, 3 lateral, 4 ultimate-shear,
-    # 6 externally forced, 7 empirical domain exceeded,
-    # 8 empirical early-loading failure.
-    # Like anchor_load_tnl it holds the violating value on the release step
-    # and resets the step after.
+    # release_reason: the ReleaseReason of a forced release. Like
+    # anchor_load_tnl it holds the value on the release step and resets the
+    # step after.
     self.release_reason = torch.zeros(shape, dtype=torch.int8, device=self.device)
     # Seed provenance (2026-08-15 seed economy): True while an RSI-SEEDED
     # anchor is the one holding — cleared the moment it releases; a weld the
@@ -307,7 +301,7 @@ class MicrospineAffordance(CommandTerm):
     self,
     env_ids: torch.Tensor,
     ee_mask: torch.Tensor,
-    reason: int = RELEASE_REASON_DR_FORCED,
+    reason: int = ReleaseReason.EXTERNAL,
     report: bool = True,
   ) -> None:
     """Release latched EEs outside the limit-surface judgement.
@@ -339,7 +333,7 @@ class MicrospineAffordance(CommandTerm):
       self.released_was_seeded[env_ids] |= mask & self._seeded[env_ids]
     self._seeded[env_ids] = self._seeded[env_ids] & ~mask
     self._engaged[env_ids] = self._engaged[env_ids] & ~mask
-    if report and reason == RELEASE_REASON_DR_FORCED:
+    if report and reason == ReleaseReason.EXTERNAL:
       # Arm the reseat hold (see ``reseat_hold``). Scripted no-fault
       # releases (report=False) never freeze the clock.
       self.dr_release_pending[env_ids] = self.dr_release_pending[env_ids] | mask
@@ -456,14 +450,7 @@ class MicrospineAffordance(CommandTerm):
     self._sync_latched_contact_margins()
 
   def _wall_inward_normal(self) -> torch.Tensor:
-    wall = self._env.scene[self._mcfg.wall_entity_name]
-    wquat = wall.data.root_link_quat_w
-    # Wall local +x is the inward normal.
-    ww, wx, wy, wz = wquat[:, 0], wquat[:, 1], wquat[:, 2], wquat[:, 3]
-    inward_x = 1.0 - 2.0 * (wy * wy + wz * wz)
-    inward_y = 2.0 * (wx * wy + ww * wz)
-    inward_z = 2.0 * (wx * wz - ww * wy)
-    return torch.stack([inward_x, inward_y, inward_z], dim=-1)
+    return wall_inward_normal(self._env, self._mcfg.wall_entity_name)
 
   def _engage_frame(
     self,
@@ -593,10 +580,10 @@ class MicrospineAffordance(CommandTerm):
     margin, worst = margins.min(-1)
     idx = worst.unsqueeze(-1)
     worst_load = self.unit_load_tln.gather(-2, idx.unsqueeze(-1).expand(*idx.shape, 3)).squeeze(-2)
-    reason = torch.full_like(self.release_reason, 2)  # conditional normal release
-    reason = torch.where(early.gather(-1, idx).squeeze(-1), 8, reason)
+    reason = torch.full_like(self.release_reason, int(ReleaseReason.NORMAL))
+    reason = torch.where(early.gather(-1, idx).squeeze(-1), int(ReleaseReason.EMPIRICAL_EARLY), reason)
     # Domain rejection is explicitly distinct from a measured strength failure.
-    reason = torch.where(~domain.gather(-1, idx).squeeze(-1), 7, reason)
+    reason = torch.where(~domain.gather(-1, idx).squeeze(-1), int(ReleaseReason.EMPIRICAL_DOMAIN), reason)
     violation = margin < 0
     return margin, violation, torch.zeros_like(violation), reason, worst_load * self._unit_x.numel()
 
@@ -1099,7 +1086,9 @@ class MicrospineAffordance(CommandTerm):
     if getattr(self, "_surfaces", None) is not None:
       outside = self._engaged & ~self.surface_covered
       self.forced_release_this_step |= outside
-      self.release_reason = torch.where(outside, torch.full_like(self.release_reason, 9), self.release_reason)
+      self.release_reason = torch.where(
+        outside, torch.full_like(self.release_reason, int(ReleaseReason.OFF_SURFACE)), self.release_reason
+      )
     disengage_transition = self.forced_release_this_step
 
     new_engaged = torch.where(

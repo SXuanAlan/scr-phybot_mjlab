@@ -58,6 +58,7 @@ if TYPE_CHECKING:
 from scr_phybot_mjab.microspine.config import MicrospineCfg
 from scr_phybot_mjab.microspine.contact import pad_contact_center, sphere_names
 from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, conjugate
+from scr_phybot_mjab.microspine.wall import wall_inward_normal
 
 _EFC_EQUALITY = int(ConstraintType.EQUALITY)
 
@@ -113,17 +114,6 @@ def weld_rotational_force_to_world_moment(
   w, v = q_err[..., 0:1], q_err[..., 1:4]
   moment = 0.5 * float(torquescale) * (w * rotational_force + torch.cross(v, rotational_force, dim=-1))
   return moment if target_quat_w is None else _quat_rotate_batched(target_quat_w, moment)
-
-
-def _wall_inward_normal_w(env: ManagerBasedRlEnv, wall_entity_name: str) -> torch.Tensor:
-  """Wall inward normal (robot-to-wall, wall local +x) in world frame, (E, 3)."""
-  wall = env.scene[wall_entity_name]
-  wquat = wall.data.root_link_quat_w
-  ww, wx, wy, wz = wquat[:, 0], wquat[:, 1], wquat[:, 2], wquat[:, 3]
-  inward_x = 1.0 - 2.0 * (wy * wy + wz * wz)
-  inward_y = 2.0 * (wx * wy + ww * wz)
-  inward_z = 2.0 * (wx * wz - ww * wy)
-  return torch.stack([inward_x, inward_y, inward_z], dim=-1)
 
 
 def pad_local_anchor(
@@ -356,7 +346,7 @@ class MicrospineConstraint:
       point, normal, _, _ = self._surfaces.frame()
       return points - ((points - point) * normal).sum(-1, keepdim=True) * normal
     wall = self._env.scene[self._mcfg.wall_entity_name]
-    inward = _wall_inward_normal_w(self._env, self._mcfg.wall_entity_name)
+    inward = wall_inward_normal(self._env, self._mcfg.wall_entity_name)
     face_point = wall.data.root_link_pos_w - self._wall_half_thickness * inward
     offset = ((points - face_point.unsqueeze(1)) * inward.unsqueeze(1)).sum(dim=-1, keepdim=True)
     return points - offset * inward.unsqueeze(1)
@@ -377,7 +367,7 @@ class MicrospineConstraint:
       rake = rake - (rake * normal).sum(-1, keepdim=True) * normal
       return rake / torch.linalg.vector_norm(rake, dim=-1, keepdim=True).clamp_min(1e-9)
 
-    n_in = _wall_inward_normal_w(self._env, self._mcfg.wall_entity_name)
+    n_in = wall_inward_normal(self._env, self._mcfg.wall_entity_name)
     g = wp.to_torch(self._env.sim.wp_model.opt.gravity)
     if g.shape[0] != n_in.shape[0]:
       g = g.expand(n_in.shape[0], -1)
