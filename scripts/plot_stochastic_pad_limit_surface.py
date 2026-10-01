@@ -171,7 +171,7 @@ def main():
     "surface/placement test remains necessary after this model-development split.\n"
   )
   print(f"Wrote {STEM}.png/.pdf/.svg and distribution validation figure")
-  from scr_phybot_mjab.microspine.config import MicrospineLimitSurfaceCfg
+  from scr_phybot_mjab.tools.microspine.wang_limit_surface import WangPadCfg
 
   fig, axs = plt.subplots(1, 2, figsize=(9, 3), layout="constrained")
   moments = np.linspace(0, 2.5, 101)
@@ -197,7 +197,7 @@ def main():
   high, _, _, _ = pad.surface.query_numpy(s, 0, 0.9)
   axs[1].fill_between(s, low, high, alpha=0.18, color="#165695", label="Measured-data unit 10-90%")
   axs[1].plot(s, med, color="#165695", label="Measured-data unit median")
-  wang = WangUnit(MicrospineLimitSurfaceCfg())
+  wang = WangUnit(WangPadCfg())
   for f0, color in [(400, "#ab8d65"), (650, "#815d30")]:
     axs[1].plot(s, wang.normal_boundary(s, 0, f0), ls="--", color=color, label=f"Legacy Wang, pad F0={f0} N")
   axs[1].set(

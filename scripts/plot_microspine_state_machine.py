@@ -43,6 +43,7 @@ from scr_phybot_mjab.microspine.config import (  # noqa: E402
   MicrospineLimitSurfaceCfg,
 )
 from scr_phybot_mjab.tools.microspine.wang_limit_surface import (  # noqa: E402
+  WangPadCfg,
   build_capacity_lut,
   capacity_ratio,
 )
@@ -106,9 +107,28 @@ def _rc() -> None:
   )
 
 
-def climb_configs() -> tuple[MicrospineCfg, MicrospineLimitSurfaceCfg]:
-  """Reproduce the '## Microspine physics' section of
-  phybot_c2_climb_wall_env_cfg() (single-EE subset)."""
+@dataclasses.dataclass(frozen=True)
+class WangEraHoldCfg(WangPadCfg):
+  """Hold settings of the retired Wang-era climb plant the figure depicts."""
+
+  hold_judge_guard_steps: int = MicrospineLimitSurfaceCfg().hold_judge_guard_steps
+  hold_grace_steps: int = MicrospineLimitSurfaceCfg().hold_grace_steps
+  capacity_ramp_floor: float = 0.3
+  capacity_ramp_time_s: float = 0.25
+  capacity_ramp_shear_n: float = 10.0
+
+
+@dataclasses.dataclass(frozen=True)
+class WangEraEngageCfg:
+  """The retired proxy press gate (G1): one contact proxy at >= 3 N."""
+
+  engage_min_spheres: int = 1
+  engage_normal_force_threshold: float = 3.0
+
+
+def climb_configs() -> tuple[MicrospineCfg, WangEraHoldCfg, WangEraEngageCfg]:
+  """The climb's microspine settings (single-EE subset) plus the Wang-era
+  hold and press-gate settings the figure depicts."""
   mcfg = MicrospineCfg(
     ee_body_names=("left_hand_spine",),
     spheres_per_ee_rows=2,
@@ -118,15 +138,7 @@ def climb_configs() -> tuple[MicrospineCfg, MicrospineLimitSurfaceCfg]:
   )
   mcfg.anchor_lock_rotation = True
   mcfg.disable_contacts_while_latched = True
-  ls = dataclasses.replace(
-    mcfg.limit_surface,
-    rake_mode="ee_local",
-    model="wang2017",
-    f_t_max_range=(400.0, 650.0),
-    capacity_ramp_time_s=0.25,
-  )
-  mcfg.limit_surface = ls
-  return mcfg, ls
+  return mcfg, WangEraHoldCfg(f_t_max_range=(400.0, 650.0)), WangEraEngageCfg()
 
 
 def panel_letter(fig, x: float, y: float, letter: str) -> None:
@@ -140,7 +152,7 @@ def ratio(lut: torch.Tensor, ft: float, fl: float, fn: float) -> float:
 # ===========================================================================
 # Panel A -- state machine
 # ===========================================================================
-def panel_a(ax, mcfg: MicrospineCfg, ls: MicrospineLimitSurfaceCfg, dt: float) -> None:
+def panel_a(ax, mcfg: MicrospineCfg, ls: WangEraHoldCfg, gate: WangEraEngageCfg, dt: float) -> None:
   ax.set_xlim(0, 120)
   ax.set_ylim(0, 54)
   ax.axis("off")
@@ -260,7 +272,7 @@ def panel_a(ax, mcfg: MicrospineCfg, ls: MicrospineLimitSurfaceCfg, dt: float) -
     ha="left",
   )
   gates = [
-    ("G1", "press", f"≥ {mcfg.engage_min_spheres} sphere at $F_\\perp$ ≥ {mcfg.engage_normal_force_threshold:.0f} N"),
+    ("G1", "press", f"≥ {gate.engage_min_spheres} sphere at $F_\\perp$ ≥ {gate.engage_normal_force_threshold:.0f} N"),
     ("G2", "align", f"$\\hat{{a}}\\cdot\\hat{{n}}_{{\\mathrm{{in}}}}$ ≥ {mcfg.engage_parallel_cos_threshold:.2f}"),
     (
       "G3",
@@ -348,7 +360,7 @@ def panel_a(ax, mcfg: MicrospineCfg, ls: MicrospineLimitSurfaceCfg, dt: float) -
 # ===========================================================================
 # Panel B -- azimuth section (polar)
 # ===========================================================================
-def panel_b(ax, lut: torch.Tensor, ls: MicrospineLimitSurfaceCfg) -> None:
+def panel_b(ax, lut: torch.Tensor, ls: WangEraHoldCfg) -> None:
   theta_half = np.linspace(0.0, 180.0, lut.shape[0])
   r_half = lut[:, 0].numpy()
   theta = np.concatenate([theta_half, 360.0 - theta_half[::-1][1:]])
@@ -407,7 +419,7 @@ def panel_b(ax, lut: torch.Tensor, ls: MicrospineLimitSurfaceCfg) -> None:
 # ===========================================================================
 # Panel C -- meridian section + radial release test
 # ===========================================================================
-def panel_c(ax, lut: torch.Tensor, ls: MicrospineLimitSurfaceCfg) -> None:
+def panel_c(ax, lut: torch.Tensor, ls: WangEraHoldCfg) -> None:
   phis = np.linspace(0.0, 90.0, 361)
 
   def section(theta_deg: float) -> tuple[np.ndarray, np.ndarray]:
@@ -536,7 +548,7 @@ def panel_c(ax, lut: torch.Tensor, ls: MicrospineLimitSurfaceCfg) -> None:
 # ===========================================================================
 # Panel D -- capacity chain
 # ===========================================================================
-def panel_d(ax, mcfg: MicrospineCfg, ls: MicrospineLimitSurfaceCfg, dt: float) -> None:
+def panel_d(ax, mcfg: MicrospineCfg, ls: WangEraHoldCfg, dt: float) -> None:
   f0_lo, f0_hi = ls.f_t_max_range
   f0 = 520.0
   seat = 0.72
@@ -602,14 +614,14 @@ def panel_d(ax, mcfg: MicrospineCfg, ls: MicrospineLimitSurfaceCfg, dt: float) -
 # ===========================================================================
 def build(out_stem: Path) -> None:
   _rc()
-  mcfg, ls = climb_configs()
+  mcfg, ls, gate = climb_configs()
   dt = 0.02  # policy step = 0.002 s timestep x decimation 10
   lut = build_capacity_lut(ls, "cpu").cpu()
 
   fig = plt.figure(figsize=(7.008, 5.55))  # 17.8 cm triple column
 
   ax_a = fig.add_axes((0.022, 0.485, 0.962, 0.495))
-  panel_a(ax_a, mcfg, ls, dt)
+  panel_a(ax_a, mcfg, ls, gate, dt)
 
   ax_b = fig.add_axes((0.070, 0.075, 0.195, 0.310), projection="polar")
   panel_b(ax_b, lut, ls)
@@ -678,7 +690,7 @@ def main() -> None:
   args.out.parent.mkdir(parents=True, exist_ok=True)
   build(args.out)
 
-  mcfg, ls = climb_configs()
+  mcfg, ls, _ = climb_configs()
   lut = build_capacity_lut(ls, "cpu").cpu()
   caption = CAPTION.format(
     n=mcfg.engage_consecutive_steps,

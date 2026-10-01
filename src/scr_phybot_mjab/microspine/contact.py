@@ -8,7 +8,6 @@ import mujoco
 import numpy as np
 
 from scr_phybot_mjab.microspine.config import MicrospineCfg
-from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 
 
 def sphere_names(ee_body_name: str, rows: int, cols: int) -> list[str]:
@@ -65,75 +64,6 @@ def pad_contact_center(source, cfg: MicrospineCfg, ee: str, robot_prefix: str = 
   if site is not None:
     return np.asarray(site.pos, dtype=float).copy()
   return pad_contact_face_centers(source, cfg, ee, robot_prefix).mean(axis=0)
-
-
-def pad_grid_spans(
-  spec: mujoco.MjSpec,
-  cfg: MicrospineCfg,
-  robot_prefix: str = "robot",
-) -> tuple[float, float]:
-  """Unit-center extents (rake_span_m, lateral_span_m) from the spec.
-
-  Single source of truth for the physical pad size: the moment-billing
-  fields ``MicrospineLimitSurfaceCfg.pad_span_rake_m`` /
-  ``pad_span_lateral_m`` are derived from the robot XML through this helper
-  (see the climb env cfg) instead of being hand-maintained constants, and
-  clip-generation / analysis scripts can import the same numbers.
-
-  Explicit ``<ee>_unit_<row>_<col>`` sites define the load-bearing array.
-  Older assets without these sites fall back to the contact-sphere grid.
-  Spans are measured between center extremes along the pad-local rake
-  axis (``limit_surface.ee_rake_local_axis``) and the lateral axis
-  (``face_local_axis x rake``). All EEs must agree to within 1 mm — one
-  scalar pair parameterizes the billing model.
-  """
-  prefix = f"{robot_prefix}/" if robot_prefix else ""
-  if any(site.name and site.name.startswith(f"{prefix}{cfg.ee_body_names[0]}_unit_") for site in spec.sites):
-    return matching_pad_geometry(
-      spec,
-      cfg.ee_body_names,
-      robot_prefix,
-      rake_local_axis=cfg.limit_surface.ee_rake_local_axis,
-      face_local_axis=cfg.face_local_axis,
-      unit_layout=cfg.limit_surface.unit_layout,
-    ).spans
-
-  rake = np.asarray(cfg.limit_surface.ee_rake_local_axis, dtype=float)
-  rake = rake / max(float(np.linalg.norm(rake)), 1.0e-9)
-  face = np.asarray(cfg.face_local_axis, dtype=float)
-  face = face / max(float(np.linalg.norm(face)), 1.0e-9)
-  lateral = np.cross(face, rake)
-  lateral = lateral / max(float(np.linalg.norm(lateral)), 1.0e-9)
-
-  prefix = f"{robot_prefix}/" if robot_prefix else ""
-  spans: list[tuple[float, float]] = []
-  for ee in cfg.ee_body_names:
-    unit_sites = [site for site in spec.sites if site.name and site.name.startswith(f"{prefix}{ee}_unit_")]
-    centers = np.asarray(
-      [site.pos for site in unit_sites]
-      if unit_sites
-      else [
-        spec.body(f"{prefix}{name}").pos for name in sphere_names(ee, cfg.spheres_per_ee_rows, cfg.spheres_per_ee_cols)
-      ],
-      dtype=float,
-    )
-    along_rake = centers @ rake
-    along_lateral = centers @ lateral
-    spans.append(
-      (
-        float(along_rake.max() - along_rake.min()),
-        float(along_lateral.max() - along_lateral.min()),
-      )
-    )
-  spans_arr = np.asarray(spans)
-  if np.ptp(spans_arr, axis=0).max() > 1.0e-3:
-    raise ValueError(
-      "Contact-sphere grids differ across EEs; a single pad-span pair "
-      f"cannot represent them: {dict(zip(cfg.ee_body_names, spans))}"
-    )
-  if spans_arr.min() <= 0.0:
-    raise ValueError(f"Degenerate sphere-grid span: {spans}")
-  return float(spans_arr[0, 0]), float(spans_arr[0, 1])
 
 
 @dataclasses.dataclass(frozen=True)

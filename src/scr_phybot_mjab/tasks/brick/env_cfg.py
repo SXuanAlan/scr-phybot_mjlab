@@ -25,13 +25,11 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   configure_phybot_c2_floor_geom,
   configure_phybot_c2_terrain_cfg,
   get_phybot_c2_robot_cfg,
-  get_spec,
 )
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg, MicrospineSurfaceCfg
 from scr_phybot_mjab.microspine.constraint import add_attachment_equalities, make_constraint_event_cfg
 from scr_phybot_mjab.microspine.contact import add_contact_pairs, get_sphere_geom_names
 from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
-from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.tasks.common.phybot_c2 import (
   BASE_ANG_VEL_SENSOR,
   BASE_QUAT_SENSOR,
@@ -85,22 +83,9 @@ def brick_env_cfg(
     engage_consecutive_steps=3,
     reengage_cooldown_steps=10,
     disable_contacts_while_latched=True,
-    seat_quality_scales_capacity=False,
   )
   ls = mc.limit_surface
-  ls.model, ls.rake_mode, ls.moment_billing_mode = "empirical_unit", "ee_local", "per_unit"
   ls.unit_layout = unit_layout
-  geometry = matching_pad_geometry(
-    get_spec(),
-    hands,
-    rake_local_axis=ls.ee_rake_local_axis,
-    face_local_axis=mc.face_local_axis,
-    unit_layout=ls.unit_layout,
-  )
-  ls.unit_rows_rake, ls.unit_cols_lateral = geometry.rows, geometry.cols
-  ls.pad_span_rake_m, ls.pad_span_lateral_m = geometry.spans
-  ls.capacity_ramp_time_s, ls.capacity_ramp_floor = 0.0, 1.0
-  ls.redraw_f_t_max_per_latch, ls.unit_catch_empty_prob = False, 0.0
   ls.hold_grace_steps = 1
   robot = get_phybot_c2_robot_cfg()
   robot.collisions = (brick_robot_collision(),)

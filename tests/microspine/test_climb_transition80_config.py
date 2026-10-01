@@ -326,8 +326,6 @@ def test_transition80_plant_flags() -> None:
   ms = cfg.commands["microspine_affordance"].microspine_cfg
   # The climb task's empirical unit plant: every active unit preloads 10 N
   # before a new engage, and the contact buffers fit the 12-unit pads.
-  assert ms.limit_surface.model == "empirical_unit"
-  assert not ms.spring_field_enabled
   assert ms.engage_unit_preload_n == 10.0
   assert cfg.sim.nconmax >= 256 and cfg.sim.njmax >= 512
   assert ms.limit_surface.seed_hold_judge_guard_steps == TRANSITION80_SEED_GUARD_STEPS

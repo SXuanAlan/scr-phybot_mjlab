@@ -46,9 +46,9 @@ class MicrospineAffordance(CommandTerm):
   The constraint executor consumes the resulting on/off signal and toggles the
   per-EE equality anchors.
 
-  Engagement requires unit preload (or legacy contact gates) and seating. Once
-  latched, release is governed exclusively by the anisotropic load limit
-  surface; losing contact alone does not silently drop the anchor.
+  Engagement requires unit preload and seating. Once latched, release is
+  governed exclusively by the anisotropic load limit surface; losing contact
+  alone does not silently drop the anchor.
   """
 
   cfg: MicrospineAffordanceCfg
@@ -99,22 +99,12 @@ class MicrospineAffordance(CommandTerm):
     # The hold envelope releases an engaged spine when its anchor load leaves
     # the envelope. Capacity uses persistent per-unit draws from the bench CDF.
     self._ls_cfg = self._mcfg.limit_surface
-    if self._ls_cfg.model != "empirical_unit":
-      raise ValueError(f"Unknown limit-surface model '{self._ls_cfg.model}' (only 'empirical_unit' is supported).")
-    if (
-      self._ls_cfg.moment_billing_mode != "per_unit"
-      or self._ls_cfg.rake_mode != "ee_local"
-      or tuple(self._ls_cfg.ee_rake_local_axis) != (0.0, 0.0, -1.0)
-      or tuple(self._mcfg.face_local_axis) != (0.0, -1.0, 0.0)
-      or self._mcfg.spring_field_enabled
-      or self._mcfg.seat_quality_scales_capacity
-      or self._ls_cfg.capacity_ramp_time_s > 0
-      or self._ls_cfg.redraw_f_t_max_per_latch
+    if tuple(self._ls_cfg.ee_rake_local_axis) != (0.0, 0.0, -1.0) or tuple(self._mcfg.face_local_axis) != (
+      0.0,
+      -1.0,
+      0.0,
     ):
-      raise ValueError(
-        "empirical_unit requires per_unit billing, ee_local rake -z, pad face -y, and no spring field, "
-        "seat scaling, capacity ramp or F0 redraw"
-      )
+      raise ValueError("The empirical unit table assumes the pad rake axis -z and face axis -y")
     self._empirical = EmpiricalLimitSurface(self._ls_cfg.empirical_table_path or DEFAULT_TABLE, self.device)
     self._executor = None
     # Sensor-row permutation: ContactSensor expands its primary pattern via
@@ -178,10 +168,6 @@ class MicrospineAffordance(CommandTerm):
     rake_axis = torch.tensor(self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device)
     self._rake_local_axis = rake_axis / torch.linalg.norm(rake_axis).clamp_min(1.0e-6)
     # Per-unit moment billing: the active CAD unit sites, resolved once.
-    rows = self._ls_cfg.unit_rows_rake
-    cols = self._ls_cfg.unit_cols_lateral
-    if rows < 2 or cols < 2:
-      raise ValueError(f"per_unit moment billing needs a >=2x2 unit grid to carry moments; got {rows}x{cols}.")
     geometry = matching_pad_geometry(
       env.sim.mj_model,
       self._mcfg.ee_body_names,
@@ -190,8 +176,8 @@ class MicrospineAffordance(CommandTerm):
       face_local_axis=self._mcfg.face_local_axis,
       unit_layout=self._ls_cfg.unit_layout,
     )
-    if (rows, cols) != (geometry.rows, geometry.cols):
-      raise ValueError("Empirical unit rows/cols disagree with the asset sites")
+    if geometry.rows < 2 or geometry.cols < 2:
+      raise ValueError(f"Moment billing needs a >=2x2 unit grid; got {geometry.rows}x{geometry.cols}.")
     self._unit_x = torch.tensor(geometry.x.copy(), dtype=torch.float32, device=self.device)
     self._unit_y = torch.tensor(geometry.y.copy(), dtype=torch.float32, device=self.device)
     self.unit_site_names: tuple[str, ...] = geometry.unit_names
@@ -794,36 +780,6 @@ class MicrospineAffordance(CommandTerm):
       & (self.unit_preload_n >= self._mcfg.engage_unit_preload_n).all(dim=-1)
     )
 
-  def _normal_force_condition(self, normal_forces: torch.Tensor) -> torch.Tensor:
-    # Optional compression gate. The z-force gate decides support direction;
-    # this gate requires enough actual wall contact on the sphere grid.
-    if self._mcfg.engage_normal_force_threshold <= 0.0:
-      return torch.ones_like(self._engaged)
-
-    spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-    expected_spheres = self._num_ee * spheres_per_ee
-    if normal_forces.shape != (self.num_envs, expected_spheres):
-      raise ValueError(
-        f"Microspine normal force shape {tuple(normal_forces.shape)} is incompatible "
-        f"with {self._num_ee} EEs and {spheres_per_ee} spheres per EE."
-      )
-
-    compression = normal_forces.clamp(min=0.0)
-    result = torch.zeros_like(self._engaged)
-    min_count = self._mcfg.engage_min_spheres
-    min_fraction = self._mcfg.engage_min_fraction
-    for h in range(self._num_ee):
-      s_start = h * spheres_per_ee
-      s_end = s_start + spheres_per_ee
-      above = compression[:, s_start:s_end] >= self._mcfg.engage_normal_force_threshold
-      # Use either an absolute sphere count or a fraction of the EE grid. Count
-      # mode is useful for small grids where a single sphere matters.
-      if min_count > 0:
-        result[:, h] = above.sum(dim=1) >= min_count
-      else:
-        result[:, h] = above.float().mean(dim=1) >= min_fraction
-    return result
-
   def _validate_sensor_shapes(
     self,
     found: torch.Tensor,
@@ -944,7 +900,6 @@ class MicrospineAffordance(CommandTerm):
 
     step = self._env.episode_length_buf[0].item()
     spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-    normal_threshold = self._mcfg.engage_normal_force_threshold
     for ee_index, bname in enumerate(self._mcfg.ee_body_names):
       if not changed[ee_index].item():
         continue
@@ -954,14 +909,12 @@ class MicrospineAffordance(CommandTerm):
       ee_normal = normal_forces[0, s_start:s_end]
       normal_max = ee_normal.max().item()
       normal_mean = ee_normal.mean().item()
-      normal_above = (ee_normal >= normal_threshold).sum().item()
       old = "ON" if was_engaged[0, ee_index].item() else "OFF"
       new = "ON" if new_engaged[0, ee_index].item() else "OFF"
       print(
         f"[Microspine] SENSOR step={step} {bname} {old}->{new} "
         f"condition={int(engage_condition[0, ee_index].item())} "
         f"found={int(found_count[0, ee_index].item())}/{spheres_per_ee} "
-        f"normal_above={int(normal_above)}/{spheres_per_ee} "
         f"normal_max={normal_max:.3f}N normal_mean={normal_mean:.3f}N "
         f"face_cos={face_cos[0, ee_index].item():.3f} "
         f"engage_count={int(engage_count[0, ee_index].item())} "
@@ -994,12 +947,8 @@ class MicrospineAffordance(CommandTerm):
     self.engaged_this_step.zero_()
     self.released_was_seeded.zero_()
 
-    # Unit preload replaces the legacy proxy-force gate. It is evaluated after
-    # the grip-disabled early-out below.
-    if self._mcfg.engage_unit_preload_n > 0:
-      engage_condition = torch.ones_like(self._engaged)
-    else:
-      engage_condition = self._normal_force_condition(normal_forces)
+    # The unit-preload gate is evaluated after the grip-disabled early-out below.
+    engage_condition = torch.ones_like(self._engaged)
 
     # Always computed (cheap, a few quat rotates) so HUD/debug readers see a
     # live value even when the alignment gate is disabled.
@@ -1032,8 +981,6 @@ class MicrospineAffordance(CommandTerm):
       engage_condition &= self._unit_preload_condition()
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
       engage_condition &= face_cos >= self._mcfg.engage_parallel_cos_threshold
-    if self._mcfg.engage_min_total_normal_force > 0.0:
-      engage_condition &= self.pad_press_force >= self._mcfg.engage_min_total_normal_force
     if self._mcfg.engage_min_spine_fraction > 0.0:
       # The seating gate: enough of the virtual spine field must be able to
       # reach the wall. Replaces the 2-rigid-sphere count as the 'actually

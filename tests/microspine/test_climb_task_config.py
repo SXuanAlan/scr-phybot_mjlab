@@ -13,6 +13,7 @@ from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.rl_cfg import (
   phybot_c2_ppo_runner_cfg,
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import clip_average_climb_rate
+from scr_phybot_mjab.tools.microspine.geometry import phybot_pad_geometry
 
 
 def test_climb_microspine_contract_and_command_ordering():
@@ -28,14 +29,10 @@ def test_climb_microspine_contract_and_command_ordering():
   assert microspine.contact_friction[:2] == (0.2, 0.2)
   assert microspine.reengage_cooldown_steps == 10
   assert microspine.engage_consecutive_steps == 3
-  assert microspine.engage_normal_force_threshold == 3.0
-  # Proxy count/force settings remain available for legacy recipes; empirical
-  # latching uses estimated preload on every physical unit instead.
-  assert microspine.engage_min_spheres == 1
   assert microspine.virtual_spine_grid == (5, 5)
   assert microspine.virtual_spine_travel == 0.005  # paper le_max
+  # Latch only a fully seated pad with every active unit preloaded.
   assert microspine.engage_min_spine_fraction == 1.0
-  assert microspine.engage_min_total_normal_force == 0.0
   assert microspine.engage_unit_preload_n == 10.0
   from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
 
@@ -45,59 +42,29 @@ def test_climb_microspine_contract_and_command_ordering():
   assert len(sensor.reference_sites) == 16
   # Each box can create four contacts even before floor/toe support is counted.
   assert cfg.sim.nconmax > 4 * len(sensor.reference_sites)
-  # The empirical distribution is conditioned on a seated unit. Require
-  # full geometric seating and do not multiply it by a second capacity DR.
-  assert microspine.seat_quality_scales_capacity is False
-  # 1 (was 2): latched-contact retraction killed the one-step equality
-  # transients the debounce guarded against; the first genuine violation
-  # now releases, closing the flicker-through loophole for good.
+  # Latched anchor loads are smooth, so the first violating step releases.
   assert microspine.limit_surface.violation_consecutive_steps == 1
-  # Latched pads hand their load path to the anchor alone: sphere contacts
-  # switch off while latched (kills the anchor-vs-contact oscillation that
-  # let motionref6's 90-deg feet-hang ride through the release debounce).
+  # Latched pads hand their load path to the anchor alone.
   assert microspine.disable_contacts_while_latched is True
-  # "down" (was free-follow): during the grace window the anchor follows
-  # only the pad's down-rake seating motion, 1 mm/step, orientation frozen
-  # at engage — hooked spines seat by dragging down (Wang 2017), they never
-  # relocate outward (free-follow let the press->hang flip drag hand
-  # anchors 12-44 mm off the wall). Bench 9-grid (07-27): survival 8/8 in
-  # every window x mode combo (retraction killed the old contact standoff
-  # that free-follow was for), outward drift 0.0 mm in "down" vs 5 mm
-  # free, down-drag follow 3.7 mm <= cap under 60 N rake shear.
+  # During the grace window the anchor follows only the pad's down-rake
+  # seating motion, 1 mm/step; hooked spines never relocate outward.
   assert microspine.anchor_reseat_mode == "down"
   assert microspine.anchor_reseat_step_cap == 0.001
   assert microspine.reanchor_after_grace is True
-  # False (motionref14): hooked spines hold the pad where it gripped —
-  # projecting the anchor onto the wall plane while the pad sat compressed
-  # into it caused the 4-11 mm post-engage pop once contacts retracted.
+  # Hooked spines hold the pad where it gripped, compressed into the wall.
   assert microspine.anchor_project_to_wall is False
-  # The unjudged grace window is gone (judge guard = readout settling only);
-  # young anchors are WEAK instead of immune: capacity ramps 0.3 -> 1 over
-  # 0.25 s of rake-shear-loaded time (Wang loading-phase recruitment), and
-  # every latch redraws F0 (per-grip asperity lottery, paper Fig 6).
+  # Hold checks wait only for the one-step constraint-force readout.
   assert microspine.limit_surface.hold_judge_guard_steps == 2
-  # v57: the seed settle guard is a TRANSITION fix; climb keeps stock
-  # judging (None = no seeded special case) — its RSI births never showed
-  # the settle rip and its exams are green.
   assert microspine.limit_surface.seed_hold_judge_guard_steps is None
-  assert microspine.limit_surface.capacity_ramp_floor == 1.0
-  assert microspine.limit_surface.capacity_ramp_time_s == 0.0
-  assert microspine.limit_surface.capacity_ramp_shear_n == 10.0
-  assert microspine.limit_surface.redraw_f_t_max_per_latch is False
-  assert microspine.limit_surface.model == "empirical_unit"
   assert "random_release" not in cfg.events
   assert cfg.commands["climb_motion"].joint_pos_noise == 0
   assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
   assert microspine.limit_surface.moment_capacity_enable is True
   # The main task uses the complete 3x4 CAD array for preload and holding.
-  # torquescale = reference-hold-calibrated compliance.
-  assert abs(microspine.limit_surface.pad_span_rake_m - 0.063) < 1.0e-6
-  assert abs(microspine.limit_surface.pad_span_lateral_m - 0.084) < 1.0e-6
-  assert microspine.limit_surface.moment_billing_mode == "per_unit"
   assert microspine.limit_surface.unit_layout == "all"
-  assert microspine.limit_surface.unit_rows_rake == 3
-  assert microspine.limit_surface.unit_cols_lateral == 4
-  assert microspine.limit_surface.f_t_max_range == (360.0, 360.0)
+  pad = phybot_pad_geometry("all")
+  assert (pad.rows, pad.cols) == (3, 4)
+  assert pad.spans == pytest.approx((0.063, 0.084), abs=1.0e-6)
   # The passive wrist gimbal owns pad compliance, so the weld is rotationally
   # rigid and failure is judged by moment billing only.
   assert microspine.anchor_torquescale == 1.0
@@ -120,8 +87,8 @@ def test_main_climbing_task_uses_twelve_units_and_the_legacy_90_degree_ladder(pl
 
   cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2", play=play)
   microspine = cfg.commands["microspine_affordance"].microspine_cfg
-  ls = microspine.limit_surface
-  assert (ls.unit_layout, ls.unit_rows_rake, ls.unit_cols_lateral) == ("all", 3, 4)
+  assert microspine.limit_surface.unit_layout == "all"
+  assert (phybot_pad_geometry("all").rows, phybot_pad_geometry("all").cols) == (3, 4)
   assert microspine.engage_unit_preload_n == 10.0
   event_microspine = cfg.events["microspine_grip"].params["microspine_cfg"]
   assert event_microspine.limit_surface.unit_layout == "all"
@@ -143,8 +110,8 @@ def test_corner_climbing_60_task_has_full_training_and_play_configs(play):
   cfg = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2-Corners-A60", play=play)
   main = load_env_cfg("Mjlab-Climb-Wall-Phybot-C2", play=play)
   microspine = cfg.commands["microspine_affordance"].microspine_cfg
-  ls = microspine.limit_surface
-  assert (ls.unit_layout, ls.unit_rows_rake, ls.unit_cols_lateral) == ("corners", 2, 2)
+  assert microspine.limit_surface.unit_layout == "corners"
+  assert (phybot_pad_geometry("corners").rows, phybot_pad_geometry("corners").cols) == (2, 2)
   assert microspine.engage_unit_preload_n == 10.0
   assert cfg.events["microspine_grip"].params["microspine_cfg"].limit_surface.unit_layout == "corners"
   motion = cfg.commands["climb_motion"]
@@ -226,8 +193,9 @@ def test_empirical_climbing_rewards_unloaded_release_at_each_angle_and_layout(wa
 
 def test_full_array_layout_uses_the_3x4_unit_grid():
   cfg = phybot_c2_climb_wall_env_cfg(unit_layout="all")
-  ls = cfg.commands["microspine_affordance"].microspine_cfg.limit_surface
-  assert (ls.unit_layout, ls.unit_rows_rake, ls.unit_cols_lateral) == ("all", 3, 4)
+  assert cfg.commands["microspine_affordance"].microspine_cfg.limit_surface.unit_layout == "all"
+  pad = phybot_pad_geometry("all")
+  assert (pad.rows, pad.cols) == (3, 4)
 
 
 def test_climb_motion_command_is_rsi_over_the_ik_cycle():

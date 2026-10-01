@@ -85,19 +85,15 @@ def capture():
       center = data.site_xpos[model.site(prefix + "_contact_center").id]
       unit_ids = [j for j in range(model.nsite) if (model.site(j).name or "").startswith(prefix + "_unit_")]
       unit_gaps = (data.site_xpos[unit_ids] - wall_point) @ wall_normal
-      unit_rows = microspine.limit_surface.unit_rows_rake
-      unit_cols = microspine.limit_surface.unit_cols_lateral
-      for row in range(unit_rows):
-        for col in range(unit_cols):
-          site = model.site(f"{prefix}_unit_{row}_{col}")
-          offset = site.pos - anchor_offsets[i]
-          expected = np.array([-offset[2], -offset[0]])
-          actual = np.array(
-            [affordance._unit_x[row * unit_cols + col].item(), affordance._unit_y[row * unit_cols + col].item()]
-          )
-          report["empirical_runtime"]["unit_order_max_error_m"] = max(
-            report["empirical_runtime"]["unit_order_max_error_m"], float(np.max(np.abs(expected - actual)))
-          )
+      # The affordance's unit order is its first pad's site order.
+      for k, unit_name in enumerate(affordance.unit_site_names):
+        site = model.site(f"{prefix}_unit_{unit_name.rsplit('_unit_', 1)[1]}")
+        offset = site.pos - anchor_offsets[i]
+        expected = np.array([-offset[2], -offset[0]])
+        actual = np.array([affordance._unit_x[k].item(), affordance._unit_y[k].item()])
+        report["empirical_runtime"]["unit_order_max_error_m"] = max(
+          report["empirical_runtime"]["unit_order_max_error_m"], float(np.max(np.abs(expected - actual)))
+        )
       face = data.xmat[model.body(prefix).id].reshape(3, 3) @ np.asarray(microspine.face_local_axis)
       report["pads"][ee] = {
         "center_world_m": center.tolist(),

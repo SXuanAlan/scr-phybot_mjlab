@@ -24,17 +24,9 @@ def affordance(request):
     engage_consecutive_steps=3,
     reengage_cooldown_steps=2,
     disable_contacts_while_latched=True,
-    seat_quality_scales_capacity=False,
   )
   ls = cfg.limit_surface
-  ls.model = "empirical_unit"
-  ls.moment_billing_mode = "per_unit"
-  ls.rake_mode = "ee_local"
-  ls.capacity_ramp_time_s = 0
-  ls.redraw_f_t_max_per_latch = False
   ls.unit_layout = getattr(request, "param", "all")
-  if ls.unit_layout == "corners":
-    ls.unit_rows_rake = ls.unit_cols_lateral = 2
   spec = mujoco.MjSpec()
   for ee in cfg.ee_body_names:
     body = spec.worldbody.add_body(name="robot/" + ee)

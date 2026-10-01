@@ -38,7 +38,6 @@ Run inside the env_mjlab15 environment:
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import math
 import sys
 from pathlib import Path
@@ -47,30 +46,21 @@ import torch
 
 from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
+  WangPadCfg,
   build_capacity_lut,
   capacity_ratio,
+  climb_wang_pad_cfg,
 )
 from scr_phybot_mjab.tools.plotting import CAT, INK, MUT, ORDINAL, RC_PARAMS, SEC, save_three
 
 # Categorical slots (validated trio) for the three moment axes; ordinal blue
 # ramp (light -> dark with |m_l|) for the panel-A family; neutral inks.
 HANG_FT, HANG_FN = 70.0, 14.0  # 90-deg frame-0 per-hand hang load [N].
-WANG_F0_RANGE_N = (400.0, 650.0)  # Per-pad F0 draw range of the Wang model.
 BEND_LEVELS = (HANG_FT, 200.0)  # Panel-c shear preloads [N].
 
 
-def load_limit_surface_cfg(use_defaults: bool):
-  if use_defaults:
-    from scr_phybot_mjab.microspine.config import MicrospineLimitSurfaceCfg
-
-    return MicrospineLimitSurfaceCfg()
-  from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
-    phybot_c2_climb_wall_env_cfg,
-  )
-
-  climb = phybot_c2_climb_wall_env_cfg(play=True).commands["microspine_affordance"].microspine_cfg.limit_surface
-  # The climb pad's CAD unit grid, drawn at the Wang per-pad F0 range.
-  return dataclasses.replace(climb, f_t_max_range=WANG_F0_RANGE_N)
+def load_limit_surface_cfg(use_defaults: bool) -> WangPadCfg:
+  return WangPadCfg() if use_defaults else climb_wang_pad_cfg()
 
 
 def unit_grid(cfg) -> tuple[torch.Tensor, torch.Tensor, float, float, float]:
@@ -362,7 +352,7 @@ def main() -> int:
   parser.add_argument(
     "--defaults",
     action="store_true",
-    help="Use MicrospineLimitSurfaceCfg defaults instead of the climb cfg.",
+    help="Use WangPadCfg defaults instead of the climb pad.",
   )
   parser.add_argument(
     "--f0",
@@ -373,11 +363,6 @@ def main() -> int:
   args = parser.parse_args()
 
   cfg = load_limit_surface_cfg(args.defaults)
-  if cfg.moment_billing_mode != "per_unit":
-    print(
-      f"note: cfg moment_billing_mode='{cfg.moment_billing_mode}'; the "
-      "equivalent surface below is the per_unit billing regardless."
-    )
   f0_lo, f0_hi = cfg.f_t_max_range
   f0 = float(args.f0) if args.f0 is not None else float(f0_lo)
   surf = PadSurface(cfg, f0)

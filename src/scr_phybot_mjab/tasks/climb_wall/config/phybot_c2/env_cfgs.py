@@ -81,7 +81,6 @@ from scr_phybot_mjab.microspine.contact import (
   toe_geom_name,
 )
 from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
-from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   MICROSPINE_AFFORDANCE_COMMAND,
@@ -168,47 +167,17 @@ def phybot_c2_climb_wall_env_cfg(
   # owns release. A real pad locks position AND orientation across the patch,
   # with capacity along the pad-local rake direction.
   microspine_cfg.anchor_lock_rotation = True
-  microspine_cfg.limit_surface.rake_mode = "ee_local"
+  # The hold judge distributes the pad wrench over the selected CAD unit sites.
   microspine_cfg.limit_surface.unit_layout = unit_layout
-  # Billing spans come from the CAD unit-center sites at cfg-build time:
-  # 63 mm along the rake and 84 mm laterally, independent of proxy dimensions.
-  pad_geometry = matching_pad_geometry(
-    get_spec(),
-    microspine_cfg.ee_body_names,
-    rake_local_axis=microspine_cfg.limit_surface.ee_rake_local_axis,
-    face_local_axis=microspine_cfg.face_local_axis,
-    unit_layout=unit_layout,
-  )
-  span_rake, span_lateral = pad_geometry.spans
-  microspine_cfg.limit_surface.unit_rows_rake = pad_geometry.rows
-  microspine_cfg.limit_surface.unit_cols_lateral = pad_geometry.cols
-  microspine_cfg.limit_surface.pad_span_rake_m = span_rake
-  microspine_cfg.limit_surface.pad_span_lateral_m = span_lateral
-  # Distribute the wrench about C over the selected CAD sites and judge each
-  # active unit's draw. Equal stiffness and first-unit pad release require
-  # full-pad validation.
-  microspine_cfg.limit_surface.moment_billing_mode = "per_unit"
   # The pad self-aligns through the passive wrist gimbal, so the weld is
   # rotationally rigid: a latched pad does not move relative to the wall.
   # Within the +-3 deg free travel only spring torque is transmitted; at the
   # stops, structural reaction also enters the weld moment. The reference
   # uses the lower x stop; its PLA strength is unmeasured.
   microspine_cfg.anchor_torquescale = 1.0
-  # Measured single-unit distribution. Capacity randomness is entirely in
-  # persistent per-unit empirical draws; the dataset does not identify
-  # additional recruitment/seat multipliers.
-  microspine_cfg.limit_surface.model = "empirical_unit"
-  microspine_cfg.seat_quality_scales_capacity = False
+  # Latch only a fully seated pad with every active unit preloaded.
   microspine_cfg.engage_min_spine_fraction = 1.0
   microspine_cfg.engage_unit_preload_n = 10.0
-  microspine_cfg.limit_surface.capacity_ramp_floor = 1.0
-  microspine_cfg.limit_surface.capacity_ramp_time_s = 0.0
-  microspine_cfg.limit_surface.redraw_f_t_max_per_latch = False
-  microspine_cfg.limit_surface.unit_catch_empty_prob = 0.0
-  # Diagnostic only: tested per-unit S-domain endpoint times the active
-  # count, not a measured pad capacity or a DR draw.
-  shear_domain_max = 30.0 * pad_geometry.count
-  microspine_cfg.limit_surface.f_t_max_range = (shear_domain_max, shear_domain_max)
   # Latched pads hand the whole load path to the bilateral anchor; the
   # redundant sphere contacts (motionref6's margin 'barcode') switch off per
   # env while latched. (notes: disable_contacts_while_latched)

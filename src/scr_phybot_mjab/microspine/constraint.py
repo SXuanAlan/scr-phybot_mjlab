@@ -207,10 +207,6 @@ class MicrospineConstraint:
     self._affordance_name = self._mcfg.affordance_name
     if self._affordance_name is None:
       raise ValueError("MicrospineConstraint requires MicrospineCfg.affordance_name.")
-    if self._mcfg.limit_surface.release_mode != "binary":
-      raise NotImplementedError(
-        "Only release_mode='binary' is implemented; 'slip_drag' is reserved for a later milestone."
-      )
 
     self._env = env
     self._device = env.device

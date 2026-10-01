@@ -63,15 +63,80 @@ cross-section figure.
 
 from __future__ import annotations
 
+import dataclasses
 import math
-from typing import TYPE_CHECKING
 
 import torch
 
-if TYPE_CHECKING:
-  from scr_phybot_mjab.microspine.config import MicrospineLimitSurfaceCfg
-
 _DEG = math.pi / 180.0
+
+
+@dataclasses.dataclass(frozen=True)
+class WangPadCfg:
+  """Wang-2017 surface shape plus the pad it is drawn on (analysis only).
+
+  The shape defaults are fit to the paper's single-tile 3D limit surface
+  (Fig 8): tension peak 0.12*F0 at ~15 deg elevation, pure lateral 0.57*F0,
+  pure reverse 0.043*F0, forward lobe closing near 30 deg, smooth in azimuth.
+  """
+
+  wang_mu_tip: float = 0.42
+  """Spine-tip/asperity friction (paper Fig 5 uses ~0.4). Sets the slip
+  threshold psi_c = arctan(1/mu) and, with beta and alpha, the forward-lobe
+  closing elevation beta + 90 - alpha/2 - psi_c."""
+  wang_delta_psi_deg: float = 90.0
+  """Width of the usable asperity-slope population (eq 9's delta-psi)."""
+  wang_beta_deg: float = 15.0
+  """Spine inclination angle from the surface plane (Sec 2.3)."""
+  wang_alpha_deg: float = 15.0
+  """Spine tip included angle (Sec 2.3)."""
+  wang_mu_channel: float = 0.2
+  """Spine/channel friction mu_s in the channel-slip factor (eq 4)."""
+  wang_c_i: float = 50.0
+  """Tip-engaged asperity strength relative to side/shaft contact (eq 2)."""
+  wang_r_floor: float = 0.02
+  """Isotropic residual capacity as a fraction of F0 (Fig 6/8 scatter)."""
+  wang_margin_eps: float = 0.02
+  """Margin softener as a fraction of F0: (cap - |F|) / (cap + eps * F0)."""
+  wang_lut_theta_bins: int = 181
+  """Azimuth bins (0..180 deg) of the capacity table."""
+  wang_lut_phi_bins: int = 91
+  """Elevation bins (0..90 deg) of the capacity table."""
+  f_t_max_range: tuple[float, float] = (300.0, 500.0)
+  """Per-pad F0 (pure rake-shear capacity) range [N]."""
+  unit_rows_rake: int = 3
+  unit_cols_lateral: int = 4
+  pad_span_rake_m: float = 0.04
+  pad_span_lateral_m: float = 0.04
+  moment_arm_fraction: float = 0.25
+  """Effective edge-force arm as a fraction of pad span (worst-edge fold)."""
+
+
+def climb_wang_pad_cfg() -> WangPadCfg:
+  """The climb pad's CAD unit grid, drawn at the Wang per-pad F0 range."""
+  # mjlab imports the registered task packages on first import, and those
+  # import the robot asset module; import it first so that module is never
+  # caught half-initialized.
+  import mjlab  # noqa: F401
+
+  from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
+  from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
+
+  geometry = matching_pad_geometry(
+    get_spec(),
+    ("left_hand_spine", "right_hand_spine", "left_foot_spine", "right_foot_spine"),
+    rake_local_axis=(0.0, 0.0, -1.0),
+    face_local_axis=(0.0, -1.0, 0.0),
+    unit_layout="all",
+  )
+  span_rake, span_lateral = geometry.spans
+  return WangPadCfg(
+    f_t_max_range=(400.0, 650.0),
+    unit_rows_rake=geometry.rows,
+    unit_cols_lateral=geometry.cols,
+    pad_span_rake_m=span_rake,
+    pad_span_lateral_m=span_lateral,
+  )
 
 
 def _population_integral(lo: torch.Tensor, hi: torch.Tensor, base_lo: float, delta_psi: float) -> torch.Tensor:
@@ -125,7 +190,7 @@ def _unnormalized_capacity(
   return cc * strength
 
 
-def build_capacity_lut(cfg: MicrospineLimitSurfaceCfg, device: torch.device | str) -> torch.Tensor:
+def build_capacity_lut(cfg: WangPadCfg, device: torch.device | str) -> torch.Tensor:
   """Normalized capacity table R[theta_bin, phi_bin] in [0, 1], R[0, 0] = 1.
 
   Rows span azimuth theta in [0, 180] deg, columns elevation phi in [0, 90]
@@ -179,7 +244,7 @@ def capacity_ratio(
 
 def effective_capacity(
   lut: torch.Tensor,
-  cfg: MicrospineLimitSurfaceCfg,
+  cfg: WangPadCfg,
   f0: torch.Tensor,
   f_t: torch.Tensor,
   f_l: torch.Tensor,

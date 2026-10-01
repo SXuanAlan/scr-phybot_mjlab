@@ -383,10 +383,10 @@ def main():
   args = parser.parse_args()
   geometry_args = [args.rows, args.cols, args.span_rake_m, args.span_lateral_m]
   if any(x is None for x in geometry_args):
-    from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
+    from scr_phybot_mjab.tools.microspine.wang_limit_surface import climb_wang_pad_cfg
 
-    cfg = phybot_c2_climb_wall_env_cfg(play=True).commands["microspine_affordance"].microspine_cfg.limit_surface
-    defaults = [cfg.unit_rows_rake, cfg.unit_cols_lateral, cfg.pad_span_rake_m, cfg.pad_span_lateral_m]
+    pad = climb_wang_pad_cfg()
+    defaults = [pad.unit_rows_rake, pad.unit_cols_lateral, pad.pad_span_rake_m, pad.pad_span_lateral_m]
     geometry_args = [a if a is not None else b for a, b in zip(geometry_args, defaults)]
   geom = Geometry(*geometry_args)
   trials, cells = load_data(args.data)

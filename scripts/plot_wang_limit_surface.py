@@ -17,10 +17,11 @@ import sys
 
 import torch
 
-from scr_phybot_mjab.microspine.config import MicrospineLimitSurfaceCfg
 from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
+  WangPadCfg,
   build_capacity_lut,
   capacity_ratio,
+  climb_wang_pad_cfg,
 )
 
 # Paper Fig 8 anchor ratios (single tile, normalized by the pure-shear
@@ -59,18 +60,10 @@ def main() -> int:
   parser.add_argument(
     "--climb",
     action="store_true",
-    help="Use the climb task's limit-surface cfg instead of dataclass defaults.",
+    help="Use the climb pad instead of WangPadCfg defaults.",
   )
   args = parser.parse_args()
-
-  if args.climb:
-    from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
-      phybot_c2_climb_wall_env_cfg,
-    )
-
-    cfg = phybot_c2_climb_wall_env_cfg(play=True).commands["microspine_affordance"].microspine_cfg.limit_surface
-  else:
-    cfg = MicrospineLimitSurfaceCfg()
+  cfg = climb_wang_pad_cfg() if args.climb else WangPadCfg()
 
   lut = build_capacity_lut(cfg, "cpu")
   metrics = surface_metrics(lut)

@@ -148,8 +148,8 @@ def configure_evaluation(task, angle_deg, num_envs, profile, seed):
   microspine = cfg.commands["microspine_affordance"].microspine_cfg
   event_microspine = cfg.events["microspine_grip"].params["microspine_cfg"]
   for owner in (microspine, event_microspine):
-    if owner.limit_surface.model != "empirical_unit" or owner.limit_surface.unit_layout != "corners":
-      raise ValueError("Evaluation requires the registered empirical four-corner hardware")
+    if owner.limit_surface.unit_layout != "corners":
+      raise ValueError("Evaluation requires the registered four-corner hardware")
     owner.debug = False
   return cfg, load_rl_cfg(task)
 

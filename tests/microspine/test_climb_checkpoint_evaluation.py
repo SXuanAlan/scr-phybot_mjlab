@@ -47,7 +47,6 @@ def test_config_pins_requested_angle_and_preserves_empirical_hardware(profile):
   assert cfg.curriculum["wall_angle"].params["angle_jitter_deg"] == 0.0
   assert set(cfg.terminations) >= {"bad_tracking", "lost_support", "time_out"}
   mc = cfg.commands["microspine_affordance"].microspine_cfg
-  assert mc.limit_surface.model == "empirical_unit"
   assert mc.limit_surface.unit_layout == "corners"
   assert mc.engage_unit_preload_n == 10.0
   assert cfg.commands["climb_motion"].sampling_mode == ("start" if profile == "canonical" else "uniform")
