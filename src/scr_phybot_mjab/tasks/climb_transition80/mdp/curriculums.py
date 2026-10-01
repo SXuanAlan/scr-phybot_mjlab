@@ -63,7 +63,7 @@ def microspine_param_schedule(
   steps_per_iter: int = 96,
 ) -> torch.Tensor:
   """Stage a live MicrospineCfg scalar by training iteration (writes the
-  affordance's live ``_mcfg`` — the weld-shear ignition ladder's path)."""
+  affordance's live ``_mcfg``)."""
   del env_ids
   current = stage_value_at(stages, env.common_step_counter // steps_per_iter)
   affordance = env.command_manager.get_term(command_name)

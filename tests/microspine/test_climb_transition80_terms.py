@@ -36,16 +36,15 @@ def _stub(
   engaged=None,
   touch=None,
   press=None,
-  shear=None,
+  preload=None,
   face_cos=None,
   ref_engaged=None,
   countdowns=None,
   dist=None,
-  charge=None,
   released=None,
   pad_vel=None,
   episode_len=10,
-  tau=4.0,
+  preload_n=4.0,
 ):
   def z(dtype=torch.float32):
     return torch.zeros(E, H, dtype=dtype)
@@ -53,7 +52,7 @@ def _stub(
   engaged = z(torch.bool) if engaged is None else engaged
   touch = z(torch.bool) if touch is None else touch
   press = z() if press is None else press
-  shear = z() if shear is None else shear
+  preload = torch.zeros(E, H, 3) if preload is None else preload  # three active units per pad
   face_cos = torch.ones(E, H) if face_cos is None else face_cos
   ref_engaged = z(torch.bool) if ref_engaged is None else ref_engaged
   # countdowns are normalised by the clip length (cycle_time_s = 10 s here,
@@ -61,7 +60,6 @@ def _stub(
   # lanes reads as 10 s away — outside every lead window.
   countdowns = torch.ones(E, H, 2) if countdowns is None else countdowns
   dist = torch.full((E, H), 1.0) if dist is None else dist
-  charge = torch.ones(E, H) if charge is None else charge
   released = z(torch.bool) if released is None else released
   pad_vel = torch.zeros(E, H, 3) if pad_vel is None else pad_vel
 
@@ -76,13 +74,12 @@ def _stub(
     engaged=engaged,
     contact_count=touch.float(),
     pad_press_force=press,
-    pad_shear_down=shear,
+    unit_preload_n=preload,
     face_cos=face_cos,
     dr_release_pending=z(torch.bool),
     forced_release_this_step=released,
     released_was_seeded=z(torch.bool),
-    seat_charge_fraction=charge,
-    _mcfg=SimpleNamespace(engage_shear_threshold_n=tau),
+    _mcfg=SimpleNamespace(engage_unit_preload_n=preload_n),
     _get_executor=lambda: executor,
   )
   wall_quat = torch.zeros(E, 4)
@@ -132,16 +129,13 @@ def test_phi_ladder_is_monotone_through_the_chain():
   aff._get_executor().pad_center_world()[0, 0, 2] = 0.0
   assert lh() == pytest.approx(0.30)  # at the anchor, not touching
   aff.contact_count[0, 0] = 1.0
-  assert lh() == pytest.approx(0.50)  # touching, no shear
-  aff.pad_shear_down[0, 0] = 2.0  # half the 4 N rung
+  assert lh() == pytest.approx(0.50)  # touching, no preload
+  aff.unit_preload_n[0, 0] = torch.tensor([2.0, 5.0, 9.0])  # weakest unit at half the 4 N gate
   assert lh() == pytest.approx(0.65)
-  aff.pad_shear_down[0, 0] = 40.0  # saturates at the rung
+  aff.unit_preload_n[0, 0] = 40.0  # every unit past the gate: saturates
   assert lh() == pytest.approx(0.80)
   aff.engaged[0, 0] = True
-  aff.seat_charge_fraction[0, 0] = 0.0
-  assert lh() == pytest.approx(0.90)  # welded, uncharged
-  aff.seat_charge_fraction[0, 0] = 1.0
-  assert lh() == pytest.approx(1.00)  # mature
+  assert lh() == pytest.approx(1.00)  # welded at the anchor
   # Welded far from the anchor: back to the reach stage.
   aff._get_executor().pad_center_world()[0, 0, 2] = 0.5
   assert lh() == pytest.approx(0.0)
@@ -685,12 +679,11 @@ def test_phi_v3e_pays_the_last_centimetres_and_the_press(monkeypatch):
   assert lh() == pytest.approx(0.60)
   aff.pad_press_force[0, 0] = 40.0  # saturates at 20 N
   assert lh() == pytest.approx(0.70)
-  aff.pad_shear_down[0, 0] = 2.0  # half the 4 N rung
+  aff.unit_preload_n[0, 0] = 2.0  # half the 4 N gate
   assert lh() == pytest.approx(0.80)
-  aff.pad_shear_down[0, 0] = 40.0
-  assert lh() == pytest.approx(0.90)  # = weld_level: monotone into the weld stage
+  aff.unit_preload_n[0, 0] = 40.0
+  assert lh() == pytest.approx(0.90)  # top of the load stage, below the weld level
   aff.engaged[0, 0] = True
-  aff.seat_charge_fraction[0, 0] = 1.0
   assert lh() == pytest.approx(1.00)
 
 

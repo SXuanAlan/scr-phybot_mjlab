@@ -17,7 +17,7 @@ climb_transition):
     contact law, scheduled-anchor rip, body-through-wall, and the engage
     constraint cone in Constraints-as-Terminations mode (5-step persistence,
     seed-settle exemption);
-  * curricula = wall pinned at 80 deg, the weld-shear ignition ladder, and
+  * curricula = wall pinned at 80 deg, the anti-rake engage ladder, and
     threshold anneals on the terminations — births are sampled adaptively.
 """
 
@@ -253,44 +253,10 @@ TRANSITION80_ARM_WALL_GEOMS = (
   "right_elbow_pitch_collision",
 )
 
-# Touch+drag weld ignition ladder (the only plant schedule kept): easy ->
-# honest spec. Iters are ceilings; drive by the engage lane.
-# v3d (2026-08-22 04:0x): first rung 4 -> 2 N. The v3b/v3c ignition probes
-# (model_1150/1350) found the hands' rare touches carrying 0-symmetric shear
-# (p50 0 N, 13-15 % of touching steps >= 4 N) with at most 2 consecutive
-# qualifying steps: the 4 N + 2 cm/s ignition was out of reach of the
-# contact style the policy has; the ladder still anneals to the honest spec.
-# v4 (2026-08-22): every second/third stage moved to 4500/6500 so the loosened
-# ignition regime (cone p 0.05, 2 N, 0.05 m/s, 3 s grace) outlives the first
-# self-welds after the warm start at iter 1175 (the v3f window closed at 3000
-# before the feather touches turned into loads).
-# v6f (2026-08-31): parked stages pushed 30000/32000 -> 50000/52000 after
-# they AUTO-FIRED mid-v6e (the budget grew past the old horizon and nobody
-# moved the parking lot -- the third stage-cliff incident; rolled back to
-# model_29975 on the user's call). RULE: whenever max-iterations grows,
-# re-check every parked stage sits beyond the new horizon.
-# v5g (2026-08-24, user decision): LEARN THE LENIENT REGIME FIRST -- 2 N
-# ignition, 8-deg gimbal, 3 s grace hold until the skills are demonstrably
-# learned; the tightening stages are parked at 14000/15500 as placeholders
-# and will be advanced BY HAND on graduation evidence (eng_hz sustained,
-# closs falling, the from-start chain welding), not by the clock. The v5f
-# 7500/9500 stages re-killed ignition (7-10 N with eng_hz 0.0002) and cut
-# the grace to 1-2 s, turning training into hold-until-executed.
-# v5f (2026-08-23): every 4500/6500 stage shifted +3000 (-> 7500/9500). The
-# v4 clock assumed self-welds by iter 4500; at 4512 the run had eng_hz 0.005
-# and the simultaneous switch (cone p 0.05 -> 0.5, ignition 2 -> 7 N,
-# grace 3 -> 2 s, radius 0.15 -> 0.10, deviation executioners tightened)
-# halved eplen (137 -> 80) and made the cone the top killer (4 -> 35 %).
-TRANSITION80_SHEAR_LADDER = [
-  {"iter": 0, "value": 2.0},
-  {"iter": 50000, "value": 7.0},
-  {"iter": 52000, "value": 10.0},
-]
 # v3d: anti-rake ignition ladder — the weld engine requires the pad to drift
 # down-wall no faster than this while loading (m/s). 2 cm/s was met on only
 # 58 % of touching steps (touch v_tan p50 0.24-0.31 m/s); 5 cm/s opens the
-# gate to the current touches, then anneals back to the spec with the shear
-# ladder's second rung.
+# gate to the current touches, then anneals back to the spec.
 TRANSITION80_ANTIRAKE_LADDER = [
   {"iter": 0, "value": 0.05},
   {"iter": 50000, "value": 0.02},
@@ -512,7 +478,7 @@ TRANSITION80_CRITIC_TAIL = (
   "microspine_anchor_load",
   "microspine_forced_release",
   "microspine_pad_normal_force",
-  "microspine_pad_shear_down",
+  "microspine_unit_preload_fraction",
 )
 TRANSITION80_OBS_DIMS = {
   "base_lin_vel": 3,
@@ -541,7 +507,7 @@ TRANSITION80_OBS_DIMS = {
   "microspine_anchor_load": 12,
   "microspine_forced_release": 4,
   "microspine_pad_normal_force": 4,
-  "microspine_pad_shear_down": 4,
+  "microspine_unit_preload_fraction": 4,
 }
 TRANSITION80_ACTOR_DIM = sum(TRANSITION80_OBS_DIMS[n] for n in TRANSITION80_ACTOR_TERMS)  # 238
 TRANSITION80_CRITIC_DIM = TRANSITION80_ACTOR_DIM + sum(
@@ -603,10 +569,9 @@ def transition80_observation_groups(
     params={"command_name": affordance_command},
     scale=0.01,
   )
-  critic["microspine_pad_shear_down"] = ObservationTermCfg(
-    func=mdp.microspine_pad_shear_down,
+  critic["microspine_unit_preload_fraction"] = ObservationTermCfg(
+    func=mdp.microspine_unit_preload_fraction,
     params={"command_name": affordance_command},
-    scale=0.1,
   )
   assert tuple(critic) == TRANSITION80_ACTOR_TERMS + TRANSITION80_CRITIC_TAIL
   cfg.observations["critic"] = ObservationGroupCfg(
@@ -647,7 +612,6 @@ def phybot_c2_climb_transition80_env_cfg(
   if constraint_mode not in ("cat", "hard"):
     raise ValueError("constraint_mode must be 'cat' or 'hard'.")
   cfg = phybot_c2_climb_wall_env_cfg(
-    contact_model="wang2017",  # preserve the separate legacy spring-field recipe
     play=play,
     domain_rand=domain_rand,
     robustness_release=False,
@@ -700,12 +664,12 @@ def phybot_c2_climb_transition80_env_cfg(
   transition80_observation_groups(cfg)
 
   ##
-  # Microspine plant — spring field (v3 plant), seed settle guard.
+  # Microspine plant — the climb task's empirical unit model, plus arm wall
+  # contacts and the seed settle guard.
   ##
   microspine_cfg = cfg.commands["microspine_affordance"].microspine_cfg
   # v6 dare: the arms become ordinary wall contacts (pairs in the spec fn).
   microspine_cfg.arm_wall_contact_geoms = TRANSITION80_ARM_WALL_GEOMS
-  microspine_cfg.spring_field_enabled = True
   microspine_cfg.limit_surface.seed_hold_judge_guard_steps = TRANSITION80_SEED_GUARD_STEPS
 
   ##
@@ -911,7 +875,7 @@ def phybot_c2_climb_transition80_env_cfg(
   }
 
   ##
-  # Curriculum — replaced wholesale: wall pinned, shear ladder, anneals.
+  # Curriculum — replaced wholesale: wall pinned, anti-rake ladder, anneals.
   ##
   curriculum: dict[str, CurriculumTermCfg] = {
     "wall_angle": CurriculumTermCfg(
@@ -920,19 +884,6 @@ def phybot_c2_climb_transition80_env_cfg(
         "angle_stages": [{"iter": 0, "angle_deg": float(wall_angle_deg)}],
         "steps_per_iter": _STEPS_PER_ITER,
         "angle_jitter_deg": 0.0,
-      },
-    ),
-    "engage_shear_ladder": CurriculumTermCfg(
-      func=mdp.microspine_param_schedule,
-      params={
-        "param_name": "engage_shear_threshold_n",
-        "stages": (
-          [{"iter": 0, "value": _stage_final(TRANSITION80_SHEAR_LADDER)}]
-          if play
-          else [dict(s) for s in TRANSITION80_SHEAR_LADDER]
-        ),
-        "command_name": "microspine_affordance",
-        "steps_per_iter": _STEPS_PER_ITER,
       },
     ),
     "engage_antirake_ladder": CurriculumTermCfg(

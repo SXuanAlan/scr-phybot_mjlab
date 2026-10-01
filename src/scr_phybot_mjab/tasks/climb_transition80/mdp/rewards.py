@@ -19,6 +19,8 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   _SphereGeomCache,
 )
 
+from .observations import unit_preload_fraction
+
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
@@ -179,42 +181,33 @@ def engage_progress(
   reach_share: float = 0.3,
   touch_level: float = 0.5,
   load_share: float = 0.3,
-  weld_level: float = 0.9,
-  charge_share: float = 0.1,
+  weld_level: float = 1.0,
   ee_indices: tuple[int, ...] | None = None,
   approach_share: float = 0.0,
   approach_radius_m: float = 0.10,
   press_share: float = 0.0,
   press_ref_n: float = 20.0,
 ) -> torch.Tensor:
-  """Staged engage-progress potential Φ, mean over EEs, in [0, 1].
+  """Staged engage-progress potential Φ, mean over pads, in [0, 1].
 
-  Per EE, inside its scheduled window (rising edge - ``edge_lead_time_s``
+  Per pad, inside its scheduled window (rising edge - ``edge_lead_time_s``
   ... release edge)::
 
-      not touching                Φ = reach_share·(1 - clip(d / reach_radius))
-                                    + approach_share·(1 - clip(gap / approach_radius))
-      touching, not engaged, near Φ = touch_level + load_share·clip(shear / τ)
-                                    + press_share·clip(press / press_ref)
-      touching, not engaged, far  Φ = reach (wrong place)
-      engaged within anchor_radius Φ = weld_level + charge_share·charge
-      engaged elsewhere           Φ = reach (wrong place; the contact law kills)
+      not touching                 Φ = reach_share·(1 - clip(d / reach_radius))
+                                     + approach_share·(1 - clip(gap / approach_radius))
+      touching, not engaged, near  Φ = touch_level + load_share·preload
+                                     + press_share·clip(press / press_ref)
+      touching, not engaged, far   Φ = reach (wrong place)
+      engaged within anchor_radius Φ = weld_level
+      engaged elsewhere            Φ = reach (wrong place; the contact law kills)
 
-  and outside the window ``Φ = 1[not engaged]``. d is the PAD-CENTER to
-  scheduled-anchor distance (the contact law's quantity), τ the LIVE weld
-  shear threshold (the ignition ladder rung), charge the capacity-ramp
-  fraction. Monotone along the physical chain, bounded, no force bands;
-  every sub-weld plateau sits inside the contact law's grace, so nothing
-  here is farmable.
-
-  v3e (2026-08-22): ``gap`` is the wall-normal clearance of the pad's
-  closest sphere and ``press`` the pad normal force — the HOVER TRAP fix.
-  Three probes (v3b/v3c/v3d) found the hands parked 3 cm off the wall on
-  98.7 % of their window steps: the 3-D reach term was near-saturated there
-  and the touch stage only paid at contact, so the last 3 cm and the press
-  itself earned nothing against the touch risk. Keep
+  and outside the window ``Φ = 1[not engaged]``. d is the pad-center to
+  scheduled-anchor distance (the contact law's quantity), gap the wall-normal
+  clearance of the pad's closest sphere, press the pad normal force and
+  preload the engage gate's progress (:func:`unit_preload_fraction`). Keep
   ``reach_share + approach_share < touch_level`` and
-  ``touch_level + load_share + press_share <= weld_level`` for monotonicity.
+  ``touch_level + load_share + press_share <= weld_level`` so Φ rises
+  monotonically along the physical chain.
   """
   motion = _tracking(env, command_name)
   affordance = env.command_manager.get_term(affordance_command_name)
@@ -222,14 +215,6 @@ def engage_progress(
   dist = (executor.pad_center_world() - motion.ref_anchor_pos_w).norm(dim=-1)
   engaged = affordance.engaged
   touch = affordance.contact_count > 0
-  shear = getattr(affordance, "pad_shear_down", None)
-  if shear is None:
-    shear = torch.zeros_like(dist)
-  tau = float(getattr(affordance._mcfg, "engage_shear_threshold_n", 10.0))
-  tau = max(tau, 1.0e-6)
-  charge = getattr(affordance, "seat_charge_fraction", None)
-  if charge is None:
-    charge = torch.ones_like(dist)
 
   lead = edge_lead_time_s / motion.cycle_time_s
   regrip_soon = motion.ref_edge_countdowns[..., 1] <= lead
@@ -240,12 +225,12 @@ def engage_progress(
     gaps = _SphereGeomCache.surface_distances(env).view(dist.shape[0], dist.shape[1], -1)
     gap = gaps.min(dim=-1).values.clamp(min=0.0)  # closest sphere surface -> wall
     reach = reach + approach_share * (1.0 - (gap / approach_radius_m).clamp(max=1.0))
-  load = touch_level + load_share * (shear.clamp(min=0.0) / tau).clamp(max=1.0)
+  load = touch_level + load_share * unit_preload_fraction(affordance)
   if press_share > 0.0:
     press = getattr(affordance, "pad_press_force", None)
     if press is not None:
       load = load + press_share * (press.clamp(min=0.0) / max(press_ref_n, 1.0e-6)).clamp(max=1.0)
-  weld = weld_level + charge_share * charge.clamp(0.0, 1.0)
+  weld = torch.full_like(dist, weld_level)
   phi_window = torch.where(
     engaged,
     torch.where(dist <= anchor_radius_m, weld, reach),

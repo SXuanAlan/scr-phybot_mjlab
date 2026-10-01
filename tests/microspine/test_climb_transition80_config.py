@@ -4,7 +4,7 @@ A package built by mutating the climb builder's output. Promises asserted here: 
 explicit v2 observation contract (actor 238 / critic 419, dead climb lanes
 retired, BeyondMimic reference lanes, pad faces, wall face corners), the BeyondMimic-minimal
 reward table, the termination-first table with the engage cone in CaT
-mode, curricula limited to wall pin + shear ladder + anneals, the a80 clip
+mode, curricula limited to wall pin + anti-rake ladder + anneals, the a80 clip
 on a native 80-degree wall — and ZERO edits to either sibling package.
 """
 
@@ -24,7 +24,6 @@ from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import (
   TRANSITION80_OBS_DIMS,
   TRANSITION80_REMOVED_OBS,
   TRANSITION80_SEED_GUARD_STEPS,
-  TRANSITION80_SHEAR_LADDER,
   TRANSITION80_SPAWN_XY_NOISE,
   TRANSITION80_SPAWN_YAW_NOISE,
   phybot_c2_climb_transition80_env_cfg,
@@ -102,9 +101,9 @@ def test_transition80_observation_contract() -> None:
   for name, scale in (
     ("microspine_anchor_load", 0.01),
     ("microspine_pad_normal_force", 0.01),
-    ("microspine_pad_shear_down", 0.1),
   ):
     assert critic.terms[name].scale == pytest.approx(scale), name
+  assert critic.terms["microspine_unit_preload_fraction"].scale is None  # already in [0, 1]
 
 
 def test_transition80_obs_noise_and_critic_copies() -> None:
@@ -298,7 +297,8 @@ def test_transition80_termination_table() -> None:
 def test_transition80_curriculum_table() -> None:
   cfg = phybot_c2_climb_transition80_env_cfg()
   names = tuple(cfg.curriculum)
-  assert names[:2] == ("wall_angle", "engage_shear_ladder")
+  assert names[:2] == ("wall_angle", "engage_antirake_ladder")
+  assert "engage_shear_ladder" not in names  # the empirical gate has no shear threshold
   assert "spawn_bias_window" not in names
   assert "gravity_ladder" not in names
   assert "tilt_peel" not in names
@@ -307,18 +307,13 @@ def test_transition80_curriculum_table() -> None:
     assert term.params.get("steps_per_iter") == 96, name
   assert cfg.curriculum["wall_angle"].params["angle_stages"] == [{"iter": 0, "angle_deg": 80.0}]
   assert cfg.curriculum["wall_angle"].params["angle_jitter_deg"] == 0.0
-  ladder = cfg.curriculum["engage_shear_ladder"].params
-  assert ladder["param_name"] == "engage_shear_threshold_n"
-  assert [s["value"] for s in ladder["stages"]] == [2.0, 7.0, 10.0]  # v3d first rung
   rake = cfg.curriculum["engage_antirake_ladder"].params
   assert rake["param_name"] == "engage_max_antirake_vel"
   assert [s["value"] for s in rake["stages"]] == [0.05, 0.02]
   # v5f: the loosened regime lasts to iter 7500 on every ladder / anneal (+3000 vs v4).
-  assert [s["iter"] for s in ladder["stages"]] == [0, 50000, 52000]
   assert [s["iter"] for s in rake["stages"]] == [0, 50000]
   assert [s["iter"] for s in cfg.curriculum["constraint_p_force"].params["stages"]] == [0, 50000, 52000]
   assert [s["iter"] for s in cfg.curriculum["contact_law_grace"].params["stages"]] == [0]
-  assert ladder["stages"] == TRANSITION80_SHEAR_LADDER
   # Phi's anchor radius anneals in lockstep with the contact law.
   assert (
     cfg.curriculum["engage_progress_radius"].params["stages"] == cfg.curriculum["contact_law_radius"].params["stages"]
@@ -329,7 +324,12 @@ def test_transition80_curriculum_table() -> None:
 def test_transition80_plant_flags() -> None:
   cfg = phybot_c2_climb_transition80_env_cfg()
   ms = cfg.commands["microspine_affordance"].microspine_cfg
-  assert ms.spring_field_enabled
+  # The climb task's empirical unit plant: every active unit preloads 10 N
+  # before a new engage, and the contact buffers fit the 12-unit pads.
+  assert ms.limit_surface.model == "empirical_unit"
+  assert not ms.spring_field_enabled
+  assert ms.engage_unit_preload_n == 10.0
+  assert cfg.sim.nconmax >= 256 and cfg.sim.njmax >= 512
   assert ms.limit_surface.seed_hold_judge_guard_steps == TRANSITION80_SEED_GUARD_STEPS
   # v3b: the clock freeze (25) and the judge guard (6, the v2 regime) are decoupled —
   # a guard spanning the freeze let the policy lean on unbreakable seeds (91 % rips at step 26).
@@ -354,9 +354,8 @@ def test_play_overrides() -> None:
   assert motion.birth_exclude_frames == ()  # play starts at frame 0; no mask
   assert motion.spawn_early_fraction == 0.0 and motion.spawn_bias_auto_rake_frames == 0
   assert play.terminations["engage_constraint"].params["mode"] == "off"
-  assert tuple(play.curriculum) == ("wall_angle", "engage_shear_ladder", "engage_antirake_ladder")
+  assert tuple(play.curriculum) == ("wall_angle", "engage_antirake_ladder")
   assert play.curriculum["engage_antirake_ladder"].params["stages"] == [{"iter": 0, "value": 0.02}]
-  assert play.curriculum["engage_shear_ladder"].params["stages"] == [{"iter": 0, "value": 10.0}]
   assert play.curriculum["wall_angle"].params["angle_stages"] == [{"iter": 0, "angle_deg": 80.0}]
   assert play.scene.num_envs == 1
 

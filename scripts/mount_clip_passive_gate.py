@@ -65,7 +65,7 @@ mc.joint_pos_noise = 0.0
 cfg.commands["microspine_affordance"].microspine_cfg.limit_surface.seed_hold_judge_guard_steps = args.guard
 for name in ("encoder_bias", "body_friction", "base_mass"):
   cfg.events.pop(name, None)
-cfg.curriculum = {k: v for k, v in cfg.curriculum.items() if k in ("wall_angle", "engage_shear_ladder")}
+cfg.curriculum = {k: v for k, v in cfg.curriculum.items() if k == "wall_angle"}
 env = ManagerBasedRlEnv(cfg=cfg, device=device, render_mode=None)
 u = env.unwrapped
 motion = u.command_manager.get_term("climb_motion")
@@ -87,7 +87,18 @@ def seg(f):
 
 EE = ["LH", "RH", "LF", "RF"]
 EEJ = ["left_hand", "right_hand", "left_foot", "right_foot"]
-REASON = {0: "none", 1: "rev-shear", 2: "tension", 3: "lateral", 4: "ultimate", 5: "tilt", 6: "dr"}
+REASON = {
+  0: "none",
+  1: "rev-shear",
+  2: "tension",
+  3: "lateral",
+  4: "ultimate",
+  5: "tilt",
+  6: "dr",
+  7: "emp-domain",
+  8: "emp-early",
+  9: "off-surface",
+}
 tnames = list(term.active_terms)
 
 

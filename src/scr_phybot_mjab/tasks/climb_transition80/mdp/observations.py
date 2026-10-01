@@ -18,8 +18,8 @@ state estimate, and the calibrated wall pose — no force sensing):
   the calibrated climbing face (four corners, env-local).
 
 Critic-only: ``robot_body_pos_b`` / ``robot_body_ori_b`` (mjlab tracking
-critic lanes) and ``microspine_pad_shear_down`` (the weld engine's own
-trigger quantity).
+critic lanes) and ``microspine_unit_preload_fraction`` (the engage gate's
+preload progress).
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
 __all__ = (
   "microspine_pad_center_world",
-  "microspine_pad_shear_down",
+  "microspine_unit_preload_fraction",
   "motion_anchor_ori_b",
   "motion_anchor_pos_b",
   "motion_anchor_relative",
@@ -213,12 +213,19 @@ def robot_body_ori_b(env: ManagerBasedRlEnv, command_name: str = "climb_motion")
   return mat[..., :2].reshape(mat.shape[0], -1)
 
 
-def microspine_pad_shear_down(env: ManagerBasedRlEnv, command_name: str = "microspine_affordance") -> torch.Tensor:
-  """Per-EE whole-pad down-wall shear through live contacts [N], (E, 4) —
-  the touch+drag weld engine's own trigger quantity. Critic only."""
-  affordance = env.command_manager.get_term(command_name)
-  shear = getattr(affordance, "pad_shear_down", None)
-  if shear is None:
-    engaged = affordance.engaged
-    return torch.zeros(engaged.shape, device=engaged.device)
-  return shear
+def unit_preload_fraction(affordance) -> torch.Tensor:
+  """Engage-gate progress per pad in [0, 1], (E, 4).
+
+  A pad may engage only once every active unit carries
+  ``engage_unit_preload_n``, so the weakest unit's compression over that
+  threshold is the binding quantity.
+  """
+  threshold = max(float(affordance._mcfg.engage_unit_preload_n), 1.0e-6)
+  return (affordance.unit_preload_n.min(dim=-1).values / threshold).clamp(0.0, 1.0)
+
+
+def microspine_unit_preload_fraction(
+  env: ManagerBasedRlEnv, command_name: str = "microspine_affordance"
+) -> torch.Tensor:
+  """Per-pad engage-gate preload progress in [0, 1], (E, 4). Critic only."""
+  return unit_preload_fraction(env.command_manager.get_term(command_name))
