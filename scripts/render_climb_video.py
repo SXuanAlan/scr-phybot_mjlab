@@ -1,7 +1,7 @@
 """Render a climb motion clip to an MP4 with the wall in the scene.
 
 Kinematically replays a climb clip in the AMP/motion schema (see
-``gen_climb_clip.py``) on the C2 model, adds the climb wall and a ground plane
+``tools.climbing_reference.cycle``) on the C2 model, adds the climb wall and a ground plane
 for context, and writes the frames offscreen (EGL) to a video. No physics is
 stepped.
 
@@ -37,7 +37,7 @@ from scr_phybot_mjab.assets.wall.wall_constants import (  # noqa: E402
 )
 from scr_phybot_mjab.microspine.pad_geometry import pad_geometry_from_sites
 
-_DEFAULT_CLIP = _REPO / "src/scr_phybot_mjab/assets/motions/climb_cycle_moment_safe.npy"
+_DEFAULT_CLIP = _REPO / "src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy"
 
 
 def _wall_frame(wall_angle: float):

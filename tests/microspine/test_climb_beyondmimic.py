@@ -54,6 +54,13 @@ def test_empirical_task_uses_agreed_sixteen_terms_and_scales(task):
       assert cfg.rewards[name].params["std"] == std
   gated = {k for k, v in cfg.rewards.items() if "engage_gate_floor" in v.params}
   assert gated == {"motion_body_pos", "motion_body_ori", "motion_root_ori"}
+  for name in gated:
+    assert cfg.rewards[name].params["engage_gate_floor"] == 0.25
+    assert cfg.rewards[name].params["engage_gate_grace_fraction"] == 0.3
+  assert cfg.rewards["motion_engage_mismatch"].params["grace_fraction"] == 0.3
+  unsafe = cfg.rewards["unsafe_microspine_release"].params
+  assert (unsafe["scheduled_reverse_cost"], unsafe["scheduled_reverse_grace_s"]) == (0.3, 0.25)
+  assert tuple(cfg.terminations) == ("time_out", "base_height", "bad_state", "bad_tracking", "lost_support")
   motion = cfg.commands["climb_motion"]
   assert motion.sampling_mode == "adaptive"
   assert motion.synchronize_reset_phase and motion.initialize_seeded_anchors

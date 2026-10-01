@@ -1,14 +1,11 @@
 """PHYBot C2 robot constants and configuration.
 
 23-DOF humanoid (2 legs x 6, waist yaw, 2 arms x 4, neck yaw/pitch).
-The 4 hand/foot spine pads mount through passive ball-joint gimbals
-(``PHYBOT_C2_PAD_GIMBAL``); the legacy plant kept them rigidly fixed
-(URDF fixed joints / no MuJoCo joint).
+The 4 hand/foot spine pads mount through passive ball-joint gimbals.
 """
 
 import json
 import math
-import os
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -35,31 +32,24 @@ SPINE_BODY_NAMES = (
 )
 
 ##
-# Passive pad gimbal (2026-08-15).
+# Passive pad gimbal.
 #
 # The microspine pad chassis mounts to the arm/shin through a passive ball
 # joint — three coincident hinges (mjlab rejects a literal ball joint carrying
 # joint springs). The explicit ball-center site B is distinct from the
 # contact-array center C: C-B = (0, -40, +75) mm in pad coordinates.
-# Travel hard-stops at +-3 deg — the REAL hardware stop (user, 2026-08-22;
-# the 08-15 build used +-4 deg, the suspension-travel figure behind the old
-# tilt-peel calibration). A weak centering spring re-zeros the pad whenever
-# it is unloaded, so joint zero is the nominal CAD mounting orientation.
+# Travel hard-stops at the hardware's +-3 deg. A weak centering spring
+# re-zeros the pad whenever it is unloaded, so joint zero is the nominal CAD
+# mounting orientation.
 #
-# Consequences wired in the climb cfg: the weld goes rotationally RIGID
-# (anchor_torquescale 1.0) and angle-based release (tilt-peel) retires —
-# failure is unified onto the force/moment billing. The 07-31 objection to
-# a rigid weld (docs/archive/microspine_tilt_calibration.md par.2: closed-chain PD
-# conflicts amplified into ~6 N*m parasitic weld moments) is resolved
-# mechanically: those conflicts now live inside the gimbal travel at
-# ~0.05 N*m of spring torque.
-#
-# PHYBOT_C2_PAD_GIMBAL=0 fixes the CURRENT geometry at its nominal orientation;
-# it does not restore the geometry or inertias of older checkpoints.
+# Consequences wired in the climb cfg: the weld is rotationally RIGID
+# (anchor_torquescale 1.0) and there is no angle-based release — failure is
+# unified onto the force/moment billing. Closed-chain PD conflicts that a
+# rigid weld would bill as parasitic pad moments live inside the gimbal
+# travel at ~0.05 N*m of spring torque.
 ##
 
-PHYBOT_C2_PAD_GIMBAL = os.environ.get("PHYBOT_C2_PAD_GIMBAL", "1") != "0"
-PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD = math.radians(3.0)  # real stop (was 4.0 until 2026-08-22)
+PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD = math.radians(3.0)  # hardware stop
 # Centering spring per hinge. Sized for recentering only (bench 07-31:
 # k~0.7, d~0.015 settles a ~1e-4 kg*m^2 pad near-critically); under load it
 # is deliberately negligible next to the PD-structure path (~50-260
@@ -477,8 +467,7 @@ def get_spec() -> mujoco.MjSpec:
   _delete_embedded_keyframes(spec)
   _delete_embedded_actuators(spec)
   _sync_joint_force_limits_to_ctrlrange(spec)
-  if PHYBOT_C2_PAD_GIMBAL:
-    _add_pad_gimbals(spec)
+  _add_pad_gimbals(spec)
   _add_resting_self_collision_excludes(spec)
   _add_foot_sites(spec)
   _trim_spine_pad_visuals(spec)

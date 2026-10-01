@@ -36,7 +36,7 @@ import tomllib
 REPO = Path(__file__).resolve().parents[2]
 RENAMES = Path(__file__).with_name("equivalence_renames.toml")
 TIERS = ("cfg", "model", "rollout", "clips")
-_ENV_KEYS = ("PHYBOT_C2_PAD_GIMBAL", "CUDA_VISIBLE_DEVICES", "PYTHONHASHSEED", "PYTHONPATH")
+_ENV_KEYS = ("CUDA_VISIBLE_DEVICES", "PYTHONHASHSEED", "PYTHONPATH")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -3,7 +3,6 @@
 Empirical climbing uses a CAD reference, 16 BeyondMimic-adapted rewards and
 failure-adaptive RSI. The main task has 12 units per pad and the original
 curriculum to 90 degrees; Corners-A60 has four units and a curriculum to 60.
-Legacy Wang transition tasks retain their previous tracking/RSI contract.
 
 Layer split: task structure (obs skeleton, velocity command, terminations,
 metrics, curriculum) lives in ``climb_wall_env_cfg.py``; reusable machinery
@@ -22,6 +21,7 @@ C2-specific notes:
 from __future__ import annotations
 
 import dataclasses
+import json
 
 import mujoco
 from mjlab.entity import EntityCfg
@@ -40,9 +40,6 @@ from scr_phybot_mjab.assets.motions import (
 from scr_phybot_mjab.assets.motions import (
   CAD_CLIMB_MOTION as _CLIMB_MOTION_FILE,
 )
-from scr_phybot_mjab.assets.motions import (
-  LEGACY_CLIMB_MOTION as _LEGACY_CLIMB_MOTION_FILE,
-)
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTION_SCALE,
   PHYBOT_C2_ACTUATOR_ANKLE_PITCH,
@@ -58,7 +55,6 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTUATOR_SHOULDER_YAW,
   PHYBOT_C2_ACTUATOR_WAIST_YAW,
   PHYBOT_C2_FOOT_TOES,
-  PHYBOT_C2_PAD_GIMBAL,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   configure_phybot_c2_floor_geom,
   configure_phybot_c2_terrain_cfg,
@@ -93,6 +89,7 @@ from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   MICROSPINE_GRIP_EVENT,
   MOTION_COMMAND,
   TOE_CONTACT_SENSOR,
+  UNDESIRED_CONTACT_SENSOR,
   VELOCITY_COMMAND,
   make_climb_wall_env_cfg,
 )
@@ -113,7 +110,6 @@ def phybot_c2_climb_wall_env_cfg(
   play: bool = False,
   domain_rand: bool = True,
   robustness_release: bool = False,
-  contact_model: str = "empirical_unit",
   unit_layout: str | None = None,
   wall_angle_deg: float | None = None,
 ) -> ManagerBasedRlEnvCfg:
@@ -142,11 +138,7 @@ def phybot_c2_climb_wall_env_cfg(
   # is the play block's dual-owner ``.debug`` sync.
   ##
 
-  if contact_model not in ("empirical_unit", "wang2017"):
-    raise ValueError(f"Unknown climbing contact model: {contact_model}")
   unit_layout = unit_layout or "all"
-  if contact_model != "empirical_unit" and unit_layout != "all":
-    raise ValueError("Active unit selection requires the empirical unit model")
   if wall_angle_deg is not None and not 0.0 < wall_angle_deg <= 90.0:
     raise ValueError("wall_angle_deg must be in (0, 90]")
   microspine_cfg = MicrospineCfg(
@@ -197,57 +189,35 @@ def phybot_c2_climb_wall_env_cfg(
   microspine_cfg.limit_surface.unit_cols_lateral = pad_geometry.cols
   microspine_cfg.limit_surface.pad_span_rake_m = span_rake
   microspine_cfg.limit_surface.pad_span_lateral_m = span_lateral
-  # Distribute the wrench about C over the selected CAD sites. Empirical
-  # mode judges each active unit's draw; legacy Wang retains F0/12.
-  # Equal stiffness and first-unit pad release require full-pad validation.
+  # Distribute the wrench about C over the selected CAD sites and judge each
+  # active unit's draw. Equal stiffness and first-unit pad release require
+  # full-pad validation.
   microspine_cfg.limit_surface.moment_billing_mode = "per_unit"
-  if PHYBOT_C2_PAD_GIMBAL:
-    # Gimbal-era weld (2026-08-15): the pad self-aligns through the passive
-    # wrist ball joint, so the weld is honestly RIGID — a latched pad does
-    # not move relative to the wall. The 07-31 objection to rigid rotation
-    # rows (closed-chain PD conflicts billed as ~6 N*m parasitic moments,
-    # docs/archive/microspine_tilt_calibration.md par.2) is resolved mechanically:
-    # within the +-3 deg free travel only spring torque is transmitted.
-    # At the stops, structural reaction also enters the weld moment. The
-    # new reference uses the lower x stop; its PLA strength is unmeasured.
-    microspine_cfg.anchor_torquescale = 1.0
-  else:
-    # 0.01: rotational rows compliant enough that PD-parasitic couples shed
-    # into force redistribution instead of billing local pad moment, while
-    # the honest-arm billing still guards sustained prying. (notes:
-    # anchor_torquescale)
-    microspine_cfg.anchor_torquescale = 0.01
-  # The climbing candidate uses the measured single-unit distribution.
-  # Explicit Wang opt-in preserves existing transition/spring experiments.
-  microspine_cfg.limit_surface.model = contact_model
-  microspine_cfg.limit_surface.f_t_max_range = (400.0, 650.0)
-  if contact_model == "empirical_unit":
-    # Capacity randomness is entirely in persistent per-unit empirical draws.
-    # The dataset does not identify additional recruitment/seat multipliers.
-    microspine_cfg.seat_quality_scales_capacity = False
-    microspine_cfg.engage_min_spine_fraction = 1.0
-    microspine_cfg.engage_unit_preload_n = 10.0
-    microspine_cfg.limit_surface.capacity_ramp_floor = 1.0
-    microspine_cfg.limit_surface.capacity_ramp_time_s = 0.0
-    microspine_cfg.limit_surface.redraw_f_t_max_per_latch = False
-    microspine_cfg.limit_surface.unit_catch_empty_prob = 0.0
-    # Legacy diagnostic only: tested per-unit S-domain endpoint times the
-    # active count, not a measured pad capacity or a DR draw.
-    shear_domain_max = 30.0 * pad_geometry.count
-    microspine_cfg.limit_surface.f_t_max_range = (shear_domain_max, shear_domain_max)
-  if PHYBOT_C2_PAD_GIMBAL:
-    # Tilt-peel retired: the suspension is now a real +-3 deg joint.
-    # At the gimbal stops the arm's
-    # torque flows into the weld and the per-unit moment billing owns the
-    # failure. (0, 0) disables the angle check; the rigid weld keeps
-    # capture-relative pad rotation at ~0 regardless.
-    microspine_cfg.limit_surface.tilt_peel_max_deg_range = (0.0, 0.0)
-  else:
-    # "4-deg" calibration: 5 mm suspension travel / 74.7 mm row spacing =
-    # ~3.8 deg before the tension-side row loads structurally and pulls out
-    # (forced release, reason 5); the reference stays <= 1.1 deg. (notes:
-    # tilt_peel_max_deg_range)
-    microspine_cfg.limit_surface.tilt_peel_max_deg_range = (3.5, 4.5)
+  # The pad self-aligns through the passive wrist gimbal, so the weld is
+  # rotationally rigid: a latched pad does not move relative to the wall.
+  # Within the +-3 deg free travel only spring torque is transmitted; at the
+  # stops, structural reaction also enters the weld moment. The reference
+  # uses the lower x stop; its PLA strength is unmeasured.
+  microspine_cfg.anchor_torquescale = 1.0
+  # Measured single-unit distribution. Capacity randomness is entirely in
+  # persistent per-unit empirical draws; the dataset does not identify
+  # additional recruitment/seat multipliers.
+  microspine_cfg.limit_surface.model = "empirical_unit"
+  microspine_cfg.seat_quality_scales_capacity = False
+  microspine_cfg.engage_min_spine_fraction = 1.0
+  microspine_cfg.engage_unit_preload_n = 10.0
+  microspine_cfg.limit_surface.capacity_ramp_floor = 1.0
+  microspine_cfg.limit_surface.capacity_ramp_time_s = 0.0
+  microspine_cfg.limit_surface.redraw_f_t_max_per_latch = False
+  microspine_cfg.limit_surface.unit_catch_empty_prob = 0.0
+  # Diagnostic only: tested per-unit S-domain endpoint times the active
+  # count, not a measured pad capacity or a DR draw.
+  shear_domain_max = 30.0 * pad_geometry.count
+  microspine_cfg.limit_surface.f_t_max_range = (shear_domain_max, shear_domain_max)
+  # No angle-based release: at the gimbal stops the arm's torque flows into
+  # the weld and the per-unit moment billing owns the failure. (0, 0)
+  # disables the angle check.
+  microspine_cfg.limit_surface.tilt_peel_max_deg_range = (0.0, 0.0)
   # Latched pads hand the whole load path to the bilateral anchor; the
   # redundant sphere contacts (motionref6's margin 'barcode') switch off per
   # env while latched. (notes: disable_contacts_while_latched)
@@ -260,10 +230,6 @@ def phybot_c2_climb_wall_env_cfg(
   cfg = make_climb_wall_env_cfg()
   cfg.scene.num_envs = 2048
   configure_phybot_c2_terrain_cfg(cfg.scene.terrain)
-  if PHYBOT_C2_PAD_GIMBAL:
-    # No angle-based release means no tilt-peel anneal ladder either — the
-    # schedule would just rewrite live bands onto a retired channel.
-    cfg.curriculum.pop("tilt_peel", None)
   terms = cfg.observations["actor"].terms
   terms["base_lin_vel"].func = mdp.builtin_sensor
   terms["base_lin_vel"].params = {"sensor_name": "robot/baselink-velocity"}
@@ -279,39 +245,36 @@ def phybot_c2_climb_wall_env_cfg(
   # Command exactly the average climb rate one reference cycle delivers
   # (step_height / cycle duration), so the height-progress normalization and
   # the commanded-velocity observation agree with the motion being imitated.
-  motion_file = _CLIMB_MOTION_FILE if contact_model == "empirical_unit" else _LEGACY_CLIMB_MOTION_FILE
-  clip_vz = mdp.clip_average_climb_rate(motion_file)
+  clip_vz = mdp.clip_average_climb_rate(_CLIMB_MOTION_FILE)
   cfg.commands[VELOCITY_COMMAND].ranges.lin_vel_z = (clip_vz, clip_vz)
   cfg.commands[MICROSPINE_AFFORDANCE_COMMAND] = MicrospineAffordanceCfg(
     microspine_cfg=microspine_cfg,
     contact_sensor_name=MICROSPINE_CONTACT_SENSOR,
     physics_event_name=MICROSPINE_GRIP_EVENT,
-    skip_zero_time_update=contact_model == "empirical_unit",
+    skip_zero_time_update=True,
   )
   # Registered AFTER the affordance on purpose: its reset (RSI) seeds the
   # per-env latch state and must run after the affordance's own reset (the
   # command asserts this ordering).
   cfg.commands[MOTION_COMMAND] = mdp.ClimbMotionCommandCfg(
     entity_name="robot",
-    motion_file=str(motion_file),
+    motion_file=str(_CLIMB_MOTION_FILE),
     affordance_command_name=MICROSPINE_AFFORDANCE_COMMAND,
     ee_body_names=microspine_cfg.ee_body_names,
-    sampling_mode="uniform",  # DeepMimic RSI: random cycle phase per episode.
+    # Failure-adaptive RSI over the cycle phase. A freshly reset env holds
+    # its reference frame for one step, and its RSI-seeded latches get their
+    # anchors immediately.
+    sampling_mode="adaptive",
+    synchronize_reset_phase=True,
+    initialize_seeded_anchors=True,
     # Unprojected joint jitter moves already-seeded contacts off the wall.
-    joint_pos_noise=0.0 if contact_model == "empirical_unit" else 0.02,
-    # Along-wall spawn-height randomization (on top of the vertical-height
-    # compensation), sized to the 2 m wall: at -0.30 the toes stay ~0.2 m
-    # above the base line; at +0.15 the hands end an episode's climb
-    # (~1.53 + 0.15 + 0.2) still under the 2 m top. Decouples absolute
-    # altitude from cycle phase; play pins it to zero.
-    height_offset_range=(-0.30, 0.0 if contact_model == "empirical_unit" else 0.15),
-  )
-  if contact_model == "empirical_unit":
-    motion = cfg.commands[MOTION_COMMAND]
-    motion.sampling_mode = "adaptive"
-    motion.synchronize_reset_phase = True
-    motion.initialize_seeded_anchors = True
-    motion.tracking_body_names = (
+    joint_pos_noise=0.0,
+    # Along-wall spawn-height randomization below the reference height (on
+    # top of the vertical-height compensation): at -0.30 the toes stay
+    # ~0.2 m above the base line. Decouples absolute altitude from cycle
+    # phase; play pins it to zero.
+    height_offset_range=(-0.30, 0.0),
+    tracking_body_names=(
       "torso",
       "torso_upper",
       "neck_pitch",
@@ -329,7 +292,8 @@ def phybot_c2_climb_wall_env_cfg(
       "right_knee",
       "right_ankle_roll",
       "right_foot_spine",
-    )
+    ),
+  )
 
   ##
   # Robot entity: toe geoms, shared walk collision, stance, PD table.
@@ -355,51 +319,15 @@ def phybot_c2_climb_wall_env_cfg(
   robot_cfg.collisions = (PHYBOT_C2_WALK_COLLISION,)
 
   # Override init state at task level (do NOT mutate the shared keyframe
-  # singleton on robot_cfg.init_state — other c2 tasks reuse it).
-  # Climb-zero stance v3: hand pads at z=1.753 bought by standing closer
-  # (base standoff 0.173 m from the wall plane), pads flat within 0.1 mm /
-  # 0.7 deg; the 0.166 m higher-reach variant sits on the reach frontier and
-  # was rejected. (notes: stance v3)
+  # singleton on robot_cfg.init_state — other c2 tasks reuse it). The CAD
+  # reference generator writes this stance next to the clip.
+  initial = json.loads(_CLIMB_INITIAL_STATE_FILE.read_text())
   robot_cfg.init_state = EntityCfg.InitialStateCfg(
-    pos=(1.327, 0.0, 1.0),
-    rot=(1.0, 0.0, 0.0, 0.0),
-    joint_pos={
-      "left_hip_pitch": -0.4592,
-      "left_hip_roll": 0.1607,
-      "left_hip_yaw": -0.1584,
-      "left_knee": 0.4198,
-      "left_ankle_pitch": 1.256,
-      "left_ankle_roll": 0.0,
-      "right_hip_pitch": -0.4592,
-      "right_hip_roll": -0.1607,
-      "right_hip_yaw": 0.1584,
-      "right_knee": 0.4198,
-      "right_ankle_pitch": 1.256,
-      "right_ankle_roll": 0.0,
-      "waist_yaw": 0.0,
-      "neck_yaw": 0.0,
-      "neck_pitch": 0.0,
-      "left_shoulder_pitch": -2.5999,
-      "left_shoulder_roll": -0.166,
-      "left_shoulder_yaw": 0.0,
-      "left_elbow_pitch": -0.5386,
-      "right_shoulder_pitch": -2.5999,
-      "right_shoulder_roll": 0.166,
-      "right_shoulder_yaw": 0.0,
-      "right_elbow_pitch": -0.5386,
-    },
+    pos=tuple(initial["root_position"]),
+    rot=tuple(initial["root_quaternion_wxyz"]),
+    joint_pos=initial["joint_positions"],
     joint_vel={".*": 0.0},
   )
-  if contact_model == "empirical_unit" and _CLIMB_INITIAL_STATE_FILE.exists():
-    import json
-
-    initial = json.loads(_CLIMB_INITIAL_STATE_FILE.read_text())
-    robot_cfg.init_state = EntityCfg.InitialStateCfg(
-      pos=tuple(initial["root_position"]),
-      rot=tuple(initial["root_quaternion_wxyz"]),
-      joint_pos=initial["joint_positions"],
-      joint_vel={".*": 0.0},
-    )
 
   # pd100 table: v3's training gains — full upper chain INCLUDING
   # shoulder_yaw at 100/10 (kd=10 lifts the hanging-chain zeta 0.35 -> 0.5),
@@ -445,21 +373,15 @@ def phybot_c2_climb_wall_env_cfg(
   # Ordinary corner-block contacts handle compression and pre-engage sliding;
   # per-EE equalities provide grip.
   cfg.sim.contact_sensor_maxmatch = max(cfg.sim.contact_sensor_maxmatch, 500)
-  pad_sensor_cfg = WrenchContactSensorCfg if contact_model == "empirical_unit" else ContactSensorCfg
-  pad_sensor_kwargs = {}
-  if contact_model == "empirical_unit":
-    # Four flat boxes per pad can produce 64 simultaneous pad-wall contacts
-    # before any floor/toe contacts. The legacy 50-contact buffer drops forces
-    # needed by the preload gate. The four-world 60-degree reference-PD
-    # probe also reached 513 total contacts, overflowing a 128/world pool.
-    # Reserve headroom for ordinary body/floor contacts after loss of grip.
-    cfg.sim.nconmax = max(cfg.sim.nconmax or 0, 256)
-    cfg.sim.njmax = max(cfg.sim.njmax or 0, 512)
-    pad_sensor_kwargs["reference_sites"] = {
-      name: f"robot/{name.rsplit('_c_', 1)[0]}_contact_center" for name in get_sphere_geom_names(microspine_cfg)
-    }
+  # Four flat boxes per pad can produce 64 simultaneous pad-wall contacts
+  # before any floor/toe contacts; a 50-contact buffer drops forces needed by
+  # the preload gate. A four-world 60-degree reference-PD rollout reached 513
+  # total contacts, overflowing a 128/world pool. Reserve headroom for
+  # ordinary body/floor contacts after loss of grip.
+  cfg.sim.nconmax = 256
+  cfg.sim.njmax = 512
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (
-    pad_sensor_cfg(
+    WrenchContactSensorCfg(
       name=MICROSPINE_CONTACT_SENSOR,
       primary=ContactMatch(
         mode="geom",
@@ -470,12 +392,14 @@ def phybot_c2_climb_wall_env_cfg(
       # A flat box can generate several contacts: sum their forces instead
       # of keeping only the strongest point. Netforce is in world coordinates;
       # the affordance projects it onto the live wall normal.
-      fields=("found", "force", "normal", "tangent") + (("torque", "pos") if contact_model == "empirical_unit" else ()),
+      fields=("found", "force", "normal", "tangent", "torque", "pos"),
       reduce="netforce",
       num_slots=1,
       global_frame=False,
       history_length=cfg.decimation,
-      **pad_sensor_kwargs,
+      reference_sites={
+        name: f"robot/{name.rsplit('_c_', 1)[0]}_contact_center" for name in get_sphere_geom_names(microspine_cfg)
+      },
     ),
     # Foot-toe brace force: feeds the scheduled toe-brace shaping reward.
     ContactSensorCfg(
@@ -491,18 +415,15 @@ def phybot_c2_climb_wall_env_cfg(
       num_slots=1,
       global_frame=False,
     ),
+    ContactSensorCfg(
+      name=UNDESIRED_CONTACT_SENSOR,
+      primary=ContactMatch(mode="body", pattern=".*", entity="robot", exclude=(".*_spine.*", ".*_ankle_roll")),
+      fields=("found", "force"),
+      reduce="maxforce",
+      num_slots=1,
+      history_length=cfg.decimation,
+    ),
   )
-  if contact_model == "empirical_unit":
-    cfg.scene.sensors += (
-      ContactSensorCfg(
-        name="climb_undesired_contact",
-        primary=ContactMatch(mode="body", pattern=".*", entity="robot", exclude=(".*_spine.*", ".*_ankle_roll")),
-        fields=("found", "force"),
-        reduce="maxforce",
-        num_slots=1,
-        history_length=cfg.decimation,
-      ),
-    )
 
   def _spec_fn(spec: mujoco.MjSpec) -> None:
     add_contact_pairs(spec, microspine_cfg)
@@ -568,9 +489,9 @@ def phybot_c2_climb_wall_env_cfg(
       func=dr.body_mass,
       params={
         "asset_cfg": SceneEntityCfg("robot", body_names=("torso",)),
-        # +-2 kg, not walk's +-5: a +5 kg draw pushes the worst F0 lottery
-        # out of the Wang envelope (thinnest hold margin 12.3%). (notes:
-        # base_mass)
+        # +-2 kg, narrower than walk's +-5. The bound was sized against the
+        # retired Wang envelope and has not been re-derived for the
+        # empirical unit model.
         "ranges": (-2.0, 2.0),
         "operation": "add",
       },
@@ -597,45 +518,34 @@ def phybot_c2_climb_wall_env_cfg(
     )
 
   ##
-  # Rewards — DeepMimic split. ``motion_*`` exp kernels teach the regrip
-  # cycle (no global position tracking); height/velocity progress terms
-  # drive actual climbing; the microspine battery enforces the physics.
+  # Rewards — BeyondMimic body tracking adapted for climbing: pose kernels
+  # gated by schedule adherence, a reference-height ghost instead of global
+  # position tracking, regrip landing/approach shaping and the microspine
+  # support/release contract.
   ##
 
-  robot_cfg_e = SceneEntityCfg("robot")
+  # Pose income is gated by schedule adherence: the 0.25 floor keeps early
+  # learning fed, and the grace is 0.3 of the violated window, so a
+  # weld-through forfeits ~70% of the gate credit regardless of clip timing.
+  pose_params = {
+    "command_name": MOTION_COMMAND,
+    "engage_gate_floor": 0.25,
+    "engage_gate_grace_fraction": 0.3,
+  }
   cfg.rewards = {
-    # -- motion imitation (positive tracking income, BeyondMimic exp kernel).
-    # Pose income is gated by schedule adherence: floor 0.25 keeps birth
-    # learning fed (engagement-blind pose kernels funded the welded statue);
-    # grace = 0.3 of the violated window so a weld-through forfeits ~70% of
-    # the gate credit regardless of clip timing. (notes: motion_joint_pos)
-    "motion_joint_pos": RewardTermCfg(
-      func=mdp.motion_joint_pos_error_exp,
-      weight=2.0,
-      params={
-        "command_name": MOTION_COMMAND,
-        "std": 0.2,
-        "engage_gate_floor": 0.25,
-        "engage_gate_grace_fraction": 0.3,
-      },
+    "motion_body_pos": RewardTermCfg(
+      func=mdp.motion_body_position_error_exp, weight=1.0, params={**pose_params, "std": 0.1}
     ),
-    "motion_joint_vel": RewardTermCfg(
-      func=mdp.motion_joint_vel_error_exp,
-      weight=0.5,
-      params={"command_name": MOTION_COMMAND, "std": 1.5},
+    "motion_body_ori": RewardTermCfg(
+      func=mdp.motion_body_orientation_error_exp, weight=1.0, params={**pose_params, "std": 0.3}
     ),
-    # Root-frame EE tracking shapes reach and swing arcs without pinning the
-    # base to the clip's world trajectory; 2.5 so the reach toward the next
-    # hold out-earns holding a parked limb still. (notes: motion_ee_pos)
-    "motion_ee_pos": RewardTermCfg(
-      func=mdp.motion_ee_pos_error_exp,
-      weight=2.5,
-      params={
-        "command_name": MOTION_COMMAND,
-        "std": 0.1,
-        "engage_gate_floor": 0.25,
-        "engage_gate_grace_fraction": 0.3,
-      },
+    "motion_body_lin_vel": RewardTermCfg(
+      func=mdp.motion_body_linear_velocity_error_exp, weight=1.0, params={"command_name": MOTION_COMMAND, "std": 1.0}
+    ),
+    "motion_body_ang_vel": RewardTermCfg(
+      func=mdp.motion_body_angular_velocity_error_exp,
+      weight=1.0,
+      params={"command_name": MOTION_COMMAND, "std": 3.14},
     ),
     "motion_root_ori": RewardTermCfg(
       func=mdp.motion_root_ori_error_exp,
@@ -647,130 +557,56 @@ def phybot_c2_climb_wall_env_cfg(
         "engage_gate_grace_fraction": 0.3,
       },
     ),
-    # ~2 mismatched pads must bill -2/s against a budgeted ~3.1/s task
-    # income; the bill ramps over the violated window's outer 30% — the same
-    # countdown the policy sees, and it survives clip retiming. (notes:
-    # motion_engage_mismatch)
-    "motion_engage_mismatch": RewardTermCfg(
-      func=mdp.motion_engage_mismatch,
-      weight=-1.0,
-      params={"command_name": MOTION_COMMAND, "grace_fraction": 0.3},
-    ),
-    # Pays pad press inside the scheduled regrip window only and stops at
-    # latch; the +0.4 ceiling stays under the -1.0 mismatch bill so pressing
-    # without latching is strictly net-negative. (notes:
-    # motion_scheduled_press)
-    "motion_scheduled_press": RewardTermCfg(
-      func=mdp.motion_scheduled_press_shaping,
-      weight=0.4,
-      params={"command_name": MOTION_COMMAND, "regrip_lead_time_s": 0.3},
-    ),
-    # The released foot's regrip support is the TOE pressing the wall (a
-    # sliding unloaded pad destroys spine tips). Pays saturated toe force in
-    # scheduled brace windows; outside-window pressing bills 0.3x — that
-    # reaction loads the fresh anchor toward its cheap release directions.
-    # (notes: motion_toe_brace)
-    "motion_toe_brace": RewardTermCfg(
-      func=mdp.motion_toe_brace_match,
-      weight=0.4,
-      params={
-        "command_name": MOTION_COMMAND,
-        "sensor_name": TOE_CONTACT_SENSOR,
-        "press_norm_n": 8.0,
-      },
-    ),
-    # -- task drive AS an imitation term: climb income follows the ghost —
-    # exp kernel on (robot climb - reference climb) since settling, decaying
-    # when falling behind OR running ahead ("any rise pays" funded every
-    # reference-ignoring gait). (notes: motion_ref_height)
+    # Climb income follows the reference: exp kernel on (robot climb -
+    # reference climb) since settling, decaying when the robot falls behind
+    # or runs ahead. std 0.025 m is 1.25 step heights of the 20 mm clip.
     "motion_ref_height": RewardTermCfg(
       func=mdp.motion_ref_height_tracking(),
       weight=2.5,
       params={
-        "asset_cfg": robot_cfg_e,
-        # 0.83 step heights — the designed kernel ratio kept for the 30 mm
-        # clip (0.05 would halve the per-step climb gradient). (notes:
-        # motion_ref_height std)
+        "asset_cfg": SceneEntityCfg("robot"),
         "motion_command_name": MOTION_COMMAND,
         "std": 0.025,
         "settle_time_s": 0.5,
       },
     ),
-    # Pays each scheduled latch once by where it LANDS on the anchor ladder
-    # (the shape terms are root-relative and the gate checks timing only, so
-    # cycling in place otherwise collects nearly full pay). Ceiling ~0.75/s
-    # vs ~4.5/s tracking; in-window relatch farming pays zero. (notes:
-    # motion_anchor_landing)
+    # Pays each scheduled latch once by where it lands on the anchor ladder;
+    # relatching inside the same window pays nothing.
     "motion_anchor_landing": RewardTermCfg(
       func=mdp.motion_anchor_landing(),
       weight=40.0,
       params={"command_name": MOTION_COMMAND, "std": 0.03},
     ),
     # Dense progress toward ``ref_anchor_pos_w`` while the EE is scheduled
-    # OFF and released — the landing bonus alone is a chicken-and-egg that
-    # exploration never samples. Ceiling 0.5/s per swinging EE, under the
-    # mismatch bill. (notes: motion_swing_approach)
+    # off and released; the landing bonus alone is too sparse for
+    # exploration to find. Ceiling 0.5/s per swinging EE, under the mismatch
+    # bill.
     "motion_swing_approach": RewardTermCfg(
       func=mdp.motion_swing_approach,
       weight=0.5,
       params={"command_name": MOTION_COMMAND, "std": 0.05},
     ),
-    "lateral_velocity_y_l2": RewardTermCfg(
-      func=mdp.climb_lateral_velocity_y_l2,
-      weight=-0.2,
-      params={"asset_cfg": robot_cfg_e, "velocity_scale": 0.1},
-    ),
-    "wall_distance_band_l2": RewardTermCfg(
-      func=mdp.wall_distance_band_l2,
-      weight=-0.2,
-      params={
-        "asset_cfg": robot_cfg_e,
-        # Base standoff of the climb-zero v3 stance (1.5 - 1.327).
-        "target_distance": 0.173,
-        "tolerance": 0.08,
-        "distance_scale": 0.1,
-      },
+    # Bills each pad whose latch state disagrees with the schedule; the bill
+    # ramps over the violated window's outer 30%, the same countdown the
+    # policy observes.
+    "motion_engage_mismatch": RewardTermCfg(
+      func=mdp.motion_engage_mismatch,
+      weight=-1.0,
+      params={"command_name": MOTION_COMMAND, "grace_fraction": 0.3},
     ),
     # -- microspine physics contract. Two, three, and four anchors are all
     # acceptable; only insufficient support is penalized. A reverse-shear
     # unhook is free while safe; structural failures carry one-shot costs.
-    "ee_face_parallel_error": RewardTermCfg(
-      func=mdp.ee_face_parallel_error,
-      weight=-0.5,
-      params={
-        "asset_cfg": robot_cfg_e,
-        "ee_body_names": microspine_cfg.ee_body_names,
-        "event_term_name": MICROSPINE_GRIP_EVENT,
-        "command_name": MICROSPINE_AFFORDANCE_COMMAND,
-        "face_local_axis": microspine_cfg.face_local_axis,
-      },
-    ),
-    # Capture-relative rotation priced from 3 deg so the 3.5-4.5 deg
-    # tilt-peel cliff is felt as a gradient before it fires; the reference
-    # needs <= 1.1 deg. (notes: engaged_tilt)
-    "engaged_tilt": RewardTermCfg(
-      func=mdp.engaged_tilt_penalty,
-      weight=-1.0,
-      params={
-        "command_name": MICROSPINE_AFFORDANCE_COMMAND,
-        "threshold_deg": 3.0,
-        "scale_deg": 5.0,
-      },
-    ),
     "microspine_support_loss": RewardTermCfg(
       func=mdp.microspine_support_loss,
-      # A one-anchor dangle still earning partial tracking (~2.4-3.5/s of
-      # the ~4.5/s ceiling) must stay strictly net-negative. (notes:
-      # microspine_support_loss)
       weight=-4.0,
       params={
         "event_term_name": MICROSPINE_GRIP_EVENT,
         "minimum_supports": 2,
       },
     ),
-    # Base failure-mode costs; empirical release-load shaping below also
-    # prices loaded reverse-shear unhooks. (notes:
-    # unsafe_microspine_release)
+    # Base failure-mode costs; microspine_release_load below also prices
+    # loaded reverse-shear unhooks.
     "unsafe_microspine_release": RewardTermCfg(
       func=mdp.unsafe_microspine_release_penalty,
       weight=-2.5,
@@ -778,76 +614,20 @@ def phybot_c2_climb_wall_env_cfg(
         "command_name": MICROSPINE_AFFORDANCE_COMMAND,
         "minimum_supports": 2,
         "settle_time_s": 0.5,
-        # Reverse-shear stays free only AT scheduled releases; 0.3x while
-        # the clip says ENGAGED (motionref16b farmed the free direction as
-        # a release valve).
+        # Reverse-shear is free only at scheduled releases and costs 0.3x
+        # while the clip says engaged.
         "motion_command_name": MOTION_COMMAND,
         "scheduled_reverse_cost": 0.3,
         "scheduled_reverse_grace_s": 0.25,
-        # Tilt-peel prices between tension (0.25) and ultimate (1.0): always
-        # avoidable — the reference needs <= 1.1 deg.
+        # Unused while the angle check is disabled
+        # (tilt_peel_max_deg_range = (0, 0)).
         "tilt_release_cost": 0.5,
       },
     ),
-    "ee_slide_penalty": RewardTermCfg(
-      func=mdp.ee_slide_penalty,
-      weight=-0.1,
-      params={
-        "asset_cfg": robot_cfg_e,
-        "hand_body_names": microspine_cfg.ee_body_names,
-        "event_term_name": MICROSPINE_GRIP_EVENT,
-      },
-    ),
-    # -- regularization.
-    "ang_vel_xy_l2": RewardTermCfg(
-      func=mdp.ang_vel_xy_l2,
-      weight=-0.05,
-      params={"asset_cfg": robot_cfg_e},
-    ),
-    "dof_torques_l2": RewardTermCfg(
-      func=mdp.joint_torques_l2,
-      weight=-1.0e-5,
-      params={"asset_cfg": robot_cfg_e},
-    ),
-    # Spike tax above 70% of the deploy torque caps: leaves support duty and
-    # the gentle unhook untaxed; one saturated joint costs 8/s — comparable
-    # to the timing income a near-saturation yank shortcuts. (notes:
-    # torque_headroom)
-    "torque_headroom": RewardTermCfg(
-      func=mdp.torque_headroom_penalty,
-      weight=-8.0,
-      params={"asset_cfg": robot_cfg_e, "threshold": 0.7},
-    ),
-    "bounded_dof_acc_l2": RewardTermCfg(
-      func=mdp.bounded_joint_acc_l2,
-      weight=-0.02,
-      params={
-        "asset_cfg": robot_cfg_e,
-        "acceleration_scale": 100.0,
-        "max_cost": 10.0,
-      },
-    ),
-    # At -0.01 mean-chatter was economically free (3-4 Hz hand buzz straight
-    # through the 60 ms engage debounce); walk prices -0.25/-0.3, climb
-    # keeps headroom for legitimately fast regrip reaches. (notes:
-    # action_rate_l2)
-    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.1),
-    # The target clamp is the safety guard; this term gives the policy a
-    # learning signal to stay away from the guard and from physical joint stops.
-    "dof_pos_limits": RewardTermCfg(
-      func=mdp.joint_pos_limits,
-      weight=-5.0,
-      params={"asset_cfg": _policy_joint_cfg()},
-    ),
-    # RewardManager scales by dt, so -500 is a -10 one-shot failure cost.
-    "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-500.0),
-  }
-
-  if contact_model == "empirical_unit":
     # Use the actual active-unit loads captured by the hold judge. Near-zero
     # shear/lateral gets one scheduled event bonus; shear-loaded releases
     # cost more than equally loaded lateral releases, in either sign.
-    cfg.rewards["microspine_release_load"] = RewardTermCfg(
+    "microspine_release_load": RewardTermCfg(
       func=mdp.microspine_release_load_reward(),
       weight=1.0,
       params={
@@ -862,61 +642,26 @@ def phybot_c2_climb_wall_env_cfg(
         "release_lead_time_s": 0.25,
         "settle_time_s": 0.5,
       },
-    )
-    # BeyondMimic body tracking + the agreed climbing/contact adaptation.
-    # Legacy Wang transition tasks retain their existing reward contract.
-    pose_params = {
-      "command_name": MOTION_COMMAND,
-      "engage_gate_floor": 0.25,
-      "engage_gate_grace_fraction": 0.3,
-    }
-    body_rewards = {
-      "motion_body_pos": RewardTermCfg(
-        func=mdp.motion_body_position_error_exp, weight=1.0, params={**pose_params, "std": 0.1}
-      ),
-      "motion_body_ori": RewardTermCfg(
-        func=mdp.motion_body_orientation_error_exp, weight=1.0, params={**pose_params, "std": 0.3}
-      ),
-      "motion_body_lin_vel": RewardTermCfg(
-        func=mdp.motion_body_linear_velocity_error_exp, weight=1.0, params={"command_name": MOTION_COMMAND, "std": 1.0}
-      ),
-      "motion_body_ang_vel": RewardTermCfg(
-        func=mdp.motion_body_angular_velocity_error_exp,
-        weight=1.0,
-        params={"command_name": MOTION_COMMAND, "std": 3.14},
-      ),
-    }
-    retained = (
-      "motion_root_ori",
-      "motion_ref_height",
-      "motion_anchor_landing",
-      "motion_swing_approach",
-      "motion_engage_mismatch",
-      "microspine_support_loss",
-      "unsafe_microspine_release",
-      "microspine_release_load",
-      "action_rate_l2",
-      "dof_pos_limits",
-      "termination_penalty",
-    )
-    cfg.rewards = {**body_rewards, **{name: cfg.rewards[name] for name in retained}}
-    cfg.rewards["undesired_contacts"] = RewardTermCfg(
-      func=mdp.undesired_body_contacts, weight=-0.1, params={"sensor_name": "climb_undesired_contact", "threshold": 1.0}
-    )
-    from mjlab.managers.termination_manager import TerminationTermCfg
-
-    cfg.terminations["bad_tracking"] = TerminationTermCfg(
-      func=mdp.motion_body_tracking_divergence,
-      params={
-        "command_name": MOTION_COMMAND,
-        "position_threshold": 0.3,
-        "orientation_threshold": 1.0,
-        "height_threshold": 0.25,
-      },
-    )
-    cfg.terminations["lost_support"] = TerminationTermCfg(
-      func=mdp.prolonged_support_loss(), params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "timeout_s": 0.4}
-    )
+    ),
+    # -- regularization. At -0.01 a 3-4 Hz hand buzz through the 60 ms engage
+    # debounce was free; walk prices -0.25/-0.3, and climb keeps headroom for
+    # fast regrip reaches.
+    "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.1),
+    # The target clamp is the safety guard; this term gives the policy a
+    # learning signal to stay away from the guard and from physical joint stops.
+    "dof_pos_limits": RewardTermCfg(
+      func=mdp.joint_pos_limits,
+      weight=-5.0,
+      params={"asset_cfg": _policy_joint_cfg()},
+    ),
+    # RewardManager scales by dt, so -500 is a -10 one-shot failure cost.
+    "termination_penalty": RewardTermCfg(func=mdp.is_terminated, weight=-500.0),
+    "undesired_contacts": RewardTermCfg(
+      func=mdp.undesired_body_contacts,
+      weight=-0.1,
+      params={"sensor_name": UNDESIRED_CONTACT_SENSOR, "threshold": 1.0},
+    ),
+  }
 
   ##
   # Actions.
@@ -994,10 +739,9 @@ def phybot_c2_climb_wall_env_cfg(
     # of the microspine cfg (see the Events section).
     microspine_cfg.debug = False
     cfg.events[MICROSPINE_GRIP_EVENT].params["microspine_cfg"].debug = False
-    # Evaluation uses the final task directly (calibrated tilt band; play.py's
-    # gravity resolver — CLI override or checkpoint-iteration lookup — can
-    # still replace the pinned stage). Jitter off: evaluation and diagnostic
-    # rollouts (engage raster) must be deterministic at the pinned angle.
+    # Evaluation uses the final task directly; play.py can still replace the
+    # pinned stage from the CLI or the checkpoint iteration. Jitter off:
+    # evaluation rollouts must be deterministic at the pinned angle.
     mdp.pin_curricula_to_final_stage(cfg)
     cfg.curriculum["wall_angle"].params["angle_jitter_deg"] = 0.0
     # Evaluation starts at the cycle's canonical stance instead of a random

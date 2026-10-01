@@ -12,23 +12,6 @@ if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
 
-def both_hands_unlatched(
-  env: ManagerBasedRlEnv,
-  event_term_name: str = "microspine_grip",
-) -> torch.Tensor:
-  """Terminate when neither hand is engaged (airborne).
-
-  Reads the microspine physics term's per-(env, hand) latch state. Triggers
-  when both hands are simultaneously off — the robot has no anchor and is
-  falling. Combined with the -200 ``termination_penalty`` reward, this
-  directly punishes the "both hands off" state the strict single-stance
-  reward does not cover.
-  """
-  term_cfg = env.event_manager.get_term_cfg(event_term_name)
-  engaged = term_cfg.func.engaged  # (E, H) bool
-  return engaged.sum(dim=-1) == 0
-
-
 def root_below_wall_altitude(
   env: ManagerBasedRlEnv,
   minimum_altitude: float = 0.3,
@@ -46,23 +29,6 @@ def root_below_wall_altitude(
   robot_pos = env.scene["robot"].data.root_link_pos_w
   altitude = ((robot_pos - motion.wall_pivot_w) * motion.wall_up_w).sum(dim=-1)
   return altitude < minimum_altitude
-
-
-def motion_tracking_divergence(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_motion",
-  threshold: float = 0.7,
-) -> torch.Tensor:
-  """DeepMimic-style early termination: the pose left the reference entirely.
-
-  Mean absolute clip-joint error above ``threshold`` (rad) means the robot is
-  no longer anywhere on the cycle (a clean hang scores ~0.1–0.2 even at the
-  wrong phase; a collapsed or inverted robot scores far above). Ending the
-  rollout early stops PPO from spending samples on unrecoverable states.
-  """
-  motion = env.command_manager.get_term(command_name)
-  error = (motion.ref_joint_pos - motion.robot_joint_pos).abs().mean(dim=-1)
-  return error > threshold
 
 
 def motion_body_tracking_divergence(
@@ -110,79 +76,6 @@ def prolonged_support_loss():
     return {}
 
   call.reset = reset
-  return call
-
-
-def no_progress_stall():
-  """Factory for terminating commanded climbs that make no new height.
-
-  RETIRED from the shipped cfg (2026-07-30) and NOT wall-frame aware: if
-  revived, its world-z progress mark must become an along-wall projection
-  (see ``root_below_wall_altitude``).
-
-  The initial settling window continuously follows the base height, so the
-  unavoidable reset-pose sag does not consume the stall budget. Afterwards a
-  new progress mark must be cleared by ``minimum_progress`` before the timer
-  resets. Tiny solver jitter therefore cannot keep a hanging episode alive.
-  """
-  state: dict[str, torch.Tensor | None] = {
-    "progress_mark_z": None,
-    "stall_time": None,
-    "fresh": None,
-  }
-
-  def call(
-    env: ManagerBasedRlEnv,
-    *,
-    asset_cfg: SceneEntityCfg,
-    command_name: str = "climb_velocity",
-    settle_time_s: float = 0.5,
-    stall_time_s: float = 5.0,
-    minimum_progress: float = 0.01,
-    command_threshold: float = 0.01,
-  ) -> torch.Tensor:
-    asset: Entity = env.scene[asset_cfg.name]
-    z = asset.data.root_link_pos_w[:, 2]
-
-    if state["progress_mark_z"] is None or state["progress_mark_z"].shape != z.shape:
-      state["progress_mark_z"] = z.clone()
-      state["stall_time"] = torch.zeros_like(z)
-      state["fresh"] = torch.zeros(z.shape[0], dtype=torch.bool, device=z.device)
-      return torch.zeros_like(z, dtype=torch.bool)
-
-    mark = state["progress_mark_z"]
-    timer = state["stall_time"]
-    fresh = state["fresh"]
-    assert mark is not None and timer is not None and fresh is not None
-
-    settling = env.episode_length_buf.float() * env.step_dt <= settle_time_s
-    initialize = fresh | settling
-    advanced = z >= mark + minimum_progress
-
-    mark = torch.where(initialize | advanced, z, mark)
-    timer = torch.where(
-      initialize | advanced,
-      torch.zeros_like(timer),
-      timer + env.step_dt,
-    )
-    fresh.zero_()
-    state["progress_mark_z"] = mark
-    state["stall_time"] = timer
-
-    command_z = env.command_manager.get_command(command_name)[:, 2].abs()
-    active = command_z > command_threshold
-    return active & ~initialize & (timer >= stall_time_s)
-
-  def reset(env_ids=None) -> dict:
-    fresh = state["fresh"]
-    if fresh is None:
-      return {}
-    ids = slice(None) if env_ids is None else env_ids
-    fresh[ids] = True
-    state["stall_time"][ids] = 0.0
-    return {}
-
-  call.reset = reset  # type: ignore[attr-defined]
   return call
 
 

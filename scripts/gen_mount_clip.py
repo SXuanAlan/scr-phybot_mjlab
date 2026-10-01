@@ -99,7 +99,7 @@ at height h recedes by h*sin(90-a), the elbow clears in FRONT, and the
 lateral windmill has no reason to exist. See the branch banners for the
 per-variant narratives.
 
-Output schema == gen_climb_clip.py plus:
+Output schema == the cycle clip (tools.climbing_reference.cycle) plus:
 
     foot_on_ground   (T, 2) uint8   1 while that foot (left, right) is a
                                     flat floor support (feet order matches
@@ -117,7 +117,7 @@ import os
 import sys
 from pathlib import Path
 
-import mjlab  # noqa: F401  (entry points; see gen_climb_clip.py)
+import mjlab  # noqa: F401  (registers mjlab entry points)
 import mujoco
 import numpy as np
 
@@ -416,7 +416,7 @@ def generate_mount_clip(
       names = [f"{ee}_gimbal_{ax}" for ax in ("x", "y", "z")]
       missing = [nm for nm in names if nm not in ik.qpos_addresses]
       if missing:
-        raise ValueError(f"--weld-gimbal-deg needs the gimbal plant (PHYBOT_C2_PAD_GIMBAL=1); missing {missing}")
+        raise ValueError(f"--weld-gimbal-deg needs the pad gimbal joints; missing {missing}")
       gimbal_joint_names[ee] = names
       for nm in names:
         ik.joint_ranges[nm] = np.array([-rad, rad])

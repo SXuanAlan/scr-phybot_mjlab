@@ -13,7 +13,6 @@ GIMBAL_JOINTS = tuple(f"{spine}_gimbal_{axis}" for spine in C.SPINE_BODY_NAMES f
 
 @pytest.fixture(scope="module")
 def model() -> mujoco.MjModel:
-  assert C.PHYBOT_C2_PAD_GIMBAL, "suite expects the gimbal-era plant"
   return C.get_spec().compile()
 
 
@@ -102,20 +101,20 @@ def test_dummy_hand_is_removed_from_the_mesh_not_just_hidden():
     assert len(mesh.faces) < 20_000  # Original dummy-hand assemblies had >52k.
 
 
-def test_gimbal_zero_matches_legacy_fixed_pose(monkeypatch):
-  """Default-pose FK identical to the rigid-attachment plant (1e-12 m)."""
+def test_gimbal_zero_matches_fixed_attachment_pose(monkeypatch):
+  """Default-pose FK identical to a rigid pad attachment (1e-12 m)."""
 
-  def sphere_positions(enable: bool) -> dict[str, np.ndarray]:
-    monkeypatch.setattr(C, "PHYBOT_C2_PAD_GIMBAL", enable)
+  def sphere_positions() -> dict[str, np.ndarray]:
     m = C.get_spec().compile()
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
     return {m.body(b).name: d.xpos[b].copy() for b in range(m.nbody) if "_spine_c_" in m.body(b).name}
 
-  legacy = sphere_positions(False)
-  gimbal = sphere_positions(True)
-  assert set(legacy) == set(gimbal)
-  for name, pos in legacy.items():
+  gimbal = sphere_positions()
+  monkeypatch.setattr(C, "_add_pad_gimbals", lambda spec: None)
+  rigid = sphere_positions()
+  assert set(rigid) == set(gimbal)
+  for name, pos in rigid.items():
     assert np.allclose(pos, gimbal[name], atol=1e-12), name
 
 

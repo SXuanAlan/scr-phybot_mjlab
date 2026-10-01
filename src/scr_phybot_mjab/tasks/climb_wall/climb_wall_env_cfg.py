@@ -34,6 +34,7 @@ MICROSPINE_AFFORDANCE_COMMAND = "microspine_affordance"
 MICROSPINE_GRIP_EVENT = "microspine_grip"
 MICROSPINE_CONTACT_SENSOR = "microspine_wall_contact"
 TOE_CONTACT_SENSOR = "climb_toe_contact"
+UNDESIRED_CONTACT_SENSOR = "climb_undesired_contact"
 
 # One PPO rollout must hold a full release -> cooldown -> re-engage -> hold
 # sequence (~0.7 s). Must equal the phybot_c2 rl_cfg's num_steps_per_env
@@ -112,11 +113,10 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
   rewards = {}
 
   ##
-  # Curriculum — wall-angle ladder x tilt-peel anneal (tables + doctrine live
-  # in mdp.curriculums; play/distill/polish pin them to the terminal stage via
-  # mdp.pin_curricula_to_final_stage). The angle is realized by TILTING THE
-  # WALL about its base line under real gravity (mdp.wall_angle) — at the
-  # terminal 90° rung the world is exactly climb_transition's.
+  # Curriculum — wall-angle ladder (table in mdp.curriculums; play pins it to
+  # the terminal stage via mdp.pin_curricula_to_final_stage). The angle is
+  # realized by TILTING THE WALL about its base line under real gravity
+  # (mdp.wall_angle).
   ##
 
   curriculum = {
@@ -126,14 +126,6 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
         "angle_stages": [dict(stage) for stage in mdp.WALL_ANGLE_STAGES],
         "steps_per_iter": _STEPS_PER_ITER,
         "angle_jitter_deg": 5.0,
-      },
-    ),
-    "tilt_peel": CurriculumTermCfg(
-      func=mdp.tilt_peel_schedule,
-      params={
-        "stages": [dict(stage) for stage in mdp.TILT_PEEL_STAGES],
-        "command_name": MICROSPINE_AFFORDANCE_COMMAND,
-        "steps_per_iter": _STEPS_PER_ITER,
       },
     ),
   }
@@ -180,16 +172,19 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.bad_state,
       params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
     ),
-    # no_progress executioner REMOVED 2026-07-30 (it truncated every learning
-    # episode); if a dance-forever basin returns, reintroduce a curriculum-
-    # gated stall bar (mdp.no_progress_stall), never a flat one. (notes:
-    # no_progress obituary)
-    # DeepMimic early termination: end rollouts whose pose left the reference
-    # entirely (fallen/tangled). Threshold is generous — a clean hang at the
-    # wrong phase scores ~0.1-0.2 rad mean error and survives.
+    # BeyondMimic early termination: end rollouts whose tracked bodies left
+    # the reference (fallen/tangled).
     "bad_tracking": TerminationTermCfg(
-      func=mdp.motion_tracking_divergence,
-      params={"command_name": MOTION_COMMAND, "threshold": 0.7},
+      func=mdp.motion_body_tracking_divergence,
+      params={
+        "command_name": MOTION_COMMAND,
+        "position_threshold": 0.3,
+        "orientation_threshold": 1.0,
+        "height_threshold": 0.25,
+      },
+    ),
+    "lost_support": TerminationTermCfg(
+      func=mdp.prolonged_support_loss(), params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "timeout_s": 0.4}
     ),
   }
 

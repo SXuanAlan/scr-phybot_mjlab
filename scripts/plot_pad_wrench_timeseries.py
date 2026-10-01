@@ -28,9 +28,6 @@ Usage (env_mjlab15, GPU):
   python scripts/plot_pad_wrench_timeseries.py <ckpt.pt> [--angle 90] \
       [--steps 1500] [--device cuda:0] [--out <prefix>]
   python scripts/plot_pad_wrench_timeseries.py --replot <prefix>.npz
-
-PHYBOT_C2_PAD_GIMBAL=0 selects the legacy rigid-pad plant (the plant the
-2026-08-02 deploypd-v4 checkpoints were trained on).
 """
 
 from __future__ import annotations
@@ -108,9 +105,6 @@ def rollout(args: argparse.Namespace) -> dict:
   from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
   import scr_phybot_mjab.tasks  # noqa: F401  (registers tasks)
-  from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
-    PHYBOT_C2_PAD_GIMBAL,
-  )
 
   ckpt = args.ckpt.resolve()
   device = args.device
@@ -213,7 +207,7 @@ def rollout(args: argparse.Namespace) -> dict:
     angle_deg=np.float32(args.angle),
     ckpt=np.array(str(ckpt)),
     task=np.array(args.task),
-    plant=np.array("gimbal" if PHYBOT_C2_PAD_GIMBAL else "rigid-pad"),
+    plant=np.array("gimbal"),
     robot_mass=np.float32(robot_mass),
     gravity=np.float32(g),
   )

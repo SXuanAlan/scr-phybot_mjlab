@@ -75,7 +75,7 @@ def vertical_height_spawn_offset(
 
 
 # Nominal cycle climb rate (m/s) used only when the clip file is absent at
-# config-build time (fresh checkout before ``gen_climb_clip.py`` ran). Env
+# config-build time (before the reference generator has written it). Env
 # construction still fails loudly without the file — this fallback exists so
 # building the *config* (task registration, the gen script itself) does not
 # require the asset it is about to generate. 0.06 m / 4.3 s cycle.
@@ -175,7 +175,7 @@ def _run_lengths(engaged: np.ndarray) -> np.ndarray:
 def _cycle_frames(data: dict) -> int:
   """Frames of one loopable cycle: cycle 0 without the ``end_hold`` tail.
 
-  ``gen_climb_clip`` appends ``end_hold`` (== next cycle's ``hold_start``
+  The cycle generator appends ``end_hold`` (== next cycle's ``hold_start``
   shifted one step height) only after the last cycle, so cycle 0 minus
   ``end_hold`` is the loop period regardless of ``--cycles``.
   """
@@ -272,8 +272,7 @@ class ClimbMotionClip:
     root_quat = np.asarray(data["root_quaternion"], dtype=np.float64)[:, [3, 0, 1, 2]]
     ee_pos = np.asarray(data["ee_positions"], dtype=np.float64)
     engaged = np.asarray(data["ee_engaged"]) != 0
-    # Foot-toe wall-brace schedule (gen_climb_clip 2026-07-29). Older clips
-    # predate the bracing toes; they never schedule a brace.
+    # Foot-toe wall-brace schedule; clips without one never schedule a brace.
     toe_braced = (
       np.asarray(data["toe_braced"]) != 0 if "toe_braced" in data else np.zeros((engaged.shape[0], 2), dtype=bool)
     )

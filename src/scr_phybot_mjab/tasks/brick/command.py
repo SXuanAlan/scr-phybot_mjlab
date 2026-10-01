@@ -83,7 +83,7 @@ class BrickTaskCommand(CommandTerm):
       tuple(f"{s}_hand_spine_gimbal_{a}" for s in ("left", "right") for a in "xyz"), preserve_order=True
     )
     if len(self.gimbal_ids) != 6:
-      raise ValueError("Brick reference requires the current asset with PHYBOT_C2_PAD_GIMBAL=1")
+      raise ValueError("Brick reference requires the hand pad gimbal joints")
     self.foot_ids, _ = self.robot.find_sites(("left_foot", "right_foot"), preserve_order=True)
     self.arm_ids, _ = self.robot.find_bodies(("left_elbow_pitch", "right_elbow_pitch"), preserve_order=True)
     archive = load_reference(cfg.reference_file)

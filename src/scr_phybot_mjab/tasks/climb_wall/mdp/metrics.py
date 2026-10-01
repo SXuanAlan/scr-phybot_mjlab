@@ -26,10 +26,6 @@ def microspine_engagement_occupancy(
   return affordance.engaged.float().mean(dim=1)
 
 
-# Compatibility alias for old configs. The value is occupancy, not an event rate.
-microspine_engage_rate = microspine_engagement_occupancy
-
-
 def microspine_forced_release_rate(
   env: ManagerBasedRlEnv,
   command_name: str = "microspine_affordance",

@@ -38,6 +38,7 @@ Run inside the env_mjlab15 environment:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import math
 import sys
 from pathlib import Path
@@ -54,6 +55,7 @@ from scr_phybot_mjab.tools.plotting import CAT, INK, MUT, ORDINAL, RC_PARAMS, SE
 # Categorical slots (validated trio) for the three moment axes; ordinal blue
 # ramp (light -> dark with |m_l|) for the panel-A family; neutral inks.
 HANG_FT, HANG_FN = 70.0, 14.0  # 90-deg frame-0 per-hand hang load [N].
+WANG_F0_RANGE_N = (400.0, 650.0)  # Per-pad F0 draw range of the Wang model.
 BEND_LEVELS = (HANG_FT, 200.0)  # Panel-c shear preloads [N].
 
 
@@ -66,11 +68,9 @@ def load_limit_surface_cfg(use_defaults: bool):
     phybot_c2_climb_wall_env_cfg,
   )
 
-  return (
-    phybot_c2_climb_wall_env_cfg(play=True, contact_model="wang2017")
-    .commands["microspine_affordance"]
-    .microspine_cfg.limit_surface
-  )
+  climb = phybot_c2_climb_wall_env_cfg(play=True).commands["microspine_affordance"].microspine_cfg.limit_surface
+  # The climb pad's CAD unit grid, drawn at the Wang per-pad F0 range.
+  return dataclasses.replace(climb, f_t_max_range=WANG_F0_RANGE_N)
 
 
 def unit_grid(cfg) -> tuple[torch.Tensor, torch.Tensor, float, float, float]:

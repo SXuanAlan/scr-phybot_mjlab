@@ -167,7 +167,6 @@ def test_active_offline_tools_do_not_import_other_cli_scripts():
     root / "scripts" / name
     for name in (
       "gen_cad_climb_reference.py",
-      "gen_climb_clip.py",
       "gen_mount_clip.py",
       "audit_cad_climb_reference.py",
       "build_empirical_limit_surface.py",
