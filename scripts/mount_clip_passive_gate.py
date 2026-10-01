@@ -93,7 +93,6 @@ REASON = {
   2: "tension",
   3: "lateral",
   4: "ultimate",
-  5: "tilt",
   6: "dr",
   7: "emp-domain",
   8: "emp-early",

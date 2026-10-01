@@ -214,10 +214,6 @@ def phybot_c2_climb_wall_env_cfg(
   # count, not a measured pad capacity or a DR draw.
   shear_domain_max = 30.0 * pad_geometry.count
   microspine_cfg.limit_surface.f_t_max_range = (shear_domain_max, shear_domain_max)
-  # No angle-based release: at the gimbal stops the arm's torque flows into
-  # the weld and the per-unit moment billing owns the failure. (0, 0)
-  # disables the angle check.
-  microspine_cfg.limit_surface.tilt_peel_max_deg_range = (0.0, 0.0)
   # Latched pads hand the whole load path to the bilateral anchor; the
   # redundant sphere contacts (motionref6's margin 'barcode') switch off per
   # env while latched. (notes: disable_contacts_while_latched)
@@ -619,9 +615,6 @@ def phybot_c2_climb_wall_env_cfg(
         "motion_command_name": MOTION_COMMAND,
         "scheduled_reverse_cost": 0.3,
         "scheduled_reverse_grace_s": 0.25,
-        # Unused while the angle check is disabled
-        # (tilt_peel_max_deg_range = (0, 0)).
-        "tilt_release_cost": 0.5,
       },
     ),
     # Use the actual active-unit loads captured by the hold judge. Near-zero

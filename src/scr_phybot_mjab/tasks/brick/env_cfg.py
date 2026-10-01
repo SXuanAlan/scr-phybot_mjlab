@@ -96,7 +96,6 @@ def brick_env_cfg(
   ls.pad_span_rake_m, ls.pad_span_lateral_m = geometry.spans
   ls.capacity_ramp_time_s, ls.capacity_ramp_floor = 0.0, 1.0
   ls.redraw_f_t_max_per_latch, ls.unit_catch_empty_prob = False, 0.0
-  ls.tilt_peel_max_deg_range = (0.0, 0.0)
   ls.hold_grace_steps = 1
   robot = get_phybot_c2_robot_cfg()
   robot.collisions = (brick_robot_collision(),)

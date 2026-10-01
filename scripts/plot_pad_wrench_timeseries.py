@@ -51,7 +51,6 @@ REASON_NAMES = {
   2: "tension",
   3: "lateral",
   4: "ultimate",
-  5: "tilt-peel",
   6: "dr-forced",
 }
 # Categorical slots 1-3 of the validated reference palette (all-pairs safe).
@@ -78,16 +77,6 @@ def parse_args() -> argparse.Namespace:
     default=None,
     help="output prefix (default logs/eval/<run>/padwrench_<angle>deg_<ckpt>)",
   )
-  p.add_argument(
-    "--tilt-band",
-    default=None,
-    help=(
-      "override the tilt-peel release band 'lo,hi' [deg] (legacy rigid-pad "
-      "plant only; '0,0' disables). Play pins the FINAL ladder stage "
-      "(3.5-4.5 deg), which a low-angle-era checkpoint never trained under "
-      "(stage 0 is 12-15 deg)."
-    ),
-  )
   p.add_argument("--replot", type=Path, default=None, help="re-render from a saved .npz")
   args = p.parse_args()
   if args.replot is None and args.ckpt is None:
@@ -113,13 +102,6 @@ def rollout(args: argparse.Namespace) -> dict:
   if "wall_angle" in env_cfg.curriculum:
     env_cfg.curriculum["wall_angle"].params["angle_stages"] = [{"iter": 0, "angle_deg": args.angle}]
   env_cfg.curriculum.pop("gravity_ladder", None)
-  if args.tilt_band is not None:
-    lo, hi = (float(x) for x in args.tilt_band.split(","))
-    _ls = env_cfg.commands[args.aff_term].microspine_cfg.limit_surface
-    _ls.tilt_peel_max_deg_range = (lo, hi)
-    if "tilt_peel" in env_cfg.curriculum:
-      env_cfg.curriculum["tilt_peel"].params["stages"] = [{"iter": 0, "deg_range": (lo, hi)}]
-    print(f"[tilt-band] tilt-peel release band pinned to {lo}-{hi} deg")
   env_cfg.scene.num_envs = 1
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)

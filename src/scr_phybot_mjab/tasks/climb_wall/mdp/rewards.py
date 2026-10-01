@@ -541,7 +541,6 @@ def unsafe_microspine_release_penalty(
   tension_release_cost: float = 0.25,
   lateral_release_cost: float = 0.25,
   ultimate_release_cost: float = 1.0,
-  tilt_release_cost: float = 0.5,
   support_loss_cost: float = 1.0,
   motion_command_name: str | None = None,
   scheduled_reverse_cost: float = 0.3,
@@ -571,7 +570,6 @@ def unsafe_microspine_release_penalty(
     (2, tension_release_cost),
     (3, lateral_release_cost),
     (4, ultimate_release_cost),
-    (5, tilt_release_cost),  # tilt-peel: rotated the patch off its grip
     (7, ultimate_release_cost),  # empirical measured-domain rejection
     (8, tension_release_cost),  # empirical early-loading failure
   )

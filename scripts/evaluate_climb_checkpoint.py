@@ -40,7 +40,6 @@ RELEASE_NAMES = {
   2: "normal_capacity",
   3: "lateral",
   4: "ultimate",
-  5: "tilt_peel",
   6: "external_dr",
   7: "empirical_domain",
   8: "empirical_early_loading",

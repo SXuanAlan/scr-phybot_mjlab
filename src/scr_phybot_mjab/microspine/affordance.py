@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 # release_reason code for releases commanded from outside the limit-surface
 # judgement (DR random-release event, scripted diagnostics). Physical faces
-# use 1-4, tilt-peel uses 5.
+# use 1-4.
 RELEASE_REASON_DR_FORCED = 6
 
 
@@ -129,13 +129,6 @@ class MicrospineAffordance(CommandTerm):
     # wrong limb.
     self._sensor_row_perm: torch.Tensor | None = None
     shape = (self.num_envs, self._num_ee)
-    # Per-grip tilt-peel threshold [rad] (0 = disabled); see
-    # MicrospineLimitSurfaceCfg.tilt_peel_max_deg_range.
-    self.limit_tilt_peel_max = torch.zeros(shape, device=self.device)
-    # Engaged-pad rotation from the engage-capture orientation [rad];
-    # 0 where not engaged. The suspension-travel usage the tilt-peel check
-    # and the engaged-tilt reward read.
-    self.tilt_from_capture = torch.zeros(shape, device=self.device)
     self._violation_count = torch.zeros(shape, dtype=torch.long, device=self.device)
     self._steps_since_engage = torch.zeros(shape, dtype=torch.long, device=self.device)
     self.anchor_load_tnl = torch.zeros(self.num_envs, self._num_ee, 3, device=self.device)
@@ -152,7 +145,7 @@ class MicrospineAffordance(CommandTerm):
     # HUD/debug readouts (pure GPU writes; no host syncs in the step path).
     # release_reason: which envelope face fired on a forced release —
     # 0 none, 1 reverse-shear, 2 normal threshold, 3 lateral, 4 ultimate-shear,
-    # 5 tilt-peel, 6 externally forced, 7 empirical domain exceeded,
+    # 6 externally forced, 7 empirical domain exceeded,
     # 8 empirical early-loading failure.
     # Like anchor_load_tnl it holds the violating value on the release step
     # and resets the step after.
@@ -228,11 +221,6 @@ class MicrospineAffordance(CommandTerm):
 
   def _sample_limit_params(self, env_ids: torch.Tensor) -> None:
     """Draw each pad's persistent per-unit quantiles and reset its unit readouts."""
-
-    def sample(value_range: tuple[float, float]) -> torch.Tensor:
-      low, high = value_range
-      return torch.empty((len(env_ids), self._num_ee), device=self.device).uniform_(low, high)
-
     shape = (len(env_ids), self._num_ee, self._unit_x.numel())
     self.unit_strength_quantile[env_ids] = torch.rand(shape, device=self.device)
     self.unit_loading_quantile[env_ids] = torch.rand(shape, device=self.device)
@@ -241,7 +229,6 @@ class MicrospineAffordance(CommandTerm):
     self.unit_empirical_supported[env_ids] = True
     self.unit_empirical_early_failed[env_ids] = False
     self.unit_empirical_tail_capped[env_ids] = False
-    self.limit_tilt_peel_max[env_ids] = torch.deg2rad(sample(self._ls_cfg.tilt_peel_max_deg_range))
 
   def _get_executor(self):
     """Lazily fetch the physics executor (built after command terms)."""
@@ -579,24 +566,6 @@ class MicrospineAffordance(CommandTerm):
     )
     release = (active & instant_cond) | (self._violation_count >= max(1, self._ls_cfg.violation_consecutive_steps))
     self.release_reason = torch.where(release, reason, torch.zeros_like(reason))
-
-    # Tilt-peel (reason 5): engaged-pad rotation from the engage-capture
-    # orientation beyond the per-grip suspension-travel draw. Geometric and
-    # instant — no debounce: once the tension-side row's travel is
-    # exhausted, further rotation is structural pull-out, not a load
-    # transient. Judged from the same guard window as the force envelope.
-    if self._ls_cfg.tilt_peel_max_deg_range[1] > 0.0:
-      pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids, :]
-      dot = (pad_quat * executor.anchor_quat_w).sum(dim=-1).abs().clamp(max=1.0)
-      tilt = 2.0 * torch.acos(dot)
-      self.tilt_from_capture = torch.where(self._engaged, tilt, torch.zeros_like(tilt))
-      tilt_cond = active & (tilt > self.limit_tilt_peel_max)
-      release = release | tilt_cond
-      self.release_reason = torch.where(
-        tilt_cond,
-        torch.full_like(self.release_reason, 5),
-        self.release_reason,
-      )
     return release
 
   def _redraw_empirical_latches(self, engage_transition: torch.Tensor) -> None:

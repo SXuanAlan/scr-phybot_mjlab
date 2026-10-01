@@ -77,7 +77,16 @@ def seg(f):
 
 EE = ["LH", "RH", "LF", "RF"]
 EEJ = ["left_hand", "right_hand", "left_foot", "right_foot"]
-REASON = {0: "none", 1: "rev-shear", 2: "tension", 3: "lateral", 4: "ultimate", 5: "tilt", 6: "dr"}
+REASON = {
+  0: "none",
+  1: "rev-shear",
+  2: "tension",
+  3: "lateral",
+  4: "ultimate",
+  6: "dr",
+  7: "emp-domain",
+  8: "emp-early",
+}
 tnames = list(term.active_terms)
 gim_ids = [i for i, n in enumerate(robot.joint_names) if "gimbal" in n]
 gim_ee = [[k for k, i in enumerate(gim_ids) if EEJ[e] in robot.joint_names[i]] for e in range(4)]

@@ -564,13 +564,9 @@ class MicrospineConstraint:
         )
         # ORIENTATION conforms during the same seating window: the chassis
         # floats on the spine suspensions and rotates into its loaded
-        # equilibrium while the tips grip (2026-07-31 tilt calibration).
-        # The capture the tilt-peel release judges from is therefore the
-        # SETTLED orientation — without this, RSI spawn sag and fresh-latch
-        # load flips read as suspension-travel spending and the 3.5-4.5 deg
-        # band executes newborns (motionref18 iter 0-300: eplen pinned at
-        # ~48 steps, t_bh ~85/step). After grace the orientation freezes
-        # and further rotation spends the real budget.
+        # equilibrium while the tips grip, so the weld locks the SETTLED
+        # orientation rather than RSI spawn sag or a fresh-latch load flip.
+        # After grace the orientation freezes.
         capture = capture | reseat
       else:  # "free" (legacy all-DOF following)
         self.anchor_pos_w = torch.where(reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w)

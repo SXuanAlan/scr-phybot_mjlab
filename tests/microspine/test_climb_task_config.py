@@ -103,7 +103,6 @@ def test_climb_microspine_contract_and_command_ordering():
   # The passive wrist gimbal owns pad compliance, so the weld is rotationally
   # rigid and failure is judged by moment billing only.
   assert microspine.anchor_torquescale == 1.0
-  assert microspine.limit_surface.tilt_peel_max_deg_range == (0.0, 0.0)
   assert tuple(cfg.actions) == ("joint_pos",)
   # The motion command must follow the affordance: its reset performs RSI and
   # seeds the per-env latch state AFTER the affordance's own reset ran.
