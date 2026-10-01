@@ -11,6 +11,7 @@ from scr_phybot_mjab.microspine.affordance import MicrospineAffordance
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
 from scr_phybot_mjab.microspine.contact import get_sphere_geom_names
 from scr_phybot_mjab.microspine.contact_sensor import WrenchContactData, WrenchContactSensorCfg
+from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 
 
 @pytest.fixture
@@ -67,7 +68,7 @@ def affordance(request):
   term._wall_inward_normal = lambda: torch.tensor([[0.0, -1.0, 0.0]]).expand(2, -1)
   term._face_wall_cos = lambda: torch.ones(2, 2)
   term._virtual_spine_fraction = lambda: torch.ones(2, 2)
-  term._sync_latched_contact_margins = lambda: None
+  term._sync_retraction = lambda: None
   term._limit_surface_release = lambda: torch.zeros(2, 2, dtype=torch.bool)
   return term, sensor.data
 
@@ -119,8 +120,8 @@ def test_four_corner_preload_and_hold_use_only_four_physical_units(affordance, p
   # it would fit the old twelve-unit array. Disabled units cannot help hold.
   ft = torch.full((2, 2), 200.0)
   z = torch.zeros_like(ft)
-  _, violation, _, reason, _ = term._empirical_envelope_per_unit(ft, z, z, z, z, z)
-  assert violation.all() and (reason == 7).all()
+  verdict = term._judge_units(ft, z, z, z, z, z)
+  assert verdict.violation.all() and (verdict.reason == ReleaseReason.EMPIRICAL_DOMAIN).all()
   torch.testing.assert_close(term.unit_load_tln[..., 0], torch.full((2, 2, 4), 50.0))
 
 
@@ -134,7 +135,7 @@ def test_sensor_order_and_environment_batches_remain_independent(affordance):
 @pytest.mark.parametrize("unit_pressure", [10.0, 13.2, 20.0])
 def test_preload_at_or_above_ten_can_latch_and_hold(affordance, unit_pressure):
   term, data = affordance
-  count = term._unit_x.numel()
+  count = term.hold_judge.unit_count
   compress(data, [unit_pressure * count / 4] * 4)
   for _ in range(3):
     term._update_command()
@@ -144,8 +145,8 @@ def test_preload_at_or_above_ten_can_latch_and_hold(affordance, unit_pressure):
   shear = torch.full((2, 2), 10.0 * count)
   zero = torch.zeros_like(shear)
   normal = torch.full_like(shear, -unit_pressure * count)
-  _, violation, _, _, _ = term._empirical_envelope_per_unit(shear, zero, normal, zero, zero, zero)
-  assert not violation.any() and term.unit_empirical_supported.all()
+  verdict = term._judge_units(shear, zero, normal, zero, zero, zero)
+  assert not verdict.violation.any() and term.unit_empirical_supported.all()
 
 
 def test_zero_time_reset_does_not_count_as_preload_or_consume_release_event(affordance):

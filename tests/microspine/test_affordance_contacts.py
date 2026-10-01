@@ -2,20 +2,16 @@ from types import SimpleNamespace
 
 import torch
 
-from scr_phybot_mjab.microspine.affordance import MicrospineAffordance
+from scr_phybot_mjab.microspine.contact_features import PadContactReader
+
+
+def reader(sensor, ee_body_names, rows, cols, inward=None):
+  env = SimpleNamespace(num_envs=1, device="cpu", scene={"contact": sensor})
+  mcfg = SimpleNamespace(spheres_per_ee_rows=rows, spheres_per_ee_cols=cols, ee_body_names=ee_body_names)
+  return PadContactReader(env, "contact", mcfg, lambda: inward)
 
 
 def test_resolved_substep_contact_is_recovered_from_force_history():
-  term = object.__new__(MicrospineAffordance)
-  term._num_ee = 1
-  term._mcfg = SimpleNamespace(
-    spheres_per_ee_rows=1,
-    spheres_per_ee_cols=2,
-    ee_body_names=("paw",),
-  )
-  term.cfg = SimpleNamespace(contact_sensor_name="contact")
-  term._sensor_row_perm = None
-
   force_history = torch.zeros(1, 2, 4, 3)
   force_history[0, 0, 1, 0] = 8.0
   sensor = SimpleNamespace(
@@ -26,13 +22,8 @@ def test_resolved_substep_contact_is_recovered_from_force_history():
     ),
     primary_names=["paw_c_0_0", "paw_c_0_1"],
   )
-  term._env = SimpleNamespace(
-    num_envs=1,
-    device="cpu",
-    scene={"contact": sensor},
-  )
 
-  normal_force, found_count = term._sensor_contact_features()
+  normal_force, found_count = reader(sensor, ("paw",), 1, 2).proxy_normal_forces()
 
   torch.testing.assert_close(normal_force, torch.tensor([[2.0, 0.0]]))
   torch.testing.assert_close(found_count, torch.tensor([[1.0]]))
@@ -43,16 +34,6 @@ def test_sensor_rows_permuted_to_ee_major_order():
   pattern order — on the C2 that delivered [feet, hands] rows to an
   affordance slicing [hands, feet]: the hand engage gate read the foot
   sensors (zeroed while latched) and never fired."""
-  term = object.__new__(MicrospineAffordance)
-  term._num_ee = 2
-  term._mcfg = SimpleNamespace(
-    spheres_per_ee_rows=1,
-    spheres_per_ee_cols=1,
-    ee_body_names=("hand", "foot"),
-  )
-  term.cfg = SimpleNamespace(contact_sensor_name="contact")
-  term._sensor_row_perm = None
-
   # Sensor rows arrive foot-first; the hand's 5 N press sits in row 1.
   sensor = SimpleNamespace(
     data=SimpleNamespace(
@@ -62,13 +43,8 @@ def test_sensor_rows_permuted_to_ee_major_order():
     ),
     primary_names=["robot/foot_c_0_0", "robot/hand_c_0_0"],
   )
-  term._env = SimpleNamespace(
-    num_envs=1,
-    device="cpu",
-    scene={"contact": sensor},
-  )
 
-  normal_force, found_count = term._sensor_contact_features()
+  normal_force, found_count = reader(sensor, ("hand", "foot"), 1, 1).proxy_normal_forces()
 
   # EE-major order (hand, foot): the press must land on the HAND.
   torch.testing.assert_close(normal_force, torch.tensor([[5.0, 0.0]]))
@@ -76,13 +52,7 @@ def test_sensor_rows_permuted_to_ee_major_order():
 
 
 def test_netforce_projects_total_block_force_in_a_tilted_wall_frame():
-  term = object.__new__(MicrospineAffordance)
-  term._num_ee = 1
-  term._mcfg = SimpleNamespace(spheres_per_ee_rows=1, spheres_per_ee_cols=1, ee_body_names=("paw",))
-  term.cfg = SimpleNamespace(contact_sensor_name="contact")
-  term._sensor_row_perm = None
-  inward = torch.tensor([[0.6, 0.0, 0.8]])
-  term._wall_inward_normal = lambda: inward
+  inward = torch.tensor([[[0.6, 0.0, 0.8]]])
   # Four simultaneous point contacts have already been summed by netforce.
   # Force history retains an earlier 20 N compression, even with no live contact.
   force = torch.tensor([[[12.0, -7.0, 16.0]]])
@@ -94,8 +64,7 @@ def test_netforce_projects_total_block_force_in_a_tilted_wall_frame():
     ),
     primary_names=["robot/paw_c_0_0"],
   )
-  term._env = SimpleNamespace(num_envs=1, device="cpu", scene={"contact": sensor})
-  normal, found = term._sensor_contact_features()
+  normal, found = reader(sensor, ("paw",), 1, 1, inward).proxy_normal_forces()
   torch.testing.assert_close(normal, torch.tensor([[10.0]]))
   torch.testing.assert_close(found, torch.ones(1, 1))
 

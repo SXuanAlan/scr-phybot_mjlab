@@ -1,17 +1,19 @@
 """Failure data semantics, persistent draws, and C-referenced unit mechanics."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
 
-from scr_phybot_mjab.microspine.affordance import (
-  MicrospineAffordance,
-  distribute_wrench_to_units,
-)
+from scr_phybot_mjab.microspine.affordance import MicrospineAffordance
 from scr_phybot_mjab.microspine.empirical_limit_surface import (
+  DEFAULT_TABLE,
   EmpiricalLimitSurface,
   shift_wrench_reference,
 )
+from scr_phybot_mjab.microspine.hold_judge import HoldJudge
+from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 
 
 @pytest.fixture(scope="module")
@@ -19,14 +21,15 @@ def surface():
   return EmpiricalLimitSurface()
 
 
-def term(surface):
-  a = object.__new__(MicrospineAffordance)
-  a._empirical = surface
+def hold_judge():
+  """The 3x4 CAD unit grid, as offsets from the contact-array centre C."""
   x, y = torch.meshgrid(torch.linspace(-0.0315, 0.0315, 3), torch.linspace(-0.042, 0.042, 4), indexing="ij")
-  a._unit_x, a._unit_y = -x.flatten(), -y.flatten()
-  a._unit_sxx, a._unit_syy = float(x.square().sum()), float(y.square().sum())
-  a._unit_srr = a._unit_sxx + a._unit_syy
-  a.release_reason = torch.zeros((2, 4), dtype=torch.int8)
+  return HoldJudge(SimpleNamespace(x=-x.flatten().numpy(), y=-y.flatten().numpy()), DEFAULT_TABLE, "cpu")
+
+
+def term():
+  a = object.__new__(MicrospineAffordance)
+  a.hold_judge = hold_judge()
   a.unit_strength_quantile = torch.full((2, 4, 12), 0.5)
   a.unit_loading_quantile = torch.full((2, 4, 12), 0.99)
   return a
@@ -97,8 +100,8 @@ def test_early_failure_is_separate_from_a_normal_threshold(surface):
   assert not survived[3].item()
 
 
-def test_draws_change_only_for_new_latches_and_hold_during_queries(surface):
-  a = term(surface)
+def test_draws_change_only_for_new_latches_and_hold_during_queries():
+  a = term()
   before_s, before_l = a.unit_strength_quantile.clone(), a.unit_loading_quantile.clone()
   mask = torch.zeros((2, 4), dtype=torch.bool)
   mask[1, 2] = True
@@ -111,14 +114,14 @@ def test_draws_change_only_for_new_latches_and_hold_during_queries(surface):
   for force in (80.0, 100.0, 80.0):
     ft = torch.full((2, 4), force)
     z = torch.zeros_like(ft)
-    a._empirical_envelope_per_unit(ft, z, z, z, z, z)
+    a._judge_units(ft, z, z, z, z, z)
   torch.testing.assert_close(a.unit_strength_quantile, after)
   a._redraw_empirical_latches(torch.zeros_like(mask))
   torch.testing.assert_close(a.unit_strength_quantile, after)
 
 
-def test_real_c_offset_and_new_grid_conserve_world_force_and_moment(surface):
-  a = term(surface)
+def test_real_c_offset_and_new_grid_conserve_world_force_and_moment():
+  judge = hold_judge()
   force = torch.tensor([120.0, 12.0, 6.0], dtype=torch.float64)
   from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_PAD_GEOMETRY
 
@@ -126,7 +129,7 @@ def test_real_c_offset_and_new_grid_conserve_world_force_and_moment(surface):
   b_to_c = torch.tensor([-c[2], -c[0], c[1]], dtype=torch.float64)  # [rake,lateral,outward]
   mb = torch.tensor([0.2, -0.3, 0.1], dtype=torch.float64)
   mc = shift_wrench_reference(force, mb, b_to_c)
-  x, y = a._unit_x.double(), a._unit_y.double()
+  x, y = judge.unit_x.double(), judge.unit_y.double()
   loads = distribute_wrench_to_units(
     *force, *mc, x, y, float(x.square().sum()), float(y.square().sum()), float(x.square().sum() + y.square().sum())
   )
@@ -137,11 +140,11 @@ def test_real_c_offset_and_new_grid_conserve_world_force_and_moment(surface):
   torch.testing.assert_close(torch.cross(r + b_to_c, f, dim=-1).sum(0), mb)
 
 
-def test_empirical_unit_load_indices_match_physical_cad_sites(surface):
+def test_empirical_unit_load_indices_match_physical_cad_sites():
   from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
 
   model = get_spec().compile()
-  a = term(surface)
+  judge = hold_judge()
   for ee in ("left_hand_spine", "right_hand_spine", "left_foot_spine", "right_foot_spine"):
     c = model.site(ee + "_contact_center").pos
     for row in range(3):
@@ -149,18 +152,18 @@ def test_empirical_unit_load_indices_match_physical_cad_sites(surface):
         offset = model.site(f"{ee}_unit_{row}_{col}").pos - c
         k = row * 4 + col
         np.testing.assert_allclose(
-          [a._unit_x[k], a._unit_y[k]], [-offset[2], -offset[0]], atol=5e-8
+          [judge.unit_x[k], judge.unit_y[k]], [-offset[2], -offset[0]], atol=5e-8
         )  # CAD export precision
 
 
-def test_moment_ablation_uses_same_draws_and_detects_peeling(surface):
-  a = term(surface)
+def test_moment_ablation_uses_same_draws_and_detects_peeling():
+  a = term()
   ft = torch.full((2, 4), 120.0)
   z = torch.zeros_like(ft)
-  clean = a._empirical_envelope_per_unit(ft, z, z, z, z, z)
-  peeled = a._empirical_envelope_per_unit(ft, z, z, z, torch.full_like(ft, 3.0), z)
-  assert torch.all(peeled[0] < clean[0])
-  assert torch.all(peeled[1])
+  clean = a._judge_units(ft, z, z, z, z, z)
+  peeled = a._judge_units(ft, z, z, z, torch.full_like(ft, 3.0), z)
+  assert torch.all(peeled.margin < clean.margin)
+  assert torch.all(peeled.violation)
   assert a.unit_load_tln.shape == (2, 4, 12, 3)
 
 

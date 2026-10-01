@@ -125,7 +125,7 @@ def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
   def _sync():
     aff.sync_calls += 1
 
-  aff._sync_latched_contact_margins = _sync
+  aff._sync_retraction = _sync
   return aff
 
 

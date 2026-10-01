@@ -49,8 +49,7 @@ def capture():
 
     motion = env.command_manager.get_term("climb_motion")
     affordance = env.command_manager.get_term("microspine_affordance")
-    affordance._virtual_spine_fraction()
-    face_centers = affordance._contact_face_corners_world()[0].mean(1).cpu().numpy()
+    face_centers = affordance.spine_field.corners_world()[0].mean(1).cpu().numpy()
     anchor_offsets = affordance._get_executor()._pad_local.cpu().numpy()
     microspine = cfg.commands["microspine_affordance"].microspine_cfg
     wall_id = model.geom(microspine.wall_geom_name).id
@@ -74,7 +73,7 @@ def capture():
       np.max(np.abs(data.site_xpos - env.sim.data.site_xpos[0].cpu().numpy()))
     )
     report["empirical_runtime"] = {
-      "table": str(affordance._empirical.path),
+      "table": str(affordance.hold_judge.surface.path),
       "strength_draw_shape": list(affordance.unit_strength_quantile.shape),
       "loading_draw_shape": list(affordance.unit_loading_quantile.shape),
       "distinct_strength_draws_at_reset": int(affordance.unit_strength_quantile[0].unique().numel()),
@@ -90,7 +89,7 @@ def capture():
         site = model.site(f"{prefix}_unit_{unit_name.rsplit('_unit_', 1)[1]}")
         offset = site.pos - anchor_offsets[i]
         expected = np.array([-offset[2], -offset[0]])
-        actual = np.array([affordance._unit_x[k].item(), affordance._unit_y[k].item()])
+        actual = np.array([affordance.hold_judge.unit_x[k].item(), affordance.hold_judge.unit_y[k].item()])
         report["empirical_runtime"]["unit_order_max_error_m"] = max(
           report["empirical_runtime"]["unit_order_max_error_m"], float(np.max(np.abs(expected - actual)))
         )
