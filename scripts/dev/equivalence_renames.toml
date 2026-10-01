@@ -3,3 +3,5 @@
 # Only pure moves belong here; any other config change must show up as a diff.
 [renames]
 "scr_phybot_mjab.microspine.contact.ToeContact" = "scr_phybot_mjab.microspine.spec.ToeContact"
+"scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs.phybot_c2_climb_wall_env_cfg.<locals>._robot_spec_with_toes" = "scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.robot.climb_robot_cfg.<locals>._robot_spec_with_toes"
+"scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs.phybot_c2_climb_wall_env_cfg.<locals>._spec_fn" = "scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.scene.climb_scene.<locals>._spec_fn"

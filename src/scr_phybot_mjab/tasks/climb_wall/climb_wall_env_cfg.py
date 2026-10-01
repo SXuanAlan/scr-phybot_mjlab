@@ -1,33 +1,23 @@
-"""Wall-climbing task configuration.
+"""Robot-independent sections of the wall-climbing task.
 
-Factory function to create a base climb-wall task config.
-Robot-specific configurations call the factory and customize as needed.
+The manager-key names, the wall-angle curriculum, terminations, metrics and
+the reset event live here; ``config/<robot>/`` builds the robot-bound
+sections (scene, commands, observations, rewards, domain randomization) and
+composes the env config.
 """
 
-from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
-from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.managers.command_manager import CommandTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.metrics_manager import MetricsTermCfg
-from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.scene import SceneCfg
-from mjlab.sim import MujocoCfg, SimulationCfg
-from mjlab.terrains import TerrainEntityCfg
-from mjlab.viewer import ViewerConfig
 
 from scr_phybot_mjab.tasks.climb_wall import mdp
 
-##
-# Manager-key names — single source of truth, shared by this base factory,
-# the robot configs and climb_transition80. FROZEN: the keys are public API
-# (tyro CLI paths, params/env.yaml, wandb names, and scripts such as
-# export_policy / play hard-code them).
-##
-
+# Manager-key names, shared by every climb config and climb_transition80.
+# They are public: CLI override paths, saved run configs, wandb names and
+# scripts such as export_policy and play use them.
 VELOCITY_COMMAND = "climb_velocity"
 MOTION_COMMAND = "climb_motion"
 MICROSPINE_AFFORDANCE_COMMAND = "microspine_affordance"
@@ -42,138 +32,53 @@ UNDESIRED_CONTACT_SENSOR = "climb_undesired_contact"
 _STEPS_PER_ITER = 96
 
 
-def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
-  """Create base wall-climbing task configuration."""
+DECIMATION = 10
+"""Physics steps per policy step (0.002 s timestep, 50 Hz policy)."""
 
-  num_envs = 4096
-  env_spacing = 8.0
 
-  ##
-  # Observations
-  ##
-
-  observations = {
-    "actor": ObservationGroupCfg(
-      terms={
-        "base_lin_vel": ObservationTermCfg(func=mdp.base_lin_vel),
-        "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel),
-        "projected_gravity": ObservationTermCfg(func=mdp.projected_gravity),
-        "joint_pos_rel": ObservationTermCfg(func=mdp.joint_pos_rel),
-        "joint_vel_rel": ObservationTermCfg(func=mdp.joint_vel_rel),
-        "last_action": ObservationTermCfg(func=mdp.last_action),
-        "prev_action": ObservationTermCfg(func=mdp.prev_action),  # a_{t-1}
-        "prev_prev_action": ObservationTermCfg(func=mdp.prev_prev_action),  # a_{t-2}
-        # Robot z above spawn — critic needs this to value climbing.
-        "height_above_spawn": ObservationTermCfg(func=mdp.height_above_spawn),
-        # Commanded world-frame velocity (vx, vy, vz). The command manager
-        # owns the target so obs and reward stay synchronized.
-        "velocity_command": ObservationTermCfg(
-          func=mdp.velocity_command,
-          params={"command_name": VELOCITY_COMMAND},
-        ),
-      },
-      concatenate_terms=True,  # Concatenate all terms into a single vector.
-      enable_corruption=False,  # Enable observation corruption (e.g., adding noise).
-    ),
-  }
-
-  ##
-  # Actions
-  ##
-
-  actions = {
-    "joint_pos": JointPositionActionCfg(
-      entity_name="robot",
-      actuator_names=(".*",),
-      scale=0.25,  # Override per-robot.
-      use_default_offset=True,
-    ),
-  }
-
-  ##
-  # Commands
-  ##
-
-  commands: dict[str, CommandTermCfg] = {
-    VELOCITY_COMMAND: mdp.ClimbVelocityCommandCfg(
-      entity_name="robot",
-      resampling_time_range=(4.0, 8.0),
-      ranges=mdp.ClimbVelocityCommandCfg.Ranges(
-        lin_vel_x=(0.0, 0.0),
-        lin_vel_y=(0.0, 0.0),
-        lin_vel_z=(0.08, 0.08),  # Currently fixed to 0.08
-      ),
-    )
-  }
-
-  ##
-  # Robot-specific configs own concrete rewards.
-  ##
-
-  rewards = {}
-
-  ##
-  # Curriculum — wall-angle ladder (table in mdp.curriculums; play pins it to
-  # the terminal stage via mdp.pin_curricula_to_final_stage). The angle is
-  # realized by TILTING THE WALL about its base line under real gravity
-  # (mdp.wall_angle).
-  ##
-
-  curriculum = {
+def climb_curriculum(angle_stages=mdp.WALL_ANGLE_STAGES) -> dict[str, CurriculumTermCfg]:
+  """The wall-angle ladder, realized by tilting the wall about its base line
+  under real gravity (``mdp.wall_angle``). Play pins it to the final stage."""
+  return {
     "wall_angle": CurriculumTermCfg(
       func=mdp.wall_angle,
       params={
-        "angle_stages": [dict(stage) for stage in mdp.WALL_ANGLE_STAGES],
+        "angle_stages": [dict(stage) for stage in angle_stages],
         "steps_per_iter": _STEPS_PER_ITER,
         "angle_jitter_deg": 5.0,
       },
     ),
   }
 
-  ##
-  # Events
-  ##
 
-  # Only the scene-default reset: the motion command performs reference-state
-  # initialization (it writes the robot's pose/velocities AFTER reset events
-  # run), so generic joint/base perturbation events would only be overwritten.
-  events = {
+def climb_reset_events() -> dict[str, EventTermCfg]:
+  """Only the scene-default reset: the motion command performs reference-state
+  initialization after the reset events, so joint or base perturbation events
+  would be overwritten."""
+  return {
     "reset_scene_to_default": EventTermCfg(
       func=envs_mdp.reset_scene_to_default,
       mode="reset",
     ),
   }
 
-  ##
-  # Terminations
-  ##
 
-  # ====================================================================
-  # Terminations — G1-walking minimal set adapted for climbing.
-  # G1 has: ``time_out`` + ``base_contact`` (torso touches ground).
-  # Climb analog: ``time_out`` + ``base_height`` (robot fell off the wall
-  # below the spawn floor). ``bad_state`` stays purely as NaN / physics
-  # divergence safety.
-  # ====================================================================
-  robot_cfg = SceneEntityCfg("robot")
-  terminations = {
+def climb_terminations() -> dict[str, TerminationTermCfg]:
+  return {
     "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
-    # Climb analog of G1's ``base_contact``: the robot has lost grip and
-    # fallen toward the wall base. Along-wall altitude, NOT world z — the
-    # mjlab builtin's absolute z bar would fire at t=0 on tilted rungs
-    # (the RSI spawn's world z shrinks with the wall angle).
+    # The robot lost grip and fell toward the wall base. Along-wall altitude,
+    # not world z: a world-z bar would fire at t=0 on tilted walls.
     "base_height": TerminationTermCfg(
       func=mdp.root_below_wall_altitude,
       params={"minimum_altitude": 0.3},
     ),
-    # NaN / magnitude divergence guard. Not in G1 (IsaacLab has a global
-    # NaN sink elsewhere); mjlab does not, so we keep this defensively.
+    # NaN and divergence guard; mjlab has no global NaN sink.
     "bad_state": TerminationTermCfg(
       func=mdp.bad_state,
-      params={"asset_cfg": robot_cfg, "max_velocity": 20.0},
+      params={"asset_cfg": SceneEntityCfg("robot"), "max_velocity": 20.0},
     ),
     # BeyondMimic early termination: end rollouts whose tracked bodies left
-    # the reference (fallen/tangled).
+    # the reference (fallen or tangled).
     "bad_tracking": TerminationTermCfg(
       func=mdp.motion_body_tracking_divergence,
       params={
@@ -188,19 +93,22 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
   }
 
-  ##
-  # Metrics — microspine occupancy/health telemetry + actuation saturation +
-  # climb progress. All params are manager-key names; robot-agnostic.
-  ##
 
-  metrics = {
+def climb_metrics() -> dict[str, MetricsTermCfg]:
+  """Microspine occupancy and health, actuation saturation and climb progress."""
+  occupancy = {
+    f"{name}_engagement_occupancy": MetricsTermCfg(
+      func=mdp.microspine_engagement_occupancy,
+      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": index},
+    )
+    for index, name in enumerate(("left_hand", "right_hand", "left_foot", "right_foot"))
+  }
+  return {
     "microspine_engagement_occupancy": MetricsTermCfg(
       func=mdp.microspine_engagement_occupancy,
       params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
     ),
-    # Reseat-hold telemetry: clock-freeze duty cycle and pending-EE count
-    # (hold_fraction >> interval-implied duty = slow/timed-out reseats).
-    # (notes: metrics)
+    # Reseat-hold duty cycle and pending-EE count.
     "microspine_reseat_hold_fraction": MetricsTermCfg(
       func=mdp.microspine_reseat_hold_fraction,
       params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
@@ -209,22 +117,7 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.microspine_reseat_pending_count,
       params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
     ),
-    "left_hand_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 0},
-    ),
-    "right_hand_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 1},
-    ),
-    "left_foot_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 2},
-    ),
-    "right_foot_engagement_occupancy": MetricsTermCfg(
-      func=mdp.microspine_engagement_occupancy,
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND, "ee_index": 3},
-    ),
+    **occupancy,
     "microspine_forced_release_rate_hz": MetricsTermCfg(
       func=mdp.microspine_forced_release_rate,
       params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
@@ -254,37 +147,3 @@ def make_climb_wall_env_cfg() -> ManagerBasedRlEnvCfg:
       params={"command_name": MOTION_COMMAND},
     ),
   }
-
-  ##
-  # Build config
-  ##
-
-  return ManagerBasedRlEnvCfg(
-    decimation=10,
-    episode_length_s=30.0,
-    scene=SceneCfg(
-      num_envs=num_envs,
-      env_spacing=env_spacing,
-      terrain=TerrainEntityCfg(terrain_type="plane"),
-    ),
-    sim=SimulationCfg(
-      mujoco=MujocoCfg(timestep=0.002, cone="elliptic", integrator="implicitfast", impratio=10.0, ccd_iterations=100),
-      njmax=250,
-      nconmax=50,
-    ),
-    viewer=ViewerConfig(
-      origin_type=ViewerConfig.OriginType.WORLD,
-      lookat=(1.5, 0.0, 1.2),
-      distance=5.0,
-      elevation=-20.0,
-      azimuth=135.0,
-    ),
-    observations=observations,
-    actions=actions,
-    commands=commands,
-    rewards=rewards,
-    curriculum=curriculum,
-    events=events,
-    terminations=terminations,
-    metrics=metrics,
-  )

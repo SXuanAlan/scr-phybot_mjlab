@@ -3,9 +3,9 @@ import mujoco
 import pytest
 
 import scr_phybot_mjab.tasks  # noqa: F401  # Initialize the registry before task modules.
+from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_COLLISION
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
-  _CLIMB_MOTION_FILE,
   phybot_c2_climb_wall_corners60_env_cfg,
   phybot_c2_climb_wall_env_cfg,
 )
@@ -196,7 +196,7 @@ def test_climb_motion_command_is_rsi_over_the_ik_cycle():
   cfg = phybot_c2_climb_wall_env_cfg(play=False)
   motion = cfg.commands["climb_motion"]
 
-  assert motion.motion_file == str(_CLIMB_MOTION_FILE)
+  assert motion.motion_file == str(CAD_CLIMB_MOTION)
   assert motion.ee_body_names == (
     "left_hand_spine",
     "right_hand_spine",
@@ -213,7 +213,7 @@ def test_climb_motion_command_is_rsi_over_the_ik_cycle():
   # The commanded climb rate equals the clip's own average cycle rate, so the
   # progress normalization and velocity observation agree with the motion.
   vz = cfg.commands["climb_velocity"].ranges.lin_vel_z
-  assert vz[0] == vz[1] == pytest.approx(clip_average_climb_rate(_CLIMB_MOTION_FILE))
+  assert vz[0] == vz[1] == pytest.approx(clip_average_climb_rate(CAD_CLIMB_MOTION))
 
 
 def test_climb_play_defaults_to_one_env():

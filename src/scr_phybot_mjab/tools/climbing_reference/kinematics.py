@@ -7,15 +7,12 @@ import dataclasses
 import mujoco
 import numpy as np
 
-from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
-  PHYBOT_C2_FOOT_SITES,
-  PHYBOT_C2_FOOT_TOES,
-  get_spec,
-)
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_FOOT_SITES, get_spec
 from scr_phybot_mjab.assets.wall.wall_constants import WALL_HALF_SIZE, WALL_OFFSET
 from scr_phybot_mjab.microspine.contact import pad_contact_center, sphere_names
-from scr_phybot_mjab.microspine.spec import ToeContact, add_toe_geoms, toe_site_name
-from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
+from scr_phybot_mjab.microspine.spec import add_toe_geoms, toe_site_name
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.microspine import climb_microspine_cfg
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.stance import climb_initial_state, climb_toe_contacts
 
 WALL_SURFACE_X = float(WALL_OFFSET[0] - WALL_HALF_SIZE[0])
 PAD_TOUCH_X = WALL_SURFACE_X  # IK pad sites now represent the contact face C.
@@ -116,14 +113,10 @@ class ClimbIK:
     # gimbals) gets a weight that dominates the task rows.
     self.limit_weight_overrides: dict[str, float] = {}
     self.debug_hard = False  # print hard-level diagnostics for poorly converged solves
-    cfg = phybot_c2_climb_wall_env_cfg()
-    robot_cfg = cfg.scene.entities["robot"]
-    self.init_base_pos = np.asarray(robot_cfg.init_state.pos, dtype=np.float64)
-    self.init_joint_pos = dict(robot_cfg.init_state.joint_pos)
-    if initial_state is not None:
-      self.init_base_pos = np.asarray(initial_state["root_position"], dtype=np.float64)
-      self.init_joint_pos = dict(initial_state["joint_positions"])
-    microspine_cfg = cfg.commands["microspine_affordance"].microspine_cfg
+    initial_state = initial_state if initial_state is not None else climb_initial_state()
+    self.init_base_pos = np.asarray(initial_state["root_position"], dtype=np.float64)
+    self.init_joint_pos = dict(initial_state["joint_positions"])
+    microspine_cfg = climb_microspine_cfg("all")
     self.ee_names: tuple[str, ...] = tuple(microspine_cfg.ee_body_names)
     rows = microspine_cfg.spheres_per_ee_rows
     cols = microspine_cfg.spheres_per_ee_cols
@@ -144,10 +137,7 @@ class ClimbIK:
     # Foot toes: the bracing tips a released foot presses against the wall
     # instead of sliding its spine pad (same definition the climb env's
     # spec_fn instantiates for the physical contact pairs).
-    self.toes = {
-      ee: ToeContact(ee_body_name=ee, body_name=body, pos=pos, radius=radius)
-      for ee, body, pos, radius in PHYBOT_C2_FOOT_TOES
-    }
+    self.toes = {toe.ee_body_name: toe for toe in climb_toe_contacts()}
     add_toe_geoms(spec, tuple(self.toes.values()), robot_prefix="", with_sites=True)
 
     self.model = spec.compile()
