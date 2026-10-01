@@ -51,7 +51,6 @@ def build_env(
   num_envs: int,
   limit_surface_enable: bool = True,
   reanchor_after_grace: bool = True,
-  anchor_lock_rotation: bool | None = None,
   grip_enabled: bool = True,
   motion_file: str | Path | None = None,
   anchor_torquescale: float | None = None,
@@ -84,9 +83,7 @@ def build_env(
   # The nested limit_surface cfg is shared between the affordance command and
   # the physics event term (dataclasses.replace is shallow copy: nested
   # objects shared, scalar fields independent) — so scalars must be written
-  # on both copies. anchor_lock_rotation also steers the scene spec_fn, which
-  # closes over the commands-side cfg — written before env construction, so
-  # the equality type and the executor stay consistent.
+  # on both copies.
   mcfg = cfg.commands["microspine_affordance"].microspine_cfg
   # Mechanics tests intentionally exercise every anchor regardless of the
   # performance curriculum stage selected by the production task.
@@ -97,8 +94,6 @@ def build_env(
   mcfg.limit_surface.enable = limit_surface_enable
   for owner in (mcfg, cfg.events["microspine_grip"].params["microspine_cfg"]):
     owner.reanchor_after_grace = reanchor_after_grace
-    if anchor_lock_rotation is not None:
-      owner.anchor_lock_rotation = anchor_lock_rotation
     if anchor_torquescale is not None:
       owner.anchor_torquescale = anchor_torquescale
   return ManagerBasedRlEnv(cfg=cfg, device=DEVICE)
@@ -174,6 +169,8 @@ def quasistatic_settle(
   zero_qd = torch.zeros_like(robot.data.joint_vel)
   zero_root_vel = torch.zeros(env.num_envs, 6, device=DEVICE)
   wall_inward = affordance._wall_inward_normal().unsqueeze(1)
+  # The wall plane passes through the wall entity's origin.
+  wall_origin = env.scene["wall"].data.root_link_pos_w.unsqueeze(1)
 
   def _step():
     robot.write_root_link_velocity_to_sim(zero_root_vel)
@@ -184,7 +181,7 @@ def quasistatic_settle(
     for _ in range(steps_per_round):
       _step()
     pads = executor.pad_center_world()
-    proj = executor._project_to_wall(pads)
+    proj = pads - ((pads - wall_origin) * wall_inward).sum(-1, keepdim=True) * wall_inward
     depth = ((pads - proj) * wall_inward).sum(-1, keepdim=True)
     executor.anchor_pos_w = torch.where(depth > 0, proj, pads).clone()
   for _ in range(tail_steps):

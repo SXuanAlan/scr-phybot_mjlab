@@ -323,7 +323,7 @@ class MicrospineAffordance(CommandTerm):
     self.unit_empirical_tail_capped[env_ids] = False
 
   def _update_command(self) -> None:
-    normal_forces = self._read_contacts()
+    self._read_contacts()
     self.engaged_this_step.zero_()
     self.released_was_seeded.zero_()
     # Orientation and seating readouts are observation channels too, so they
@@ -345,25 +345,22 @@ class MicrospineAffordance(CommandTerm):
     release = self._judge_holds()
     self.forced_release_this_step = release
     new_engaged = latch_state.next_latch_state(self._engaged, engage, release)
-    self._debug_log_transitions(was_engaged, new_engaged, engage_condition, normal_forces, engage_count)
     self._commit(was_engaged, new_engaged, engage, release, engage_count)
 
   # ------------------------------------------------------ step pipeline
 
-  def _read_contacts(self) -> torch.Tensor:
-    """Update the contact readouts; returns the per-proxy normal forces (E, H*S)."""
+  def _read_contacts(self) -> None:
+    """Update the contact readouts from the proxy contact sensor."""
     normal_forces, found_count = self._contacts.proxy_normal_forces()
-    if self._mcfg.disable_contacts_while_latched:
-      # Latched pads' proxies are retracted and cannot touch the wall; the
-      # substep-history recovery must not replay stale pre-latch forces.
-      latched = self._engaged.unsqueeze(-1).expand(-1, self._num_ee, self._proxies_per_ee).reshape(self.num_envs, -1)
-      normal_forces = torch.where(latched, torch.zeros_like(normal_forces), normal_forces)
-      found_count = torch.where(self._engaged, torch.zeros_like(found_count), found_count)
+    # Latched pads' proxies are retracted and cannot touch the wall; the
+    # substep-history recovery must not replay stale pre-latch forces.
+    latched = self._engaged.unsqueeze(-1).expand(-1, self._num_ee, self._proxies_per_ee).reshape(self.num_envs, -1)
+    normal_forces = torch.where(latched, torch.zeros_like(normal_forces), normal_forces)
+    found_count = torch.where(self._engaged, torch.zeros_like(found_count), found_count)
     self.contact_count = found_count
     self.pad_press_force = (
       normal_forces.clamp(min=0.0).view(self.num_envs, self._num_ee, self._proxies_per_ee).sum(dim=2)
     )
-    return normal_forces
 
   def _clear_grip(self) -> None:
     """Grip-disabled ablation: no latches, loads or release events."""
@@ -405,13 +402,6 @@ class MicrospineAffordance(CommandTerm):
     """Latched pads released this step (E, H) bool; sets ``release_reason``."""
     if self._ls_cfg.enable:
       release = self._limit_surface_release()
-      if self._mcfg.debug and bool(release[0].any()):
-        load = self.anchor_load_tnl[0].tolist()
-        print(
-          "[Microspine] LIMIT-SURFACE RELEASE env0 "
-          f"released={release[0].tolist()} "
-          f"load_tnl={[[round(v, 1) for v in ee] for ee in load]}"
-        )
     else:
       release = torch.zeros_like(self._engaged)
     if self._surfaces is not None:
@@ -478,39 +468,7 @@ class MicrospineAffordance(CommandTerm):
 
   def _sync_retraction(self) -> None:
     """Retract latched pads' contact proxies and restore released ones."""
-    if self._mcfg.disable_contacts_while_latched:
-      self._retraction.sync(self._engaged)
-
-  def _debug_log_transitions(
-    self,
-    was_engaged: torch.Tensor,
-    new_engaged: torch.Tensor,
-    engage_condition: torch.Tensor,
-    normal_forces: torch.Tensor,
-    engage_count: torch.Tensor,
-  ) -> None:
-    if not self._mcfg.debug:
-      return
-    changed = was_engaged[0] != new_engaged[0]
-    if not changed.any():
-      return
-    step = self._env.episode_length_buf[0].item()
-    proxies = self._proxies_per_ee
-    for ee_index, bname in enumerate(self._mcfg.ee_body_names):
-      if not changed[ee_index].item():
-        continue
-      ee_normal = normal_forces[0, ee_index * proxies : (ee_index + 1) * proxies]
-      old = "ON" if was_engaged[0, ee_index].item() else "OFF"
-      new = "ON" if new_engaged[0, ee_index].item() else "OFF"
-      print(
-        f"[Microspine] SENSOR step={step} {bname} {old}->{new} "
-        f"condition={int(engage_condition[0, ee_index].item())} "
-        f"found={int(self.contact_count[0, ee_index].item())}/{proxies} "
-        f"normal_max={ee_normal.max().item():.3f}N normal_mean={ee_normal.mean().item():.3f}N "
-        f"face_cos={self.face_cos[0, ee_index].item():.3f} "
-        f"engage_count={int(engage_count[0, ee_index].item())} "
-        f"cooldown={int(self._cooldown_steps[0, ee_index].item())}"
-      )
+    self._retraction.sync(self._engaged)
 
   # ----------------------------------------------- gates and judgements
 
@@ -605,14 +563,11 @@ class MicrospineAffordance(CommandTerm):
     basis = self._engage_frame()
     f_t, f_l, f_n = to_engage_frame(loads, basis)
     self.anchor_load_tnl = torch.stack([f_t, f_l, f_n], dim=-1)
-    if self._ls_cfg.moment_capacity_enable and self._mcfg.anchor_lock_rotation:
-      moments = to_engage_frame(executor.anchor_moment_w, basis)
-      self.anchor_moment_tnl = torch.stack(moments, dim=-1)
-    else:
-      self.anchor_moment_tnl.zero_()
-      zeros = torch.zeros_like(f_t)
-      moments = (zeros, zeros, zeros)
-
+    # A weld has unlimited solver moment, while a finite spine patch peels
+    # when its tension-side edge exhausts the same load budget as the rest of
+    # the array, so the moments are distributed onto the units with the forces.
+    moments = to_engage_frame(executor.anchor_moment_w, basis)
+    self.anchor_moment_tnl = torch.stack(moments, dim=-1)
     verdict = self._judge_units(f_t, f_l, f_n, *moments)
     self.anchor_effective_load_tnl = verdict.worst_load_pad_scale
     margin_raw = self.hold_judge.force_only_margin(

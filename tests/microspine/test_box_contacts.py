@@ -55,16 +55,14 @@ def bench():
   return asset, cfg, model, q
 
 
-def test_box_faces_and_connect_anchors_remain_at_c(bench):
-  asset, cfg, model, _ = bench
+def test_box_faces_center_on_c(bench):
+  asset, cfg, _, _ = bench
   for ee in cfg.ee_body_names:
     points = pad_contact_face_centers(asset, cfg, ee, robot_prefix="")
     c = asset.site(ee + "_contact_center").pos
     np.testing.assert_allclose(points.mean(0), c, atol=5e-8)
     for i, (row, col) in enumerate(((0, 0), (0, 3), (2, 0), (2, 3))):
       np.testing.assert_allclose(points[i], asset.site(f"{ee}_unit_{row}_{col}").pos, atol=1e-10)
-    eid = model.equality("microspine_" + ee).id
-    np.testing.assert_allclose(model.eq_data[eid, :3], c, atol=5e-8)
 
 
 def test_authored_c_is_used_instead_of_rounding_the_corner_centroid():
@@ -75,9 +73,6 @@ def test_authored_c_is_used_instead_of_rounding_the_corner_centroid():
   # A slightly unequal proxy grid must not change the declared wrench frame.
   spec.body(ee + "_c_0_0").pos += [0.0001, 0, 0]
   np.testing.assert_array_equal(pad_contact_center(spec, cfg, ee, ""), centre)
-  add_attachment_equalities(spec, cfg, robot_prefix="")
-  model = spec.compile()
-  np.testing.assert_allclose(model.equality("microspine_" + ee).data[:3], centre, atol=1e-12)
 
 
 def test_netforce_sensor_sums_every_point_on_a_flat_block(bench):

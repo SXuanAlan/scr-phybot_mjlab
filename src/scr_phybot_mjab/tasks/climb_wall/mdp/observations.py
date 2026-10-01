@@ -110,9 +110,8 @@ def microspine_pad_normal_force(
 
   Models the pad-mounted force channel the gimbal sensing co-design will
   provide: the wall-normal reaction the pad transmits, continuous across the
-  latch event. Two sim sources are blended because
-  ``disable_contacts_while_latched`` retracts the sphere grid once latched —
-  ``pad_press_force`` reads structurally zero exactly when the anchor
+  latch event. Two sim sources are blended because a latched pad's contact
+  proxies are retracted, so ``pad_press_force`` reads structurally zero exactly when the anchor
   carries its biggest load. Released pads report the sphere-grid compression
   sum; latched pads the anchor equality-constraint normal reaction
   (``anchor_load_tnl[..., 2]`` is f_n, positive = pull-off tension, so

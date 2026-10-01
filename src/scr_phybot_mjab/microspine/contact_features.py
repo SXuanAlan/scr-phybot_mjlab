@@ -110,8 +110,8 @@ class PadContactReader:
 
     Netforce reports force and torque about each contact centroid P; every
     sample is shifted to C (M_C = torque_P + (P - C) x force) and averaged
-    over the policy step. Latched pads read zero when their proxies are
-    retracted, so stale pre-latch history is never reported.
+    over the policy step. Latched pads read zero: their proxies are
+    retracted, and stale pre-latch history must not be reported.
     """
     sensor = self._sensor()
     data = sensor.data
@@ -139,9 +139,8 @@ class PadContactReader:
     moment = torque + torch.linalg.cross(position - center, force, dim=-1)
     force = force.sum(dim=2).mean(dim=2)
     moment = moment.sum(dim=2).mean(dim=2)
-    if self._mcfg.disable_contacts_while_latched:
-      force = torch.where(engaged[..., None], 0.0, force)
-      moment = torch.where(engaged[..., None], 0.0, moment)
+    force = torch.where(engaged[..., None], 0.0, force)
+    moment = torch.where(engaged[..., None], 0.0, moment)
     return force, moment
 
   def _validate_shapes(self, found: torch.Tensor, force: torch.Tensor) -> None:

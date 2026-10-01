@@ -73,16 +73,13 @@ def brick_env_cfg(
     contact_margin=0.0,
     contact_gap=0.0,
     contact_friction=(0.2, 0.2, 0.005, 0.0001, 0.0001),
-    anchor_lock_rotation=True,
     anchor_torquescale=1.0,
     reanchor_after_grace=False,
-    anchor_project_to_wall=False,
     engage_unit_preload_n=10.0,
     engage_min_spine_fraction=1.0,
     engage_parallel_cos_threshold=math.cos(math.radians(5)),
     engage_consecutive_steps=3,
     reengage_cooldown_steps=10,
-    disable_contacts_while_latched=True,
   )
   ls = mc.limit_surface
   ls.unit_layout = unit_layout

@@ -10,10 +10,7 @@ from scr_phybot_mjab.microspine.constraint import MicrospineConstraint
 def constraint_fixture():
   term = object.__new__(MicrospineConstraint)
   term._num_envs, term._num_ee, term._device = 2, 2, "cpu"
-  term._mcfg = SimpleNamespace(
-    anchor_project_to_wall=False, reanchor_after_grace=True, anchor_reseat_mode="down", anchor_reseat_step_cap=0.001
-  )
-  term._lock_rotation = True
+  term._mcfg = SimpleNamespace(reanchor_after_grace=True, anchor_reseat_step_cap=0.001)
   term._reseat_max_age = 13
   term._eq_ids = term._ee_body_ids = torch.arange(2)
   term._check_expansion = lambda: None

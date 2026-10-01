@@ -44,22 +44,16 @@ def test_climb_microspine_contract_and_command_ordering():
   assert cfg.sim.nconmax > 4 * len(sensor.reference_sites)
   # Latched anchor loads are smooth, so the first violating step releases.
   assert microspine.limit_surface.violation_consecutive_steps == 1
-  # Latched pads hand their load path to the anchor alone.
-  assert microspine.disable_contacts_while_latched is True
   # During the grace window the anchor follows only the pad's down-rake
   # seating motion, 1 mm/step; hooked spines never relocate outward.
-  assert microspine.anchor_reseat_mode == "down"
   assert microspine.anchor_reseat_step_cap == 0.001
   assert microspine.reanchor_after_grace is True
-  # Hooked spines hold the pad where it gripped, compressed into the wall.
-  assert microspine.anchor_project_to_wall is False
   # Hold checks wait only for the one-step constraint-force readout.
   assert microspine.limit_surface.hold_judge_guard_steps == 2
   assert microspine.limit_surface.seed_hold_judge_guard_steps is None
   assert "random_release" not in cfg.events
   assert cfg.commands["climb_motion"].joint_pos_noise == 0
   assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
-  assert microspine.limit_surface.moment_capacity_enable is True
   # The main task uses the complete 3x4 CAD array for preload and holding.
   assert microspine.limit_surface.unit_layout == "all"
   pad = phybot_pad_geometry("all")
@@ -222,14 +216,10 @@ def test_climb_motion_command_is_rsi_over_the_ik_cycle():
   assert vz[0] == vz[1] == pytest.approx(clip_average_climb_rate(_CLIMB_MOTION_FILE))
 
 
-def test_climb_play_defaults_to_one_env_without_sync_debug():
+def test_climb_play_defaults_to_one_env():
   cfg = phybot_c2_climb_wall_env_cfg(play=True)
-  command_cfg = cfg.commands["microspine_affordance"].microspine_cfg
-  event_cfg = cfg.events["microspine_grip"].params["microspine_cfg"]
 
   assert cfg.scene.num_envs == 1
-  assert not command_cfg.debug
-  assert not event_cfg.debug
   # Evaluation shows one continuous climb from the canonical stance.
   assert cfg.commands["climb_motion"].sampling_mode == "start"
   assert cfg.commands["climb_motion"].joint_pos_noise == 0.0

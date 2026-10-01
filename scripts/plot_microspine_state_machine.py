@@ -136,8 +136,6 @@ def climb_configs() -> tuple[MicrospineCfg, WangEraHoldCfg, WangEraEngageCfg]:
     reengage_cooldown_steps=10,
     engage_consecutive_steps=3,
   )
-  mcfg.anchor_lock_rotation = True
-  mcfg.disable_contacts_while_latched = True
   return mcfg, WangEraHoldCfg(f_t_max_range=(400.0, 650.0)), WangEraEngageCfg()
 
 

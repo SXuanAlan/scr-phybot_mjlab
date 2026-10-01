@@ -24,7 +24,6 @@ def affordance(request):
     engage_unit_preload_n=10.0,
     engage_consecutive_steps=3,
     reengage_cooldown_steps=2,
-    disable_contacts_while_latched=True,
   )
   ls = cfg.limit_surface
   ls.unit_layout = getattr(request, "param", "all")

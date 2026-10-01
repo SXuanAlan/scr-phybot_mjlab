@@ -163,11 +163,9 @@ def phybot_c2_climb_wall_env_cfg(
     reengage_cooldown_steps=10,
     engage_consecutive_steps=3,
   )
-  # Contact seating + face alignment engage the grip; the limit surface
-  # owns release. A real pad locks position AND orientation across the patch,
-  # with capacity along the pad-local rake direction.
-  microspine_cfg.anchor_lock_rotation = True
-  # The hold judge distributes the pad wrench over the selected CAD unit sites.
+  # Contact seating + face alignment engage the grip; the limit surface owns
+  # release. The hold judge distributes the pad wrench over the selected CAD
+  # unit sites.
   microspine_cfg.limit_surface.unit_layout = unit_layout
   # The pad self-aligns through the passive wrist gimbal, so the weld is
   # rotationally rigid: a latched pad does not move relative to the wall.
@@ -178,10 +176,6 @@ def phybot_c2_climb_wall_env_cfg(
   # Latch only a fully seated pad with every active unit preloaded.
   microspine_cfg.engage_min_spine_fraction = 1.0
   microspine_cfg.engage_unit_preload_n = 10.0
-  # Latched pads hand the whole load path to the bilateral anchor; the
-  # redundant sphere contacts (motionref6's margin 'barcode') switch off per
-  # env while latched. (notes: disable_contacts_while_latched)
-  microspine_cfg.disable_contacts_while_latched = True
 
   ##
   # Base cfg + sensor-backed base observations.
@@ -688,11 +682,6 @@ def phybot_c2_climb_wall_env_cfg(
     # ranges would still overwrite XML frictions under operation="abs").
     for dr_event in ("encoder_bias", "body_friction", "base_mass", "random_release"):
       cfg.events.pop(dr_event, None)
-    # Debug transition logging forces CPU-GPU sync in the physics step; keep
-    # play fast. Dual-owner write: the grip event holds its own shallow copy
-    # of the microspine cfg (see the Events section).
-    microspine_cfg.debug = False
-    cfg.events[MICROSPINE_GRIP_EVENT].params["microspine_cfg"].debug = False
     # Evaluation uses the final task directly; play.py can still replace the
     # pinned stage from the CLI or the checkpoint iteration. Jitter off:
     # evaluation rollouts must be deterministic at the pinned angle.

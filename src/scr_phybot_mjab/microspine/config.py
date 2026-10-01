@@ -25,7 +25,8 @@ class MicrospineLimitSurfaceCfg:
   """
 
   enable: bool = True
-  """Evaluate the hold envelope. False keeps engaged spines latched forever."""
+  """Evaluate the hold envelope. False keeps engaged spines latched forever
+  (diagnostic benches only)."""
 
   empirical_table_path: str | None = None
   """Single-unit conditional inverse-CDF NPZ; None selects the packaged table."""
@@ -37,13 +38,6 @@ class MicrospineLimitSurfaceCfg:
   """Policy steps after an engage transition before hold checks apply: the
   constraint produces force one decimation late, so the load reads zero on
   the engage step itself. There is no immunity window beyond that."""
-
-  moment_capacity_enable: bool = True
-  """Bill weld moments against the unit envelope.
-
-  A weld has unlimited solver moment, while a finite spine patch peels when
-  its tension-side edge exhausts the same load budget as the rest of the
-  array, so the moments are distributed onto the units with the forces."""
 
   unit_layout: str = "all"
   """Active unit sites: "all" or the four outer "corners".
@@ -62,15 +56,14 @@ class MicrospineLimitSurfaceCfg:
   never shields in-play engagements."""
 
   hold_grace_steps: int = 14
-  """Re-seat window in policy steps: the anchor may follow the pad per
-  ``MicrospineCfg.anchor_reseat_mode`` ("down": rake-direction seating creep
-  only). 14 steps = 0.28 s, the physical spine engagement time. The window
-  bounds the seating creep; cyclic re-engagement can ratchet the reference
-  along the wall."""
+  """Re-seat window in policy steps (see ``MicrospineCfg.reanchor_after_grace``).
+  14 steps = 0.28 s, the physical spine engagement time. The window bounds
+  the seating creep; cyclic re-engagement can ratchet the reference along
+  the wall."""
 
   violation_consecutive_steps: int = 1
-  """Violation debounce (1 = release on the first violating step). With
-  ``disable_contacts_while_latched`` latched anchor loads are smooth, so a
+  """Violation debounce (1 = release on the first violating step). Latched
+  pads' contact proxies are retracted, so anchor loads are smooth and a
   longer debounce would only let oscillating overloads flicker through."""
 
 
@@ -138,13 +131,14 @@ class MicrospineCfg:
   """Command-manager term name that provides the per-EE engage state."""
 
   wall_geom_name: str = "wall/wall_geom"
+  """Scoped wall geom name used by generated proxy-wall contact pairs."""
+
   surfaces: tuple[MicrospineSurfaceCfg, ...] = ()
-  """Optional per-EE moving faces. Empty preserves the legacy wall/world anchor."""
-  # v6 dare: arm collision geoms given ORDINARY physical wall contact via
-  # explicit pairs (add_arm_wall_contact_pairs) instead of the lethal fence.
-  # Empty = legacy plant (climb keeps its checkpoints valid).
+  """Optional per-EE moving faces. Empty anchors the pads to the world wall."""
+
   arm_wall_contact_geoms: tuple[str, ...] = ()
-  """Scoped wall geom name used by generated sphere-wall contact pairs."""
+  """Arm collision geoms given ordinary wall contact through explicit pairs
+  (``add_arm_wall_contact_pairs``)."""
 
   contact_friction: tuple[float, float, float, float, float] = (
     0.8,
@@ -176,28 +170,10 @@ class MicrospineCfg:
   contact_gap: float = 0.01
   """MuJoCo pair gap for microspine sphere-to-wall contacts."""
 
-  disable_contacts_while_latched: bool = False
-  """Switch a latched pad's sphere-wall contacts off (per env, per EE).
-
-  While latched the bilateral anchor already pins the pad, so the sphere
-  contacts are a redundant second load path; the two fight over penetration
-  corrections and the contact set flickers at near-zero normal force, which
-  makes the measured anchor load oscillate frame-to-frame (single-step ~700 N
-  equality transients; the 90-deg margin 'barcode'). Disabling the contacts
-  while latched removes the fight at the source: compression and tension both
-  ride the anchor, and contacts return the instant the pad releases so
-  seating, press shaping and push-off are untouched. Implemented by
-  retracting the sphere geoms into the pad (``geom_pos`` per world) — the
-  collision pipeline ignores runtime ``pair_*`` writes but kinematics reads
-  ``geom_pos`` every step."""
-
   latched_contact_retract: float = 0.05
   """Retraction depth [m] of a latched pad's contact proxies along the face
   axis (into the pad). Must clear penetration and the contact margin over
   the supported pad-tilt range; box edges must also clear the wall."""
-
-  debug: bool = False
-  """Print engage-state diagnostics. This causes CPU-GPU sync and is slow."""
 
   engage_unit_preload_n: float = 10.0
   """Minimum estimated normal compression [N] on EVERY active unit before latching.
@@ -229,11 +205,9 @@ class MicrospineCfg:
   pad span this sets the seating tilt tolerance (~7 deg for a 40 mm pad)."""
 
   engage_min_spine_fraction: float = 0.5
-  """Minimum engaged fraction of the virtual spine field required to latch.
-
-  Replaces the unpassable 2-rigid-sphere gate as the 'is the pad actually
-  seated' judgement: a corner poke reaches ~0.2, a flat seat ~1.0. 0 disables
-  the gate."""
+  """Minimum engaged fraction of the virtual spine field required to latch:
+  the seating judgement (a corner poke reaches ~0.2, a flat seat ~1.0).
+  0 disables the gate."""
 
   engage_max_antirake_vel: float = 0.02
   """Maximum pad velocity AGAINST the rake (m/s) allowed to latch.
@@ -253,9 +227,8 @@ class MicrospineCfg:
   """Steps after release during which re-engagement is blocked."""
 
   dr_reseat_hold_timeout_steps: int = 75
-  """R4 reseat hold: max policy steps the motion clock waits for a dr-forced
-  release to re-seat (75 @ 50 Hz = 1.5 s) before the hold is abandoned and
-  the schedule resumes with normal billing."""
+  """Policy steps the motion clock waits for an externally released pad to
+  re-seat (75 at 50 Hz = 1.5 s) before the reseat hold is abandoned."""
 
   face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0)
   """Local EE axis that should face the wall inward normal."""
@@ -272,11 +245,11 @@ class MicrospineCfg:
   When set, only the listed entries from ``ee_body_names`` start engaged and
   ``initial_on`` is ignored. This is an environment initialization choice,
   not an action: the policy still has no engage/disengage control channel.
-  ``None`` preserves the legacy all-on/all-off behavior from ``initial_on``.
+  ``None`` applies ``initial_on`` to every EE.
   """
 
   anchor_solref: tuple[float, float] = (0.01, 1.0)
-  """Connect-equality solref. timeconst = 5 * dt keeps implicitfast stable."""
+  """Anchor weld solref. timeconst = 5 * dt keeps implicitfast stable."""
 
   anchor_solimp: tuple[float, float, float, float, float] = (
     0.9,
@@ -285,88 +258,35 @@ class MicrospineCfg:
     0.5,
     2.0,
   )
-  """Connect-equality solimp."""
-
-  anchor_lock_rotation: bool = False
-  """Lock pad orientation while engaged (weld equality instead of connect).
-
-  A real spine array grips asperities across the whole pad face: once
-  engaged the pad cannot pivot about the anchor point — the wall holds its
-  orientation, not the wrist servo. A connect leaves rotation free (single
-  point = ball joint); measured under push DR that allowed up to ~20 deg of
-  engaged-pad tilt and let policies latch pads at arbitrary yaw for free.
-  With this flag each EE's equality is a weld whose relpose is captured at
-  engage time and re-seated during the grace window exactly like the
-  position anchor; releasing and re-engaging is the only way to reorient an
-  engaged pad."""
+  """Anchor weld solimp."""
 
   anchor_torquescale: float = 1.0
-  """Weld torquescale (eq_data[10]): scales rotational residuals into the
-  constraint impedance. Used only when ``anchor_lock_rotation``.
+  """Weld torquescale (eq_data[10]): the pad's rotational compliance at the anchor.
 
-  Physically the pad's rotational compliance at the anchor. In a redundant
-  multi-weld stance the solver distributes conflict by relative row scale,
-  so this decides how much parasitic moment a strained pad traps versus
-  sheds into force redistribution across the other pads. The climb env sets
-  0.01, calibrated with the reference-hold stress test (1.0 trapped ~6 N*m,
-  0.04 still 0.7-1.8 N*m — enough to blow the moment-billed envelope under
-  plain PD; 0.01 leaves <= 0.07 N*m). The same value converts the weld's
-  rotational multipliers back into physical moments (see
-  ``weld_rotational_force_to_world_moment``), so measurement and solver
-  behavior stay consistent automatically."""
-
-  anchor_reseat_mode: str = "down"
-  """Grace-window re-seat behavior when ``reanchor_after_grace`` is on.
-
-  "free" (legacy): the anchor follows the settled pad in all six DOF each
-  grace step. Tuned when latched pads still had live wall contacts to fight
-  (grace 6 -> 31% engage survival, 14 -> 100%); with contacts now retracted
-  at latch that standoff is gone, and free following became a drift license
-  — the press->hang load flip dragged hand anchors 12-44 mm outward before
-  the weld froze (motionref12 probe), something real hooked spines cannot
-  do.
-
-  "down": the anchor follows only the pad's down-the-wall rake component,
-  ``anchor_reseat_step_cap`` per step. Weld orientation also conforms during
-  that window, then freezes with the position. RSI mature-anchor setup skips
-  this seating lifecycle. Spines seat by
-  dragging down into asperities; they never relocate outward, upward or
-  sideways. The anchor also stays in the wall plane (the rake direction is
-  in-plane), killing the hovering-pad visual."""
+  It scales rotational residuals into the constraint impedance, so in a
+  redundant multi-weld stance it decides how much parasitic moment a
+  strained pad traps versus sheds into force redistribution across the
+  other pads. The same value converts the weld's rotational multipliers
+  back into physical moments (``weld_rotational_force_to_world_moment``),
+  so measurement and solver behavior stay consistent."""
 
   anchor_reseat_step_cap: float = 0.001
-  """Per-step cap [m] on the "down" re-seat follow (~real spine seating
-  travel per control step; total drift bounded by cap * grace steps)."""
-
-  anchor_project_to_wall: bool = False
-  """Project the engage-time anchor point onto the wall surface plane.
-
-  False (was True): hooked spines hold the pad exactly where it gripped —
-  projection moved the anchor onto the plane while the pad sat compressed
-  a few mm INTO it, so the moment the contacts retracted the weld snapped
-  the pad outward (the 4-11 mm post-engage pop measured on motionref13).
-  The original phantom-tension rationale died with retraction: there is no
-  live contact left to push the pad against the anchor while latched. The
-  pad simply stays at its (mm-compressed) grip pose; on release the
-  restored contacts see the same latch-era compression they always did."""
+  """Per-step cap [m] on the re-seat follow, about the real spine seating
+  travel per control step (total drift is bounded by cap * grace steps)."""
 
   reanchor_after_grace: bool = True
-  """Re-seat the anchor at the settled pad during the grace window ("re-grip").
+  """Re-seat a fresh anchor during the grace window ("re-grip").
 
-  Anchoring a PD-held pose locks in whatever pad tilt / penetration the pose
-  has; the contacts then push against the anchor and the standoff reads as
-  large phantom pull-off tension (spawn pose: >100 N on the feet) that a real
-  spine envelope correctly refuses to hold. Physically, a spine array seats
-  into the asperities under its initial load. Re-writing the anchor to the
-  *unprojected* settled pad position on every grace step (executor engage-age
-  1 .. hold_grace_steps - 1) lets the pad walk out of the standoff so the
-  first limit-surface check sees the true structural load of the pose. A
-  policy could in principle ratchet by repeatedly causing passive release and
-  re-engagement: each fresh grace window lets the reference follow the pad
-  again, with a gain of roughly millimeters per engage cycle."""
+  A spine array seats into the asperities under its initial load: for
+  ``limit_surface.hold_grace_steps`` after a latch the anchor follows only
+  the pad's down-the-wall rake motion (``anchor_reseat_step_cap`` per step)
+  and the weld orientation conforms to the pad, then both freeze. Hooked
+  spines never relocate outward, upward or sideways. RSI-seeded anchors
+  skip this lifecycle. Repeated release and re-engagement can ratchet the
+  reference along the wall by about a millimeter per cycle."""
 
   limit_surface: MicrospineLimitSurfaceCfg = dataclasses.field(default_factory=MicrospineLimitSurfaceCfg)
-  """Hold envelope evaluated by the affordance in constraint mode."""
+  """Hold envelope evaluated by the affordance."""
 
   def resolve_initial_engaged_mask(self) -> tuple[bool, ...]:
     """Resolve the reset latch state in ``ee_body_names`` order."""

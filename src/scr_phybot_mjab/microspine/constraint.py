@@ -1,41 +1,38 @@
-"""Microspine constraint physics: runtime-toggled equality anchors.
+"""Microspine constraint physics: runtime-toggled weld anchors.
 
-Each end-effector owns one pre-declared *inactive* connect equality ("virtual
-anchor"). On an engage transition the executor
-writes the current pad-center world position into ``eq_data[..., 3:6]`` and
-flips ``eq_active`` on; on release it flips ``eq_active`` off. The solver then
-holds the pad bilaterally at every physics substep — tangential lock and
-tension capacity no longer depend on contact friction at all.
+Each end-effector owns one pre-declared *inactive* weld equality (a "virtual
+anchor"). On an engage transition the executor captures the pad's contact
+centre position and orientation into ``eq_data`` and flips ``eq_active`` on;
+on release it flips ``eq_active`` off. The solver then holds the pad
+bilaterally at every physics substep, so tangential lock and tension
+capacity do not depend on contact friction. Orientation is locked too: a
+real spine array grips asperities across the whole pad face, so the wall,
+not the wrist servo, holds an engaged pad's orientation, and releasing and
+re-engaging is the only way to reorient it.
 
-With ``cfg.anchor_lock_rotation`` the equality is a *weld* instead of a
-connect: 6 efc rows (3 force + 3 torque) and the executor additionally
-captures the pad world orientation at engage time into ``eq_data[..., 6:10]``
-(as ``conj(q_pad)`` — the mjwarp weld rotational residual is
-``vec(inv(q_body2) * q_body1 * relpose)`` and body2 is the world), so an
-engaged pad is locked in position AND orientation, like a real spine array
-whose orientation is held by the wall rather than the wrist servo. NOTE the
-weld eq_data layout is the connect layout *swapped*: data[0:3] pairs with
-body2 (world anchor) and data[3:6] with body1 (pad-local offset).
+The weld eq_data layout is the connect layout swapped: data[0:3] pairs with
+body2 (the world anchor) and data[3:6] with body1 (the pad-local offset).
+data[6:10] holds the relpose ``conj(q_anchor)``, since the mjwarp weld
+rotational residual is ``vec(inv(q_body2) * q_body1 * relpose)``.
 
 When ``cfg.surfaces`` is supplied, body2 is the declared moving target.
 Position and orientation anchors are then captured in that body's local
 frame; both bodies receive solver reactions and can move together freely.
 
-Feasibility facts this relies on (mujoco_warp 3.6.0):
+Feasibility facts this relies on (mujoco_warp):
   * ``Data.eq_active`` is ``(nworld, neq)`` and read by the equality kernels
     every step, so per-env runtime toggling works on GPU without touching the
     model topology.
   * ``Model.eq_data`` is declared ``("*", neq, vec11)`` and the kernels index
-    it with ``worldid % shape[0]`` — after mjlab expands the field per env
+    it with ``worldid % shape[0]``; after mjlab expands the field per env
     (via the ``model_fields`` hook below), per-env anchors are honored.
-  * The MJCF compiler overwrites ``eq_data[3:6]`` with the body1 anchor's
-    world position at qpos0, so anchors written in the spec do NOT survive
-    compilation. The executor therefore always writes the runtime anchor
-    before activating a constraint.
+  * The MJCF compiler recomputes the anchor and relpose slots at qpos0, so
+    anchors written in the spec do not survive compilation. The executor
+    writes every runtime slot before activating a constraint.
 
-The anisotropic/asymmetric microspine behavior itself (hold envelope, release
-rules) intentionally lives in ``MicrospineAffordance``; this term is only the
-physical executor, mirroring the affordance's boolean state into constraints.
+The microspine behavior itself (hold envelope, release rules) lives in
+``MicrospineAffordance``; this term is only the physical executor, mirroring
+the affordance's latch bits into constraints.
 """
 
 from __future__ import annotations
@@ -116,47 +113,25 @@ def weld_rotational_force_to_world_moment(
   return moment if target_quat_w is None else _quat_rotate_batched(target_quat_w, moment)
 
 
-def pad_local_anchor(
-  cfg: MicrospineCfg,
-  sphere_pos: np.ndarray,
-  sphere_radius: float,
-) -> np.ndarray:
-  """Pad-center anchor in the spine-body frame: the centroid of the EE's
-  contact spheres pushed one sphere radius along ``face_local_axis`` (toward
-  the wall)."""
-  face_axis = np.asarray(cfg.face_local_axis, dtype=float)
-  face_axis = face_axis / max(float(np.linalg.norm(face_axis)), 1.0e-9)
-  return np.mean(sphere_pos, axis=0) + sphere_radius * face_axis
-
-
 def add_attachment_equalities(
   spec: mujoco.MjSpec,
   cfg: MicrospineCfg,
   robot_prefix: str = "robot",
 ) -> None:
-  """Add one inactive equality ("virtual anchor") per end-effector.
+  """Add one inactive weld ("virtual anchor") per end-effector.
 
-  connect (default): ``data[0:3]`` is the pad-local anchor; ``data[3:6]`` is
-  recomputed by the compiler and rewritten at runtime on every engage, so its
-  spec value is irrelevant.
-
-  weld (``cfg.anchor_lock_rotation``): every slot the compiler does not own
-  is written at runtime (the compiler recomputes the anchor/relpose slots at
-  qpos0, so nothing authored here survives); only torquescale is authored for
-  spec readability and re-asserted by the executor anyway.
+  The compiler recomputes the anchor and relpose slots at qpos0, so every
+  slot is written at runtime; only torquescale is authored here, for spec
+  readability, and the executor re-asserts it anyway.
   """
   prefix = f"{robot_prefix}/" if robot_prefix else ""
   surfaces = cfg.ordered_surfaces()
   for index, ee in enumerate(cfg.ee_body_names):
-    anchor1 = pad_contact_center(spec, cfg, ee, robot_prefix)
     data = np.zeros(11)
-    if cfg.anchor_lock_rotation:
-      data[10] = cfg.anchor_torquescale
-    else:
-      data[0:3] = anchor1
+    data[10] = cfg.anchor_torquescale
     spec.add_equality(
       name=microspine_equality_name(ee),
-      type=(mujoco.mjtEq.mjEQ_WELD if cfg.anchor_lock_rotation else mujoco.mjtEq.mjEQ_CONNECT),
+      type=mujoco.mjtEq.mjEQ_WELD,
       objtype=mujoco.mjtObj.mjOBJ_BODY,
       name1=f"{prefix}{ee}",
       name2=surfaces[index].scoped_body if surfaces else "",
@@ -190,7 +165,7 @@ def make_constraint_event_cfg(
 
 
 class MicrospineConstraint:
-  """Mirror the affordance's per-EE engage state into connect equalities.
+  """Mirror the affordance's per-EE engage state into weld equalities.
 
   Exposes engage state and timing for MDP terms, plus anchor diagnostics for
   the limit-surface state machine (``anchor_pos_w``,
@@ -212,8 +187,6 @@ class MicrospineConstraint:
     self._device = env.device
     self._num_envs = env.num_envs
     self._num_ee = len(self._mcfg.ee_body_names)
-    self._debug = self._mcfg.debug
-    self._lock_rotation = self._mcfg.anchor_lock_rotation
 
     robot_prefix = cfg.params["asset_cfg"].name
     self._asset = env.scene[robot_prefix]
@@ -231,42 +204,22 @@ class MicrospineConstraint:
       ee_body_ids.append(ids[0])
     self._ee_body_ids = torch.tensor(ee_body_ids, dtype=torch.long, device=self._device)
 
-    # Pad-center offsets in the spine-body frame. For connect the single
-    # source of truth is the compiled eq_data[:, 0:3] written by
-    # add_attachment_equalities; for weld the compiler recomputes those slots
-    # at qpos0, so the offset is rebuilt from the contact-face geometry (the
-    # proxy bodies are direct children of the EE body, so body pos is
-    # EE-local) and written back into the model in _check_expansion.
-    if self._lock_rotation:
-      pad_local_rows = []
-      for ee in self._mcfg.ee_body_names:
-        sphere_body_names = [
-          f"{robot_prefix}/{name}"
-          for name in sphere_names(
-            ee,
-            self._mcfg.spheres_per_ee_rows,
-            self._mcfg.spheres_per_ee_cols,
+    # Pad-centre offsets in the spine-body frame. The compiler recomputes the
+    # weld's anchor slots at qpos0, so the offset is rebuilt from the
+    # contact-face geometry (the proxy bodies are direct children of the EE
+    # body, so their positions are EE-local) and written back into the model
+    # in _check_expansion.
+    pad_local_rows = []
+    for ee in self._mcfg.ee_body_names:
+      ee_id = mj_model.body(f"{robot_prefix}/{ee}").id
+      for name in sphere_names(ee, self._mcfg.spheres_per_ee_rows, self._mcfg.spheres_per_ee_cols):
+        if int(mj_model.body_parentid[mj_model.body(f"{robot_prefix}/{name}").id]) != ee_id:
+          raise ValueError(
+            f"Proxy body '{robot_prefix}/{name}' is not a direct child of '{robot_prefix}/{ee}'; "
+            "the pad-local anchor assumes EE-local proxy positions."
           )
-        ]
-        ee_id = mj_model.body(f"{robot_prefix}/{ee}").id
-        for name in sphere_body_names:
-          if int(mj_model.body_parentid[mj_model.body(name).id]) != ee_id:
-            raise ValueError(
-              f"Sphere body '{name}' is not a direct child of "
-              f"'{robot_prefix}/{ee}'; pad-local anchor recomputation "
-              "assumes EE-local sphere positions."
-            )
-        pad_local_rows.append(pad_contact_center(mj_model, self._mcfg, ee, robot_prefix))
-      pad_local = np.stack(pad_local_rows)
-    else:
-      pad_local = np.stack([mj_model.eq_data[eq, 0:3] for eq in eq_ids])
-    self._pad_local = torch.tensor(pad_local, dtype=torch.float32, device=self._device)
-
-    if self._mcfg.anchor_project_to_wall and self._surfaces is None:
-      wall_geom = mj_model.geom(self._mcfg.wall_geom_name)
-      self._wall_half_thickness = float(wall_geom.size[0])
-    else:
-      self._wall_half_thickness = 0.0
+      pad_local_rows.append(pad_contact_center(mj_model, self._mcfg, ee, robot_prefix))
+    self._pad_local = torch.tensor(np.stack(pad_local_rows), dtype=torch.float32, device=self._device)
 
     # State buffers consumed by observations and rewards.
     self.engaged = torch.zeros(self._num_envs, self._num_ee, dtype=torch.bool, device=self._device)
@@ -277,10 +230,10 @@ class MicrospineConstraint:
     # Cached world anchors; only rows with engaged=True are meaningful.
     self.anchor_pos_w = torch.zeros(self._num_envs, self._num_ee, 3, dtype=torch.float32, device=self._device)
     self.anchor_load_w = torch.zeros_like(self.anchor_pos_w)
-    # Physical couple ABOUT C, world axes (weld mode only). The translational
-    # rows already apply force at C; adding the B-to-C lever again is wrong.
+    # Physical couple ABOUT C, world axes. The translational rows already
+    # apply force at C; adding the B-to-C lever again is wrong.
     self.anchor_moment_w = torch.zeros_like(self.anchor_pos_w)
-    # Engage-time pad world orientation (wxyz); weld mode locks the pad to it.
+    # Engage-time pad world orientation (wxyz); the weld locks the pad to it.
     self.anchor_quat_w = torch.zeros(self._num_envs, self._num_ee, 4, dtype=torch.float32, device=self._device)
     self.anchor_quat_w[..., 0] = 1.0
     self.anchor_pos_local = torch.zeros_like(self.anchor_pos_w)
@@ -336,17 +289,6 @@ class MicrospineConstraint:
     quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
     return pos + _quat_rotate_batched(quat, self._pad_local)
 
-  def _project_to_wall(self, points: torch.Tensor) -> torch.Tensor:
-    """Project points onto the robot-side wall face plane, (E, H, 3)."""
-    if getattr(self, "_surfaces", None) is not None:
-      point, normal, _, _ = self._surfaces.frame()
-      return points - ((points - point) * normal).sum(-1, keepdim=True) * normal
-    wall = self._env.scene[self._mcfg.wall_entity_name]
-    inward = wall_inward_normal(self._env, self._mcfg.wall_entity_name)
-    face_point = wall.data.root_link_pos_w - self._wall_half_thickness * inward
-    offset = ((points - face_point.unsqueeze(1)) * inward.unsqueeze(1)).sum(dim=-1, keepdim=True)
-    return points - offset * inward.unsqueeze(1)
-
   def _down_wall_dir(self) -> torch.Tensor:
     """Down-the-wall rake direction, (E, 1, 3): gravity projected in-plane.
 
@@ -382,14 +324,12 @@ class MicrospineConstraint:
   def compute_anchor_loads(self) -> torch.Tensor:
     """Gather per-EE anchor loads from the equality efc rows, (E, H, 3).
 
-    A connect contributes 3 consecutive efc rows whose Jacobian is the world
-    x/y/z positional Jacobian of the pad point, so ``efc.force`` is the
+    A weld contributes 6 consecutive efc rows. The first 3 have the world
+    x/y/z positional Jacobian of the pad point, so their ``efc.force`` is the
     world-frame force the constraint applies ON the EE (a hanging robot has
     force_z > 0). The limit surface constrains the reaction — the load the
-    spine puts on the asperity — hence ``F_load = -efc_force``. A weld
-    (anchor_lock_rotation) contributes 6 rows with the same 3 force rows
-    first, so the first-match + [0,1,2] gather is mode-independent. Its last
-    3 quaternion-constraint multipliers are converted through J_rot.T and
+    spine puts on the asperity — hence ``F_load = -efc_force``. The last 3
+    quaternion-constraint multipliers are converted through J_rot.T and
     cached as the physical world moment ABOUT C in ``anchor_moment_w``.
     Do not shift it from B again: only an externally measured B-referenced
     wrench needs M_C = M_B - (C-B) cross F before unit allocation.
@@ -412,8 +352,9 @@ class MicrospineConstraint:
     efc_id = data.efc.id[:, :njmax]
     efc_force = data.efc.force[:, :njmax]
 
-    # (E, njmax, H) row-vs-equality match; each engaged connect owns exactly 3
-    # consecutive rows, so the first matching row + [0, 1, 2] addresses them.
+    # (E, njmax, H) row-vs-equality match; each engaged weld owns exactly 6
+    # consecutive rows, so the first matching row + [0, 1, 2] addresses the
+    # force rows and + [3, 4, 5] the rotational ones.
     match = is_eq.unsqueeze(-1) & (efc_id.unsqueeze(-1) == self._eq_ids.view(1, 1, -1))
     found = match.any(dim=1)  # (E, H)
     first = match.long().argmax(dim=1)  # (E, H); 0 where not found.
@@ -422,27 +363,24 @@ class MicrospineConstraint:
     loads = self.anchor_load_w
     torch.where(found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads)
     loads.neg_()  # F_load = -efc_force (EE-on-anchor reaction).
-    if self._lock_rotation:
-      trows = (first.unsqueeze(-1) + self._comp_arange + 3).clamp(max=njmax - 1)
-      tgather = efc_force.gather(1, trows.reshape(self._num_envs, -1)).reshape(self._num_envs, self._num_ee, 3)
-      body_quat_w = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
-      moment_on_ee = weld_rotational_force_to_world_moment(
-        tgather,
-        body_quat_w,
-        self.anchor_quat_w,
-        self._mcfg.anchor_torquescale,
-        self._surfaces.pose()[1] if getattr(self, "_surfaces", None) is not None else None,
-      )
-      torch.where(
-        found.unsqueeze(-1),
-        moment_on_ee,
-        torch.zeros_like(moment_on_ee),
-        out=self.anchor_moment_w,
-      )
-      self.anchor_moment_w.neg_()
-      torch.nan_to_num_(self.anchor_moment_w, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
-    else:
-      self.anchor_moment_w.zero_()
+    trows = (first.unsqueeze(-1) + self._comp_arange + 3).clamp(max=njmax - 1)
+    tgather = efc_force.gather(1, trows.reshape(self._num_envs, -1)).reshape(self._num_envs, self._num_ee, 3)
+    body_quat_w = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
+    moment_on_ee = weld_rotational_force_to_world_moment(
+      tgather,
+      body_quat_w,
+      self.anchor_quat_w,
+      self._mcfg.anchor_torquescale,
+      self._surfaces.pose()[1] if getattr(self, "_surfaces", None) is not None else None,
+    )
+    torch.where(
+      found.unsqueeze(-1),
+      moment_on_ee,
+      torch.zeros_like(moment_on_ee),
+      out=self.anchor_moment_w,
+    )
+    self.anchor_moment_w.neg_()
+    torch.nan_to_num_(self.anchor_moment_w, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
     # Rare solver transients under extreme poses can emit non-finite efc
     # forces; unguarded they reach the limit-surface margins as NaN (inf
     # loads make cap - load = inf - inf) and the critic observations kill
@@ -486,39 +424,31 @@ class MicrospineConstraint:
         "must be registered as an mjlab event term so its model_fields hook "
         "runs before the first step."
       )
-    if self._lock_rotation:
-      # Static weld slots, written once post-expansion: the compiler owns
-      # these in the compiled model (recomputed at qpos0), so re-assert the
-      # runtime truth. data[3:6] pairs with body1 (pad-local anchor) in the
-      # weld kernel — the connect layout swapped.
-      eq_data = self._env.sim.model.eq_data
-      eq_data[:, self._eq_ids, 3:6] = self._pad_local
-      eq_data[:, self._eq_ids, 10] = self._mcfg.anchor_torquescale
+    # Static weld slots, written once post-expansion: the compiler owns these
+    # in the compiled model (recomputed at qpos0), so re-assert the runtime
+    # truth. data[3:6] pairs with body1, the pad-local anchor.
+    eq_data = self._env.sim.model.eq_data
+    eq_data[:, self._eq_ids, 3:6] = self._pad_local
+    eq_data[:, self._eq_ids, 10] = self._mcfg.anchor_torquescale
     self._checked_expansion = True
 
   def _apply_state(self, engage_command: torch.Tensor, env_mask=None) -> None:
     """Branchless per-step constraint update (no host syncs).
 
-    Rising edges place the anchor at the current (wall-projected) pad center.
-    With ``reanchor_after_grace``, every following step inside the grace
-    window re-seats the anchor at the *unprojected* settled pad position
-    (re-grip: the spine array seats into the asperities under its initial
-    load). Re-seating at the raw settled point matters: the anchor follows
-    the pad as contact compression from any pad tilt / pose preload pushes it
-    to its structural equilibrium, instead of fighting the contacts in an
-    anchor-vs-contact standoff that reads as phantom pull-off tension. In
-    weld mode the pad world orientation is captured/re-seated alongside the
-    position, so the rotational standoff walks out during grace the same way.
-    The cached anchors of all EEs are then written every step (idempotent —
-    the kernels ignore eq_data of inactive equalities) and eq_active mirrors
-    the command. Both writes land before the next physics step, satisfying
-    the "anchor before activate" ordering the compiled eq_data overwrite
-    demands.
+    Rising edges capture the anchor at the current pad centre and
+    orientation. With ``reanchor_after_grace``, every following step inside
+    the grace window re-seats it (re-grip: the spine array seats into the
+    asperities under its initial load): the position follows only the pad's
+    down-the-wall rake motion, a capped step at a time, and the orientation
+    conforms to the pad. The cached anchors of all EEs are then written
+    every step (idempotent: the kernels ignore eq_data of inactive
+    equalities) and eq_active mirrors the command. Both writes land before
+    the next physics step, the "anchor before activate" ordering the
+    compiled eq_data overwrite demands.
     """
     self._check_expansion()
     self.refresh_target_anchors()
     pad_raw = self.pad_center_world()
-    pad_engage = self._project_to_wall(pad_raw) if self._mcfg.anchor_project_to_wall else pad_raw
     rising = engage_command & ~self.engaged
     continuing = engage_command & self.engaged
     if env_mask is not None:
@@ -526,41 +456,33 @@ class MicrospineConstraint:
       continuing &= env_mask[:, None]
     age = torch.where(continuing, self._engage_age + 1, torch.zeros_like(self._engage_age))
     self._engage_age = age if env_mask is None else torch.where(env_mask[:, None], age, self._engage_age)
-    self.anchor_pos_w = torch.where(rising.unsqueeze(-1), pad_engage, self.anchor_pos_w)
+    self.anchor_pos_w = torch.where(rising.unsqueeze(-1), pad_raw, self.anchor_pos_w)
     capture = rising
     if self._mcfg.reanchor_after_grace:
       reseat = continuing & (self._engage_age <= self._reseat_max_age)
-      if self._mcfg.anchor_reseat_mode == "down":
-        # Spines seat by dragging DOWN the wall into asperities (Wang 2017
-        # engagement); hooks never relocate outward, upward or sideways.
-        # Follow only the pad's down-rake motion component, a capped step at
-        # a time. There is no contact standoff left to walk out — latched
-        # pads' spheres are retracted — so the press preload simply lands as
-        # anchor compression, which the limit surface treats as free.
-        t_hat = self._down_wall_dir()
-        follow = (
-          ((pad_raw - self.anchor_pos_w) * t_hat)
-          .sum(dim=-1, keepdim=True)
-          .clamp(min=0.0, max=self._mcfg.anchor_reseat_step_cap)
-        )
-        self.anchor_pos_w = torch.where(
-          reseat.unsqueeze(-1),
-          self.anchor_pos_w + follow * t_hat,
-          self.anchor_pos_w,
-        )
-        # ORIENTATION conforms during the same seating window: the chassis
-        # floats on the spine suspensions and rotates into its loaded
-        # equilibrium while the tips grip, so the weld locks the SETTLED
-        # orientation rather than RSI spawn sag or a fresh-latch load flip.
-        # After grace the orientation freezes.
-        capture = capture | reseat
-      else:  # "free" (legacy all-DOF following)
-        self.anchor_pos_w = torch.where(reseat.unsqueeze(-1), pad_raw, self.anchor_pos_w)
-        capture = capture | reseat
+      # Spines seat by dragging DOWN the wall into asperities (Wang 2017
+      # engagement); hooks never relocate outward, upward or sideways. Latched
+      # pads' proxies are retracted, so the press preload simply lands as
+      # anchor compression, which the limit surface treats as free.
+      t_hat = self._down_wall_dir()
+      follow = (
+        ((pad_raw - self.anchor_pos_w) * t_hat)
+        .sum(dim=-1, keepdim=True)
+        .clamp(min=0.0, max=self._mcfg.anchor_reseat_step_cap)
+      )
+      self.anchor_pos_w = torch.where(
+        reseat.unsqueeze(-1),
+        self.anchor_pos_w + follow * t_hat,
+        self.anchor_pos_w,
+      )
+      # Orientation conforms during the same window: the chassis floats on the
+      # spine suspensions and rotates into its loaded equilibrium while the
+      # tips grip, so the weld locks the settled orientation rather than spawn
+      # sag or a fresh-latch load flip. After grace it freezes.
+      capture = capture | reseat
     eq_data = self._env.sim.model.eq_data
-    if self._lock_rotation:
-      pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
-      self.anchor_quat_w = torch.where(capture.unsqueeze(-1), pad_quat, self.anchor_quat_w)
+    pad_quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
+    self.anchor_quat_w = torch.where(capture.unsqueeze(-1), pad_quat, self.anchor_quat_w)
     position, orientation = self.anchor_pos_w, self.anchor_quat_w
     if getattr(self, "_surfaces", None) is not None:
       target_pos, target_quat = self._surfaces.pose()
@@ -575,16 +497,12 @@ class MicrospineConstraint:
         self.anchor_quat_local,
       )
       position, orientation = self.anchor_pos_local, self.anchor_quat_local
-    if self._lock_rotation:
-      # Weld layout: data[0:3] = body2-local anchor, data[6:10] =
-      # relpose. The rotational residual is vec(q_pad * relpose) against the
-      # world, so locking the engage-time orientation means relpose =
-      # conj(anchor_quat).
-      eq_data[:, self._eq_ids, 0:3] = position
-      eq_data[:, self._eq_ids, 6:7] = orientation[..., 0:1]
-      eq_data[:, self._eq_ids, 7:10] = -orientation[..., 1:4]
-    else:
-      eq_data[:, self._eq_ids, 3:6] = position
+    # data[0:3] = body2-local anchor, data[6:10] = relpose. The rotational
+    # residual is vec(q_pad * relpose) against body2, so locking the
+    # engage-time orientation means relpose = conj(anchor_quat).
+    eq_data[:, self._eq_ids, 0:3] = position
+    eq_data[:, self._eq_ids, 6:7] = orientation[..., 0:1]
+    eq_data[:, self._eq_ids, 7:10] = -orientation[..., 1:4]
     self._env.sim.data.eq_active[:, self._eq_ids] = engage_command
 
   def _update_disengage_time(self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor) -> None:
@@ -595,25 +513,6 @@ class MicrospineConstraint:
       torch.zeros_like(self.current_disengage_time),
       self.current_disengage_time + env.step_dt,
     )
-
-  def _log_transitions(self, env: ManagerBasedRlEnv, was_engaged: torch.Tensor) -> None:
-    if not self._debug:
-      return
-    step = env.episode_length_buf[0].item()
-    changed = self.engaged[0] != was_engaged[0]
-    if not changed.any():
-      return
-    for ee_index, bname in enumerate(self._mcfg.ee_body_names):
-      if not changed[ee_index].item():
-        continue
-      old = "ON" if was_engaged[0, ee_index].item() else "OFF"
-      new = "ON" if self.engaged[0, ee_index].item() else "OFF"
-      anchor = self.anchor_pos_w[0, ee_index].tolist()
-      print(
-        f"[MicrospineConstraint] TRANSITION step={step} {bname} "
-        f"{old}->{new} anchor=({anchor[0]:.3f}, {anchor[1]:.3f}, "
-        f"{anchor[2]:.3f})"
-      )
 
   def __call__(
     self,
@@ -636,7 +535,6 @@ class MicrospineConstraint:
     self.engaged = engage_command.clone()
     self.last_engage_command = engage_command
     self._update_disengage_time(env, was_engaged)
-    self._log_transitions(env, was_engaged)
 
   def assert_now(self, env: ManagerBasedRlEnv) -> None:
     """Apply the current affordance state immediately.
