@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,13 +42,59 @@ class Finding:
   detail: str = ""
 
 
-def compare_cfg(base: Path, new: Path, renames: dict[str, str]) -> list[Finding]:
+class Removals:
+  """Declared removals: cfg keys and rollout signals the new code no longer has.
+
+  A pattern (``re.search``) excuses base-only cfg lines and missing rollout
+  signals whose key it matches. A removed dict entry also shrinks the count
+  in its container's ``dict[N]`` header. Anything the new snapshot still has
+  is compared as usual, so an over-broad pattern shows up as an addition.
+  """
+
+  def __init__(self, patterns: list[str]) -> None:
+    self.patterns = [re.compile(p) for p in patterns]
+    self.hits: Counter[str] = Counter()
+
+  def _match(self, key: str) -> bool:
+    for pattern in self.patterns:
+      if pattern.search(key):
+        self.hits[pattern.pattern] += 1
+        return True
+    return False
+
+  def drop_cfg_lines(self, lines: list[str]) -> list[str]:
+    kept, entries = [], Counter()
+    for line in lines:
+      key = line.split(" = ", 1)[0]
+      if not self._match(key):
+        kept.append(line)
+      elif parent := re.fullmatch(r"(.*)\[[^\[\]]*\]", key):
+        entries[parent.group(1)] += 1
+    out = []
+    for line in kept:
+      key, _, value = line.partition(" = ")
+      header = re.fullmatch(r"dict\[(\d+)\]", value)
+      if header and entries[key]:
+        line = f"{key} = dict[{int(header.group(1)) - entries[key]}]"
+      out.append(line)
+    return out
+
+  def allows_signal(self, key: str) -> bool:
+    return self._match(key)
+
+  def report(self) -> list[str]:
+    return [f"declared removal '{p.pattern}': {self.hits[p.pattern]} base entries" for p in self.patterns]
+
+
+def compare_cfg(base: Path, new: Path, renames: dict[str, str], removed: Removals | None = None) -> list[Finding]:
   findings = []
   for name, base_file, new_file in _paired(base / "cfg", new / "cfg", "*.txt"):
     if new_file is None or base_file is None:
       findings.append(_unpaired("cfg", name, base_file))
       continue
     old = apply_renames(base_file.read_text().splitlines(), renames)
+    if removed is not None:
+      old = removed.drop_cfg_lines(old)
     cur = new_file.read_text().splitlines()
     diff = list(difflib.unified_diff(old, cur, "base", "new", lineterm="", n=0))
     findings.append(Finding("cfg", name, not diff, "\n".join(diff[:_MAX_DETAIL_LINES])))
@@ -65,14 +113,16 @@ def compare_model(base: Path, new: Path) -> list[Finding]:
   return findings
 
 
-def compare_rollouts(base: Path, new: Path, floor: dict[str, np.ndarray]) -> list[Finding]:
+def compare_rollouts(
+  base: Path, new: Path, floor: dict[str, np.ndarray], removed: Removals | None = None
+) -> list[Finding]:
   """Every rollout signal column must stay within its same-code noise floor."""
   findings = []
   for name, base_file, new_file in _paired(base / "rollout", new / "rollout", "*.npz"):
     if new_file is None or base_file is None:
       findings.append(_unpaired("rollout", name, base_file))
       continue
-    problems = _meta_problems(base_file, new_file) + _signal_problems(base_file, new_file, name, floor)
+    problems = _meta_problems(base_file, new_file) + _signal_problems(base_file, new_file, name, floor, removed)
     findings.append(Finding("rollout", name, not problems, "\n".join(problems[:_MAX_DETAIL_LINES])))
   return findings
 
@@ -124,12 +174,14 @@ def _unpaired(tier: str, name: str, base_file: Path | None) -> Finding:
   return Finding(tier, name, False, f"missing from the {where}")
 
 
-def _signal_problems(base_file: Path, new_file: Path, name: str, floor: dict[str, np.ndarray]) -> list[str]:
+def _signal_problems(
+  base_file: Path, new_file: Path, name: str, floor: dict[str, np.ndarray], removed: Removals | None = None
+) -> list[str]:
   problems = []
   with np.load(base_file) as old, np.load(new_file) as cur:
     for key in old.files:
       if key not in cur.files:
-        if not key.startswith(_PRIVATE_PREFIXES):
+        if not key.startswith(_PRIVATE_PREFIXES) and not (removed is not None and removed.allows_signal(key)):
           problems.append(f"{key}: missing")
         continue
       problem = _signal_problem(key, old[key], cur[key], floor.get(f"{name}|{key}"))

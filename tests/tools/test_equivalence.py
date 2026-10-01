@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from scr_phybot_mjab.tools.equivalence.canonical import apply_renames, canonical_lines
-from scr_phybot_mjab.tools.equivalence.compare import _column_noise, _signal_problem, _value_problems
+from scr_phybot_mjab.tools.equivalence.compare import Removals, _column_noise, _signal_problem, _value_problems
 
 
 @dataclass
@@ -68,3 +68,24 @@ def test_clip_comparison_handles_scalars_nested_lists_and_changes():
   changed = {**clip, "fps": np.float32(60.0), "q": np.ones((3, 2), np.float32)}
   problems = _value_problems(clip, changed, "")
   assert any(p.startswith("/fps") for p in problems) and any(p.startswith("/q") for p in problems)
+
+
+def test_declared_removals_drop_keys_and_shrink_dict_headers_only():
+  base = [
+    "env.rewards[r].params = dict[3]",
+    "env.rewards[r].params[a] = f:1.0",
+    "env.rewards[r].params[gone] = f:0.5",
+    "env.rewards[r].params[b] = f:2.0",
+    "env.cfg.gone_field = f:0.0",
+  ]
+  removals = Removals([r"params\[gone\]", r"[./]gone_field$"])
+  assert removals.drop_cfg_lines(base) == [
+    "env.rewards[r].params = dict[2]",
+    "env.rewards[r].params[a] = f:1.0",
+    "env.rewards[r].params[b] = f:2.0",
+  ]
+  assert removals.allows_signal("cmd/term/gone_field") and not removals.allows_signal("cmd/term/kept")
+  assert removals.report() == [
+    "declared removal 'params\\[gone\\]': 1 base entries",
+    "declared removal '[./]gone_field$': 2 base entries",
+  ]

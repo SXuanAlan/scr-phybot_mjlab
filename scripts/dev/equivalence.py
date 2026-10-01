@@ -72,9 +72,10 @@ def compare(args: argparse.Namespace) -> int:
   from scr_phybot_mjab.tools.equivalence import compare as cmp
 
   renames = tomllib.loads(RENAMES.read_text()).get("renames", {})
+  removed = cmp.Removals(args.allow_removed) if args.allow_removed else None
   findings = []
   if "cfg" in args.tiers:
-    findings += cmp.compare_cfg(args.base, args.new, renames)
+    findings += cmp.compare_cfg(args.base, args.new, renames, removed)
   if "model" in args.tiers:
     findings += cmp.compare_model(args.base, args.new)
   if "rollout" in args.tiers:
@@ -82,9 +83,11 @@ def compare(args: argparse.Namespace) -> int:
     noise = dict(np.load(floor_file)) if floor_file.exists() else {}
     if not noise:
       print("no floor.npz in base: rollouts must match exactly", flush=True)
-    findings += cmp.compare_rollouts(args.base, args.new, noise)
+    findings += cmp.compare_rollouts(args.base, args.new, noise, removed)
   if "clips" in args.tiers:
     findings += cmp.compare_clips(args.base, args.new)
+  if removed is not None:
+    print("\n".join(removed.report()))
   _print_findings(findings)
   return 0 if all(f.ok for f in findings) else 1
 
@@ -266,6 +269,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
   cmp.add_argument("base", type=Path)
   cmp.add_argument("new", type=Path)
   cmp.add_argument("--tiers", type=lambda s: s.split(","), default=list(TIERS))
+  cmp.add_argument(
+    "--allow-removed",
+    action="append",
+    default=[],
+    metavar="REGEX",
+    help="cfg key / rollout signal the new code deliberately removed (repeatable)",
+  )
   flo = sub.add_parser("floor", help="measure the same-code rollout noise floor into <base>/floor.npz")
   flo.add_argument("base", type=Path)
   flo.add_argument("others", type=Path, nargs="+")
