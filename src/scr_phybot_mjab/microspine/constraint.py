@@ -40,106 +40,20 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING
 
-import mujoco
 import numpy as np
 import torch
 
-# ConstraintType is not re-exported at package level; the efc rows we filter
-# are written by mujoco_warp kernels, so its enum is the source of truth.
-from mujoco_warp._src.types import ConstraintType
+from scr_phybot_mjab.microspine.anchor_loads import WeldRows, weld_rotational_force_to_world_moment
+from scr_phybot_mjab.microspine.config import MicrospineCfg
+from scr_phybot_mjab.microspine.contact import pad_contact_center, sphere_names
+from scr_phybot_mjab.microspine.quat import conjugate, multiply, rotate
+from scr_phybot_mjab.microspine.spec import microspine_equality_name
+from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces
+from scr_phybot_mjab.microspine.wall import wall_inward_normal
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
   from mjlab.managers.event_manager import EventTermCfg
-
-from scr_phybot_mjab.microspine.config import MicrospineCfg
-from scr_phybot_mjab.microspine.contact import pad_contact_center, sphere_names
-from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, conjugate
-from scr_phybot_mjab.microspine.wall import wall_inward_normal
-
-_EFC_EQUALITY = int(ConstraintType.EQUALITY)
-
-
-def microspine_equality_name(ee_body_name: str) -> str:
-  """Return the scene-level equality name for one end-effector."""
-  return f"microspine_{ee_body_name}"
-
-
-def _quat_rotate_batched(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
-  """Rotate vec by quat (wxyz). quat (..., 4), vec broadcastable to (..., 3)."""
-  w = quat[..., 0:1]
-  q = quat[..., 1:4]
-  v = vec.expand(q.shape)
-  t = 2.0 * torch.cross(q, v, dim=-1)
-  return v + w * t + torch.cross(q, t, dim=-1)
-
-
-def _quat_mul_batched(lhs: torch.Tensor, rhs: torch.Tensor) -> torch.Tensor:
-  """Quaternion product ``lhs * rhs`` (wxyz), with matching batch shapes."""
-  lw, lv = lhs[..., 0:1], lhs[..., 1:4]
-  rw, rv = rhs[..., 0:1], rhs[..., 1:4]
-  return torch.cat(
-    [
-      lw * rw - (lv * rv).sum(dim=-1, keepdim=True),
-      lw * rv + rw * lv + torch.cross(lv, rv, dim=-1),
-    ],
-    dim=-1,
-  )
-
-
-def weld_rotational_force_to_world_moment(
-  rotational_force: torch.Tensor,
-  body_quat_w: torch.Tensor,
-  anchor_quat_w: torch.Tensor,
-  torquescale: float,
-  target_quat_w: torch.Tensor | None = None,
-) -> torch.Tensor:
-  """Convert mujoco_warp weld multipliers to physical world moments.
-
-  The last three weld entries in ``efc.force`` are multipliers in
-  quaternion-vector constraint coordinates, not N*m. Physical moment is
-  ``J_rot.T @ multiplier``. The runtime kernel has
-  ``J_rot = 0.5 * torquescale * (w I - skew(v))`` for residual quaternion
-  ``(w, v)``. At a satisfied weld this reduces exactly to
-  ``0.5 * torquescale * multiplier``.
-  """
-  anchor_conj = torch.cat([anchor_quat_w[..., 0:1], -anchor_quat_w[..., 1:4]], dim=-1)
-  q_err = _quat_mul_batched(body_quat_w, anchor_conj)
-  if target_quat_w is not None:
-    # The quaternion residual/multipliers are expressed in body2's axes.
-    q_err = _quat_mul_batched(_quat_mul_batched(conjugate(target_quat_w), q_err), target_quat_w)
-  w, v = q_err[..., 0:1], q_err[..., 1:4]
-  moment = 0.5 * float(torquescale) * (w * rotational_force + torch.cross(v, rotational_force, dim=-1))
-  return moment if target_quat_w is None else _quat_rotate_batched(target_quat_w, moment)
-
-
-def add_attachment_equalities(
-  spec: mujoco.MjSpec,
-  cfg: MicrospineCfg,
-  robot_prefix: str = "robot",
-) -> None:
-  """Add one inactive weld ("virtual anchor") per end-effector.
-
-  The compiler recomputes the anchor and relpose slots at qpos0, so every
-  slot is written at runtime; only torquescale is authored here, for spec
-  readability, and the executor re-asserts it anyway.
-  """
-  prefix = f"{robot_prefix}/" if robot_prefix else ""
-  surfaces = cfg.ordered_surfaces()
-  for index, ee in enumerate(cfg.ee_body_names):
-    data = np.zeros(11)
-    data[10] = cfg.anchor_torquescale
-    spec.add_equality(
-      name=microspine_equality_name(ee),
-      type=mujoco.mjtEq.mjEQ_WELD,
-      objtype=mujoco.mjtObj.mjOBJ_BODY,
-      name1=f"{prefix}{ee}",
-      name2=surfaces[index].scoped_body if surfaces else "",
-      active=False,
-      solref=list(cfg.anchor_solref),
-      solimp=list(cfg.anchor_solimp),
-      data=data.tolist(),
-    )
 
 
 def make_constraint_event_cfg(
@@ -251,7 +165,7 @@ class MicrospineConstraint:
     # reset the sim re-tiles eq_active to eq_active0 (all False) and the
     # kinematics seen here are stale, so anchor placement is deferred.
     self._needs_init = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
-    self._row_arange = None  # Lazily sized to njmax at first load readout.
+    self._weld_rows = WeldRows(self._eq_ids, self._num_envs, self._device)
     self._checked_expansion = False
 
   @property
@@ -287,7 +201,7 @@ class MicrospineConstraint:
     """Current pad-center world positions, (E, H, 3)."""
     pos = self._asset.data.body_link_pos_w[:, self._ee_body_ids]
     quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
-    return pos + _quat_rotate_batched(quat, self._pad_local)
+    return pos + rotate(quat, self._pad_local)
 
   def _down_wall_dir(self) -> torch.Tensor:
     """Down-the-wall rake direction, (E, 1, 3): gravity projected in-plane.
@@ -301,7 +215,7 @@ class MicrospineConstraint:
       _, normal, _, _ = self._surfaces.frame()
       quat = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
       local_axis = torch.tensor(self._mcfg.limit_surface.ee_rake_local_axis, device=self._device)
-      rake = _quat_rotate_batched(quat, local_axis)
+      rake = rotate(quat, local_axis)
       rake = rake - (rake * normal).sum(-1, keepdim=True) * normal
       return rake / torch.linalg.vector_norm(rake, dim=-1, keepdim=True).clamp_min(1e-9)
 
@@ -322,52 +236,25 @@ class MicrospineConstraint:
   # ---------------------------------------------------------------------
 
   def compute_anchor_loads(self) -> torch.Tensor:
-    """Gather per-EE anchor loads from the equality efc rows, (E, H, 3).
+    """Per-EE anchor loads from the weld efc rows, (E, H, 3) world.
 
-    A weld contributes 6 consecutive efc rows. The first 3 have the world
-    x/y/z positional Jacobian of the pad point, so their ``efc.force`` is the
-    world-frame force the constraint applies ON the EE (a hanging robot has
-    force_z > 0). The limit surface constrains the reaction — the load the
-    spine puts on the asperity — hence ``F_load = -efc_force``. The last 3
-    quaternion-constraint multipliers are converted through J_rot.T and
-    cached as the physical world moment ABOUT C in ``anchor_moment_w``.
-    Do not shift it from B again: only an externally measured B-referenced
-    wrench needs M_C = M_B - (C-B) cross F before unit allocation.
-
-    Only constraint counters are zeroed each step; rows past ``ne`` are stale
-    garbage and EQUALITY == 0 would happily match them, so the ``row < ne``
-    mask is mandatory. ``ne`` can also exceed the written rows on njmax
-    overflow, hence the clamp.
+    The force rows' ``efc.force`` is the world-frame force the constraint
+    applies ON the EE (a hanging robot has force_z > 0). The limit surface
+    constrains the reaction, the load the spine puts on the asperity, hence
+    ``F_load = -efc_force``. The rotational multipliers are converted through
+    J_rot.T and cached as the physical world moment ABOUT C in
+    ``anchor_moment_w``. Do not shift it from B again: only an externally
+    measured B-referenced wrench needs M_C = M_B - (C-B) cross F before unit
+    allocation.
     """
     self.refresh_target_anchors()
-    data = self._env.sim.data
-    njmax = int(data.njmax)
-    if self._row_arange is None:
-      self._row_arange = torch.arange(njmax, device=self._device)
-      self._comp_arange = torch.arange(3, device=self._device)
-
-    ne = data.ne[:].to(torch.long).clamp(max=njmax)
-    valid = self._row_arange.unsqueeze(0) < ne.unsqueeze(1)
-    is_eq = valid & (data.efc.type[:, :njmax] == _EFC_EQUALITY)
-    efc_id = data.efc.id[:, :njmax]
-    efc_force = data.efc.force[:, :njmax]
-
-    # (E, njmax, H) row-vs-equality match; each engaged weld owns exactly 6
-    # consecutive rows, so the first matching row + [0, 1, 2] addresses the
-    # force rows and + [3, 4, 5] the rotational ones.
-    match = is_eq.unsqueeze(-1) & (efc_id.unsqueeze(-1) == self._eq_ids.view(1, 1, -1))
-    found = match.any(dim=1)  # (E, H)
-    first = match.long().argmax(dim=1)  # (E, H); 0 where not found.
-    rows = (first.unsqueeze(-1) + self._comp_arange).clamp(max=njmax - 1)
-    gathered = efc_force.gather(1, rows.reshape(self._num_envs, -1)).reshape(self._num_envs, self._num_ee, 3)
+    found, force_rows, rotational_rows = self._weld_rows.read(self._env.sim.data)
     loads = self.anchor_load_w
-    torch.where(found.unsqueeze(-1), gathered, torch.zeros_like(gathered), out=loads)
+    torch.where(found.unsqueeze(-1), force_rows, torch.zeros_like(force_rows), out=loads)
     loads.neg_()  # F_load = -efc_force (EE-on-anchor reaction).
-    trows = (first.unsqueeze(-1) + self._comp_arange + 3).clamp(max=njmax - 1)
-    tgather = efc_force.gather(1, trows.reshape(self._num_envs, -1)).reshape(self._num_envs, self._num_ee, 3)
     body_quat_w = self._asset.data.body_link_quat_w[:, self._ee_body_ids]
     moment_on_ee = weld_rotational_force_to_world_moment(
-      tgather,
+      rotational_rows,
       body_quat_w,
       self.anchor_quat_w,
       self._mcfg.anchor_torquescale,
@@ -382,11 +269,9 @@ class MicrospineConstraint:
     self.anchor_moment_w.neg_()
     torch.nan_to_num_(self.anchor_moment_w, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
     # Rare solver transients under extreme poses can emit non-finite efc
-    # forces; unguarded they reach the limit-surface margins as NaN (inf
-    # loads make cap - load = inf - inf) and the critic observations kill
-    # the whole training run (observed once at 2048 envs x ~94 iters). NaN
-    # reads as "no reading" (no release that step); inf clamps to a huge
-    # finite load the envelope instantly, correctly, releases.
+    # forces; unguarded, NaN loads poison the hold margins and the critic
+    # observations. NaN reads as "no reading" (no release that step); inf
+    # clamps to a huge finite load the envelope instantly releases.
     torch.nan_to_num_(loads, nan=0.0, posinf=1.0e6, neginf=-1.0e6)
     return loads
 
@@ -410,8 +295,8 @@ class MicrospineConstraint:
     """Update diagnostic world frames, without moving the physical local anchors."""
     if getattr(self, "_surfaces", None) is not None:
       pos, quat = self._surfaces.pose()
-      self.anchor_pos_w = pos + _quat_rotate_batched(quat, self.anchor_pos_local)
-      self.anchor_quat_w = _quat_mul_batched(quat, self.anchor_quat_local)
+      self.anchor_pos_w = pos + rotate(quat, self.anchor_pos_local)
+      self.anchor_quat_w = multiply(quat, self.anchor_quat_local)
 
   def _check_expansion(self) -> None:
     if self._checked_expansion:
@@ -488,12 +373,12 @@ class MicrospineConstraint:
       target_pos, target_quat = self._surfaces.pose()
       self.anchor_pos_local = torch.where(
         capture.unsqueeze(-1),
-        _quat_rotate_batched(conjugate(target_quat), position - target_pos),
+        rotate(conjugate(target_quat), position - target_pos),
         self.anchor_pos_local,
       )
       self.anchor_quat_local = torch.where(
         capture.unsqueeze(-1),
-        _quat_mul_batched(conjugate(target_quat), orientation),
+        multiply(conjugate(target_quat), orientation),
         self.anchor_quat_local,
       )
       position, orientation = self.anchor_pos_local, self.anchor_quat_local

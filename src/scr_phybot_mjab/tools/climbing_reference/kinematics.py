@@ -13,13 +13,8 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   get_spec,
 )
 from scr_phybot_mjab.assets.wall.wall_constants import WALL_HALF_SIZE, WALL_OFFSET
-from scr_phybot_mjab.microspine.contact import (
-  ToeContact,
-  add_toe_geoms,
-  pad_contact_center,
-  sphere_names,
-  toe_site_name,
-)
+from scr_phybot_mjab.microspine.contact import pad_contact_center, sphere_names
+from scr_phybot_mjab.microspine.spec import ToeContact, add_toe_geoms, toe_site_name
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg
 
 WALL_SURFACE_X = float(WALL_OFFSET[0] - WALL_HALF_SIZE[0])

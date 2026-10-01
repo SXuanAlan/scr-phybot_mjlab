@@ -20,23 +20,11 @@ from scr_phybot_mjab.microspine.contact import (
   sphere_names,
   virtual_spine_fraction,
 )
-from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, pad_face_vertices, rotate
+from scr_phybot_mjab.microspine.quat import rotate, rotate_axis
+from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, pad_face_vertices
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
-
-
-def rotate_axis(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
-  """Rotate one vector by a batch of wxyz quaternions, (E, 4) x (3,) -> (E, 3)."""
-  w, x, y, z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
-  vx, vy, vz = vec[0], vec[1], vec[2]
-  tx = 2.0 * (y * vz - z * vy)
-  ty = 2.0 * (z * vx - x * vz)
-  tz = 2.0 * (x * vy - y * vx)
-  rx = vx + w * tx + (y * tz - z * ty)
-  ry = vy + w * ty + (z * tx - x * tz)
-  rz = vz + w * tz + (x * ty - y * tx)
-  return torch.stack([rx, ry, rz], dim=-1)
 
 
 def engage_frame(

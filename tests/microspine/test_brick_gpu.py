@@ -7,7 +7,7 @@ import pytest
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 
-from scr_phybot_mjab.microspine.surfaces import rotate
+from scr_phybot_mjab.microspine.quat import rotate
 from scr_phybot_mjab.tasks.brick.env_cfg import brick_env_cfg
 from scr_phybot_mjab.tasks.brick.geometry import active_unit_count
 

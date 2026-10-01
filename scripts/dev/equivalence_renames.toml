@@ -2,3 +2,4 @@
 # config dumps before comparing: "old.module.qualname" = "new.module.qualname".
 # Only pure moves belong here; any other config change must show up as a diff.
 [renames]
+"scr_phybot_mjab.microspine.contact.ToeContact" = "scr_phybot_mjab.microspine.spec.ToeContact"

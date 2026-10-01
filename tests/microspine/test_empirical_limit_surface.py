@@ -183,7 +183,7 @@ def test_build_preserves_right_censoring_and_excludes_early_normal_points():
 def test_native_weld_rotational_rows_are_a_c_couple_not_a_second_lever_arm():
   import mujoco
 
-  from scr_phybot_mjab.microspine.constraint import weld_rotational_force_to_world_moment
+  from scr_phybot_mjab.microspine.anchor_loads import weld_rotational_force_to_world_moment
 
   model = mujoco.MjModel.from_xml_string("""<mujoco><option gravity="0 0 0" jacobian="dense"/>
     <worldbody><body name="pad"><freejoint/><geom type="box" size=".02 .02 .02" mass="1"/>

@@ -27,9 +27,10 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   get_phybot_c2_robot_cfg,
 )
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg, MicrospineSurfaceCfg
-from scr_phybot_mjab.microspine.constraint import add_attachment_equalities, make_constraint_event_cfg
-from scr_phybot_mjab.microspine.contact import add_contact_pairs, get_sphere_geom_names
+from scr_phybot_mjab.microspine.constraint import make_constraint_event_cfg
+from scr_phybot_mjab.microspine.contact import get_sphere_geom_names
 from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
+from scr_phybot_mjab.microspine.spec import add_attachment_equalities, add_contact_pairs
 from scr_phybot_mjab.tasks.common.phybot_c2 import (
   BASE_ANG_VEL_SENSOR,
   BASE_QUAT_SENSOR,

@@ -1,8 +1,6 @@
 import torch
 
-from scr_phybot_mjab.microspine.constraint import (
-  weld_rotational_force_to_world_moment,
-)
+from scr_phybot_mjab.microspine.anchor_loads import weld_rotational_force_to_world_moment
 from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 
 

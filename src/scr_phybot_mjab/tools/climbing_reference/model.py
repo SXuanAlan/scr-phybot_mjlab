@@ -6,7 +6,7 @@ import mujoco
 import numpy as np
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_FOOT_TOES, get_spec
-from scr_phybot_mjab.microspine.contact import ToeContact, add_toe_geoms, toe_site_name
+from scr_phybot_mjab.microspine.spec import ToeContact, add_toe_geoms, toe_site_name
 
 WALL_OUTWARD_WORLD = np.array([-1.0, 0.0, 0.0], dtype=np.float64)
 RAKE_LOCAL = np.array([0.0, 0.0, -1.0], dtype=np.float64)

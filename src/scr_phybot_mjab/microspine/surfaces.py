@@ -7,27 +7,7 @@ import numpy as np
 import torch
 
 from scr_phybot_mjab.microspine.contact import sphere_names
-
-
-def conjugate(q):
-  return torch.cat((q[..., :1], -q[..., 1:]), dim=-1)
-
-
-def rotate(q, v):
-  v, xyz = torch.broadcast_tensors(v, q[..., 1:])
-  t = 2 * torch.cross(xyz, v, dim=-1)
-  return v + q[..., :1] * t + torch.cross(xyz, t, dim=-1)
-
-
-def multiply(a, b):
-  av, bv = torch.broadcast_tensors(a[..., 1:], b[..., 1:])
-  return torch.cat(
-    (
-      a[..., :1] * b[..., :1] - (av * bv).sum(-1, keepdim=True),
-      a[..., :1] * bv + b[..., :1] * av + torch.cross(av, bv, dim=-1),
-    ),
-    -1,
-  )
+from scr_phybot_mjab.microspine.quat import rotate
 
 
 def pad_face_vertices(model, cfg, ee, prefix="robot"):

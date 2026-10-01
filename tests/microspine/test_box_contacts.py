@@ -9,8 +9,8 @@ import torch
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
 from scr_phybot_mjab.microspine.config import MicrospineCfg
-from scr_phybot_mjab.microspine.constraint import add_attachment_equalities
 from scr_phybot_mjab.microspine.contact import pad_contact_center, pad_contact_face_centers, sphere_names
+from scr_phybot_mjab.microspine.spec import add_attachment_equalities
 from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import _SphereGeomCache
 
 

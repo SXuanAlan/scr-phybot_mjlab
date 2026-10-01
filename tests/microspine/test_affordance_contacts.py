@@ -73,10 +73,8 @@ def test_sphere_geom_ids_resolve_per_ee_in_ee_major_order():
   import mujoco
 
   from scr_phybot_mjab.microspine.config import MicrospineCfg
-  from scr_phybot_mjab.microspine.contact import (
-    add_contact_pairs,
-    resolve_sphere_geom_ids,
-  )
+  from scr_phybot_mjab.microspine.contact import resolve_sphere_geom_ids
+  from scr_phybot_mjab.microspine.spec import add_contact_pairs
 
   cfg = MicrospineCfg(
     ee_body_names=("left_paw", "right_paw"),

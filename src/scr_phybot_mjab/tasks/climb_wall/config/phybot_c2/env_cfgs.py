@@ -66,21 +66,19 @@ from scr_phybot_mjab.microspine.config import (
   MicrospineAffordanceCfg,
   MicrospineCfg,
 )
-from scr_phybot_mjab.microspine.constraint import (
-  add_attachment_equalities,
-  make_constraint_event_cfg,
-)
-from scr_phybot_mjab.microspine.contact import (
+from scr_phybot_mjab.microspine.constraint import make_constraint_event_cfg
+from scr_phybot_mjab.microspine.contact import get_sphere_geom_names
+from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
+from scr_phybot_mjab.microspine.spec import (
   ToeContact,
   add_arm_wall_contact_pairs,
+  add_attachment_equalities,
   add_contact_pairs,
   add_pad_wall_contact_excludes,
   add_toe_contact_pairs,
   add_toe_geoms,
-  get_sphere_geom_names,
   toe_geom_name,
 )
-from scr_phybot_mjab.microspine.contact_sensor import WrenchContactSensorCfg
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   MICROSPINE_AFFORDANCE_COMMAND,

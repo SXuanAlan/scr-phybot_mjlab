@@ -7,9 +7,10 @@ import numpy as np
 import pytest
 import torch
 
+from scr_phybot_mjab.microspine.anchor_loads import weld_rotational_force_to_world_moment
 from scr_phybot_mjab.microspine.config import MicrospineCfg, MicrospineSurfaceCfg
-from scr_phybot_mjab.microspine.constraint import weld_rotational_force_to_world_moment
-from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, conjugate, multiply
+from scr_phybot_mjab.microspine.quat import conjugate, multiply
+from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces
 
 
 def quat(axis, angle):

@@ -11,7 +11,7 @@ from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
 from scr_phybot_mjab.assets.brick import BrickCfg
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
-from scr_phybot_mjab.microspine.surfaces import conjugate, multiply, rotate
+from scr_phybot_mjab.microspine.quat import conjugate, multiply, rotate
 
 from .geometry import DEFAULT_UNIT_LAYOUT
 from .reference import REFERENCE_PATH, load_reference

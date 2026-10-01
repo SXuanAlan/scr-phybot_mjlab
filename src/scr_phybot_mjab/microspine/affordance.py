@@ -15,9 +15,10 @@ from scr_phybot_mjab.microspine.empirical_limit_surface import DEFAULT_TABLE
 from scr_phybot_mjab.microspine.engage_gate import SpineField, engage_frame, face_wall_cos, to_engage_frame
 from scr_phybot_mjab.microspine.hold_judge import HoldJudge, UnitVerdict
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
+from scr_phybot_mjab.microspine.quat import rotate
 from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 from scr_phybot_mjab.microspine.retraction import LatchedContactRetraction
-from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, rotate
+from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces
 from scr_phybot_mjab.microspine.wall import wall_inward_normal
 
 if TYPE_CHECKING:
