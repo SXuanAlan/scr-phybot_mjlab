@@ -14,11 +14,6 @@ Subcommands:
   ablation Disable physical grip at the same low ordinary wall friction and
            assert that the robot falls. This proves the equality anchors, not
            incidental contact friction, provide vertical support.
-  sweep    GPU-parallel limit-surface envelope scan: each env pulls one EE in
-           a different direction of the t-n / t-l planes with a per-direction
-           force ramp, recording the anchor load at forced release. Checks
-           the measured release points lie on the configured envelope and
-           optionally plots measured-vs-theory (--plot out.png).
   readout  Cross-checks the efc-row force gather against the kinematic
            anchor error (constraint force ∝ pose error) under a time-varying
            torso push.
@@ -39,7 +34,6 @@ import torch
 import warp as wp
 from mjlab.envs import ManagerBasedRlEnv
 
-from scr_phybot_mjab.microspine.wang_limit_surface import capacity_ratio
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
 )
@@ -51,15 +45,6 @@ EE_NAMES = (
   "left_foot_spine",
   "right_foot_spine",
 )
-# Deterministic target-EE envelope used by sweep (overrides the sampled DR).
-SWEEP_PARAMS = {
-  "f_t_max": 400.0,
-  "f_rev_max": 20.0,
-  "mu_adhesion": 0.4,
-  "f_n0": 15.0,
-  "mu_lateral": 0.6,
-  "f_l0": 15.0,
-}
 
 
 def build_env(
@@ -282,24 +267,17 @@ def cmd_hang(args) -> bool:
   ok &= check("nefc headroom", nefc_max + 12 <= njmax, f"nefc {nefc_max} / njmax {njmax}")
   ok &= check("finite state", bool(torch.isfinite(root_z).all().item()), "root z finite")
   print(f"  anchor support force std (per-env mean): {support_std:.3f} N")
-  # Informational: final per-EE loads in the engage frame vs the default
-  # envelope. Tension beyond the cone here means the spawn pose itself is not
-  # holdable by a realistic spine envelope (task/pose concern, not physics).
+  # Informational: final per-EE loads in the engage frame and the empirical
+  # hold margin. A negative margin here means the spawn pose itself is not
+  # holdable by the unit envelope (task/pose concern, not physics).
   t_hat, l_hat, n_hat = affordance._engage_frame()
   loads = executor.compute_anchor_loads()
   f_t = (loads * t_hat).sum(-1).mean(0)
   f_l = (loads * l_hat).sum(-1).mean(0)
   f_n = (loads * n_hat).sum(-1).mean(0)
-  ls_cfg = affordance._ls_cfg
+  margin = affordance.hold_margin.mean(0)
   for h, name in enumerate(EE_NAMES):
-    if affordance._wang_lut is not None:
-      f0_mid = 0.5 * sum(ls_cfg.f_t_max_range)
-      ratio = capacity_ratio(affordance._wang_lut, f_t[h], f_l[h], f_n[h]).clamp_min(ls_cfg.wang_r_floor)
-      load_mag = math.sqrt(f_t[h] ** 2 + f_l[h] ** 2 + max(f_n[h].item(), 0.0) ** 2)
-      cap_note = f"(load {load_mag:.1f} N vs capacity @ mid F0 ≈ {f0_mid * ratio.item():.1f} N)"
-    else:
-      cap_note = f"(tension cap @ default mid params ≈ {0.4 * max(f_t[h].item(), 0.0) + 15.0:.1f} N)"
-    print(f"  {name}: f_t={f_t[h]:.1f} N, f_l={f_l[h]:.1f} N, f_n={f_n[h]:.1f} N " + cap_note)
+    print(f"  {name}: f_t={f_t[h]:.1f} N, f_l={f_l[h]:.1f} N, f_n={f_n[h]:.1f} N (hold margin {margin[h]:+.3f})")
   env.close()
 
   return ok
@@ -322,7 +300,6 @@ def _raw_cycle_frames(data: dict) -> int:
 def _place_reference_frames(
   env: ManagerBasedRlEnv,
   frames: torch.Tensor,
-  f0: float | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
   """Place one env at each reference frame for the PD settling stress test."""
   motion = env.command_manager.get_term("climb_motion")
@@ -373,9 +350,6 @@ def _place_reference_frames(
       torch.full_like(affordance._cooldown_steps, 1_000_000),
     )
   )
-  # Use the worst configured asperity draw for a conservative stress test.
-  test_f0 = affordance._ls_cfg.f_t_max_range[0] if f0 is None else float(f0)
-  affordance.limit_f_t_max.fill_(test_f0)
 
   executor.reset(env_ids)
   executor.assert_now(env)
@@ -417,7 +391,7 @@ def cmd_reference_hold(args) -> bool:
   executor, affordance = get_terms(env)
   robot = env.scene["robot"]
   frames = torch.tensor(frames_np, dtype=torch.long, device=DEVICE)
-  scheduled, root_pos = _place_reference_frames(env, frames, f0=args.f0)
+  scheduled, root_pos = _place_reference_frames(env, frames)
   actions = hold_pose_actions(env)
 
   ever_lost = torch.zeros_like(scheduled)
@@ -447,15 +421,14 @@ def cmd_reference_hold(args) -> bool:
     if step < ramp_steps and step % 5 == 4:
       # Quasi-static approach: a real climb ARRIVES at each pose with the
       # loads already distributed — it never teleports in. Re-seat engaged
-      # anchors at the settled pads during the ramp (the sweep's
-      # preload-nulling trick): otherwise the teleported clip pose stores
-      # elastic strain (e.g. the lateral weight shift pre-stretches the far
-      # leg) that snaps one anchor mid-ramp and leaves the pad clear of the
-      # wall, unable to re-latch under a frozen PD. Every 5th step, not
-      # every step — a continuously-following anchor carries no load until
-      # the ramp ends and the whole settle then bursts out at the freeze.
-      # The full-gravity hold after the ramp runs with no re-seat and
-      # strict criteria.
+      # anchors at the settled pads during the ramp (preload nulling):
+      # otherwise the teleported clip pose stores elastic strain (e.g. the
+      # lateral weight shift pre-stretches the far leg) that snaps one anchor
+      # mid-ramp and leaves the pad clear of the wall, unable to re-latch
+      # under a frozen PD. Every 5th step, not every step — a continuously
+      # following anchor carries no load until the ramp ends and the whole
+      # settle then bursts out at the freeze. The full-gravity hold after the
+      # ramp runs with no re-seat and strict criteria.
       engaged_now = executor.engaged.unsqueeze(-1)
       executor.anchor_pos_w = torch.where(engaged_now, executor.pad_center_world(), executor.anchor_pos_w)
       executor.anchor_quat_w = torch.where(
@@ -504,7 +477,6 @@ def cmd_reference_hold(args) -> bool:
   max_live_moment = float(max_moment[scheduled].max().item())
   max_live_effective = float(max_effective[scheduled].max().item())
   root_shift = float(max_root_shift.max().item())
-  test_f0 = affordance._ls_cfg.f_t_max_range[0] if args.f0 is None else float(args.f0)
 
   ok = True
   # A teleported boundary snapshot may hold one PD-marginal latch that the
@@ -551,7 +523,7 @@ def cmd_reference_hold(args) -> bool:
   ok &= check(
     "minimum scheduled-anchor margin > 0",
     min_live_margin > 0.0,
-    f"min {min_live_margin:+.3f} at F0={test_f0:.0f} N",
+    f"min {min_live_margin:+.3f}",
   )
   ok &= check(
     "root shift < 3 cm",
@@ -621,307 +593,6 @@ def cmd_ablation(args) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# sweep
-# ---------------------------------------------------------------------------
-
-
-def _ray_components(theta: torch.Tensor, plane: str):
-  """Unit ray direction (d_t, d_l, d_n) for cos(theta)·t̂ + sin(theta)·axis."""
-  cos_t, sin_t = torch.cos(theta), torch.sin(theta)
-  zero = torch.zeros_like(theta)
-  if plane == "tn":
-    return cos_t, zero, sin_t
-  return cos_t, sin_t, zero
-
-
-def _predicted_release_radius(theta: torch.Tensor, plane: str, ls_cfg=None, lut=None) -> torch.Tensor:
-  """Smallest envelope-violating pull magnitude along ray angle theta.
-
-  Ray direction is cos(theta)·t̂ + sin(theta)·(n̂ or l̂). Returns +inf where no
-  finite pull violates (compression-dominated rays the bilateral anchor and
-  the contacts hold forever). Pass the affordance's ls_cfg and LUT for the
-  wang2017 model; without them the legacy wedge faces are used.
-  """
-  if lut is not None:
-    # Radial model: the anchor only ever carries the in-plane + tension part
-    # of the applied ray (compression sheds to the wall contacts), so release
-    # comes when r·|d⁺| crosses F0·max(R(d), r_floor). Same math as
-    # MicrospineAffordance._wang_envelope.
-    d_t, d_l, d_n = _ray_components(theta, plane)
-    ratio = capacity_ratio(lut, d_t, d_l, d_n).clamp_min(ls_cfg.wang_r_floor)
-    anchor_frac = torch.sqrt(d_t**2 + d_l**2 + d_n.clamp_min(0.0) ** 2)
-    cap = SWEEP_PARAMS["f_t_max"] * ratio
-    inf = torch.full_like(theta, float("inf"))
-    return torch.where(anchor_frac > 1e-6, cap / anchor_frac.clamp_min(1e-6), inf)
-
-  p = SWEEP_PARAMS
-  cos_t, sin_t = torch.cos(theta), torch.sin(theta)
-  inf = torch.full_like(theta, float("inf"))
-  # c1: reverse shear, f_t < -f_rev_max.
-  r1 = torch.where(cos_t < 0, p["f_rev_max"] / (-cos_t).clamp_min(1e-9), inf)
-  # c4: ultimate shear, f_t > f_t_max.
-  r4 = torch.where(cos_t > 0, p["f_t_max"] / cos_t.clamp_min(1e-9), inf)
-  if plane == "tn":
-    denom = sin_t - p["mu_adhesion"] * cos_t.clamp_min(0.0)
-    r2 = torch.where(denom > 0, p["f_n0"] / denom.clamp_min(1e-9), inf)
-  else:  # tl
-    denom = sin_t.abs() - p["mu_lateral"] * cos_t.clamp_min(0.0)
-    r2 = torch.where(denom > 0, p["f_l0"] / denom.clamp_min(1e-9), inf)
-  return torch.minimum(torch.minimum(r1, r4), r2)
-
-
-def _envelope_margin(load_tnl: torch.Tensor, ls_cfg=None, lut=None) -> torch.Tensor:
-  """Normalized min-margin of the fixed SWEEP_PARAMS envelope at given loads."""
-  f_t, f_l, f_n = load_tnl[..., 0], load_tnl[..., 1], load_tnl[..., 2]
-  if lut is not None:
-    f0 = SWEEP_PARAMS["f_t_max"]
-    ratio = capacity_ratio(lut, f_t, f_l, f_n).clamp_min(ls_cfg.wang_r_floor)
-    cap = f0 * ratio
-    load_mag = torch.sqrt(f_t**2 + f_l**2 + f_n.clamp_min(0.0) ** 2)
-    return (cap - load_mag) / (cap + ls_cfg.wang_margin_eps * f0)
-
-  p = SWEEP_PARAMS
-  ft_pos = f_t.clamp(min=0.0)
-  cap_n = p["mu_adhesion"] * ft_pos + p["f_n0"]
-  cap_l = p["mu_lateral"] * ft_pos + p["f_l0"]
-  m1 = (f_t + p["f_rev_max"]) / p["f_rev_max"]
-  m2 = (cap_n - f_n) / cap_n
-  m3 = (cap_l - f_l.abs()) / cap_l
-  m4 = (p["f_t_max"] - f_t) / p["f_t_max"]
-  return torch.minimum(torch.minimum(m1, m2), torch.minimum(m3, m4))
-
-
-def cmd_sweep(args) -> bool:
-  num_envs = args.num_envs
-  target = args.ee_index
-  print(
-    f"== sweep: {num_envs} envs, target EE {EE_NAMES[target]}, ramp {args.seconds}s ==",
-  )
-  # Weld (production) anchors by default: a connect (ball joint) lets the
-  # in-plane pull tip the pad about its anchor point, the sphere edge digs
-  # into the wall and the contact push-out reads as ~750 N phantom anchor
-  # tension — releases then land far off the envelope (measured p50 ~0.97 in
-  # connect mode vs 0.003 with weld). The weld's torque path can carry a few
-  # % of rays past the ramp end, hence the release-fraction INFO branch.
-  env = build_env(num_envs, anchor_lock_rotation=args.lock_rotation)
-  env.reset()
-  set_gravity(env, 90.0, magnitude=0.0)  # Zero gravity: pure scripted pulls.
-  executor, affordance = get_terms(env)
-  executor.assert_now(env)
-  # Envelope model under test comes from the task cfg; predictions and margin
-  # checks below follow it (wang2017 uses the affordance's own capacity LUT).
-  ls_cfg = affordance._ls_cfg
-  wang_lut = affordance._wang_lut
-  print(f"  envelope model: {ls_cfg.model}")
-  robot = env.scene["robot"]
-  actions = hold_pose_actions(env)
-
-  # All EEs unbreakable while the static preload is nulled out. Intercept-only
-  # caps — a huge mu would produce inf*0 NaNs at zero shear.
-  big = 1.0e9
-  affordance.limit_f_t_max[:] = big
-  affordance.limit_f_rev_max[:] = big
-  affordance.limit_mu_adhesion[:] = 0.0
-  affordance.limit_f_n0[:] = big
-  affordance.limit_mu_lateral[:] = 0.0
-  affordance.limit_f_l0[:] = big
-
-  # The spawn pose internally preloads the anchors (PD fights the anchored
-  # closed chain — tens of N even at zero g), which would trip the small test
-  # envelope before any scripted pull. Null it: alternately let the robot
-  # settle and re-place the anchors at the settled pad positions. The
-  # executor rewrites its cached anchor_pos_w into eq_data every step, so
-  # overriding the cache is sufficient. The clip's frame-0 RSI also spawns
-  # with the reference velocities; at zero g nothing dissipates that momentum
-  # and a small fraction of envs rings against the anchors instead of
-  # settling (~750 N residuals) — kill all momentum at the top of each round.
-  quasistatic_settle(env, executor, affordance, actions)
-  zero_qd = torch.zeros_like(robot.data.joint_vel)
-  zero_root_vel = torch.zeros(env.num_envs, 6, device=DEVICE)
-  baseline = executor.compute_anchor_loads()[:, target]
-  print(f"  residual static preload on target EE: max |F| = {baseline.norm(dim=-1).max().item():.2f} N")
-
-  # Deterministic envelope on the target EE only.
-  for key, value in SWEEP_PARAMS.items():
-    getattr(affordance, f"limit_{key}")[:, target] = value
-  others = [h for h in range(len(EE_NAMES)) if h != target]
-
-  # Engage frame of the target EE (constant: wall static, zero gravity makes
-  # the rake fall back to world -z projected onto the wall).
-  t_hat, l_hat, n_hat = affordance._engage_frame()
-  t_hat = t_hat[:, target]
-  l_hat = l_hat[:, target]
-  n_hat = n_hat[:, target]
-
-  # First half scans the t-n plane, second half t-l.
-  half = num_envs // 2
-  plane_tn = torch.arange(num_envs, device=DEVICE) < half
-  theta = torch.empty(num_envs, device=DEVICE)
-  theta[:half] = torch.linspace(-math.pi, math.pi, half + 1, device=DEVICE)[:-1]
-  theta[half:] = torch.linspace(-math.pi, math.pi, num_envs - half + 1, device=DEVICE)[:-1]
-  second_axis = torch.where(plane_tn.unsqueeze(-1), n_hat, l_hat)
-  direction = torch.cos(theta).unsqueeze(-1) * t_hat + torch.sin(theta).unsqueeze(-1) * second_axis
-
-  r_pred = torch.where(
-    plane_tn,
-    _predicted_release_radius(theta, "tn", ls_cfg, wang_lut),
-    _predicted_release_radius(theta, "tl", ls_cfg, wang_lut),
-  )
-  # Rays grazing the envelope faces (denominators → 0 near pure compression)
-  # predict astronomical release forces; cap those ramps instead. A capped
-  # (compression-dominated) ray may legitimately still release: pressing the
-  # pad hard through a bent limb builds secondary shear/lateral load that
-  # genuinely crosses the envelope — the assertion below therefore only
-  # requires that *whatever releases does so on the envelope*.
-  finite = r_pred < 1.5 * SWEEP_PARAMS["f_t_max"]
-  # Per-direction ramp rate: release ~mid-ramp for finite predictions; cap
-  # no-release rays at a force that proves they hold.
-  steps = int(args.seconds / env.step_dt)
-  rate = torch.where(finite, 2.2 * r_pred / args.seconds, 1.5 * SWEEP_PARAMS["f_t_max"] / args.seconds)
-
-  spine_ids, _ = robot.find_bodies([EE_NAMES[target]])
-  released = torch.zeros(num_envs, dtype=torch.bool, device=DEVICE)
-  load_at_release = torch.zeros(num_envs, 3, device=DEVICE)
-  zero_torque = torch.zeros(num_envs, 1, 3, device=DEVICE)
-  # Rolling last-3-step loads for spike-robust release recording: pad-wall
-  # contact churn at the creeping margin boundary occasionally emits a
-  # one-step ~700 N equality-force transient (the bilateral anchor countering
-  # a contact-penetration correction impulse). The debounce ignores isolated
-  # spikes, but a spike adjacent to a genuine boundary crossing completes the
-  # 2-step violation window and would be recorded as the release load. The
-  # per-component median over the last 3 steps recovers the true crossing.
-  load_hist = torch.zeros(3, num_envs, 3, device=DEVICE)
-
-  corrupted = torch.zeros(num_envs, dtype=torch.bool, device=DEVICE)
-  for step in range(steps):
-    # Quasistatic ramp: kill all momentum every step (overdamped limit). At
-    # zero g the limb + PD + pad contacts ring under the force ramp; the
-    # anchor-load direction then oscillates and, with the closed
-    # direction-sensitive surface, the 2-step violation debounce never sees
-    # two consecutive violating samples until the swing is enormous —
-    # releases land hundreds of N past the boundary. The anchor load is
-    # position-error based, so zeroed velocities do not distort the readout.
-    robot.write_root_link_velocity_to_sim(zero_root_vel)
-    robot.write_joint_velocity_to_sim(zero_qd)
-    # A mid-test env reset (e.g. violent post-release limb motion tripping
-    # bad_state) resamples the DR params; pin the test envelope every step
-    # and exclude envs that reset before their release from the stats.
-    for key, value in SWEEP_PARAMS.items():
-      getattr(affordance, f"limit_{key}")[:, target] = value
-    magnitude = rate * (step + 1) * env.step_dt
-    force = torch.where(released.unsqueeze(-1), torch.zeros_like(direction), magnitude.unsqueeze(-1) * direction)
-    robot.write_external_wrench_to_sim(forces=force.unsqueeze(1), torques=zero_torque, body_ids=spine_ids)
-    _, _, terminated, truncated, _ = env.step(actions)
-    corrupted |= (terminated | truncated) & ~released
-    load_hist = torch.roll(load_hist, 1, dims=0)
-    load_hist[0] = affordance.anchor_load_tnl[:, target]
-    newly = affordance.forced_release_this_step[:, target] & ~released & ~corrupted
-    load_at_release = torch.where(newly.unsqueeze(-1), load_hist.median(dim=0).values, load_at_release)
-    released |= newly
-
-  # --- evaluation ---
-  ok = True
-  valid = ~corrupted
-  print(f"  excluded (reset before release): {int(corrupted.sum())} envs")
-  others_held = bool(affordance.engaged[valid][:, others].all().item())
-  ok &= check("non-target EEs held", others_held, "no spurious releases")
-
-  finite_release_frac = released[finite & valid].float().mean().item()
-  if args.lock_rotation:
-    # Weld adds a torque path that legitimately carries a few % of rays past
-    # the ramp end (see cmd_sweep docstring). The envelope-geometry check below
-    # is anchor-type independent and is the real assertion, so report the
-    # release fraction here without failing on it.
-    print(f"  [INFO] finite-prediction rays released (weld): {100 * finite_release_frac:.1f}%")
-  else:
-    ok &= check(
-      "finite-prediction rays released",
-      finite_release_frac > 0.98,
-      f"{100 * finite_release_frac:.1f}%",
-    )
-  capped = ~finite & valid
-  print(
-    f"  capped (compression-dominated) rays: {int(capped.sum())}, "
-    f"of which released on secondary load: {int(released[capped].sum())}"
-  )
-
-  hit = released & valid
-  # Margin statistics cover only rays whose applied load the anchor carries
-  # in full: the tension half of the t-n plane plus the whole in-plane t-l
-  # scan. Compression-side rays share load with the ordinary pad contacts
-  # (the paper's eq-13 decomposition realized physically): the anchor picks
-  # tangential load up through contact stick-slip jumps, so their release
-  # points overshoot the anchor-only envelope by construction. They are
-  # still asserted to release (above) and reported informationally.
-  anchor_full = (~plane_tn) | (torch.sin(theta) >= 0.0)
-  scored = hit & anchor_full
-  margin = _envelope_margin(load_at_release[scored], ls_cfg, wang_lut)
-  abs_margin = margin.abs()
-  p50 = abs_margin.quantile(0.5).item()
-  p90 = abs_margin.quantile(0.9).item()
-  ok &= check("release on envelope (|margin| p50 < 0.10)", p50 < 0.10, f"p50 {p50:.3f}")
-  ok &= check("release on envelope (|margin| p90 < 0.20)", p90 < 0.20, f"p90 {p90:.3f}")
-  comp_hit = hit & ~anchor_full
-  if bool(comp_hit.any()):
-    m_comp = _envelope_margin(load_at_release[comp_hit], ls_cfg, wang_lut)
-    print(
-      f"  compression-side releases (info, contact-assisted): "
-      f"{int(comp_hit.sum())}, |margin| p50 {m_comp.abs().quantile(0.5):.3f}"
-    )
-
-  if args.plot:
-    try:
-      import matplotlib
-
-      matplotlib.use("Agg")
-      import matplotlib.pyplot as plt
-      import numpy as np
-
-      p = SWEEP_PARAMS
-      fig, axes = plt.subplots(1, 2, figsize=(13, 6))
-      for ax, plane, mask, ylab, col in (
-        (axes[0], "tn", hit & plane_tn, "f_n [N] (tension +)", 2),
-        (axes[1], "tl", hit & ~plane_tn, "f_l [N]", 1),
-      ):
-        pts = load_at_release[mask].cpu().numpy()
-        ax.scatter(pts[:, 0], pts[:, col], s=8, label="measured release")
-        if wang_lut is not None:
-          # Closed-surface boundary: the anchor-side release radius along a
-          # dense fan of ray angles, same math as the release check.
-          th = torch.linspace(-math.pi, math.pi, 721, device=DEVICE)
-          rb = _predicted_release_radius(th, plane, ls_cfg, wang_lut)
-          keep = torch.isfinite(rb) & (rb < 1.5 * p["f_t_max"])
-          bx = (rb * torch.cos(th))[keep].cpu().numpy()
-          by = (rb * torch.sin(th))[keep].cpu().numpy()
-          ax.plot(bx, by, "r.", markersize=2, label="wang2017 surface")
-        else:
-          ft = np.linspace(-p["f_rev_max"] * 1.2, p["f_t_max"] * 1.05, 200)
-          if plane == "tn":
-            cap = p["mu_adhesion"] * np.clip(ft, 0, None) + p["f_n0"]
-            ax.plot(ft, cap, "r-", label="tension cone")
-          else:
-            cap = p["mu_lateral"] * np.clip(ft, 0, None) + p["f_l0"]
-            ax.plot(ft, cap, "r-", label="lateral cone")
-            ax.plot(ft, -cap, "r-")
-          ax.axvline(-p["f_rev_max"], color="orange", label="reverse limit")
-          ax.axvline(p["f_t_max"], color="purple", label="ultimate shear")
-        ax.set_xlabel("f_t [N] (engage shear +)")
-        ax.set_ylabel(ylab)
-        ax.set_title(f"{plane} plane")
-        ax.legend(fontsize=8)
-        ax.grid(alpha=0.3)
-      fig.suptitle(f"Microspine limit-surface sweep — {EE_NAMES[target]}")
-      fig.tight_layout()
-      fig.savefig(args.plot, dpi=130)
-      print(f"  plot saved to {args.plot}")
-    except ImportError:
-      print("  matplotlib not available; skipping plot")
-
-  env.close()
-  return ok
-
-
-# ---------------------------------------------------------------------------
 # readout
 # ---------------------------------------------------------------------------
 
@@ -930,9 +601,9 @@ def cmd_readout(args) -> bool:
   print(f"== readout: {args.num_envs} envs, efc gather vs kinematic error ==")
   # Re-grip off: this test regresses load against anchor error, and grace-
   # window reseating decouples the two by design (the anchor follows the pad).
-  # Hold checks off too: the closed wang2017 surface releases anchors under
-  # the torso-push loads (the open wedge rarely did), zeroing the loads
-  # mid-regression — this test studies the raw efc gather, not the envelope.
+  # Hold checks off too: the envelope may release anchors under the
+  # torso-push loads, zeroing the loads mid-regression — this test studies
+  # the raw efc gather, not the envelope.
   env = build_env(
     args.num_envs,
     limit_surface_enable=False,
@@ -1026,135 +697,6 @@ def cmd_readout(args) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# dynamic  (debounce / grace tolerance under fast, non-quasistatic loads)
-# ---------------------------------------------------------------------------
-
-
-def _dynamic_settle(env, executor, affordance, target, actions):
-  """Reset, zero gravity, pin the test envelope, null the spawn preload, and
-  leave the target EE engaged and well past the grace window."""
-  env.reset()
-  set_gravity(env, 90.0, magnitude=0.0)
-  executor.assert_now(env)
-  for key, value in SWEEP_PARAMS.items():
-    getattr(affordance, f"limit_{key}")[:, target] = value
-  # Same preload-nulling trick as cmd_sweep: settle, then re-seat the anchors
-  # at the settled pad so the closed-chain PD preload does not pre-trip the
-  # small test envelope.
-  for _ in range(8):
-    for _ in range(10):
-      env.step(actions)
-    executor.anchor_pos_w = executor.pad_center_world().clone()
-  for _ in range(20):
-    env.step(actions)
-
-
-def cmd_dynamic(args) -> bool:
-  """Probe the release debounce/grace under fast (non-quasistatic) loads.
-
-  cmd_sweep validates the envelope quasi-statically (release lands on the
-  boundary). This probes the *dynamic* behavior the debounce introduces:
-    A. a sustained step overload must still release (after the debounce count);
-    B. a load that flips outside/inside every step can evade release entirely
-       — the F5 exploit surface. Both live in the affordance debounce, so they
-       are anchor-type independent; connect is the clean default.
-  """
-  target = args.ee_index
-  env = build_env(args.num_envs, anchor_lock_rotation=args.lock_rotation)
-  executor, affordance = get_terms(env)
-  robot = env.scene["robot"]
-  actions = hold_pose_actions(env)
-  spine_ids, _ = robot.find_bodies([EE_NAMES[target]])
-  zero_torque = torch.zeros(args.num_envs, 1, 3, device=DEVICE)
-
-  if args.violation_steps is not None:
-    affordance._ls_cfg.violation_consecutive_steps = args.violation_steps
-  vsteps = max(1, affordance._ls_cfg.violation_consecutive_steps)
-  mode = "weld" if args.lock_rotation else "connect"
-  print(f"== dynamic: {args.num_envs} envs, target {EE_NAMES[target]}, {mode}, violation_consecutive_steps={vsteps} ==")
-
-  def pull(mag_vec):
-    force = torch.zeros(args.num_envs, 1, 3, device=DEVICE)
-    force[:, 0, :] = mag_vec
-    robot.write_external_wrench_to_sim(forces=force, torques=zero_torque, body_ids=spine_ids)
-    env.step(actions)
-
-  # Pure pull-off (t-n plane, 90°): crosses the tension face at f_n0, a
-  # debounced (soft) condition — exactly what the oscillation probes.
-  _dynamic_settle(env, executor, affordance, target, actions)
-  _, _, n_hat = affordance._engage_frame()
-  n_hat = n_hat[:, target]
-  r_cross = SWEEP_PARAMS["f_n0"]
-  hi, lo = 1.8 * r_cross, 0.4 * r_cross
-
-  # --- A: sustained step overload (constant, clearly outside) ---
-  base_engaged = affordance.engaged[:, target].clone()
-  steps_to_rel = torch.full((args.num_envs,), -1, dtype=torch.long, device=DEVICE)
-  for s in range(12):
-    pull(hi * n_hat)
-    newly = affordance.forced_release_this_step[:, target] & (steps_to_rel < 0)
-    steps_to_rel = torch.where(newly, torch.full_like(steps_to_rel, s + 1), steps_to_rel)
-  rel_mask = (steps_to_rel >= 0) & base_engaged
-  frac_rel_A = rel_mask.float().mean().item()
-  lat = steps_to_rel[rel_mask]
-  med_lat = int(lat.median().item()) if lat.numel() else -1
-
-  # --- B: oscillation evasion (1 step outside, 1 step inside) ---
-  _dynamic_settle(env, executor, affordance, target, actions)
-  b_steps = 40
-  ever_released = torch.zeros(args.num_envs, dtype=torch.bool, device=DEVICE)
-  outside = torch.zeros(args.num_envs, device=DEVICE)
-  for s in range(b_steps):
-    pull((hi if s % 2 == 0 else lo) * n_hat)
-    ever_released |= affordance.forced_release_this_step[:, target]
-    outside += (affordance.hold_margin[:, target] < 0).float()
-  frac_evaded = (~ever_released).float().mean().item()
-  frac_outside = (outside / b_steps).mean().item()
-
-  # --- C: isolated overload spike, average load INSIDE the envelope ---
-  # The tightest debounce-evasion probe: one outside spike every spike_period
-  # steps, deep-inside otherwise, so the *mean* load sits inside the cone —
-  # the pattern a policy would need to "ride" the debounce and hold an
-  # effectively-outside load without ever tripping the consecutive count.
-  _dynamic_settle(env, executor, affordance, target, actions)
-  spike_period, c_steps, deep_lo = 4, 48, 0.1 * r_cross
-  avg_load = (hi + (spike_period - 1) * deep_lo) / spike_period
-  ever_released_c = torch.zeros(args.num_envs, dtype=torch.bool, device=DEVICE)
-  outside_c = torch.zeros(args.num_envs, device=DEVICE)
-  for s in range(c_steps):
-    pull((hi if s % spike_period == 0 else deep_lo) * n_hat)
-    ever_released_c |= affordance.forced_release_this_step[:, target]
-    outside_c += (affordance.hold_margin[:, target] < 0).float()
-  frac_evaded_c = (~ever_released_c).float().mean().item()
-  frac_outside_c = (outside_c / c_steps).mean().item()
-  env.close()
-
-  print(f"  [A] sustained 1.8x pull-off: released {100 * frac_rel_A:.1f}%, median steps-to-release = {med_lat}")
-  print(
-    f"  [B] oscillation 1-out/1-in: evaded release {100 * frac_evaded:.1f}%, "
-    f"mean time spent outside envelope {100 * frac_outside:.0f}%"
-  )
-  print(
-    f"  [C] isolated spike (avg load {avg_load / r_cross:.2f}x cap, INSIDE): "
-    f"evaded release {100 * frac_evaded_c:.1f}%, "
-    f"outside {100 * frac_outside_c:.0f}% of steps"
-  )
-  ok = True
-  ok &= check("sustained overload releases", frac_rel_A > 0.95, f"{100 * frac_rel_A:.1f}%")
-  ok &= check(
-    "release latency within debounce+lag",
-    1 <= med_lat <= vsteps + 2,
-    f"{med_lat} steps (debounce={vsteps})",
-  )
-  print(
-    f"  -> F5: at vsteps={vsteps}, an oscillating load rode "
-    f"{100 * frac_outside:.0f}% of steps outside the envelope while "
-    f"{100 * frac_evaded:.0f}% of envs never released."
-  )
-  return ok
-
-
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:
@@ -1191,57 +733,22 @@ def main() -> None:
     default=1,
     help="sample every Nth cycle frame; segment boundaries are always included",
   )
-  p_reference.add_argument(
-    "--f0",
-    type=float,
-    default=None,
-    help="fixed pad F0 for the audit (default: configured lower bound)",
-  )
 
   p_ablation = sub.add_parser("ablation")
   p_ablation.add_argument("--num-envs", type=int, default=16)
   p_ablation.add_argument("--seconds", type=float, default=1.0)
   p_ablation.add_argument("--minimum-drop", type=float, default=0.25)
 
-  p_sweep = sub.add_parser("sweep")
-  p_sweep.add_argument("--num-envs", type=int, default=1024)
-  p_sweep.add_argument("--seconds", type=float, default=6.0)
-  p_sweep.add_argument("--ee-index", type=int, default=2, choices=range(4))
-  p_sweep.add_argument("--plot", type=str, default="")
-  p_sweep.add_argument(
-    "--lock-rotation",
-    action=argparse.BooleanOptionalAction,
-    default=True,
-    help="Weld anchors (production path, default). --no-lock-rotation pins "
-    "the legacy pure-force connect anchor: under an in-plane pull a connect "
-    "(ball joint) lets the pad tip about its anchor, the sphere edge digs "
-    "into the wall and the contact push-out reads as ~750 N phantom anchor "
-    "tension — measured releases then land far off the envelope.",
-  )
-
   p_read = sub.add_parser("readout")
   p_read.add_argument("--num-envs", type=int, default=8)
   p_read.add_argument("--seconds", type=float, default=10.0)
-
-  p_dyn = sub.add_parser("dynamic")
-  p_dyn.add_argument("--num-envs", type=int, default=512)
-  p_dyn.add_argument("--ee-index", type=int, default=2, choices=range(4))
-  p_dyn.add_argument("--lock-rotation", action="store_true")
-  p_dyn.add_argument(
-    "--violation-steps",
-    type=int,
-    default=None,
-    help="Override MicrospineLimitSurfaceCfg.violation_consecutive_steps.",
-  )
 
   args = parser.parse_args()
   ok = {
     "hang": cmd_hang,
     "reference-hold": cmd_reference_hold,
     "ablation": cmd_ablation,
-    "sweep": cmd_sweep,
     "readout": cmd_readout,
-    "dynamic": cmd_dynamic,
   }[args.cmd](args)
   print("OVERALL:", "PASS" if ok else "FAIL")
   sys.exit(0 if ok else 1)

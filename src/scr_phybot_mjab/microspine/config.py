@@ -14,47 +14,27 @@ class MicrospineLimitSurfaceCfg:
   """Spine limit-surface (hold envelope) parameters.
 
   The anchor load is decomposed in the engage frame (t̂ = rake/engage
-  direction down the wall, l̂ = lateral, n̂ = outward wall normal). Three hold
-  envelopes are available via ``model``:
+  direction down the wall, l̂ = lateral, n̂ = outward wall normal), the pad
+  wrench is distributed onto the active units, and each unit is judged by
+  the ``"empirical_unit"`` model: a conditional inverse CDF fitted to
+  single-unit bench observations supplies the unit's normal-load threshold
+  at its current shear/lateral load. Two independent quantiles per unit are
+  held for an entire engagement: strength and early loading failure. Unit
+  independence, cross-direction rank coupling and first-unit pad release
+  are unvalidated array assumptions.
 
-  ``"wedge"`` (legacy piecewise-linear cone): an engaged spine HOLDs iff
-
-    1. f_t >= -f_rev_max                       (small reverse-shear tolerance)
-    2. f_n <= mu_adhesion * max(f_t, 0) + f_n0 (tension grows with engaged shear)
-    3. |f_l| <= mu_lateral * max(f_t, 0) + f_l0
-    4. f_t <= f_t_max                          (ultimate asperity/spine strength)
-
-  ``"wang2017"`` (closed 3D surface, Wang/Jiang/Cutkosky IJRR 2017 eqs 1-4,
-  9-12; see scr_phybot_mjab/microspine/wang_limit_surface.py): HOLD iff the
-  load magnitude stays inside the direction-dependent capacity
-
-    |(f_t, f_l, max(f_n, 0))| <= F0 * max(R(theta, phi), r_floor)
-
-  where F0 is sampled from ``f_t_max_range`` (F0 = pure rake-shear capacity)
-  and R is the normalized closed surface: tension capacity exists only with
-  simultaneous engaged shear and the forward lobe closes at the origin, pure
-  lateral holds ~0.57 F0, against-rake ~0.04 F0. The other wedge ranges are
-  ignored in this mode. Compression is judged at phi = 0; pressing in rides
-  the ordinary sphere-wall contacts (the paper's Sec 3.4 friction extension).
-
-  ``"empirical_unit"``: a conditional inverse CDF fitted to single-unit bench
-  observations supplies each unit's normal-load threshold at its current
-  shear/lateral load. Two independent quantiles per unit are held for an
-  entire engagement: strength and early loading failure. Unit independence,
-  cross-direction rank coupling and first-unit pad release are unvalidated
-  array assumptions. No legacy capacity multipliers or uniform ranges apply.
-
-  In legacy modes, ``*_range`` fields are per-env uniform sampling bounds
-  drawn at reset. Wedge ranges map 1:1 to bench pull-off tests
-  (fit script in tag archive/pre-cleanup-2026-09); the wang2017 shape parameters are fit to
-  the paper's Fig 8 anchors (scripts/plot_wang_limit_surface.py).
+  The wedge ranges (``f_rev_max_range`` ... ``f_l0_range``), the ``wang_*``
+  shape parameters and ``f_t_max_range`` are not read by the simulation.
+  The Wang-2017 parameters feed the analytic comparison figures
+  (``tools/microspine/wang_limit_surface.py``); the retired wedge/Wang/spring
+  runtime backends live in tag archive/pre-cleanup-2026-09.
   """
 
   enable: bool = True
   """Evaluate the hold envelope. False keeps engaged spines latched forever."""
 
-  model: str = "wedge"
-  """Hold-envelope model: "wedge", "wang2017", or "empirical_unit"."""
+  model: str = "empirical_unit"
+  """Hold-envelope model. "empirical_unit" is the only supported value."""
 
   empirical_table_path: str | None = None
   """Single-unit conditional inverse-CDF NPZ. None selects the packaged table.
@@ -62,13 +42,11 @@ class MicrospineLimitSurfaceCfg:
   billing, disables seat/ramp/ticket capacity multipliers, and samples two
   persistent per-unit variates at reset and each new engagement."""
 
-  rake_mode: str = "gravity"
-  """Engage direction source: "gravity" (gravity projected onto the wall) or
-  "ee_local" (EE-local axis projected onto the wall). "ee_local" is the
-  physical model — spines rake along a pad-fixed direction, so capacity
-  follows the pad orientation and a yawed pad pays for it (under "gravity"
-  the envelope is blind to pad yaw: measured trained-policy rollouts latched
-  hands 30-60 deg off-rake at full capacity)."""
+  rake_mode: str = "ee_local"
+  """Engage direction source: "ee_local" (EE-local axis projected onto the
+  wall) is the only supported value. Spines rake along a pad-fixed
+  direction, so capacity follows the pad orientation and a yawed pad pays
+  for it."""
 
   ee_rake_local_axis: tuple[float, float, float] = (0.0, 0.0, -1.0)
   """EE-local rake axis used when ``rake_mode == "ee_local"``."""
@@ -159,7 +137,7 @@ class MicrospineLimitSurfaceCfg:
   a just-latched pad is real but weak (Wang 2017: capacity is the sum of
   CAUGHT spines, and catching continues through the loading phase)."""
 
-  capacity_ramp_time_s: float = 0.25
+  capacity_ramp_time_s: float = 0.0
   """Rake-shear-loaded seconds to full capacity. Recruitment progresses only
   while the anchor carries rake shear (>= ``capacity_ramp_shear_n``):
   dragging the loaded array down its asperities seats more spines (the
@@ -195,20 +173,9 @@ class MicrospineLimitSurfaceCfg:
   its tension-side edge exhausts the same load budget as the rest of the
   array. ``moment_billing_mode`` selects how the billing is computed."""
 
-  moment_billing_mode: str = "worst_edge"
-  """How weld moments reach the hold envelope. Empirical mode requires
-  per_unit; wang2017 permits either option; wedge uses the legacy fold.
-
-  "worst_edge" (legacy): fold moments into effective PAD-scale loads
-
-    f_n_eff = f_n + |M_l|/arm_rake + |M_t|/arm_lateral
-    f_l_eff = |f_l| + |M_n|/arm_rake
-    arm_*    = moment_arm_fraction * pad_span_*
-
-  and judge one aggregate radial test. Exact only for a two-row point pad
-  (arm = span/2) with worst-aligned moment signs; ignores that a spread
-  array concentrates bending load on its edge units (see
-  ``moment_arm_fraction``).
+  moment_billing_mode: str = "per_unit"
+  """How weld moments reach the hold envelope; "per_unit" is the only
+  supported value.
 
   "per_unit" (paper-faithful): distribute the full 6D pad wrench onto a
   ``unit_rows_rake`` x ``unit_cols_lateral`` grid of spine units spanning
@@ -262,7 +229,7 @@ class MicrospineLimitSurfaceCfg:
   sets this); a continuous elastic patch suggests ~1/6. Refit from pry/yaw
   bench pulls once hardware data exists."""
 
-  redraw_f_t_max_per_latch: bool = True
+  redraw_f_t_max_per_latch: bool = False
   """Resample F0 from ``f_t_max_range`` at every engage transition. Each
   grip lands on different asperities — capacity is a per-GRIP lottery
   (paper Fig 6), not a per-episode trait the policy can memorize. The
@@ -583,7 +550,7 @@ class MicrospineCfg:
   dragged down their rake under contact, not when pressed (Wang 2017
   Sec 2)."""
 
-  seat_quality_scales_capacity: bool = True
+  seat_quality_scales_capacity: bool = False
   """Scale the wang2017 hold capacity F0 by the engaged spine fraction
   captured at the latch step. Wang et al. 2017 Sec 2.4: pad capacity is the
   sum of per-spine contributions, so a half-seated pad holds half the load.

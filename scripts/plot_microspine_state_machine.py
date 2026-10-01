@@ -11,10 +11,12 @@ column, Helvetica-metric sans, 5-8 pt type, vector output):
      the radial release test
   D  the multiplicative capacity chain F0 x seat quality x recruitment ramp
 
-Panels B-D are evaluated from the *live* model code
-(``scr_phybot_mjab.microspine``), so the figure cannot drift from the
-simulation; panel A's constants are read from ``MicrospineCfg`` /
-``MicrospineLimitSurfaceCfg`` with the climb task's overrides applied.
+The figure depicts the retired Wang-2017 hold envelope with seat scaling and
+the recruitment ramp, not the empirical unit model the simulation now uses.
+Panels B-D evaluate the analytic surface in
+``tools/microspine/wang_limit_surface.py``; panel A's constants are read from
+``MicrospineCfg`` / ``MicrospineLimitSurfaceCfg`` with the Wang-era climb
+overrides pinned in ``climb_configs``.
 
 Run inside the env_mjlab environment:
   python scripts/plot_microspine_state_machine.py --out docs/figures/microspine_state_machine
@@ -40,7 +42,7 @@ from scr_phybot_mjab.microspine.config import (  # noqa: E402
   MicrospineCfg,
   MicrospineLimitSurfaceCfg,
 )
-from scr_phybot_mjab.microspine.wang_limit_surface import (  # noqa: E402
+from scr_phybot_mjab.tools.microspine.wang_limit_surface import (  # noqa: E402
   build_capacity_lut,
   capacity_ratio,
 )
@@ -121,6 +123,7 @@ def climb_configs() -> tuple[MicrospineCfg, MicrospineLimitSurfaceCfg]:
     rake_mode="ee_local",
     model="wang2017",
     f_t_max_range=(400.0, 650.0),
+    capacity_ramp_time_s=0.25,
   )
   mcfg.limit_surface = ls
   return mcfg, ls

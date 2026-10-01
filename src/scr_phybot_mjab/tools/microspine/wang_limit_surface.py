@@ -1,5 +1,9 @@
 """Closed 3D microspine limit surface after Wang, Jiang & Cutkosky (IJRR 2017).
 
+Analysis only: the simulation judges holds with the empirical unit model
+(``microspine/empirical_limit_surface.py``); this module feeds the Wang
+comparison figures.
+
 Reference: "Design and modeling of linearly-constrained compliant spines for
 human-scale locomotion on rocky surfaces" (docs/wang-et-al-2017-*.pdf),
 Sections 2.2-3.2 (eqs 1-4, 9-12). The model predicts the adhesion capacity of
@@ -17,8 +21,8 @@ normal, matching ``MicrospineAffordance._engage_frame``):
   phi   = atan2(max(f_n,0), |f_in-plane|)   elevation toward tension, 0..90 deg
 
 Capacity along that direction is ``F0 * max(R(theta, phi), r_floor)`` with F0
-the pure-rake-shear capacity (per-env DR sample) and R the normalized surface
-value tabulated here. Compression (f_n < 0) is clamped out of phi: pressing in
+the pure-rake-shear capacity and R the normalized surface value tabulated
+here. Compression (f_n < 0) is clamped out of phi: pressing in
 is carried by the ordinary sphere-wall contacts, whose friction realizes the
 paper's Sec 3.4 substrate-friction extension (eq 13-14) physically.
 
@@ -52,7 +56,7 @@ Default parameters are fit to the paper's single-tile 3D surface (Fig 8),
 normalized anchors: peak tension ratio ~0.12 at ~15 deg elevation (paper
 ~0.14 @ ~16 deg), pure lateral 0.57 (~0.56), pure reverse 0.043 (~0.05),
 forward lobe closing near 30 deg (~35-40 deg), azimuth profile smooth
-(max grid step < 0.01, no knife edges for the release check to chatter on).
+(max grid step < 0.01).
 ``scripts/plot_wang_limit_surface.py`` regenerates these numbers and the
 cross-section figure.
 """

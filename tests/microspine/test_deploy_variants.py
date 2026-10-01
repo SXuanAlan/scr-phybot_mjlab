@@ -107,7 +107,6 @@ def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
     grip_enabled=True,
     reengage_cooldown_steps=cooldown,
     dr_reseat_hold_timeout_steps=75,
-    spring_field_enabled=False,
   )
   aff._num_ee = num_ee
   aff._env = SimpleNamespace(device="cpu")  # backs the read-only .device
@@ -123,8 +122,6 @@ def _make_affordance_stub(num_envs=2, num_ee=4, cooldown=10):
   aff.released_was_seeded = torch.zeros(shape, dtype=torch.bool)
   aff.dr_release_pending = torch.zeros(shape, dtype=torch.bool)
   aff._reseat_hold_steps = torch.zeros(num_envs, dtype=torch.long)
-  aff._seat_scale = torch.full(shape, 0.5)
-  aff._seat_charge = torch.full(shape, 0.3)
   aff.sync_calls = 0
 
   def _sync():
@@ -151,25 +148,9 @@ def test_force_release_mirrors_real_disengage():
   assert bool(aff.forced_release_this_step[0, 3])  # OR semantics
   assert int(aff.release_reason[0, 1]) == RELEASE_REASON_DR_FORCED
   assert int(aff.release_reason[0, 3]) == 2  # untouched
-  assert float(aff._seat_scale[0, 1]) == 1.0
-  assert float(aff._seat_charge[0, 1]) == 0.0
   # Env 1 untouched.
   assert bool(aff._engaged[1].all())
   assert aff.sync_calls == 1
-
-
-def test_seat_charge_fraction_property():
-  # v60: the public charge readout behind the first_charge rung.
-  aff = _make_affordance_stub()
-  aff._ls_cfg = SimpleNamespace(capacity_ramp_time_s=0.25)
-  # The stub's 0.3 s of shear-loaded time overfills the 0.25 s ramp ->
-  # clamped mature, never >1.
-  assert bool((aff.seat_charge_fraction == 1.0).all())
-  aff._seat_charge = torch.full((2, 4), 0.1)
-  assert float(aff.seat_charge_fraction[0, 0]) == pytest.approx(0.4)
-  # Ramp disabled -> every grip mature by definition.
-  aff._ls_cfg = SimpleNamespace(capacity_ramp_time_s=0.0)
-  assert bool((aff.seat_charge_fraction == 1.0).all())
 
 
 def test_force_release_report_false_stays_silent():

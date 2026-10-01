@@ -17,14 +17,7 @@ from scr_phybot_mjab.microspine.empirical_limit_surface import (
 )
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
 from scr_phybot_mjab.microspine.surfaces import MicrospineSurfaces, pad_face_vertices, rotate
-from scr_phybot_mjab.microspine.wang_limit_surface import (
-  build_capacity_lut,
-  capacity_ratio,
-)
-from scr_phybot_mjab.microspine.wrench import (
-  distribute_wrench_to_units,
-  distribute_wrench_to_units_weighted,
-)
+from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -46,28 +39,6 @@ def _quat_rotate(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
   ry = vy + w * ty + (z * tx - x * tz)
   rz = vz + w * tz + (x * ty - y * tx)
   return torch.stack([rx, ry, rz], dim=-1)
-
-
-def moment_adjusted_loads(
-  f_t: torch.Tensor,
-  f_l: torch.Tensor,
-  f_n: torch.Tensor,
-  m_t: torch.Tensor,
-  m_l: torch.Tensor,
-  m_n: torch.Tensor,
-  *,
-  pad_span_rake_m: float,
-  pad_span_lateral_m: float,
-  moment_arm_fraction: float,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-  """Fold pad moments into the worst-edge force seen by the hold envelope."""
-  arm_rake = float(pad_span_rake_m) * float(moment_arm_fraction)
-  arm_lateral = float(pad_span_lateral_m) * float(moment_arm_fraction)
-  if arm_rake <= 0.0 or arm_lateral <= 0.0:
-    raise ValueError(f"Microspine moment arms must be positive; got rake={arm_rake:g} m, lateral={arm_lateral:g} m.")
-  f_n_eff = f_n + m_l.abs() / arm_rake + m_t.abs() / arm_lateral
-  f_l_eff = f_l.abs() + m_n.abs() / arm_rake
-  return f_t, f_l_eff, f_n_eff
 
 
 class MicrospineAffordance(CommandTerm):
@@ -129,22 +100,11 @@ class MicrospineAffordance(CommandTerm):
 
     # --- limit-surface state ---------------------------------------------
     # The hold envelope releases an engaged spine when its anchor load leaves
-    # the configured envelope. Legacy parameters use uniform reset ranges;
-    # empirical capacity uses persistent per-unit draws from the bench CDF.
+    # the envelope. Capacity uses persistent per-unit draws from the bench CDF.
     self._ls_cfg = self._mcfg.limit_surface
-    if self._ls_cfg.model not in ("wedge", "wang2017", "empirical_unit"):
-      raise ValueError(
-        f"Unknown limit-surface model '{self._ls_cfg.model}' (expected 'wedge', 'wang2017', or 'empirical_unit')."
-      )
-    # Normalized closed capacity surface R(theta, phi), built once. None in
-    # legacy wedge mode.
-    self._wang_lut = build_capacity_lut(self._ls_cfg, self.device) if self._ls_cfg.model == "wang2017" else None
-    self._empirical = (
-      EmpiricalLimitSurface(self._ls_cfg.empirical_table_path or DEFAULT_TABLE, self.device)
-      if self._ls_cfg.model == "empirical_unit"
-      else None
-    )
-    if self._empirical is not None and (
+    if self._ls_cfg.model != "empirical_unit":
+      raise ValueError(f"Unknown limit-surface model '{self._ls_cfg.model}' (only 'empirical_unit' is supported).")
+    if (
       self._ls_cfg.moment_billing_mode != "per_unit"
       or self._ls_cfg.rake_mode != "ee_local"
       or tuple(self._ls_cfg.ee_rake_local_axis) != (0.0, 0.0, -1.0)
@@ -155,12 +115,11 @@ class MicrospineAffordance(CommandTerm):
       or self._ls_cfg.redraw_f_t_max_per_latch
     ):
       raise ValueError(
-        "empirical_unit requires per_unit billing, ee_local rake -z, "
-        "pad face -y, and no legacy "
-        "spring tickets, seat scaling, capacity ramp or F0 redraw"
+        "empirical_unit requires per_unit billing, ee_local rake -z, pad face -y, and no spring field, "
+        "seat scaling, capacity ramp or F0 redraw"
       )
+    self._empirical = EmpiricalLimitSurface(self._ls_cfg.empirical_table_path or DEFAULT_TABLE, self.device)
     self._executor = None
-    self._gravity_view: torch.Tensor | None = None
     # Sensor-row permutation: ContactSensor expands its primary pattern via
     # find_geoms, which returns MODEL order (kinematic tree: feet before
     # hands), NOT the pattern order this affordance's EE-major slicing
@@ -170,12 +129,6 @@ class MicrospineAffordance(CommandTerm):
     # wrong limb.
     self._sensor_row_perm: torch.Tensor | None = None
     shape = (self.num_envs, self._num_ee)
-    self.limit_f_t_max = torch.zeros(shape, device=self.device)
-    self.limit_f_rev_max = torch.zeros(shape, device=self.device)
-    self.limit_mu_adhesion = torch.zeros(shape, device=self.device)
-    self.limit_f_n0 = torch.zeros(shape, device=self.device)
-    self.limit_mu_lateral = torch.zeros(shape, device=self.device)
-    self.limit_f_l0 = torch.zeros(shape, device=self.device)
     # Per-grip tilt-peel threshold [rad] (0 = disabled); see
     # MicrospineLimitSurfaceCfg.tilt_peel_max_deg_range.
     self.limit_tilt_peel_max = torch.zeros(shape, device=self.device)
@@ -228,14 +181,8 @@ class MicrospineAffordance(CommandTerm):
     # or not. Consumed by the seat-phase press shaping reward.
     self.pad_press_force = torch.zeros(shape, device=self.device)
     # Virtual spine field (MicrospineCfg.virtual_spine_*): engaged fraction of
-    # a kinematic spine grid spanning the pad face — the seating judgement —
-    # and the per-latch capacity scale captured from it at the engage step.
+    # a kinematic spine grid spanning the pad face — the seating judgement.
     self.spine_fraction = torch.zeros(shape, device=self.device)
-    self._seat_scale = torch.ones(shape, device=self.device)
-    # Spine recruitment charge [s]: rake-shear-loaded time since this latch
-    # engaged. Capacity ramps capacity_ramp_floor -> 1 as it fills (young
-    # anchors are weak, not immune). Seeded latches start fully charged.
-    self._seat_charge = torch.zeros(shape, device=self.device)
     self._spine_corner_body_ids: torch.Tensor | None = None
     self._spine_corner_offsets: torch.Tensor | None = None
     self._spine_sphere_offsets: torch.Tensor | None = None
@@ -243,86 +190,33 @@ class MicrospineAffordance(CommandTerm):
     self._wall_geom_id: int | None = None
     rake_axis = torch.tensor(self._ls_cfg.ee_rake_local_axis, dtype=torch.float32, device=self.device)
     self._rake_local_axis = rake_axis / torch.linalg.norm(rake_axis).clamp_min(1.0e-6)
-    # Per-unit moment billing: unit grid spanning the pad, precomputed once.
-    if self._ls_cfg.moment_billing_mode not in ("worst_edge", "per_unit"):
-      raise ValueError(
-        f"Unknown moment_billing_mode '{self._ls_cfg.moment_billing_mode}' (expected 'worst_edge' or 'per_unit')."
-      )
-    self._unit_x: torch.Tensor | None = None
-    self._unit_y: torch.Tensor | None = None
-    self.unit_site_names: tuple[str, ...] = ()
-    if self._ls_cfg.unit_layout != "all" and self._empirical is None:
-      raise ValueError("Active unit selection requires the empirical unit model")
-    if self._ls_cfg.model in ("wang2017", "empirical_unit") and self._ls_cfg.moment_billing_mode == "per_unit":
-      rows = self._ls_cfg.unit_rows_rake
-      cols = self._ls_cfg.unit_cols_lateral
-      if rows < 2 or cols < 2:
-        raise ValueError(f"per_unit moment billing needs a >=2x2 unit grid to carry moments; got {rows}x{cols}.")
-      if self._empirical is not None:
-        geometry = matching_pad_geometry(
-          env.sim.mj_model,
-          self._mcfg.ee_body_names,
-          cfg.asset_name,
-          rake_local_axis=self._ls_cfg.ee_rake_local_axis,
-          face_local_axis=self._mcfg.face_local_axis,
-          unit_layout=self._ls_cfg.unit_layout,
-        )
-        if (rows, cols) != (geometry.rows, geometry.cols):
-          raise ValueError("Empirical unit rows/cols disagree with the asset sites")
-        self._unit_x = torch.tensor(geometry.x.copy(), dtype=torch.float32, device=self.device)
-        self._unit_y = torch.tensor(geometry.y.copy(), dtype=torch.float32, device=self.device)
-        self.unit_site_names = geometry.unit_names
-      else:
-        # Legacy Wang/spring recipes retain their historical grid ordering.
-        xs = torch.linspace(-0.5, 0.5, rows, device=self.device) * self._ls_cfg.pad_span_rake_m
-        ys = torch.linspace(-0.5, 0.5, cols, device=self.device) * self._ls_cfg.pad_span_lateral_m
-        gx, gy = torch.meshgrid(xs, ys, indexing="ij")
-        self._unit_x = gx.reshape(-1)
-        self._unit_y = gy.reshape(-1)
-      self._unit_sxx = float((self._unit_x**2).sum())
-      self._unit_syy = float((self._unit_y**2).sum())
-      self._unit_srr = self._unit_sxx + self._unit_syy
-      # Unit-grid bilinear fractions over the corner-sphere quad (row-major,
-      # k = r*cols + c — the same flattening as _unit_x/_unit_y). Used by the
-      # spring field to place unit roots on the live pad face.
-      rr = torch.arange(rows, device=self.device).float()
-      cc = torch.arange(cols, device=self.device).float()
-      self._unit_fu = rr.repeat_interleave(cols) / max(rows - 1, 1)
-      self._unit_fv = cc.repeat(rows) / max(cols - 1, 1)
+    # Per-unit moment billing: the active CAD unit sites, resolved once.
+    rows = self._ls_cfg.unit_rows_rake
+    cols = self._ls_cfg.unit_cols_lateral
+    if rows < 2 or cols < 2:
+      raise ValueError(f"per_unit moment billing needs a >=2x2 unit grid to carry moments; got {rows}x{cols}.")
+    geometry = matching_pad_geometry(
+      env.sim.mj_model,
+      self._mcfg.ee_body_names,
+      cfg.asset_name,
+      rake_local_axis=self._ls_cfg.ee_rake_local_axis,
+      face_local_axis=self._mcfg.face_local_axis,
+      unit_layout=self._ls_cfg.unit_layout,
+    )
+    if (rows, cols) != (geometry.rows, geometry.cols):
+      raise ValueError("Empirical unit rows/cols disagree with the asset sites")
+    self._unit_x = torch.tensor(geometry.x.copy(), dtype=torch.float32, device=self.device)
+    self._unit_y = torch.tensor(geometry.y.copy(), dtype=torch.float32, device=self.device)
+    self.unit_site_names: tuple[str, ...] = geometry.unit_names
+    self._unit_sxx = float((self._unit_x**2).sum())
+    self._unit_syy = float((self._unit_y**2).sum())
+    self._unit_srr = self._unit_sxx + self._unit_syy
     if not np.isfinite(self._mcfg.engage_unit_preload_n) or self._mcfg.engage_unit_preload_n < 0:
       raise ValueError("engage_unit_preload_n must be finite and nonnegative")
-    if self._mcfg.engage_unit_preload_n > 0 and (self._unit_x is None or self._mcfg.spring_field_enabled):
-      raise ValueError("Unit preload engagement requires per_unit billing without the legacy spring field")
-    preload_units = self._unit_x.numel() if self._unit_x is not None else 1
     # Pre-latch contact estimates, separate from the latched anchor loads.
-    self.unit_preload_n = torch.zeros((*shape, preload_units), device=self.device)
+    self.unit_preload_n = torch.zeros((*shape, self._unit_x.numel()), device=self.device)
     self.pad_contact_wrench_tln = torch.zeros((*shape, 6), device=self.device)
-    # Virtual spring field (v3 plant): per-unit serial-suspension state.
-    # Free length / stiffness are hardware, drawn per episode
-    # (_sample_limit_params); tickets (catch lottery) and quality
-    # (remaining-length seating) are per latch. Buffers exist in legacy mode
-    # too (zeros) so probes and resets never branch.
-    self._spring_units = 0
-    if self._mcfg.spring_field_enabled:
-      if self._unit_x is None:
-        raise ValueError(
-          "spring_field_enabled requires the wang2017 model with per_unit "
-          "moment billing (the spring units ARE the billing units)."
-        )
-      self._spring_units = int(self._unit_x.shape[-1])
-    ushape = (self.num_envs, self._num_ee, max(self._spring_units, 1))
-    self._unit_free_len = torch.full(ushape, 1.0e-3, device=self.device)
-    self._unit_k = torch.zeros(ushape, device=self.device)
-    self._unit_c = torch.zeros(ushape, device=self.device)
-    self._unit_comp_prev = torch.zeros(ushape, device=self.device)
-    self._unit_compression = torch.zeros(ushape, device=self.device)
-    self._unit_ticket = torch.zeros(ushape, device=self.device)
-    self._unit_quality = torch.zeros(ushape, device=self.device)
-    # Whole-pad down-wall shear [N] transmitted through the live contacts —
-    # the spring-mode WELD trigger (touch + drag = catch).
-    self.pad_shear_down = torch.zeros(self.num_envs, self._num_ee, device=self.device)
-    self._sphere_force_world: torch.Tensor | None = None
-    empirical_shape = (*shape, int(self._unit_x.numel()) if self._empirical is not None else 1)
+    empirical_shape = (*shape, int(self._unit_x.numel()))
     self.unit_strength_quantile = torch.zeros(empirical_shape, device=self.device)
     self.unit_loading_quantile = torch.zeros_like(self.unit_strength_quantile)
     self.unit_load_tln = torch.zeros((*empirical_shape, 3), device=self.device)
@@ -333,53 +227,21 @@ class MicrospineAffordance(CommandTerm):
     self._sample_limit_params(torch.arange(self.num_envs, device=self.device))
 
   def _sample_limit_params(self, env_ids: torch.Tensor) -> None:
-    """Resample per-env limit-surface parameters from the cfg ranges."""
-    ls = self._ls_cfg
-    if self._mcfg.spring_field_enabled:
-      # Spring-field hardware draw (per episode): free protrusion and unit
-      # stiffness are properties of THIS pad's wear state, not of a latch.
-      u = (len(env_ids), self._num_ee, self._spring_units)
-      f_lo, f_hi = self._mcfg.spring_free_length_range
-      self._unit_free_len[env_ids] = torch.rand(u, device=self.device) * (f_hi - f_lo) + f_lo
-      k_lo, k_hi = self._mcfg.spring_k_unit_range
-      self._unit_k[env_ids] = torch.rand(u, device=self.device) * (k_hi - k_lo) + k_lo
-      c_lo, c_hi = self._mcfg.spring_damping_range
-      self._unit_c[env_ids] = torch.rand(u, device=self.device) * (c_hi - c_lo) + c_lo
-      self._unit_comp_prev[env_ids] = 0.0
-      self._unit_compression[env_ids] = 0.0
-      self._unit_ticket[env_ids] = 0.0
-      self._unit_quality[env_ids] = 0.0
-      self.pad_shear_down[env_ids] = 0.0
+    """Draw each pad's persistent per-unit quantiles and reset its unit readouts."""
 
     def sample(value_range: tuple[float, float]) -> torch.Tensor:
       low, high = value_range
       return torch.empty((len(env_ids), self._num_ee), device=self.device).uniform_(low, high)
 
-    if self._empirical is not None:
-      shape = (len(env_ids), self._num_ee, self._unit_x.numel())
-      self.unit_strength_quantile[env_ids] = torch.rand(shape, device=self.device)
-      self.unit_loading_quantile[env_ids] = torch.rand(shape, device=self.device)
-      # Legacy telemetry only: measured shear-domain endpoint, NOT strength
-      # or a sampled capacity. The empirical judge never reads these fields.
-      self.limit_f_t_max[env_ids] = self._empirical.s_max * self._unit_x.numel()
-      self.limit_f_rev_max[env_ids] = 0
-      self.limit_mu_adhesion[env_ids] = 0
-      self.limit_f_n0[env_ids] = 0
-      self.limit_mu_lateral[env_ids] = 0
-      self.limit_f_l0[env_ids] = 0
-      self.unit_load_tln[env_ids] = 0
-      self.unit_normal_capacity[env_ids] = 0
-      self.unit_empirical_supported[env_ids] = True
-      self.unit_empirical_early_failed[env_ids] = False
-      self.unit_empirical_tail_capped[env_ids] = False
-    else:
-      self.limit_f_t_max[env_ids] = sample(ls.f_t_max_range)
-      self.limit_f_rev_max[env_ids] = sample(ls.f_rev_max_range)
-      self.limit_mu_adhesion[env_ids] = sample(ls.mu_adhesion_range)
-      self.limit_f_n0[env_ids] = sample(ls.f_n0_range)
-      self.limit_mu_lateral[env_ids] = sample(ls.mu_lateral_range)
-      self.limit_f_l0[env_ids] = sample(ls.f_l0_range)
-    self.limit_tilt_peel_max[env_ids] = torch.deg2rad(sample(ls.tilt_peel_max_deg_range))
+    shape = (len(env_ids), self._num_ee, self._unit_x.numel())
+    self.unit_strength_quantile[env_ids] = torch.rand(shape, device=self.device)
+    self.unit_loading_quantile[env_ids] = torch.rand(shape, device=self.device)
+    self.unit_load_tln[env_ids] = 0
+    self.unit_normal_capacity[env_ids] = 0
+    self.unit_empirical_supported[env_ids] = True
+    self.unit_empirical_early_failed[env_ids] = False
+    self.unit_empirical_tail_capped[env_ids] = False
+    self.limit_tilt_peel_max[env_ids] = torch.deg2rad(sample(self._ls_cfg.tilt_peel_max_deg_range))
 
   def _get_executor(self):
     """Lazily fetch the physics executor (built after command terms)."""
@@ -447,31 +309,12 @@ class MicrospineAffordance(CommandTerm):
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
-    # Seeded (RSI) latches get full capacity: the reference stance seats the
-    # pads flat by construction, and kinematics may not have refreshed the
-    # just-written reset pose yet, so a live fraction here could be stale.
-    self._seat_scale[env_ids] = 1.0
-    self._seat_charge[env_ids] = self._ls_cfg.capacity_ramp_time_s
-    self._seed_spring_state(env_ids, self._engaged[env_ids])
     self._sync_latched_contact_margins()
 
   @property
   def reseat_hold(self) -> torch.Tensor:
     """(E,) bool — clock-freeze request: a dr-forced release awaits reseat."""
     return self.dr_release_pending.any(dim=-1)
-
-  @property
-  def seat_charge_fraction(self) -> torch.Tensor:
-    """(E, 4) in [0, 1] — recruitment progress of each latch's capacity ramp.
-
-    1.0 = fully seated (mature capacity); latches charge only while their
-    rake shear holds >= ``capacity_ramp_shear_n``. With the ramp disabled
-    every grip is mature by definition, so this reports all-ones.
-    """
-    ramp_t = self._ls_cfg.capacity_ramp_time_s
-    if ramp_t <= 0.0:
-      return torch.ones_like(self._seat_charge)
-    return (self._seat_charge / ramp_t).clamp(0.0, 1.0)
 
   def force_release(
     self,
@@ -485,8 +328,8 @@ class MicrospineAffordance(CommandTerm):
     Serves the DR random-release event and scripted diagnostics. Callers run
     after this step's ``_update_command``, so ``forced_release_this_step`` is
     OR-ed (a same-step limit-surface release must survive) while the latch
-    bookkeeping mirrors a real disengage transition: cooldown starts, seat
-    scale/charge reset, and ``_sync_latched_contact_margins`` restores the
+    bookkeeping mirrors a real disengage transition: cooldown starts and
+    ``_sync_latched_contact_margins`` restores the
     pad's contact spheres so it can press the wall again. The equality
     constraint follows the cleared latch bit on the next step's constraint
     event, same one-step lag as every latch transition.
@@ -546,16 +389,6 @@ class MicrospineAffordance(CommandTerm):
         torch.full_like(self.release_reason[env_ids], reason),
         self.release_reason[env_ids],
       )
-    self._seat_scale[env_ids] = torch.where(
-      mask,
-      torch.ones_like(self._seat_scale[env_ids]),
-      self._seat_scale[env_ids],
-    )
-    self._seat_charge[env_ids] = torch.where(
-      mask,
-      torch.zeros_like(self._seat_charge[env_ids]),
-      self._seat_charge[env_ids],
-    )
     self._sync_latched_contact_margins()
 
   def _sync_latched_contact_margins(self) -> None:
@@ -625,14 +458,6 @@ class MicrospineAffordance(CommandTerm):
     self.unit_preload_n[env_ids] = 0.0
     self.pad_contact_wrench_tln[env_ids] = 0.0
     self.spine_fraction[env_ids] = 0.0
-    self._seat_scale[env_ids] = 1.0
-    # Initially-engaged (reset-mask) latches are mature grips; anything else
-    # starts uncharged.
-    self._seat_charge[env_ids] = torch.where(
-      self._engaged[env_ids],
-      torch.full_like(self._seat_charge[env_ids], self._ls_cfg.capacity_ramp_time_s),
-      torch.zeros_like(self._seat_charge[env_ids]),
-    )
     self.forced_release_this_step[env_ids] = False
     self.engaged_this_step[env_ids] = False
     self.release_reason[env_ids] = 0
@@ -641,9 +466,6 @@ class MicrospineAffordance(CommandTerm):
     self._seeded[env_ids] = False
     self.released_was_seeded[env_ids] = False
     self._sample_limit_params(env_ids)
-    # Spring-field state for reset-mask engagements (mature grips) — after
-    # the sampling pass so the fresh hardware draw is not zeroed over it.
-    self._seed_spring_state(env_ids, self._engaged[env_ids])
     self._sync_latched_contact_margins()
 
   def _wall_inward_normal(self) -> torch.Tensor:
@@ -662,26 +484,18 @@ class MicrospineAffordance(CommandTerm):
     """World-frame engage basis (t̂, l̂, n̂_out), each (E, H, 3).
 
     t̂ is the rake/engage direction the spines load along ("down the wall"):
-    either gravity projected onto the wall plane (default — follows the
-    gravity-tilt curriculum) or a per-EE local axis projected onto the wall.
-    n̂_out is the outward wall normal, so positive f_n means pull-off tension.
+    the pad-local rake axis projected onto the wall plane. n̂_out is the
+    outward wall normal, so positive f_n means pull-off tension.
     """
     if getattr(self, "_surfaces", None) is not None:
       _, n, _, _ = self._surfaces.frame()
     else:
       n = -self._wall_inward_normal().unsqueeze(1)  # (E, 1, 3)
-    if self._ls_cfg.rake_mode == "ee_local":
-      axes = []
-      for body_id in self._ee_body_ids:
-        hquat = self._asset.data.body_link_quat_w[:, body_id, :]
-        axes.append(_quat_rotate(hquat, self._rake_local_axis))
-      raw = torch.stack(axes, dim=1)  # (E, H, 3)
-    else:
-      if self._gravity_view is None:
-        # In-place view of the warp gravity array (the curriculum writes it
-        # in place too, so caching the view once is safe), shape (N, 3).
-        self._gravity_view = wp.to_torch(self._env.sim.wp_model.opt.gravity)
-      raw = self._gravity_view.unsqueeze(1).expand(self.num_envs, self._num_ee, 3)
+    axes = []
+    for body_id in self._ee_body_ids:
+      hquat = self._asset.data.body_link_quat_w[:, body_id, :]
+      axes.append(_quat_rotate(hquat, self._rake_local_axis))
+    raw = torch.stack(axes, dim=1)  # (E, H, 3)
     t = raw - (raw * n).sum(dim=-1, keepdim=True) * n
     t_norm = torch.linalg.norm(t, dim=-1, keepdim=True)
     # Degenerate rake (load axis ⟂ wall plane): fall back to world -z projected.
@@ -698,10 +512,9 @@ class MicrospineAffordance(CommandTerm):
 
     The anchor load comes from the constraint efc rows — a smooth function of
     the pose error, unlike contact friction impulses — which is what makes
-    the release condition detectable at all. Wedge mode: conditions 1-3
-    (reverse shear, tension cone, lateral cone) are debounced and condition 4
-    (ultimate shear) releases instantly. wang2017 mode: every violation is
-    debounced (see _wang_envelope).
+    the release condition detectable at all. The pad wrench is distributed
+    onto the active units and each unit is judged against its empirical
+    draw; every violation goes through the debounce counter.
     """
     executor = self._get_executor()
     loads = executor.compute_anchor_loads()  # (E, H, 3) world
@@ -711,80 +524,39 @@ class MicrospineAffordance(CommandTerm):
     f_n = (loads * n_hat).sum(dim=-1)
     self.anchor_load_tnl = torch.stack([f_t, f_l, f_n], dim=-1)
 
-    per_unit_moments = None
     if self._ls_cfg.moment_capacity_enable and self._mcfg.anchor_lock_rotation:
       moment = executor.anchor_moment_w
       m_t = (moment * t_hat).sum(dim=-1)
       m_l = (moment * l_hat).sum(dim=-1)
       m_n = (moment * n_hat).sum(dim=-1)
       self.anchor_moment_tnl = torch.stack([m_t, m_l, m_n], dim=-1)
-      if self._unit_x is not None:
-        # per_unit billing distributes the raw wrench inside the envelope;
-        # no aggregate fold. The effective-load diagnostic becomes the
-        # worst unit's load at pad scale (x N), written below.
-        f_t_eff, f_l_eff, f_n_eff = f_t, f_l, f_n
-        per_unit_moments = (m_t, m_l, m_n)
-      else:
-        f_t_eff, f_l_eff, f_n_eff = moment_adjusted_loads(
-          f_t,
-          f_l,
-          f_n,
-          m_t,
-          m_l,
-          m_n,
-          pad_span_rake_m=self._ls_cfg.pad_span_rake_m,
-          pad_span_lateral_m=self._ls_cfg.pad_span_lateral_m,
-          moment_arm_fraction=self._ls_cfg.moment_arm_fraction,
-        )
+      moments = (m_t, m_l, m_n)
     else:
-      f_t_eff, f_l_eff, f_n_eff = f_t, f_l, f_n
       self.anchor_moment_tnl.zero_()
-
-    if self._empirical is not None:
       zeros = torch.zeros_like(f_t)
-      moments = per_unit_moments or (zeros, zeros, zeros)
-      margin, soft_cond, instant_cond, reason, worst_pad_scale = self._empirical_envelope_per_unit(
-        f_t, f_l, f_n, *moments
-      )
-      self.anchor_effective_load_tnl = worst_pad_scale
-      # Same unit draws for the force-only ablation; never resample here.
-      count = self._unit_x.numel()
-      margin_raw = self._empirical.margins(
-        f_t.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
-        f_l.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
-        f_n.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
-        self.unit_strength_quantile,
-        self.unit_loading_quantile,
-      )[0].amin(-1)
-    elif per_unit_moments is not None:
-      margin, soft_cond, instant_cond, reason, worst_pad_scale = self._wang_envelope_per_unit(
-        f_t, f_l, f_n, *per_unit_moments
-      )
-      self.anchor_effective_load_tnl = worst_pad_scale
-      # Force-only margin (moment billing excluded): with moments zeroed
-      # the equal-stiffness distribution is uniform and the per-unit test
-      # collapses to the aggregate radial test, so the aggregate margin IS
-      # the moment-free per-unit margin. Same moment-tax semantics as the
-      # worst_edge path (diagnostics).
-      margin_raw = self._wang_margin(f_t, f_l, f_n)
-    elif self._wang_lut is not None:
-      self.anchor_effective_load_tnl = torch.stack([f_t_eff, f_l_eff, f_n_eff], dim=-1)
-      margin, soft_cond, instant_cond, reason = self._wang_envelope(f_t_eff, f_l_eff, f_n_eff)
-      # Force-only margin (moment billing excluded): the gap to the billed
-      # margin is the moment tax, and a release with margin_raw > 0 was
-      # caused by the moment fold alone. Diagnostics only.
-      margin_raw = self._wang_margin(f_t, f_l, f_n)
-    else:
-      self.anchor_effective_load_tnl = torch.stack([f_t_eff, f_l_eff, f_n_eff], dim=-1)
-      margin, soft_cond, instant_cond, reason = self._wedge_envelope(f_t_eff, f_l_eff, f_n_eff)
-      margin_raw = margin
+      moments = (zeros, zeros, zeros)
+
+    margin, soft_cond, instant_cond, reason, worst_pad_scale = self._empirical_envelope_per_unit(
+      f_t, f_l, f_n, *moments
+    )
+    # The worst unit's load at pad scale (x N).
+    self.anchor_effective_load_tnl = worst_pad_scale
+    # Force-only margin with the same unit draws (moment billing excluded);
+    # diagnostics only, never resampled here.
+    count = self._unit_x.numel()
+    margin_raw = self._empirical.margins(
+      f_t.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
+      f_l.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
+      f_n.unsqueeze(-1).expand_as(self.unit_strength_quantile) / count,
+      self.unit_strength_quantile,
+      self.unit_loading_quantile,
+    )[0].amin(-1)
     self.hold_margin = torch.where(self._engaged, margin, torch.ones_like(margin))
     self.hold_margin_raw = torch.where(self._engaged, margin_raw, torch.ones_like(margin_raw))
 
     # The constraint only produces force one decimation after engaging, so
-    # hold checks wait exactly the readout settling. There is no immunity
-    # window beyond that: young anchors are judged weak (capacity ramp), not
-    # exempt.
+    # hold checks wait exactly the readout settling; there is no immunity
+    # window beyond that.
     guard = self._ls_cfg.hold_judge_guard_steps
     seed_guard = self._ls_cfg.seed_hold_judge_guard_steps
     if seed_guard is None:
@@ -827,200 +599,8 @@ class MicrospineAffordance(CommandTerm):
       )
     return release
 
-  def _wedge_envelope(
-    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
-  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Legacy piecewise-linear cone: (margin, soft, instant, reason)."""
-    ft_pos = f_t.clamp(min=0.0)
-    cap_n = self.limit_mu_adhesion * ft_pos + self.limit_f_n0
-    cap_l = self.limit_mu_lateral * ft_pos + self.limit_f_l0
-    c_rev = f_t >= -self.limit_f_rev_max
-    c_tension = f_n <= cap_n
-    c_lateral = f_l.abs() <= cap_l
-    c_ultimate = f_t <= self.limit_f_t_max
-
-    # Normalized distance to each envelope face; min is the overall margin.
-    eps = 1.0e-6
-    m_rev = (f_t + self.limit_f_rev_max) / (self.limit_f_rev_max + eps)
-    m_tension = (cap_n - f_n) / (cap_n + eps)
-    m_lateral = (cap_l - f_l.abs()) / (cap_l + eps)
-    m_ultimate = (self.limit_f_t_max - f_t) / (self.limit_f_t_max + eps)
-    margin = torch.minimum(torch.minimum(m_rev, m_tension), torch.minimum(m_lateral, m_ultimate))
-
-    # Which face fired (HUD/debug). Priority by overwrite order: lateral <
-    # reverse < tension < ultimate, masked to actual releases by the caller.
-    reason = torch.zeros_like(self.release_reason)
-    reason = torch.where(~c_lateral, torch.full_like(reason, 3), reason)
-    reason = torch.where(~c_rev, torch.full_like(reason, 1), reason)
-    reason = torch.where(~c_tension, torch.full_like(reason, 2), reason)
-    reason = torch.where(~c_ultimate, torch.full_like(reason, 4), reason)
-
-    soft_cond = ~(c_rev & c_tension & c_lateral)
-    instant_cond = ~c_ultimate
-    return margin, soft_cond, instant_cond, reason
-
-  def _wang_capacity_f0(self) -> torch.Tensor:
-    """Per-latch F0 with seat quality and recruitment scaling applied."""
-    ls = self._ls_cfg
-    f0 = self.limit_f_t_max
-    if self._mcfg.seat_quality_scales_capacity:
-      # Wang 2017 Sec 2.4: pad capacity sums per-spine contributions, so a
-      # partially seated latch scales the whole closed surface down by the
-      # spine fraction captured at its engage step.
-      f0 = f0 * self._seat_scale
-    if ls.capacity_ramp_time_s > 0.0:
-      # Recruitment ramp: a fresh latch holds capacity_ramp_floor of its
-      # seated capacity and charges to 1 with shear-loaded time. Replaces
-      # the unjudged grace window — young anchors are weak, not immune.
-      ramp = ls.capacity_ramp_floor + (1.0 - ls.capacity_ramp_floor) * (
-        self._seat_charge / ls.capacity_ramp_time_s
-      ).clamp(0.0, 1.0)
-      f0 = f0 * ramp
-    return f0
-
-  def _wang_margin(self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor) -> torch.Tensor:
-    """Normalized signed envelope distance for one load triple."""
-    ls = self._ls_cfg
-    tension = f_n.clamp_min(0.0)
-    f0 = self._wang_capacity_f0()
-    ratio = capacity_ratio(self._wang_lut, f_t, f_l, f_n)
-    cap = f0 * ratio.clamp_min(ls.wang_r_floor)
-    load_mag = torch.sqrt(f_t**2 + f_l**2 + tension**2)
-    # Normalized signed distance: ~1 unloaded, 0 on the surface, < 0 outside.
-    return (cap - load_mag) / (cap + ls.wang_margin_eps * f0)
-
-  def _wang_envelope(
-    self, f_t: torch.Tensor, f_l: torch.Tensor, f_n: torch.Tensor
-  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Closed Wang-2017 surface: (margin, soft, instant, reason).
-
-    Radial test: the load magnitude |(f_t, f_l, f_n+)| must stay inside the
-    direction-dependent capacity F0 * max(R(theta, phi), r_floor), F0 drawn
-    from ``f_t_max_range``. Compression rides the contacts and is clamped
-    out of the tension component.
-    """
-    tension = f_n.clamp_min(0.0)
-    margin = self._wang_margin(f_t, f_l, f_n)
-    violation = margin < 0.0
-
-    # Reason codes keep the wedge semantics used by rewards/HUD: 1 = reverse
-    # shear (the intended cheap unhook path), 2 = tension-dominant pull-off,
-    # 3 = lateral peel, 4 = ultimate shear along the rake.
-    in_plane = torch.sqrt(f_t**2 + f_l**2)
-    tension_dominant = tension >= in_plane  # phi >= 45 deg
-    reverse = f_t < 0.0
-    lateral_dominant = f_l.abs() > f_t
-    reason = torch.full_like(self.release_reason, 4)
-    reason = torch.where(lateral_dominant, torch.full_like(reason, 3), reason)
-    reason = torch.where(tension_dominant, torch.full_like(reason, 2), reason)
-    reason = torch.where(reverse, torch.full_like(reason, 1), reason)
-
-    # All violations go through the counted path; the count threshold is
-    # violation_consecutive_steps (1 since latched-contact retraction: the
-    # ~700 N one-step contact-churn transients that once forced a 2-step
-    # debounce cannot occur — the latched anchor is the only load path and
-    # its force is smooth — so the first genuine violation releases, and
-    # oscillating overloads can no longer flicker through a counter reset).
-    instant_cond = torch.zeros_like(violation)
-    soft_cond = violation
-    return margin, soft_cond, instant_cond, reason
-
-  def _wang_envelope_per_unit(
-    self,
-    f_t: torch.Tensor,
-    f_l: torch.Tensor,
-    f_n: torch.Tensor,
-    m_t: torch.Tensor,
-    m_l: torch.Tensor,
-    m_n: torch.Tensor,
-  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Per-unit Wang billing: weakest unit of the spine-unit grid rules.
-
-    The pad's 6D wrench is distributed onto the unit grid
-    (``distribute_wrench_to_units``: rigid pad, equal-stiffness bolt-group
-    statics), and every unit's 3D load is judged against its own share of
-    the closed surface — capacity F0_eff/N with the SAME normalized
-    R(θ, φ): Wang capacity is a per-spine sum and the surface shape is
-    single-unit physics, so the unit test is the paper's Fig 8 object. A
-    unit in compression is judged at φ = 0 like the aggregate (its
-    compression rides the anchor for free). The pad margin is the minimum
-    unit margin — the tension-side edge pulling out unzips the array, so
-    one unit out of envelope releases the whole pad.
-
-    Returns (margin, soft_cond, instant_cond, reason, worst_load_tnl); the
-    last is the worst unit's load scaled back to pad scale (x N) for the
-    ``anchor_effective_load_tnl`` diagnostic.
-    """
-    ls = self._ls_cfg
-    n_units = self._unit_x.shape[-1]
-    if self._mcfg.spring_field_enabled:
-      # v3 plant: load shares follow unit effective stiffness (ticket x
-      # quality — Wang 2017 Eq 6-7 load sharing; EMPTY units carry
-      # nothing, the wrench routes through the caught units), capacities
-      # are per-unit tickets x quality x the pad recruitment ramp. Empty
-      # units are excluded from the worst-unit vote (margin +1).
-      w = self._unit_ticket * self._unit_quality
-      ft_u, fl_u, fn_u = distribute_wrench_to_units_weighted(
-        f_t, f_l, f_n, m_t, m_l, m_n, self._unit_x, self._unit_y, w
-      )
-      ramp = torch.ones_like(f_t)
-      if ls.capacity_ramp_time_s > 0.0:
-        ramp = ls.capacity_ramp_floor + (1.0 - ls.capacity_ramp_floor) * (
-          self._seat_charge / ls.capacity_ramp_time_s
-        ).clamp(0.0, 1.0)
-      ratio = capacity_ratio(self._wang_lut, ft_u, fl_u, fn_u)
-      cap = w * ramp.unsqueeze(-1) * ratio.clamp_min(ls.wang_r_floor)
-      f0_ref = (self.limit_f_t_max.clamp_min(1.0) / n_units).unsqueeze(-1)
-      tension = fn_u.clamp_min(0.0)
-      load_mag = torch.sqrt(ft_u**2 + fl_u**2 + tension**2)
-      margins = (cap - load_mag) / (cap + ls.wang_margin_eps * f0_ref)
-      margins = torch.where(w > 0.0, margins, torch.ones_like(margins))
-    else:
-      ft_u, fl_u, fn_u = distribute_wrench_to_units(
-        f_t,
-        f_l,
-        f_n,
-        m_t,
-        m_l,
-        m_n,
-        self._unit_x,
-        self._unit_y,
-        self._unit_sxx,
-        self._unit_syy,
-        self._unit_srr,
-      )
-      f0_unit = (self._wang_capacity_f0() / n_units).unsqueeze(-1)
-      ratio = capacity_ratio(self._wang_lut, ft_u, fl_u, fn_u)
-      cap = f0_unit * ratio.clamp_min(ls.wang_r_floor)
-      tension = fn_u.clamp_min(0.0)
-      load_mag = torch.sqrt(ft_u**2 + fl_u**2 + tension**2)
-      margins = (cap - load_mag) / (cap + ls.wang_margin_eps * f0_unit)
-    margin, worst = margins.min(dim=-1)  # (E, H) each.
-    violation = margin < 0.0
-
-    # Reason taxonomy from the worst unit's own load direction (same
-    # semantics as the aggregate path: 1 reverse, 2 tension, 3 lateral,
-    # 4 ultimate shear).
-    widx = worst.unsqueeze(-1)
-    a_w = ft_u.gather(-1, widx).squeeze(-1)
-    b_w = fl_u.gather(-1, widx).squeeze(-1)
-    c_w = fn_u.gather(-1, widx).squeeze(-1)
-    tension_w = c_w.clamp_min(0.0)
-    in_plane = torch.sqrt(a_w**2 + b_w**2)
-    reason = torch.full_like(self.release_reason, 4)
-    reason = torch.where(b_w.abs() > a_w, torch.full_like(reason, 3), reason)
-    reason = torch.where(tension_w >= in_plane, torch.full_like(reason, 2), reason)
-    reason = torch.where(a_w < 0.0, torch.full_like(reason, 1), reason)
-
-    # Same counted-release semantics as the aggregate wang path.
-    instant_cond = torch.zeros_like(violation)
-    worst_load_tnl = torch.stack([a_w, b_w, c_w], dim=-1) * float(n_units)
-    return margin, violation, instant_cond, reason, worst_load_tnl
-
   def _redraw_empirical_latches(self, engage_transition: torch.Tensor) -> None:
     """Only newly engaged pads change; every retained unit surface is stable."""
-    if self._empirical is None:
-      return
     on = engage_transition.unsqueeze(-1)
     self.unit_strength_quantile = torch.where(
       on, torch.rand_like(self.unit_strength_quantile), self.unit_strength_quantile
@@ -1187,9 +767,9 @@ class MicrospineAffordance(CommandTerm):
   def _contact_face_corners_world(self, *, for_reach: bool = False) -> torch.Tensor:
     """Nominal surface centers, unaffected by latched geom retraction.
 
-    Boxes use their face centers. Legacy spheres retain their closest-point
-    distance to the wall for reach checks, and their pad-facing poles for
-    the spring field's unit roots.
+    Boxes use their face centers. Sphere proxies use their closest point to
+    the wall for reach checks (``for_reach``) and their pad-facing poles
+    otherwise.
     """
     ids = self._spine_corner_body_ids
     offsets = self._spine_corner_offsets
@@ -1202,121 +782,6 @@ class MicrospineAffordance(CommandTerm):
     if for_reach:
       points = points + self._spine_corner_radii[None, :, None] * self._wall_inward_normal()[:, None, :]
     return points.reshape(self.num_envs, self._num_ee, 4, 3)
-
-  def _ticket_lottery(self, shape: tuple[int, ...]) -> torch.Tensor:
-    """Per-unit catch lottery: empty w.p. ``unit_catch_empty_prob``, else
-    U[``unit_catch_capacity_range``] — the unit's pure rake-shear capacity
-    at full seating quality (Wang 2017 Fig 6: near-zero mass = no usable
-    asperity; the rest = the asperity draw)."""
-    ls = self._ls_cfg
-    lo, hi = ls.unit_catch_capacity_range
-    draw = torch.rand(shape, device=self.device) * (hi - lo) + lo
-    empty = torch.rand(shape, device=self.device) < ls.unit_catch_empty_prob
-    return torch.where(empty, torch.zeros_like(draw), draw)
-
-  def _seed_spring_state(self, env_ids: torch.Tensor, engaged: torch.Tensor) -> None:
-    """Mature-grip spring state for latches that exist at birth (RSI seeds,
-    reset-mask engagements): fully seated (quality 1, compression = free
-    length) with an honestly drawn ticket set. Pad F0 becomes the
-    quality-weighted ticket sum — the pad-level draw retires in spring
-    mode."""
-    if not self._mcfg.spring_field_enabled:
-      return
-    mask = engaged.unsqueeze(-1).expand(-1, -1, self._spring_units)
-    tickets = self._ticket_lottery(mask.shape)
-    zeros = torch.zeros_like(tickets)
-    self._unit_ticket[env_ids] = torch.where(mask, tickets, zeros)
-    self._unit_quality[env_ids] = torch.where(mask, torch.ones_like(tickets), zeros)
-    self._unit_compression[env_ids] = torch.where(mask, self._unit_free_len[env_ids], zeros)
-    pad_total = (self._unit_ticket[env_ids] * self._unit_quality[env_ids]).sum(-1)
-    self.limit_f_t_max[env_ids] = torch.where(engaged, pad_total, self.limit_f_t_max[env_ids])
-
-  def _update_spring_field(self, t_hat: torch.Tensor, n_hat_out: torch.Tensor) -> None:
-    """Per-unit spring geometry, wrench application, and the down-shear
-    weld-trigger readout (spring-field mode, every policy step).
-
-    Axis: the pad face axis (world) tilted ``spring_axis_tilt_deg`` toward
-    the rake direction resolved in the pad plane — equal to the pad-frame
-    axis for pads that do not yaw about their own normal. Tips meet the
-    wall ``free_length`` (2-5 mm) before the hard spheres; a latched pad's
-    field is retracted (the weld owns the load path). The field is soft by
-    design (~few N full-field): a conformity/impact layer, not a load
-    path. Wrenches are applied on the EE bodies and persist over the next
-    decimation window.
-    """
-    del n_hat_out  # the wall normal is shared; taken from the wall directly
-    if self._spine_corner_body_ids is None:
-      self._virtual_spine_fraction()  # resolves corner/wall ids lazily
-    E, H, U = self.num_envs, self._num_ee, self._spring_units
-    corners = self._contact_face_corners_world()
-    # Pad face axis points INTO the wall when facing it (_face_wall_cos).
-    faces = []
-    for body_id in self._ee_body_ids:
-      hquat = self._asset.data.body_link_quat_w[:, body_id, :]
-      faces.append(_quat_rotate(hquat, self._face_local_axis))
-    face_in = torch.stack(faces, dim=1)  # (E, H, 3)
-    t_pad = t_hat - (t_hat * face_in).sum(-1, keepdim=True) * face_in
-    t_pad = t_pad / torch.linalg.norm(t_pad, dim=-1, keepdim=True).clamp_min(1.0e-6)
-    tilt = torch.deg2rad(torch.tensor(self._mcfg.spring_axis_tilt_deg, device=self.device))
-    u_hat = torch.cos(tilt) * face_in + torch.sin(tilt) * t_pad
-    u_hat = u_hat / torch.linalg.norm(u_hat, dim=-1, keepdim=True).clamp_min(1.0e-6)
-    # Unit roots: bilinear over the corner contact-face centers at the unit-grid
-    # fractions (row-major k = r*cols + c, the _unit_x flattening). No additional
-    # radius or box half-depth offset is needed. Corner order matches
-    # virtual_spine_fraction (r0c0, r0c1, r1c0, r1c1).
-    fu = self._unit_fu.view(1, 1, U, 1)
-    fv = self._unit_fv.view(1, 1, U, 1)
-    p00 = corners[:, :, 0].unsqueeze(2)
-    p01 = corners[:, :, 1].unsqueeze(2)
-    p10 = corners[:, :, 2].unsqueeze(2)
-    p11 = corners[:, :, 3].unsqueeze(2)
-    roots = (1.0 - fu) * (1.0 - fv) * p00 + (1.0 - fu) * fv * p01 + fu * (1.0 - fv) * p10 + fu * fv * p11
-    n_out_env = -self._wall_inward_normal()  # (E, 3)
-    wall_point = (
-      wp.to_torch(self._env.sim.wp_data.geom_xpos)[:, self._wall_geom_id] + self._wall_surface_offset * n_out_env
-    )
-    n_in = -n_out_env.view(E, 1, 1, 3)
-    gap_num = ((wall_point.view(E, 1, 1, 3) - roots) * n_in).sum(-1)
-    denom = (u_hat.unsqueeze(2) * n_in).sum(-1)  # (E, H, 1)
-    reachable = denom > 0.05
-    axial_gap = gap_num / denom.clamp_min(0.05)
-    raw_comp = (self._unit_free_len - axial_gap).clamp(min=0.0)
-    raw_comp = torch.minimum(raw_comp, self._unit_free_len)
-    raw_comp = torch.where(reachable.expand_as(raw_comp), raw_comp, torch.zeros_like(raw_comp))
-    # Compression rate rides the RAW geometry so the field never sees a
-    # phantom velocity step when a masked phase (weld / cooldown) ends.
-    comp_rate = (raw_comp - self._unit_comp_prev) / max(float(self._env.step_dt), 1.0e-6)
-    self._unit_comp_prev = raw_comp
-    # Retraction: a latched pad's field is owned by the weld; a RELEASED
-    # pad's field stays down until the re-engage cooldown clears (user
-    # call, 08-19 evening — the torn suspension gets a recovery beat, and
-    # the field returns on the same step weld eligibility does).
-    blocked = (self._engaged | (self._cooldown_steps > 0)).unsqueeze(-1).expand_as(raw_comp)
-    comp = torch.where(blocked, torch.zeros_like(raw_comp), raw_comp)
-    rate = torch.where(blocked, torch.zeros_like(comp_rate), comp_rate)
-    self._unit_compression = comp
-    # Wrench on the EE body: each compressed unit pushes the pad back along
-    # -u_hat with a lightly damped spring law (k*comp + c*rate, clamped at
-    # zero from below — a contact field never pulls; Wang 2017 gives no
-    # damping value, range in MicrospineCfg.spring_damping_range). Torque
-    # arm about the body origin (pad-body com offset is mm-scale against a
-    # few-N field — negligible).
-    axial_mag = (self._unit_k * comp + self._unit_c * rate).clamp(min=0.0)
-    per_unit_f = -u_hat.unsqueeze(2) * axial_mag.unsqueeze(-1)
-    forces = per_unit_f.sum(2)
-    body_pos = self._asset.data.body_link_pos_w[:, self._ee_body_ids]
-    arm = roots - body_pos.unsqueeze(2)
-    torques = torch.cross(arm, per_unit_f, dim=-1).sum(2)
-    self._asset.write_external_wrench_to_sim(forces, torques, body_ids=self._ee_body_ids)
-    # Down-shear weld trigger: world-frame contact forces on the sphere
-    # grid projected on the rake axis. Positive = the pad drags the wall
-    # down (the catch direction); sign validated by the touch-drag probe.
-    if self._sphere_force_world is not None:
-      spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
-      f_pad = self._sphere_force_world.view(E, H, spheres_per_ee, 3).sum(2)
-      self.pad_shear_down = -(f_pad * t_hat).sum(-1)
-    else:
-      self.pad_shear_down.zero_()
 
   def _unit_preload_condition(self) -> torch.Tensor:
     """Require compression on every unit in the equal-stiffness contact model.
@@ -1458,12 +923,6 @@ class MicrospineAffordance(CommandTerm):
       raise ValueError(f"Contact sensor '{self.cfg.contact_sensor_name}' must provide 'found' and 'force' fields.")
     sensor_cfg = getattr(sensor, "cfg", None)
     world_force = getattr(sensor_cfg, "reduce", None) == "netforce" or getattr(sensor_cfg, "global_frame", False)
-    if self._mcfg.spring_field_enabled and not world_force and (data.normal is None or data.tangent is None):
-      raise ValueError(
-        "spring_field_enabled needs the microspine contact sensor to "
-        "output 'normal' and 'tangent' fields (world frame) for the "
-        "down-shear weld trigger."
-      )
 
     perm = self._sensor_row_permutation(sensor)
     found = data.found[:, perm]
@@ -1500,21 +959,6 @@ class MicrospineAffordance(CommandTerm):
     normal_component = (engage_force * inward).sum(-1) if world_force else engage_force[..., 0]
     normal_force = normal_component.clamp(min=0.0)
     normal_force = torch.where(found_mask, normal_force, torch.zeros_like(normal_force))
-
-    # Spring-field mode: reconstruct the world-frame contact force per
-    # sphere from the contact-frame components and the sensor's world-frame
-    # contact axes — feeds the down-shear weld trigger.
-    self._sphere_force_world = None
-    if self._mcfg.spring_field_enabled:
-      if world_force:
-        fw = engage_force
-      else:
-        n_c = data.normal[:, perm]
-        t1 = data.tangent[:, perm]
-        t2 = torch.cross(n_c, t1, dim=-1)
-        f = engage_force
-        fw = f[..., 0:1] * n_c + f[..., 1:2] * t1 + f[..., 2:3] * t2
-      self._sphere_force_world = torch.where(found_mask.unsqueeze(-1), fw, torch.zeros_like(fw))
 
     found_count = torch.zeros(self.num_envs, self._num_ee, device=self.device)
     spheres_per_ee = self._mcfg.spheres_per_ee_rows * self._mcfg.spheres_per_ee_cols
@@ -1594,9 +1038,9 @@ class MicrospineAffordance(CommandTerm):
     self.engaged_this_step.zero_()
     self.released_was_seeded.zero_()
 
-    # Unit preload replaces the legacy proxy-force gate. It and the spring
-    # trigger are evaluated after the grip-disabled early-out below.
-    if self._mcfg.engage_unit_preload_n > 0 or self._mcfg.spring_field_enabled:
+    # Unit preload replaces the legacy proxy-force gate. It is evaluated after
+    # the grip-disabled early-out below.
+    if self._mcfg.engage_unit_preload_n > 0:
       engage_condition = torch.ones_like(self._engaged)
     else:
       engage_condition = self._normal_force_condition(normal_forces)
@@ -1623,7 +1067,6 @@ class MicrospineAffordance(CommandTerm):
       self.forced_release_this_step.zero_()
       self.release_reason.zero_()
       self._seeded.zero_()
-      self._seat_scale.fill_(1.0)
       self.unit_preload_n.zero_()
       self.pad_contact_wrench_tln.zero_()
       self._sync_latched_contact_margins()
@@ -1631,21 +1074,11 @@ class MicrospineAffordance(CommandTerm):
 
     if self._mcfg.engage_unit_preload_n > 0:
       engage_condition &= self._unit_preload_condition()
-    if self._mcfg.spring_field_enabled:
-      # v3 plant: run the spring field (forces + shear readout) every live
-      # step, then assemble the weld trigger — >=1 hard sphere touching and
-      # whole-pad down-shear over the threshold. The 3 N normal-force gate
-      # and the spine-fraction gate retire (Wang 2017 Sec 2: spines catch
-      # when dragged down their rake under contact, not when pressed).
-      t_hat_sf, _, n_hat_sf = self._engage_frame()
-      self._update_spring_field(t_hat_sf, n_hat_sf)
-      engage_condition &= found_count >= max(1, self._mcfg.engage_min_spheres)
-      engage_condition &= self.pad_shear_down >= self._mcfg.engage_shear_threshold_n
     if self._mcfg.engage_parallel_cos_threshold > 0.0:
       engage_condition &= face_cos >= self._mcfg.engage_parallel_cos_threshold
     if self._mcfg.engage_min_total_normal_force > 0.0:
       engage_condition &= self.pad_press_force >= self._mcfg.engage_min_total_normal_force
-    if self._mcfg.engage_min_spine_fraction > 0.0 and not self._mcfg.spring_field_enabled:
+    if self._mcfg.engage_min_spine_fraction > 0.0:
       # The seating gate: enough of the virtual spine field must be able to
       # reach the wall. Replaces the 2-rigid-sphere count as the 'actually
       # seated' judgement (a rigid pad generically touches a flat wall with
@@ -1743,75 +1176,7 @@ class MicrospineAffordance(CommandTerm):
       self.dr_release_pending,
     )
     self._reseat_hold_steps = torch.where(expired, torch.zeros_like(self._reseat_hold_steps), self._reseat_hold_steps)
-    if self._mcfg.seat_quality_scales_capacity and not self._mcfg.spring_field_enabled:
-      # This latch's capacity is set by how much of the spine field could
-      # reach at the seat step (Wang 2017 Sec 2.4: pad capacity is the sum of
-      # engaged spines' contributions). Release restores full scale so the
-      # next latch is judged on its own seating. Engage and disengage are
-      # mutually exclusive per EE within a step (release runs on the
-      # pre-transition latch state). Spring mode owns quality per unit.
-      self._seat_scale = torch.where(
-        engage_transition,
-        self.spine_fraction.clamp(0.0, 1.0),
-        self._seat_scale,
-      )
-      self._seat_scale = torch.where(
-        disengage_transition,
-        torch.ones_like(self._seat_scale),
-        self._seat_scale,
-      )
-    if self._ls_cfg.capacity_ramp_time_s > 0.0:
-      # Recruitment: rake-shear-loaded time charges the young anchor toward
-      # full capacity (dragging the loaded array seats more spines). Fresh
-      # transitions restart from zero; releases clear.
-      shear_loaded = self._engaged & (self.anchor_load_tnl[..., 0] >= self._ls_cfg.capacity_ramp_shear_n)
-      self._seat_charge = torch.where(
-        shear_loaded,
-        self._seat_charge + self._env.step_dt,
-        self._seat_charge,
-      )
-      self._seat_charge = torch.where(
-        engage_transition | disengage_transition,
-        torch.zeros_like(self._seat_charge),
-        self._seat_charge,
-      )
-    if self._mcfg.spring_field_enabled:
-      # Spring-mode latch bookkeeping (v3 plant). Quality = remaining-length
-      # seating captured at THIS engage step (compression is pre-transition
-      # state); tickets = the per-unit catch lottery; pad F0 = the
-      # quality-weighted ticket sum (the pad-level redraw retires below).
-      # Releases clear both; seat_scale stays 1 (quality lives per unit).
-      on = engage_transition.unsqueeze(-1)
-      off = disengage_transition.unsqueeze(-1)
-      q = (self._unit_compression / self._unit_free_len.clamp_min(1.0e-6)).clamp(0.0, 1.0)
-      self._unit_quality = torch.where(on, q, self._unit_quality)
-      tickets = self._ticket_lottery(self._unit_ticket.shape)
-      self._unit_ticket = torch.where(on, tickets, self._unit_ticket)
-      self._unit_quality = torch.where(off, torch.zeros_like(self._unit_quality), self._unit_quality)
-      self._unit_ticket = torch.where(off, torch.zeros_like(self._unit_ticket), self._unit_ticket)
-      pad_total = (self._unit_ticket * self._unit_quality).sum(-1)
-      self.limit_f_t_max = torch.where(engage_transition, pad_total, self.limit_f_t_max)
-      self._seat_scale = torch.where(
-        engage_transition | disengage_transition,
-        torch.ones_like(self._seat_scale),
-        self._seat_scale,
-      )
     self._redraw_empirical_latches(engage_transition)
-    if self._ls_cfg.redraw_f_t_max_per_latch:
-      # Every grip is a fresh asperity lottery: redraw F0 for the just-
-      # latched pads (paper Fig 6; a collapsed DR range redraws the same
-      # value, keeping the bench deterministic).
-      if not self._mcfg.spring_field_enabled:
-        # Spring mode replaced the pad draw with the unit-ticket sum above.
-        lo, hi = self._ls_cfg.f_t_max_range
-        draw = lo + (hi - lo) * torch.rand_like(self.limit_f_t_max)
-        self.limit_f_t_max = torch.where(engage_transition, draw, self.limit_f_t_max)
-      # Same lottery for the tilt-peel travel headroom: which asperities the
-      # spines caught decides how much chassis rotation the patch tolerates.
-      t_lo, t_hi = self._ls_cfg.tilt_peel_max_deg_range
-      if t_hi > 0.0:
-        t_draw = torch.deg2rad(t_lo + (t_hi - t_lo) * torch.rand_like(self.limit_tilt_peel_max))
-        self.limit_tilt_peel_max = torch.where(engage_transition, t_draw, self.limit_tilt_peel_max)
     self._engage_count = engage_count
     # After an engage transition, clear its counter.
     self._engage_count = torch.where(engage_transition, torch.zeros_like(self._engage_count), self._engage_count)

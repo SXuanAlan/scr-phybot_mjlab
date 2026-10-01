@@ -45,11 +45,11 @@ from pathlib import Path
 
 import torch
 
-from scr_phybot_mjab.microspine.wang_limit_surface import (
+from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
+from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
   build_capacity_lut,
   capacity_ratio,
 )
-from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units
 from scr_phybot_mjab.tools.plotting import CAT, INK, MUT, ORDINAL, RC_PARAMS, SEC, save_three
 
 # Categorical slots (validated trio) for the three moment axes; ordinal blue
