@@ -131,7 +131,6 @@ def apply_play_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
   # continuous climb from frame 0.
   motion = cfg.commands[MOTION_COMMAND]
   motion.sampling_mode = "start"
-  motion.joint_pos_noise = 0.0
   motion.height_offset_range = (0.0, 0.0)
 
 

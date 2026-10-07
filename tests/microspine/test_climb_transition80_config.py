@@ -347,7 +347,6 @@ def test_play_overrides() -> None:
   assert motion.sampling_mode == "start"
   assert motion.spawn_xy_noise == (0.0, 0.0)
   assert motion.spawn_yaw_noise == 0.0
-  assert motion.joint_pos_noise == 0.0
   assert motion.birth_exclude_frames == ()  # play starts at frame 0; no mask
   assert motion.spawn_early_fraction == 0.0 and motion.spawn_bias_auto_rake_frames == 0
   assert play.terminations["engage_constraint"].params["mode"] == "off"

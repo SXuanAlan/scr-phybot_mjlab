@@ -61,7 +61,6 @@ if args.clip:
   mc.motion_file = str(Path(args.clip).resolve())
 mc.spawn_xy_noise = (0.0, 0.0)
 mc.spawn_yaw_noise = 0.0
-mc.joint_pos_noise = 0.0
 cfg.commands["microspine_affordance"].microspine_cfg.limit_surface.seed_hold_judge_guard_steps = args.guard
 for name in ("encoder_bias", "body_friction", "base_mass"):
   cfg.events.pop(name, None)

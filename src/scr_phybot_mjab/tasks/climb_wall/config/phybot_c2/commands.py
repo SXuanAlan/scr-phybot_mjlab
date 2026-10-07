@@ -73,8 +73,6 @@ def climb_commands(microspine_cfg: MicrospineCfg, motion_file: Path) -> dict[str
       sampling_mode="adaptive",
       synchronize_reset_phase=True,
       initialize_seeded_anchors=True,
-      # Unprojected joint jitter would move seeded contacts off the wall.
-      joint_pos_noise=0.0,
       # Along-wall spawn height below the reference (on top of the vertical
       # height compensation); at -0.30 the toes stay ~0.2 m above the base
       # line. Decouples absolute altitude from cycle phase.

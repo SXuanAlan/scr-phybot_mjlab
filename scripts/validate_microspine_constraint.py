@@ -78,7 +78,6 @@ def build_env(
   if motion_file is not None:
     motion.motion_file = str(Path(motion_file).resolve())
   motion.sampling_mode = "start"
-  motion.joint_pos_noise = 0.0
   motion.height_offset_range = (0.0, 0.0)
   # The nested limit_surface cfg is shared between the affordance command and
   # the physics event term (dataclasses.replace is shallow copy: nested

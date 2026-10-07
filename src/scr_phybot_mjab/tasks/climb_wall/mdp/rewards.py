@@ -15,6 +15,8 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+from scr_phybot_mjab.microspine.release_reason import ReleaseReason
+
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
@@ -511,8 +513,9 @@ def microspine_release_load_reward():
     fresh = (env.episode_length_buf <= 1).unsqueeze(-1)
     paid = torch.where(fresh, window, paid) & window
     support_ok = affordance.engaged.sum(dim=-1) >= minimum_supports
-    # Unknown/early empirical failures are not successful controlled releases.
-    controlled_reason = (reason >= 1) & (reason <= 5)
+    # Only a normal-load release can be a controlled one; domain and early
+    # failures are not.
+    controlled_reason = reason == ReleaseReason.NORMAL
     pay = released & controlled_reason & finite & window & ~paid & support_ok.unsqueeze(-1)
     # Consume even an unsuccessful first release: relatch/release retries in
     # the same window cannot turn a bad release into extra positive income.
@@ -529,55 +532,30 @@ def unsafe_microspine_release_penalty(
   command_name: str = "microspine_affordance",
   minimum_supports: int = 2,
   settle_time_s: float = 0.5,
-  reverse_release_cost: float = 0.0,
   tension_release_cost: float = 0.25,
-  lateral_release_cost: float = 0.25,
   ultimate_release_cost: float = 1.0,
   support_loss_cost: float = 1.0,
-  motion_command_name: str | None = None,
-  scheduled_reverse_cost: float = 0.3,
-  scheduled_reverse_grace_s: float = 0.25,
 ) -> torch.Tensor:
-  """Per-event cost that distinguishes controlled and failed disengagement.
+  """One-shot cost of each hold failure, plus a surcharge for losing support.
 
-  Reason 1 (reverse shear) is the passive spine's intended unhooking path and
-  has no base reason cost while sufficient support remains. The separate
-  release-load reward can still penalize its tangential load. Pull-off, lateral, and ultimate
-  failures carry increasing costs. Dividing by ``step_dt`` makes the configured
-  weight an actual one-shot event cost after RewardManager's dt scaling.
-
-  With ``motion_command_name`` set, a reverse-shear unhook of an EE the clip
-  schedules ENGAGED bills ``scheduled_reverse_cost`` — scaled down to zero
-  within ``scheduled_reverse_grace_s`` of the nearest schedule edge, so the
-  on-time unhook at a scheduled release stays free. This prices the
-  latch-jiggle-unhook churn (motionref16b: 43-45 free reverse releases per
-  30 s on the abandoned right foot) without touching legitimate releases.
+  A unit that exceeds its normal-load draw or fails early in loading costs
+  ``tension_release_cost``; a load outside the measured shear/lateral domain
+  costs ``ultimate_release_cost``. A release that leaves fewer than
+  ``minimum_supports`` latches adds ``support_loss_cost``. Dividing by
+  ``step_dt`` makes each configured cost a one-shot event cost after the
+  reward manager's dt scaling.
   """
   affordance = env.command_manager.get_term(command_name)
   released = affordance.forced_release_this_step
   reason = affordance.release_reason
   cost = torch.zeros_like(reason, dtype=torch.float32)
   reason_costs = (
-    (1, reverse_release_cost),
-    (2, tension_release_cost),
-    (3, lateral_release_cost),
-    (4, ultimate_release_cost),
-    (7, ultimate_release_cost),  # empirical measured-domain rejection
-    (8, tension_release_cost),  # empirical early-loading failure
+    (ReleaseReason.NORMAL, tension_release_cost),
+    (ReleaseReason.EMPIRICAL_DOMAIN, ultimate_release_cost),
+    (ReleaseReason.EMPIRICAL_EARLY, tension_release_cost),
   )
   for reason_id, value in reason_costs:
     cost += (released & (reason == reason_id)).float() * value
-
-  if motion_command_name is not None and scheduled_reverse_cost > 0.0:
-    motion = _motion(env, motion_command_name)
-    off_schedule = released & (reason == 1) & motion.ref_engaged
-    edge_seconds = motion.ref_edge_distance * motion.cycle_time_s
-    ramp = (
-      (edge_seconds / max(scheduled_reverse_grace_s, 1.0e-6)).clamp(max=1.0)
-      if scheduled_reverse_grace_s > 0.0
-      else torch.ones_like(edge_seconds)
-    )
-    cost += off_schedule.float() * ramp * scheduled_reverse_cost
 
   engaged_count = affordance.engaged.sum(dim=-1)
   unsafe_support = released.any(dim=-1) & (engaged_count < minimum_supports)

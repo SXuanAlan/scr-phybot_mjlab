@@ -586,18 +586,6 @@ class TransitionMotionCommand(ClimbMotionCommand):
 
     joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
     joint_pos[:, self._joint_ids] = self.clip.joint_pos[frames]
-    # <DELTA> joint noise on DISENGAGED rows only: a seeded birth welds the
-    # pad at the anchor while noised joints put it mm-cm away.
-    disengaged = ~self.clip.ee_engaged[frames].any(dim=-1)
-    if self.cfg.joint_pos_noise > 0.0:
-      joint_pos[:, self._joint_ids] += sample_uniform(
-        -self.cfg.joint_pos_noise,
-        self.cfg.joint_pos_noise,
-        (count, len(self._joint_ids)),
-        device=self.device,
-      ) * disengaged.to(joint_pos.dtype).unsqueeze(-1)
-      limits = self.robot.data.soft_joint_pos_limits[env_ids]
-      joint_pos = torch.clip(joint_pos, limits[..., 0], limits[..., 1])
     joint_vel = torch.zeros_like(joint_pos)
     joint_vel[:, self._joint_ids] = self.clip.joint_vel[frames]
     if self.clip.passive_joint_names:
@@ -607,6 +595,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
 
     # <DELTA> blind-delivery scatter on standing spawns (world x/y/yaw: the
     # walk delivery error lives on the horizontal floor).
+    disengaged = ~self.clip.ee_engaged[frames].any(dim=-1)
     root_pos, root_quat = apply_spawn_pose_noise(
       root_pos,
       self._to_world_quat(self.clip.root_quat[frames], env_ids),

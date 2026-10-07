@@ -99,8 +99,7 @@ def _tracking_rewards() -> dict[str, RewardTermCfg]:
 
 def _microspine_rewards() -> dict[str, RewardTermCfg]:
   """Two, three and four anchors are all acceptable; only too little support is
-  penalized. A reverse-shear unhook is free while safe; structural failures
-  carry one-shot costs."""
+  penalized. Hold failures carry one-shot costs."""
   return {
     "microspine_support_loss": RewardTermCfg(
       func=mdp.microspine_support_loss,
@@ -110,8 +109,8 @@ def _microspine_rewards() -> dict[str, RewardTermCfg]:
         "minimum_supports": 2,
       },
     ),
-    # Base failure-mode costs; microspine_release_load also prices loaded
-    # reverse-shear unhooks.
+    # One-shot costs of hold failures; microspine_release_load prices the
+    # unit loads of every release.
     "unsafe_microspine_release": RewardTermCfg(
       func=mdp.unsafe_microspine_release_penalty,
       weight=-2.5,
@@ -119,11 +118,6 @@ def _microspine_rewards() -> dict[str, RewardTermCfg]:
         "command_name": MICROSPINE_AFFORDANCE_COMMAND,
         "minimum_supports": 2,
         "settle_time_s": 0.5,
-        # Reverse shear is free only at scheduled releases and costs 0.3x
-        # while the clip says engaged.
-        "motion_command_name": MOTION_COMMAND,
-        "scheduled_reverse_cost": 0.3,
-        "scheduled_reverse_grace_s": 0.25,
       },
     ),
     # Uses the active-unit loads the hold judge captured. Near-zero shear and

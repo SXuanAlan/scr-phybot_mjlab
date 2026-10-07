@@ -800,15 +800,6 @@ class ClimbMotionCommand(CommandTerm):
 
     joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
     joint_pos[:, self._joint_ids] = self.clip.joint_pos[frames]
-    if self.cfg.joint_pos_noise > 0.0:
-      joint_pos[:, self._joint_ids] += sample_uniform(
-        -self.cfg.joint_pos_noise,
-        self.cfg.joint_pos_noise,
-        (count, len(self._joint_ids)),
-        device=self.device,
-      )
-      limits = self.robot.data.soft_joint_pos_limits[env_ids]
-      joint_pos = torch.clip(joint_pos, limits[..., 0], limits[..., 1])
     joint_vel = torch.zeros_like(joint_pos)
     joint_vel[:, self._joint_ids] = self.clip.joint_vel[frames]
     if self.clip.passive_joint_names:
@@ -925,8 +916,6 @@ class ClimbMotionCommandCfg(CommandTermCfg):
   # with the angle). Exactly zero at 90° — the bit-identity path holds.
   # Disable to reproduce the pure-rotation world (equivalence audits).
   spawn_match_vertical_height: bool = True
-  # Uniform RSI joint-angle noise (rad); clamped to soft limits.
-  joint_pos_noise: float = 0.0
   # The reference loops; it is never resampled mid-episode.
   resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
 

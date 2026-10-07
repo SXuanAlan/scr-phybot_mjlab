@@ -44,7 +44,6 @@ def event_score(env, **params):
 @pytest.mark.parametrize("count", [4, 12])
 def test_near_zero_release_pays_and_both_shear_signs_cost_more_than_lateral(count):
   env, aff, _ = release_env([[0, 0], [0.5, 0.5], [4, 0], [-4, 0], [0, 4], [0, -4]], count=count)
-  aff.release_reason[3, 0] = 1  # Loaded reverse-shear unhooks are not free.
   score = event_score(env)
   assert score[0].item() == pytest.approx(1.0)
   assert 0 < score[1] < score[0]

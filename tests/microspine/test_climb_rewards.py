@@ -4,6 +4,7 @@ import pytest
 import torch
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 from scr_phybot_mjab.tasks.climb_wall.mdp.metrics import microspine_engage_events
 from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
   microspine_support_loss,
@@ -101,7 +102,7 @@ def test_support_loss_penalizes_only_fewer_than_two_anchors():
   assert result.tolist() == [0.0, 1.0, 0.0]
 
 
-def test_release_cost_distinguishes_controlled_and_failed_release():
+def test_release_cost_prices_each_failure_and_support_loss():
   affordance = SimpleNamespace(
     engaged=torch.tensor(
       [
@@ -119,9 +120,9 @@ def test_release_cost_distinguishes_controlled_and_failed_release():
     ),
     release_reason=torch.tensor(
       [
-        [1, 0, 0, 0],
-        [2, 0, 0, 0],
-        [4, 0, 0, 0],
+        [ReleaseReason.NORMAL, 0, 0, 0],
+        [ReleaseReason.EMPIRICAL_DOMAIN, 0, 0, 0],
+        [ReleaseReason.EMPIRICAL_EARLY, 0, 0, 0],
       ]
     ),
   )
@@ -131,7 +132,9 @@ def test_release_cost_distinguishes_controlled_and_failed_release():
     episode_length_buf=torch.full((3,), 100, dtype=torch.long),
   )
   result = unsafe_microspine_release_penalty(env)
-  assert result.tolist() == pytest.approx([0.0, 12.5, 100.0])
+  # 0.25 and 1.0 one-shot costs; the last release leaves one support and
+  # adds the 1.0 support-loss surcharge.
+  assert result.tolist() == pytest.approx([12.5, 50.0, 62.5])
 
 
 def test_empirical_domain_and_early_failures_are_not_free_unhooks():
@@ -195,57 +198,6 @@ def test_motion_engage_mismatch_grace_fraction_scales_with_window():
   # over any grace_time_s.
   result = motion_engage_mismatch(env, grace_time_s=99.0, grace_fraction=0.3)
   assert result.item() == pytest.approx(2.5)
-
-
-def test_unsafe_release_bills_scheduled_reverse_unhooks():
-  affordance = SimpleNamespace(
-    engaged=torch.tensor([[True, True, False, False]] * 3),
-    forced_release_this_step=torch.tensor([[True, False, False, False]] * 3),
-    release_reason=torch.tensor([[1, 0, 0, 0]] * 3),
-  )
-  motion = SimpleNamespace(
-    # env0: reverse unhook deep inside a scheduled ON window -> billed.
-    # env1: same unhook AT the scheduled release edge -> free (on time).
-    # env2: unhook while scheduled OFF -> free (reverse stays the free
-    #       direction off schedule; only the mismatch bill applies there).
-    ref_engaged=torch.tensor(
-      [
-        [True, True, True, True],
-        [True, True, True, True],
-        [False, True, True, True],
-      ]
-    ),
-    ref_edge_distance=torch.tensor(
-      [
-        [0.25, 0.25, 0.25, 0.25],
-        [0.0, 0.25, 0.25, 0.25],
-        [0.25, 0.25, 0.25, 0.25],
-      ]
-    ),
-    cycle_time_s=4.0,
-  )
-
-  class _NamedManager:
-    def __init__(self, terms):
-      self._terms = terms
-
-    def get_term(self, name):
-      return self._terms[name]
-
-  env = SimpleNamespace(
-    command_manager=_NamedManager({"microspine_affordance": affordance, "climb_motion": motion}),
-    step_dt=0.02,
-    episode_length_buf=torch.full((3,), 100, dtype=torch.long),
-  )
-  result = unsafe_microspine_release_penalty(
-    env,
-    motion_command_name="climb_motion",
-    scheduled_reverse_cost=0.3,
-    scheduled_reverse_grace_s=0.25,
-  )
-  # env0: 0.3 / dt = 15 one-shot; the on-time and off-schedule unhooks are
-  # free (two anchors remain, so no support-loss surcharge either).
-  assert result.tolist() == pytest.approx([15.0, 0.0, 0.0])
 
 
 def test_motion_swing_approach_pays_released_swings_toward_the_anchor():

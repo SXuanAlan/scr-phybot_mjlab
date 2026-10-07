@@ -42,7 +42,6 @@ pin_curricula_to_final_stage(cfg)
 mc = cfg.commands["climb_motion"]
 mc.sampling_mode = "uniform"
 mc.height_offset_range = (0.0, 0.0)
-mc.joint_pos_noise = 0.0
 cfg.commands["microspine_affordance"].microspine_cfg.limit_surface.seed_hold_judge_guard_steps = args.guard
 for name in ("encoder_bias", "body_friction", "base_mass"):
   cfg.events.pop(name, None)

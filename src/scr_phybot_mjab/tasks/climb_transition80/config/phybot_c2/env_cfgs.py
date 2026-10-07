@@ -639,7 +639,6 @@ def phybot_c2_climb_transition80_env_cfg(
     affordance_command_name=cycle_motion.affordance_command_name,
     ee_body_names=cycle_motion.ee_body_names,
     sampling_mode="start" if play else "adaptive",
-    joint_pos_noise=0.0 if play else cycle_motion.joint_pos_noise,
     spawn_xy_noise=(0.0, 0.0) if play else TRANSITION80_SPAWN_XY_NOISE,
     spawn_yaw_noise=0.0 if play else TRANSITION80_SPAWN_YAW_NOISE,
     relative_frame=relative_frame,  # type: ignore[arg-type]
