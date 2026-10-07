@@ -13,9 +13,8 @@ from .rl_cfg import (
   phybot_c2_ppo_runner_cfg,
 )
 
-# Main climbing task: all twelve CAD units per pad and the legacy ladder
-# ending at 90 degrees. Hardware variants share its rewards, RSI and PD.
-# The optional unscheduled-release drill is disabled for fresh training.
+# Main climbing task: all twelve CAD units per pad and the angle ladder ending
+# at 90 degrees. The hardware variants share its rewards, RSI and PD.
 register_mjlab_task(
   task_id="Mjlab-Climb-Wall-Phybot-C2",
   env_cfg=phybot_c2_climb_wall_env_cfg(),

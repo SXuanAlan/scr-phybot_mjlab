@@ -1,9 +1,6 @@
-"""Command generators for the wall-climbing task.
+"""The climb velocity command: the world-frame climb rate the progress terms use.
 
-The commanded-gait state machine (``ClimbGaitCommand``) was removed in the
-2026-07-21 DeepMimic redesign: limb sequencing now comes from the motion
-reference (see ``motion.py``); only the world-frame velocity command remains
-here to drive the height/velocity progress rewards.
+Limb sequencing comes from the motion reference (``motion``), not from here.
 """
 
 from __future__ import annotations

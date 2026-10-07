@@ -101,9 +101,8 @@ WALL_ANGLE_STAGES: tuple[WallAngleStage, ...] = (
   {"iter": 4550, "angle_deg": 88.0, "jitter_deg": 2.0},
   {"iter": 5150, "angle_deg": 90.0},
 )
-# Reduced-hardware task: keep the legacy iteration-driven ladder and
-# per-reset angle draws, with an intermediate band bounded by the 60-degree
-# target. The terminal rung must disable jitter explicitly (unlike 90, it
+# The four-corner task: an iteration-driven ladder with per-reset angle draws,
+# its middle band bounded by the 60-degree target. The terminal rung must disable jitter explicitly (unlike 90, it
 # is not exempted by sample_wall_angles). Copy these dicts into each cfg.
 CORNERS60_WALL_ANGLE_STAGES: tuple[WallAngleStage, ...] = (
   {"iter": 0, "angle_deg": 45.0, "jitter_deg": 5.0},

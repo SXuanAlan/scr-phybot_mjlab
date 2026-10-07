@@ -48,11 +48,10 @@ def _graced_mismatch(
 
   ``grace_fraction`` prices the grace as a fraction of the CURRENT scheduled
   run's length (per EE, per frame): a weld-through bill is then a constant
-  fraction of the violated window no matter how the clip is timed. The fixed
-  ``grace_time_s`` alternative silently discounted welding when the clip was
-  compressed — at 0.25 s over a 0.6 s foot window only the middle 0.1 s
-  billed full price (motionref16's weld economics). Fraction takes
-  precedence when both are given.
+  fraction of the violated window no matter how the clip is timed. A fixed
+  ``grace_time_s`` discounts welding when the clip is compressed: at 0.25 s
+  over a 0.6 s foot window only the middle 0.1 s bills full price. Fraction
+  takes precedence when both are given.
   """
   mismatch = (motion.ref_engaged != motion.robot_engaged).float()
   if grace_fraction is not None and grace_fraction > 0.0:
@@ -199,8 +198,8 @@ def motion_anchor_landing():
   The shape rewards are deliberately root-relative and the engage gate only
   checks latch TIMING, so a policy can execute the whole regrip cycle in
   place — releasing and re-latching each pad at its old spot — and still
-  collect nearly every imitation term (the measured iter-1400 basin: match
-  0.98, net climb ~20% of the ghost). This term closes that hole with the
+  collect nearly every imitation term (a 0.98 schedule match while climbing
+  ~20% of the ghost). This term closes that hole with the
   one channel none of them read: WHERE the pad lands. On an engage rising
   edge inside that EE's scheduled window it pays
   ``exp(-(|anchor - ref_anchor|/std)^2)`` once — the reference anchor ladder
@@ -257,8 +256,8 @@ def motion_swing_approach(
   The anchor-landing bonus pays once, at the latch, judged on the anchor
   ladder — but reaching a rung one step height UP requires the whole
   preceding swing to aim there, and none of those intermediate motions earn
-  anything on their own (measured motionref16: landing income stuck at 3-5%
-  of its ceiling because exploration never sampled a high landing). This
+  anything on their own (landing income then stays at a few percent of its
+  ceiling, because exploration rarely samples a high landing). This
   pays the approach itself: while an EE is scheduled OFF (its swing window)
   and actually released, an exp kernel on the pad-center distance to
   ``ref_anchor_pos_w`` — which during a swing IS the upcoming landing

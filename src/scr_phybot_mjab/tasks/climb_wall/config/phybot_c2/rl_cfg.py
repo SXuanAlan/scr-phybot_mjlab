@@ -15,19 +15,15 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
       activation="elu",
       obs_normalization=True,
       distribution_cfg={
-        # IsaacLab-style unbounded Gaussian with NO wrapper action clip (same
-        # recipe as walk/squat and the healthy 14k-iter formal-hybridPD-yaw50
-        # run): oversized actions carry real physical consequences, so the
-        # smoothness/limit rewards regulate magnitude. Robot safety is bounded
-        # in target space by SoftJointPositionAction, not in action space.
-        # Runaway fingerprint (2026-07-13 redesign run, std 0.6->48 under a
-        # tight +-1 clip): Policy/mean_std rising past ~1.5 without receding.
-        # A healthy run peaks at ~1.3 during the early dig-in plateau.
-        # init_std stays at 0.6, NOT the walk/IsaacLab-conventional 1.0: a
-        # wall-hung robot's engaged microspines carry real load, and 1.0-wide
-        # birth exploration overloads the anchors past the release envelope
-        # (hold_margin -1.3 vs healthy -0.65), teaching the policy to avoid
-        # engaging at all. Verified by a 4-arm ablation on 2026-07-15.
+        # An unbounded Gaussian without an action clip, as in walk and squat:
+        # oversized actions have physical consequences, so the smoothness and
+        # limit rewards regulate magnitude, and SoftJointPositionAction bounds
+        # the joint targets. A runaway shows as Policy/mean_std rising past
+        # ~1.5 without receding; a healthy run peaks near 1.3 early on.
+        # init_std 0.6 rather than the conventional 1.0: the engaged spines
+        # carry the robot, and 1.0-wide exploration at birth overloads the
+        # anchors past the hold envelope (hold margin -1.3 against a healthy
+        # -0.65), so the policy learns to avoid engaging at all.
         "class_name": "GaussianDistribution",
         "init_std": 0.6,
         "std_type": "scalar",
@@ -45,10 +41,9 @@ def phybot_c2_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
       value_loss_coef=1.0,
       use_clipped_value_loss=True,
       clip_param=0.2,
-      # Safe without an action clip: the 2026-07-13 saturation runaway needed
-      # the tight +-1 clip to make std growth consequence-free. At this value
-      # the unclipped formal-hybridPD-yaw50 run kept std at 0.2-0.5 for 14k
-      # iterations.
+      # Safe without an action clip: a tight +-1 clip makes std growth free of
+      # consequences and lets entropy run it away. Unclipped, std stays at
+      # 0.2-0.5 over 14k iterations at this coefficient.
       entropy_coef=0.003,
       num_learning_epochs=5,
       num_mini_batches=4,
