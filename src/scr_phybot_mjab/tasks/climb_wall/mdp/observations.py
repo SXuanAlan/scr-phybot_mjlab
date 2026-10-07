@@ -11,8 +11,6 @@ from mjlab.managers.observation_manager import (
   ObservationTermCfg,
 )
 from mjlab.managers.scene_entity_config import SceneEntityCfg
-from mjlab.sensor import BuiltinSensor
-from mjlab.utils.lab_api.math import quat_apply_inverse
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -30,39 +28,10 @@ __all__ = (
   "prev_action",
   "prev_prev_action",
   "privileged_critic_group",
-  "projected_gravity_from_framequat_sensor",
   "velocity_command",
 )
 
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
-
-
-def projected_gravity_from_framequat_sensor(
-  env: ManagerBasedRlEnv,
-  sensor_name: str,
-  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
-) -> torch.Tensor:
-  """Project the current simulator gravity direction into the base frame.
-
-  ``EntityData.gravity_vec_w`` is a nominal world-down unit vector and does
-  not track the gravity-tilt curriculum. Read the live MuJoCo/Warp gravity
-  instead, then normalize it so the observation remains a unit direction.
-  """
-  del asset_cfg  # Kept for API compatibility with older env configs.
-  import warp as wp
-
-  sensor = env.scene[sensor_name]
-  assert isinstance(sensor, BuiltinSensor)
-  quat_w = sensor.data
-  quat_w = quat_w / torch.linalg.norm(quat_w, dim=-1, keepdim=True).clamp_min(1.0e-6)
-
-  gravity_w = wp.to_torch(env.sim.wp_model.opt.gravity)  # (1, 3) or (E, 3)
-  if gravity_w.shape[0] == 1:
-    gravity_w = gravity_w.expand(env.num_envs, 3)
-  else:
-    gravity_w = gravity_w[: env.num_envs]
-  gravity_dir_w = gravity_w / torch.linalg.norm(gravity_w, dim=-1, keepdim=True).clamp_min(1.0e-6)
-  return quat_apply_inverse(quat_w, gravity_dir_w)
 
 
 def prev_action(env: "ManagerBasedRlEnv") -> torch.Tensor:

@@ -13,6 +13,7 @@ from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   MOTION_COMMAND,
   VELOCITY_COMMAND,
 )
+from scr_phybot_mjab.tasks.common.observations import projected_gravity_from_framequat_sensor
 from scr_phybot_mjab.tasks.common.phybot_c2 import (
   BASE_ANG_VEL_SENSOR,
   BASE_LIN_VEL_SENSOR,
@@ -29,7 +30,7 @@ def climb_observations(
     "base_lin_vel": ObservationTermCfg(func=mdp.builtin_sensor, params={"sensor_name": BASE_LIN_VEL_SENSOR}),
     "base_ang_vel": ObservationTermCfg(func=mdp.builtin_sensor, params={"sensor_name": BASE_ANG_VEL_SENSOR}),
     "projected_gravity": ObservationTermCfg(
-      func=mdp.projected_gravity_from_framequat_sensor, params={"sensor_name": BASE_QUAT_SENSOR}
+      func=projected_gravity_from_framequat_sensor, params={"sensor_name": BASE_QUAT_SENSOR}
     ),
     "joint_pos_rel": ObservationTermCfg(func=mdp.joint_pos_rel, params={"asset_cfg": policy_joint_cfg()}),
     "joint_vel_rel": ObservationTermCfg(func=mdp.joint_vel_rel, params={"asset_cfg": policy_joint_cfg()}),

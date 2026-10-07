@@ -19,3 +19,7 @@
 "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.microspine_release_load_reward" = "scr_phybot_mjab.tasks.climb_wall.mdp.rewards_contact.microspine_release_load_reward"
 "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.unsafe_microspine_release_penalty" = "scr_phybot_mjab.tasks.climb_wall.mdp.rewards_contact.unsafe_microspine_release_penalty"
 "scr_phybot_mjab.tasks.climb_wall.mdp.rewards.undesired_body_contacts" = "scr_phybot_mjab.tasks.climb_wall.mdp.rewards_contact.undesired_body_contacts"
+"scr_phybot_mjab.tasks.walk.mdp.observations.projected_gravity_from_framequat_sensor" = "scr_phybot_mjab.tasks.common.observations.projected_gravity_from_framequat_sensor"
+# Not a pure move: climb's copy read the live gravity, which equals the nominal
+# world-down vector bit for bit because no task changes gravity (verified by rollouts).
+"scr_phybot_mjab.tasks.climb_wall.mdp.observations.projected_gravity_from_framequat_sensor" = "scr_phybot_mjab.tasks.common.observations.projected_gravity_from_framequat_sensor"
