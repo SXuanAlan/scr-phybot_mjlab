@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 __all__ = (
   "engage_progress",
   "scheduled_anchor_rip_penalty",
+  "scheduled_rip_events",
   "scheduled_hold_margin_wage",
   "motion_pad_center_error_exp",
   "motion_anchor_orientation_error_exp",
@@ -96,15 +97,13 @@ def motion_body_position_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.3,
-  body_names: tuple[str, ...] | None = None,
   engage_gate_floor: float | None = None,
   engage_gate_grace_s: float = 0.25,
   engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
-  """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies (or a subset)."""
+  """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies."""
   cmd = _tracking(env, command_name)
-  idx = cmd.tracking_body_indices(body_names)
-  error = (cmd.body_pos_target_w[:, idx] - cmd.robot_body_pos_w[:, idx]).square().sum(dim=-1).mean(dim=-1)
+  error = (cmd.body_pos_w - cmd.robot_body_pos_w).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 
@@ -112,16 +111,14 @@ def motion_body_orientation_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.4,
-  body_names: tuple[str, ...] | None = None,
   engage_gate_floor: float | None = None,
   engage_gate_grace_s: float = 0.25,
   engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
-  """exp(-mean_B θ_b² / std²) over the tracked bodies (or a subset)."""
+  """exp(-mean_B θ_b² / std²) over the tracked bodies."""
   cmd = _tracking(env, command_name)
-  idx = cmd.tracking_body_indices(body_names)
-  ref = cmd.body_quat_target_w[:, idx]
-  rob = cmd.robot_body_quat_w[:, idx]
+  ref = cmd.body_quat_w
+  rob = cmd.robot_body_quat_w
   error = quat_error_magnitude(ref.reshape(-1, 4), rob.reshape(-1, 4)).reshape(ref.shape[0], ref.shape[1])
   return torch.exp(-error.square().mean(dim=-1) / std**2)
 
@@ -145,12 +142,10 @@ def motion_body_linear_velocity_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 1.0,
-  body_names: tuple[str, ...] | None = None,
 ) -> torch.Tensor:
   """exp(-mean_B |v_b - v̂_b|² / std²), world frame."""
   cmd = _tracking(env, command_name)
-  idx = cmd.tracking_body_indices(body_names)
-  error = (cmd.body_lin_vel_w[:, idx] - cmd.robot_body_lin_vel_w[:, idx]).square().sum(dim=-1).mean(dim=-1)
+  error = (cmd.body_lin_vel_w - cmd.robot_body_lin_vel_w).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 
@@ -158,12 +153,10 @@ def motion_body_angular_velocity_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 3.14,
-  body_names: tuple[str, ...] | None = None,
 ) -> torch.Tensor:
   """exp(-mean_B |ω_b - ω̂_b|² / std²), world frame."""
   cmd = _tracking(env, command_name)
-  idx = cmd.tracking_body_indices(body_names)
-  error = (cmd.body_ang_vel_w[:, idx] - cmd.robot_body_ang_vel_w[:, idx]).square().sum(dim=-1).mean(dim=-1)
+  error = (cmd.body_ang_vel_w - cmd.robot_body_ang_vel_w).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
 
 
@@ -265,6 +258,36 @@ def scheduled_hold_margin_wage(
   return (gate * pay).sum(dim=-1) / n_sched
 
 
+def scheduled_rip_events(
+  env: ManagerBasedRlEnv,
+  command_name: str = "climb_motion",
+  affordance_command_name: str = "microspine_affordance",
+  release_lead_time_s: float = 0.5,
+  seed_settle_exempt_s: float = 0.2,
+) -> torch.Tensor:
+  """Pads ripped this step, (E, H): a forced release while the chart says hold.
+
+  Every hold-judge release counts, whatever its reason. Exempt: releases
+  within ``release_lead_time_s`` of the scheduled falling edge (letting go
+  slightly early is the choreography), and seeded anchors lost within
+  ``seed_settle_exempt_s`` of birth, when the kinematic birth drops the body
+  weight onto welds the policy has not loaded yet.
+  """
+  motion = env.command_manager.get_term(command_name)
+  aff = env.command_manager.get_term(affordance_command_name)
+  released = aff.forced_release_this_step
+  lead = release_lead_time_s / motion.cycle_time_s
+  release_soon = motion.ref_edge_countdowns[..., 0] <= lead
+  rip = released & motion.ref_engaged & ~release_soon
+  if seed_settle_exempt_s > 0.0:
+    settle_steps = max(1, int(round(seed_settle_exempt_s / env.step_dt)))
+    settling = (env.episode_length_buf <= settle_steps).unsqueeze(-1)
+    was_seeded = getattr(aff, "released_was_seeded", None)
+    if was_seeded is not None:
+      rip = rip & ~(was_seeded & settling)
+  return rip
+
+
 def scheduled_anchor_rip_penalty():
   """Factory: per-step bill while a RIPPED scheduled anchor stays un-welded.
 
@@ -293,16 +316,13 @@ def scheduled_anchor_rip_penalty():
   ) -> torch.Tensor:
     motion = env.command_manager.get_term(command_name)
     aff = env.command_manager.get_term(affordance_command_name)
-    released = aff.forced_release_this_step
-    lead = release_lead_time_s / motion.cycle_time_s
-    release_soon = motion.ref_edge_countdowns[..., 0] <= lead
-    rip = released & motion.ref_engaged & ~release_soon
-    if seed_settle_exempt_s > 0.0:
-      settle_steps = max(1, int(round(seed_settle_exempt_s / env.step_dt)))
-      settling = (env.episode_length_buf <= settle_steps).unsqueeze(-1)
-      was_seeded = getattr(aff, "released_was_seeded", None)
-      if was_seeded is not None:
-        rip = rip & ~(was_seeded & settling)
+    rip = scheduled_rip_events(
+      env,
+      command_name=command_name,
+      affordance_command_name=affordance_command_name,
+      release_lead_time_s=release_lead_time_s,
+      seed_settle_exempt_s=seed_settle_exempt_s,
+    )
     flag = state["flag"]
     if flag is None or flag.shape != rip.shape:
       flag = torch.zeros_like(rip)

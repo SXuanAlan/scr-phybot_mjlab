@@ -374,29 +374,24 @@ TRANSITION80_LEG_PD = (100.0, 10.0)
 TRANSITION80_ANKLE_PD = (50.0, 5.0)
 
 
-def transition80_actuators(
-  arm_pd: tuple[float, float] = TRANSITION80_ARM_PD,
-  waist_pd: tuple[float, float] = TRANSITION80_WAIST_PD,
-  leg_pd: tuple[float, float] = TRANSITION80_LEG_PD,
-  ankle_pd: tuple[float, float] = TRANSITION80_ANKLE_PD,
-) -> tuple:
+def transition80_actuators() -> tuple:
   """The explicit 12-actuator table (fresh copies, fixed asset order)."""
 
   def _pd(actuator, pd):
     return dataclasses.replace(actuator, stiffness=pd[0], damping=pd[1])
 
   return (
-    _pd(PHYBOT_C2_ACTUATOR_HIP_PITCH, leg_pd),
-    _pd(PHYBOT_C2_ACTUATOR_HIP_ROLL, leg_pd),
-    _pd(PHYBOT_C2_ACTUATOR_HIP_YAW, leg_pd),
-    _pd(PHYBOT_C2_ACTUATOR_KNEE, leg_pd),
-    _pd(PHYBOT_C2_ACTUATOR_ANKLE_PITCH, ankle_pd),
-    _pd(PHYBOT_C2_ACTUATOR_ANKLE_ROLL, ankle_pd),
-    _pd(PHYBOT_C2_ACTUATOR_WAIST_YAW, waist_pd),
-    _pd(PHYBOT_C2_ACTUATOR_SHOULDER_PITCH, arm_pd),
-    _pd(PHYBOT_C2_ACTUATOR_SHOULDER_ROLL, arm_pd),
-    _pd(PHYBOT_C2_ACTUATOR_SHOULDER_YAW, arm_pd),
-    _pd(PHYBOT_C2_ACTUATOR_ELBOW_PITCH, arm_pd),
+    _pd(PHYBOT_C2_ACTUATOR_HIP_PITCH, TRANSITION80_LEG_PD),
+    _pd(PHYBOT_C2_ACTUATOR_HIP_ROLL, TRANSITION80_LEG_PD),
+    _pd(PHYBOT_C2_ACTUATOR_HIP_YAW, TRANSITION80_LEG_PD),
+    _pd(PHYBOT_C2_ACTUATOR_KNEE, TRANSITION80_LEG_PD),
+    _pd(PHYBOT_C2_ACTUATOR_ANKLE_PITCH, TRANSITION80_ANKLE_PD),
+    _pd(PHYBOT_C2_ACTUATOR_ANKLE_ROLL, TRANSITION80_ANKLE_PD),
+    _pd(PHYBOT_C2_ACTUATOR_WAIST_YAW, TRANSITION80_WAIST_PD),
+    _pd(PHYBOT_C2_ACTUATOR_SHOULDER_PITCH, TRANSITION80_ARM_PD),
+    _pd(PHYBOT_C2_ACTUATOR_SHOULDER_ROLL, TRANSITION80_ARM_PD),
+    _pd(PHYBOT_C2_ACTUATOR_SHOULDER_YAW, TRANSITION80_ARM_PD),
+    _pd(PHYBOT_C2_ACTUATOR_ELBOW_PITCH, TRANSITION80_ARM_PD),
     PHYBOT_C2_ACTUATOR_NECK,  # non-policy joint, asset default 20/2
   )
 
@@ -579,17 +574,7 @@ def transition80_observation_groups(
   )
 
 
-def phybot_c2_climb_transition80_env_cfg(
-  play: bool = False,
-  domain_rand: bool = True,
-  wall_angle_deg: float = TRANSITION80_WALL_ANGLE_DEG,
-  constraint_mode: str = "cat",
-  relative_frame: str = "world",
-  asym_arm_tracking: bool = False,
-  arm_pd: tuple[float, float] = TRANSITION80_ARM_PD,
-  waist_pd: tuple[float, float] = TRANSITION80_WAIST_PD,
-  engage_gate_floor: float | None = TRANSITION80_ENGAGE_GATE_FLOOR,
-) -> ManagerBasedRlEnvCfg:
+def phybot_c2_climb_transition80_env_cfg(play: bool = False, domain_rand: bool = True) -> ManagerBasedRlEnvCfg:
   """80-degree walk->climb transition: stand at the wall, latch all four, hold.
 
   Args:
@@ -597,18 +582,7 @@ def phybot_c2_climb_transition80_env_cfg(
       constraint cone off, curricula pinned).
     domain_rand: the climb s2r DR package (obs noise, encoder bias,
       friction/mass) — climb parity.
-    wall_angle_deg: wall slope from horizontal; the clip asset must be the
-      matching native-angle prologue (``climb_mount_prologue_a<deg>``).
-    constraint_mode: engage cone mode, ``"cat"`` (soft) | ``"hard"``.
-    relative_frame: body tracking frame, ``"world"`` | ``"anchor_yaw"``.
-    asym_arm_tracking: LadderMan Eq.(1) split — arm links at half weight /
-      double std; legs, torso and pads strict.
-    arm_pd / waist_pd: (stiffness, damping) overrides of the explicit table.
-    engage_gate_floor: climb's mismatch discount floor on the pose kernels
-      (None = ungated).
   """
-  if constraint_mode not in ("cat", "hard"):
-    raise ValueError("constraint_mode must be 'cat' or 'hard'.")
   cfg = phybot_c2_climb_wall_env_cfg(
     play=play,
     domain_rand=domain_rand,
@@ -625,7 +599,7 @@ def phybot_c2_climb_transition80_env_cfg(
   robot_cfg.articulation = dataclasses.replace(
     robot_cfg.articulation,
     soft_joint_pos_limit_factor=0.98,
-    actuators=transition80_actuators(arm_pd=arm_pd, waist_pd=waist_pd),
+    actuators=transition80_actuators(),
   )
 
   ##
@@ -635,17 +609,16 @@ def phybot_c2_climb_transition80_env_cfg(
   cycle_motion = cfg.commands["climb_motion"]
   cfg.commands["climb_motion"] = mdp.TransitionMotionCommandCfg(
     entity_name=cycle_motion.entity_name,
-    motion_file=str(mount_clip_path(wall_angle_deg)),
+    motion_file=str(TRANSITION80_MOTION_FILE),
     affordance_command_name=cycle_motion.affordance_command_name,
     ee_body_names=cycle_motion.ee_body_names,
     sampling_mode="start" if play else "adaptive",
     spawn_xy_noise=(0.0, 0.0) if play else TRANSITION80_SPAWN_XY_NOISE,
     spawn_yaw_noise=0.0 if play else TRANSITION80_SPAWN_YAW_NOISE,
-    relative_frame=relative_frame,  # type: ignore[arg-type]
     birth_freeze_steps=TRANSITION80_BIRTH_FREEZE_STEPS,
     birth_exclude_frames=() if play else TRANSITION80_BIRTH_EXCLUDE_FRAMES,
     spawn_early_fraction=0.0 if play else TRANSITION80_CLASSROOM_FRACTION,
-    spawn_bias_frame_windows=() if play else _transition80_classroom_windows(str(mount_clip_path(wall_angle_deg))),
+    spawn_bias_frame_windows=() if play else _transition80_classroom_windows(str(TRANSITION80_MOTION_FILE)),
     spawn_bias_auto_rake_frames=0,
     adaptive_uniform_ratio=TRANSITION80_ADAPTIVE_UNIFORM_RATIO,
     adaptive_max_bin_prob=TRANSITION80_ADAPTIVE_MAX_BIN_PROB,
@@ -671,12 +644,8 @@ def phybot_c2_climb_transition80_env_cfg(
   ##
   # Rewards — replaced wholesale.
   ##
-  tracking_bodies = None
-  if asym_arm_tracking:
-    tracking_bodies = tuple(n for n in mdp.DEFAULT_TRACKING_BODY_NAMES if n not in mdp.ARM_TRACKING_BODY_NAMES)
-  pad_bodies = tuple(cycle_motion.ee_body_names)
   gate = {
-    "engage_gate_floor": engage_gate_floor,
+    "engage_gate_floor": TRANSITION80_ENGAGE_GATE_FLOOR,
     "engage_gate_grace_s": TRANSITION80_ENGAGE_GATE_GRACE_S,
     "engage_gate_grace_fraction": None,
   }
@@ -694,12 +663,12 @@ def phybot_c2_climb_transition80_env_cfg(
     "motion_body_pos": RewardTermCfg(
       func=mdp.motion_body_position_error_exp,
       weight=1.0,
-      params={"command_name": "climb_motion", "std": 0.3, "body_names": tracking_bodies, **gate},
+      params={"command_name": "climb_motion", "std": 0.3, **gate},
     ),
     "motion_body_ori": RewardTermCfg(
       func=mdp.motion_body_orientation_error_exp,
       weight=1.0,
-      params={"command_name": "climb_motion", "std": 0.4, "body_names": tracking_bodies, **gate},
+      params={"command_name": "climb_motion", "std": 0.4, **gate},
     ),
     # Pad FACE centers, UNGATED (v1g): the one pose income that must stay
     # full while unwelded — it is the path to compliance.
@@ -776,17 +745,6 @@ def phybot_c2_climb_transition80_env_cfg(
       params={"asset_cfg": policy_joint_cfg()},
     ),
   }
-  if asym_arm_tracking:
-    rewards["motion_body_pos_arms"] = RewardTermCfg(
-      func=mdp.motion_body_position_error_exp,
-      weight=0.5,
-      params={"command_name": "climb_motion", "std": 0.6, "body_names": mdp.ARM_TRACKING_BODY_NAMES},
-    )
-    rewards["motion_body_ori_arms"] = RewardTermCfg(
-      func=mdp.motion_body_orientation_error_exp,
-      weight=0.5,
-      params={"command_name": "climb_motion", "std": 0.8, "body_names": mdp.ARM_TRACKING_BODY_NAMES},
-    )
   cfg.rewards = rewards
 
   ##
@@ -850,7 +808,7 @@ def phybot_c2_climb_transition80_env_cfg(
       params={
         "command_name": "climb_motion",
         "affordance_command_name": "microspine_affordance",
-        "mode": "off" if play else constraint_mode,
+        "mode": "off" if play else "cat",
         "tilt_limit_deg": _stage0(TRANSITION80_TILT_STAGES),
         "grind_limit_mps": _stage0(TRANSITION80_GRIND_STAGES),
         "slam_limit_mps": _stage0(TRANSITION80_SLAM_STAGES),
@@ -877,7 +835,7 @@ def phybot_c2_climb_transition80_env_cfg(
     "wall_angle": CurriculumTermCfg(
       func=mdp.wall_angle,
       params={
-        "angle_stages": [{"iter": 0, "angle_deg": float(wall_angle_deg)}],
+        "angle_stages": [{"iter": 0, "angle_deg": float(TRANSITION80_WALL_ANGLE_DEG)}],
         "steps_per_iter": _STEPS_PER_ITER,
         "angle_jitter_deg": 0.0,
       },

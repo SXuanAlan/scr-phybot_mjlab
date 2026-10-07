@@ -14,13 +14,13 @@ import torch
 from scr_phybot_mjab.tasks.climb_transition80.mdp.rewards import (
   engage_progress,
   motion_anchor_position_error_exp,
+  scheduled_rip_events,
 )
 from scr_phybot_mjab.tasks.climb_transition80.mdp.terminations import (
   bad_anchor_pos_termination,
   bad_pad_center_termination,
   engage_constraint_termination,
   illegal_wall_contact_termination,
-  scheduled_anchor_rip,
 )
 
 E, H = 2, 4
@@ -225,6 +225,9 @@ def test_cone_slam_reads_the_contact_rising_edge():
 
 
 def test_rip_fires_only_for_scheduled_anchors_away_from_their_release_edge():
+  def scheduled_anchor_rip(env, seed_settle_exempt_s=0.5):
+    return scheduled_rip_events(env, seed_settle_exempt_s=seed_settle_exempt_s).any(dim=-1)
+
   env, motion, aff = _stub()
   aff.forced_release_this_step[0, 0] = True
   assert not scheduled_anchor_rip(env).any()  # chart says OFF: not a rip

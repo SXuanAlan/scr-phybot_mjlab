@@ -159,7 +159,6 @@ def test_transition80_command_is_the_tracking_subclass() -> None:
   assert type(motion) is TransitionMotionCommandCfg
   assert motion.motion_file.endswith("climb_mount_prologue_a80.npy")
   assert motion.sampling_mode == "adaptive"
-  assert motion.relative_frame == "world"
   assert motion.spawn_match_vertical_height is False
   assert motion.spawn_early_fraction == pytest.approx(0.45)  # v6e classroom share
   assert motion.spawn_bias_auto_rake_frames == 0  # v6e: explicit windows replace auto rake
@@ -210,15 +209,6 @@ def test_transition80_reward_table_is_beyondmimic_minimal() -> None:
     "standing_wall_fence",
   ):
     assert banned not in cfg.rewards
-
-
-def test_asym_arm_tracking_knob_adds_the_arm_split() -> None:
-  cfg = phybot_c2_climb_transition80_env_cfg(asym_arm_tracking=True)
-  assert "motion_body_pos_arms" in cfg.rewards
-  assert "motion_body_ori_arms" in cfg.rewards
-  assert cfg.rewards["motion_body_pos_arms"].weight == pytest.approx(0.5)
-  body = cfg.rewards["motion_body_pos"].params["body_names"]
-  assert "left_elbow_pitch" not in body and "left_hand_spine" in body
 
 
 def test_transition80_termination_table() -> None:
@@ -288,10 +278,6 @@ def test_transition80_termination_table() -> None:
   cone = cfg.terminations["engage_constraint"].params
   assert cone["persist_steps"] == 5
   assert cone["seed_settle_exempt_s"] == pytest.approx(0.12)
-  hard = phybot_c2_climb_transition80_env_cfg(constraint_mode="hard")
-  assert hard.terminations["engage_constraint"].params["mode"] == "hard"
-  with pytest.raises(ValueError):
-    phybot_c2_climb_transition80_env_cfg(constraint_mode="soft")
 
 
 def test_transition80_curriculum_table() -> None:
@@ -491,8 +477,6 @@ def test_pd_table_is_the_real_robot_firmware_table() -> None:
   climb = _gains(phybot_c2_climb_wall_env_cfg())
   assert climb[".*_shoulder_pitch"] == (100.0, 10.0)
   assert climb["waist_yaw"] == (100.0, 10.0)
-  custom = _gains(phybot_c2_climb_transition80_env_cfg(arm_pd=(75.0, 7.5), waist_pd=(50.0, 10.0)))
-  assert custom[".*_elbow_pitch"] == (75.0, 7.5) and custom["waist_yaw"] == (50.0, 10.0)
 
 
 def test_pose_kernels_carry_the_climb_mismatch_gate() -> None:
@@ -506,5 +490,3 @@ def test_pose_kernels_carry_the_climb_mismatch_gate() -> None:
   # The pad-face term is the path to compliance: never discounted.
   for name in ("motion_pad_pos", "motion_body_lin_vel", "motion_body_ang_vel", "engage_progress"):
     assert "engage_gate_floor" not in cfg.rewards[name].params, name
-  ungated = phybot_c2_climb_transition80_env_cfg(engage_gate_floor=None)
-  assert ungated.rewards["motion_body_pos"].params["engage_gate_floor"] is None

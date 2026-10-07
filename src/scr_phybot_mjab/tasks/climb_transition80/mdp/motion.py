@@ -18,8 +18,7 @@ reseat freeze, the per-env wall frame) for a single acyclic clip:
   reference pose/velocity is computed once at load with MuJoCo forward
   kinematics (canonical frame, rotated into the tilted world through the
   parent's wall-frame machinery); body tracking is GLOBAL (the wall and its
-  anchors are world-fixed) with the mjlab xy+yaw re-anchoring available as
-  ``relative_frame="anchor_yaw"``;
+  anchors are world-fixed);
 * ADAPTIVE SAMPLING — BeyondMimic failure-weighted start bins (one per
   clip-second): births concentrate where episodes die;
 * MOTION_COMMAND 10 — ``[cos, sin, engaged(4), t_next_edge(4)]``: the
@@ -46,10 +45,8 @@ import torch
 from mjlab.utils.lab_api.math import (
   quat_apply,
   quat_from_angle_axis,
-  quat_inv,
   quat_mul,
   sample_uniform,
-  yaw_quat,
 )
 
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import (
@@ -66,7 +63,6 @@ if TYPE_CHECKING:
 __all__ = (
   "birth_mask_from_ranges",
   "rake_windows_from_engaged",
-  "ARM_TRACKING_BODY_NAMES",
   "DEFAULT_TRACKING_BODY_NAMES",
   "TransitionMotionCommand",
   "TransitionMotionCommandCfg",
@@ -100,13 +96,6 @@ DEFAULT_TRACKING_BODY_NAMES: tuple[str, ...] = (
   "right_knee",
   "right_ankle_roll",
   "right_foot_spine",
-)
-# Arm links for the optional LadderMan Eq.(1) asymmetric split.
-ARM_TRACKING_BODY_NAMES: tuple[str, ...] = (
-  "left_shoulder_roll",
-  "left_elbow_pitch",
-  "right_shoulder_roll",
-  "right_elbow_pitch",
 )
 
 
@@ -645,11 +634,6 @@ class TransitionMotionCommand(ClimbMotionCommand):
   def tracking_body_names(self) -> tuple[str, ...]:
     return self._tracking_body_names
 
-  def tracking_body_indices(self, body_names: tuple[str, ...] | None) -> list[int]:
-    if body_names is None:
-      return list(range(len(self._tracking_body_names)))
-    return [i for i, n in enumerate(self._tracking_body_names) if n in body_names]
-
   def _ensure_fk_tables(self) -> None:
     if self._fk_pos is not None:
       return
@@ -772,34 +756,6 @@ class TransitionMotionCommand(ClimbMotionCommand):
     assert self._fk_ang_vel is not None
     return self._world_vecs(self._fk_ang_vel[self.time_steps])
 
-  def _reanchored(self) -> tuple[torch.Tensor, torch.Tensor]:
-    """mjlab ``update_relative_body_poses``: the reference skeleton
-    re-planted at the robot root's xy + yaw (reference z, roll, pitch)."""
-    body_pos, body_quat = self.body_pos_w, self.body_quat_w
-    num_bodies = body_pos.shape[1]
-    anchor_pos = self.anchor_pos_w.unsqueeze(1).expand(-1, num_bodies, -1)
-    anchor_quat = self.anchor_quat_w.unsqueeze(1).expand(-1, num_bodies, -1)
-    robot_pos = self.robot_anchor_pos_w.unsqueeze(1).expand(-1, num_bodies, -1)
-    robot_quat = self.robot_anchor_quat_w.unsqueeze(1).expand(-1, num_bodies, -1)
-    delta_pos = robot_pos.clone()
-    delta_pos[..., 2] = anchor_pos[..., 2]
-    delta_ori = yaw_quat(quat_mul(robot_quat.reshape(-1, 4), quat_inv(anchor_quat.reshape(-1, 4)))).reshape(
-      -1, num_bodies, 4
-    )
-    quat_rel = quat_mul(delta_ori.reshape(-1, 4), body_quat.reshape(-1, 4)).reshape(body_quat.shape)
-    pos_rel = delta_pos + quat_apply(delta_ori.reshape(-1, 4), (body_pos - anchor_pos).reshape(-1, 3)).reshape(
-      body_pos.shape
-    )
-    return pos_rel, quat_rel
-
-  @property
-  def body_pos_target_w(self) -> torch.Tensor:
-    return self.body_pos_w if self.cfg.relative_frame == "world" else self._reanchored()[0]
-
-  @property
-  def body_quat_target_w(self) -> torch.Tensor:
-    return self.body_quat_w if self.cfg.relative_frame == "world" else self._reanchored()[1]
-
   # -- robot side -----------------------------------------------------------------
 
   @property
@@ -836,7 +792,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
   def _update_metrics(self) -> None:
     super()._update_metrics()
     self.metrics["error_anchor_pos"] = (self.anchor_pos_w - self.robot_anchor_pos_w).norm(dim=-1)
-    body_err = (self.body_pos_target_w - self.robot_body_pos_w).norm(dim=-1)
+    body_err = (self.body_pos_w - self.robot_body_pos_w).norm(dim=-1)
     self.metrics["error_body_pos"] = body_err.mean(dim=-1)
     self.metrics["error_pad_pos"] = (self.ref_pad_center_w - self.robot_pad_center_w).norm(dim=-1).mean(dim=-1)
 
@@ -861,9 +817,6 @@ class TransitionMotionCommandCfg(ClimbMotionCommandCfg):
   spawn_match_vertical_height: bool = False
   # Tracked bodies (must contain every ``ee_body_names`` entry).
   body_names: tuple[str, ...] = DEFAULT_TRACKING_BODY_NAMES
-  # "world": reference world poses (wall-fixed task); "anchor_yaw": mjlab
-  # re-anchoring at the robot root xy+yaw.
-  relative_frame: Literal["world", "anchor_yaw"] = "world"
   adaptive_alpha: float = 0.001
   adaptive_uniform_ratio: float = 0.1
   adaptive_kernel_size: int = 1

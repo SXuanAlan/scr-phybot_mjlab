@@ -29,11 +29,9 @@ if TYPE_CHECKING:
 __all__ = (
   "bad_anchor_ori_termination",
   "bad_anchor_pos_termination",
-  "bad_motion_body_pos_termination",
   "bad_pad_center_termination",
   "engage_constraint_termination",
   "illegal_wall_contact_termination",
-  "scheduled_anchor_rip",
   "scheduled_contact_loss_termination",
 )
 
@@ -103,30 +101,6 @@ def bad_anchor_ori_termination():
   return call
 
 
-def bad_motion_body_pos_termination():
-  """Factory: any tracked body (default: the four pads) off its reference
-  target by > threshold, persisting ``persist_steps``."""
-  state: dict[str, torch.Tensor | None] = {"count": None}
-
-  def call(
-    env: ManagerBasedRlEnv,
-    *,
-    command_name: str = "climb_motion",
-    threshold: float = 0.30,
-    persist_steps: int = 10,
-    body_names: tuple[str, ...] | None = None,
-  ) -> torch.Tensor:
-    cmd = env.command_manager.get_term(command_name)
-    if body_names is None:
-      idx = cmd.pad_slots
-    else:
-      idx = cmd.tracking_body_indices(body_names)
-    error = (cmd.body_pos_target_w[:, idx] - cmd.robot_body_pos_w[:, idx]).norm(dim=-1)
-    return _persist(state, env, (error > threshold).any(dim=-1), persist_steps)
-
-  return call
-
-
 def bad_pad_center_termination():
   """Factory: any pad FACE center off its reference face center by >
   threshold, persisting ``persist_steps`` (v1g: replaces the body-origin
@@ -146,45 +120,6 @@ def bad_pad_center_termination():
     return _persist(state, env, (error > threshold).any(dim=-1), persist_steps)
 
   return call
-
-
-def scheduled_anchor_rip(
-  env: ManagerBasedRlEnv,
-  command_name: str = "climb_motion",
-  affordance_command_name: str = "microspine_affordance",
-  release_lead_time_s: float = 0.5,
-  seed_settle_exempt_s: float = 0.5,
-) -> torch.Tensor:
-  """A pad the schedule has ENGAGED is physically released -> terminate.
-
-  Every limit-surface release counts (tension, lateral, ultimate, tilt and
-  the reverse-shear "free" release alike): while the chart says hold, a
-  release is a failure of the hold, whatever the physics label. Exempt:
-  R4 reseat pending; releases within ``release_lead_time_s`` of the
-  scheduled falling edge (letting go slightly early is the choreography);
-  and RSI-SEEDED anchors lost within ``seed_settle_exempt_s`` of birth —
-  the kinematic birth drops the body weight onto welds the policy has not
-  yet loaded (a80 hold-still probe, 2026-08-21: 150-270 N foot-pad shear
-  spikes at step 2, compliance-driven lateral/tension/reverse-shear rips
-  at steps 5-19), so an immediate death there would be a gradient desert
-  at guard expiry. A lost seed still has to be re-welded inside the
-  contact law's grace, so the consequence is delayed into a state with
-  gradient, not removed. No grace otherwise, no fine — the v57 seed-rip
-  bill taught price-sensitivity, never holding.
-  """
-  motion = env.command_manager.get_term(command_name)
-  aff = env.command_manager.get_term(affordance_command_name)
-  released = aff.forced_release_this_step
-  lead = release_lead_time_s / motion.cycle_time_s
-  release_soon = motion.ref_edge_countdowns[..., 0] <= lead
-  rip = released & motion.ref_engaged & ~release_soon
-  if seed_settle_exempt_s > 0.0:
-    settle_steps = max(1, int(round(seed_settle_exempt_s / env.step_dt)))
-    settling = (env.episode_length_buf <= settle_steps).unsqueeze(-1)
-    was_seeded = getattr(aff, "released_was_seeded", None)
-    if was_seeded is not None:
-      rip = rip & ~(was_seeded & settling)
-  return rip.any(dim=-1)
 
 
 def illegal_wall_contact_termination():
