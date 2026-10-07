@@ -1,4 +1,4 @@
-"""Transition80 observation lanes (v2 contract, 2026-08-21).
+"""Transition observation lanes.
 
 Actor lanes added here (all deploy-legal: clip lookups, FK off the base
 state estimate, and the calibrated wall pose — no force sensing):

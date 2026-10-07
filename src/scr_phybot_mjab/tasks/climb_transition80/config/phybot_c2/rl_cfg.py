@@ -1,7 +1,7 @@
 """RSL-RL configuration for the PHYBot C2 80-degree transition task.
 
-The climb PPO recipe verbatim (the env contract is inherited by
-construction); only the logging identity changes.
+Climb's PPO recipe, including its 96-step rollout that the curricula's
+STEPS_PER_ITER counts in; only the logging identity changes.
 """
 
 import dataclasses

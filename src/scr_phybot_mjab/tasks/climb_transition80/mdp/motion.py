@@ -1,35 +1,32 @@
-"""One-shot 80-degree mount prologue reference with BeyondMimic body tables.
+"""The one-shot 80-degree mount reference, with BeyondMimic body tables.
 
-``TransitionMotionCommand`` specialises the climb cycle command
-(``ClimbMotionCommand``: RSI, latch seeding, reference properties, the R4
-reseat freeze, the per-env wall frame) for a single acyclic clip:
+``TransitionMotionCommand`` specializes climb's cycle command
+(``ClimbMotionCommand``: RSI, latch seeding, reference properties, the
+per-env wall frame) for a single acyclic clip:
 
-* TERMINAL HOLD — the clock clamps on the last playable frame (the all-four
-  ``handoff_hold`` stance) instead of wrapping;
-* ACYCLIC ENGAGE TABLES — edge countdowns / run lengths / edge distances are
-  rebuilt without wrap so the seam never manufactures phantom edges;
-* BLIND-DELIVERY SPAWN SCATTER — RSI frames with no engaged pads get uniform
+* Terminal hold: the clock clamps on the last playable frame (the all-four
+  ``handoff_hold`` stance) instead of wrapping.
+* Acyclic engage tables: edge countdowns, run lengths and edge distances
+  are rebuilt without wrap, so the clip's seam makes no phantom edges.
+* Blind-delivery spawn scatter: RSI frames with no engaged pad get uniform
   base x/y/yaw noise while the reference and its anchors stay canonical;
-  seeded frames keep the exact clip pose (welded pads cannot move);
-* RSI BIAS WINDOW — ``spawn_early_fraction`` of births land inside the
-  segments named by ``spawn_bias_segments`` (the exam scripts pin windows
-  this way); off by default — births are ADAPTIVE instead;
-* FK BODY TABLES — the clip carries qpos only, so every tracked body's
-  reference pose/velocity is computed once at load with MuJoCo forward
-  kinematics (canonical frame, rotated into the tilted world through the
-  parent's wall-frame machinery); body tracking is GLOBAL (the wall and its
-  anchors are world-fixed);
-* ADAPTIVE SAMPLING — BeyondMimic failure-weighted start bins (one per
-  clip-second): births concentrate where episodes die;
-* MOTION_COMMAND 10 — ``[cos, sin, engaged(4), t_next_edge(4)]``: the
-  parent's 16-lane chart carried six constants on the a80 prologue
-  (toe_braced is generator-zero; only the left hand ever releases, so the
-  other three t_release lanes sat on the 1.0 sentinel). Each pad now reads
-  the countdown to ITS next edge (release while engaged, regrip while not).
-
-The acyclic-table / window / scatter helpers are this package's own copies
-of the climb_transition originals (2026-08-09 .. 08-15); the package does
-not import climb_transition.
+  seeded frames keep the exact clip pose (welded pads cannot move).
+* Seeded-birth freeze: after a birth that seeds a weld, the clock holds the
+  birth frame for ``birth_freeze_steps``.
+* Biased births: ``spawn_early_fraction`` of births land in the classroom
+  windows, or else in the segments named by ``spawn_bias_segments`` (exam
+  scripts pin windows this way).
+* FK body tables: the clip carries qpos only, so every tracked body's
+  reference pose and velocity are computed once at load with MuJoCo forward
+  kinematics (canonical frame, rotated into the tilted world by the
+  parent's wall-frame machinery). Body tracking is global: the wall and its
+  anchors are fixed in the world.
+* Adaptive sampling: BeyondMimic's failure-weighted start bins, one per
+  clip second, concentrate births where episodes fail.
+* A 10-lane motion command, ``[cos, sin, engaged(4), t_next_edge(4)]``:
+  each pad reads the countdown to its own next edge (release while engaged,
+  regrip while not). Climb's 16-lane chart is constant in six lanes on this
+  clip: it has no toe braces, and only the left hand ever releases.
 """
 
 from __future__ import annotations
@@ -354,11 +351,11 @@ class TransitionMotionCommand(ClimbMotionCommand):
     self._fk_quat: torch.Tensor | None = None
     self._fk_lin_vel: torch.Tensor | None = None
     self._fk_ang_vel: torch.Tensor | None = None
-    # Pad FACE centers from the generator (clip key ``pad_positions``, the
+    # Pad face centers from the generator (clip key ``pad_positions``, the
     # contact-sphere centroid the contact law and Phi use), on the policy
-    # step grid, canonical frame. The pad BODY origin sits 0.16-0.21 m
-    # behind the face, so origin tracking alone let the face park 46 cm
-    # from its anchor while the origin read 27 cm (v1f probe).
+    # step grid, canonical frame. The pad body origin sits 0.16-0.21 m
+    # behind the face, so tracking the origin alone lets the face park 46 cm
+    # from its anchor while the origin reads 27 cm.
     self._pad_center_canon = self._load_pad_centers(cfg.motion_file, env.step_dt)
 
     # Adaptive sampling state: one bin per clip-second.
@@ -808,8 +805,8 @@ class TransitionMotionCommandCfg(ClimbMotionCommandCfg):
   # x/y offset (m) and yaw (rad). Reference and anchors do NOT follow.
   spawn_xy_noise: tuple[float, float] = (0.0, 0.0)
   spawn_yaw_noise: float = 0.0
-  # Fraction of RSI draws forced into the biased window (exam scripts pin
-  # segments this way); 0 = no overlay.
+  # Share of RSI draws taken from the biased windows (the classroom windows,
+  # else the spawn_bias_segments window); 0 = none.
   spawn_early_fraction: float = 0.0
   spawn_bias_segments: tuple[str, ...] = ()
   # The native-angle clip carries true world geometry — never lift standing
@@ -822,34 +819,28 @@ class TransitionMotionCommandCfg(ClimbMotionCommandCfg):
   adaptive_kernel_size: int = 1
   adaptive_lambda: float = 0.8
   adaptive_max_bin_prob: float | None = 0.35
-  # Which bin a failure is charged to. BeyondMimic charges the DEATH frame;
-  # on a one-shot clip whose clock clamps on the last frame every late
-  # death (contact-law executions at edge + grace for the last two edges)
-  # lands in the final bin and the sampler spends its cap on handoff-hold
-  # births that teach nothing about the earlier welds (v1e: 35 % of births
-  # there, sampling entropy 0.69). "birth" charges the frame the episode
-  # STARTED from — "which starts lead to death" — which is the signal an
-  # acyclic clip needs.
+  # Which bin a failure is charged to. BeyondMimic charges the death frame,
+  # but on a one-shot clip whose clock clamps on the last frame every late
+  # death lands in the final bin, and the sampler spends its cap on
+  # handoff-hold births that teach nothing about the earlier welds. "birth"
+  # charges the frame the episode started from: which starts lead to death.
   adaptive_attribution: Literal["birth", "death"] = "birth"
-  # v3 (2026-08-22) SEEDED-BIRTH FREEZE: for this many steps after a birth
-  # that seeds at least one weld, the clock holds on the birth frame (the
-  # R4 reseat-freeze path) while the plant's seed judge guard covers the same
-  # window — the RSI settle transient is absorbed with the reference standing
-  # still and the seeds unjudged; clock and guard release together. 0 = off.
-  # Births without a seeded pad never freeze.
+  # Steps the clock holds a birth frame that seeds at least one weld, so the
+  # RSI settle transient passes while the reference stands still. Births
+  # without a seeded pad never freeze; 0 = off.
   birth_freeze_steps: int = 0
-  # v3 TENABLE-BIRTH MASK: (start, end) frame ranges (end exclusive) RSI never
-  # births into — the passive-hold feasibility map's infeasible frames. Those
-  # frames stay reachable by playing through from earlier births.
+  # (start, end) frame ranges, end exclusive, that RSI never births into,
+  # such as frames a passive hold cannot keep (scripts/mount_clip_passive_gate.py
+  # maps them). Those frames stay reachable by playing through from earlier births.
   birth_exclude_frames: tuple[tuple[int, int], ...] = ()
-  # v4 (2026-08-22) IGNITION CLASSROOM: the ``spawn_early_fraction`` share of
-  # births lands uniformly in explicit frame windows (start, end exclusive)
-  # instead of the segment-name window. ``spawn_bias_auto_rake_frames`` > 0
-  # derives the windows from the clip's engage rising edges as
-  # [edge - n, edge) — the pre-landing rakes, where the pad already touches
-  # the wall and the reference drags it down: the weld is one press-and-hold
-  # away. Explicit windows take precedence over the auto rakes; both take
-  # precedence over ``spawn_bias_segments``. The birth mask still applies.
+  # The ignition classroom: the ``spawn_early_fraction`` share of births
+  # lands uniformly in explicit frame windows (start, end exclusive) instead
+  # of the segment window. ``spawn_bias_auto_rake_frames`` > 0 derives the
+  # windows from the clip's engage rising edges as [edge - n, edge), the
+  # pre-landing rakes, where the pad already touches the wall and the
+  # reference drags it down: the weld is one press-and-hold away. Explicit
+  # windows take precedence over the auto rakes; both take precedence over
+  # ``spawn_bias_segments``. The birth mask still applies.
   spawn_bias_frame_windows: tuple[tuple[int, int], ...] = ()
   spawn_bias_auto_rake_frames: int = 0
 

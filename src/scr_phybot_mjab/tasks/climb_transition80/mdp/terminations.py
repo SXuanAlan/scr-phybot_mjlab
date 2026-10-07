@@ -1,20 +1,19 @@
-"""Transition80 terminations: the legality of the state space lives here.
+"""Transition terminations: the legality of the state space.
 
-Doctrine (mentor call, 2026-08-21): rewards say how well, terminations say
-whether. Three families:
+Rewards say how well, terminations say whether. Three families:
 
-  * tracking deviation (BeyondMimic ports with LadderMan-style persistence
-    — a pose error must hold for ``persist_steps`` before it kills, so
-    contact transients do not);
-  * the schedule (contact loss = the LadderMan executioner, this package's
-    own copy of the 2026-08-16 law; a physical release of a scheduled
-    anchor is death, not a fine);
-  * the engage constraint cone — Constraints-as-Terminations (Chane-Sane
-    et al. 2024): four per-pad constraints, each a normalised violation in
-    [0, 1]; the episode ends with probability max_i p_i·v_i (soft mode),
-    or whenever any v_i > 0 (hard mode). Soft by default: the violation
-    magnitude becomes a gradient instead of a wall (the v10 lesson: a
-    strict 4-degree gate produced zero flow).
+  * tracking deviation: BeyondMimic's tests with LadderMan-style
+    persistence, so a pose error must hold for ``persist_steps`` before it
+    ends the episode and contact transients do not;
+  * the schedule: the contact law ends an episode whose scheduled contact
+    stays missing past its grace (a rip itself is billed, not ended; see
+    ``scheduled_anchor_rip_penalty``);
+  * the engage constraint cone as Constraints-as-Terminations (Chane-Sane
+    et al. 2024): four per-pad constraints, each a normalized violation in
+    [0, 1]; the episode ends with probability max_i p_i·v_i ("cat" mode),
+    or whenever any v_i > 0 ("hard" mode). The probabilistic form turns the
+    violation magnitude into a gradient instead of a wall; a strict
+    4-degree gate produced no learning signal at all.
 """
 
 from __future__ import annotations
@@ -85,10 +84,9 @@ def bad_anchor_ori_termination():
     persist_steps: int = 10,
   ) -> torch.Tensor:
     # Imported here, not at module level: torchrunx ships these closures to
-    # the worker processes with cloudpickle, which serialises a nested
-    # function BY VALUE together with the globals it references — and a
-    # torch.jit ScriptFunction cannot be pickled (same idiom as the
-    # transition's standing_wall_contact_termination).
+    # the worker processes with cloudpickle, which serializes a nested
+    # function by value together with the globals it references, and a
+    # torch.jit ScriptFunction cannot be pickled.
     from mjlab.utils.lab_api.math import quat_apply_inverse
 
     cmd = env.command_manager.get_term(command_name)
@@ -102,10 +100,10 @@ def bad_anchor_ori_termination():
 
 
 def bad_pad_center_termination():
-  """Factory: any pad FACE center off its reference face center by >
-  threshold, persisting ``persist_steps`` (v1g: replaces the body-origin
-  test for the pads — the origin sat inside the 0.30 m line while the face
-  parked 46 cm from the anchor)."""
+  """Factory: any pad face center off its reference face center by more than
+  ``threshold``, persisting ``persist_steps``. The face, not the pad body
+  origin: the origin can sit inside the line while the face parks 46 cm
+  from its anchor."""
   state: dict[str, torch.Tensor | None] = {"count": None}
 
   def call(
@@ -123,13 +121,13 @@ def bad_pad_center_termination():
 
 
 def illegal_wall_contact_termination():
-  """Factory: a listed body geom's SURFACE crosses the wall plane.
+  """Factory: a listed body geom's surface crosses the wall plane.
 
-  Own copy of the 2026-08-13 wall executioner with the standing-prefix gate
-  made optional (``gate="none"`` = whole episode).
-  These links carry no wall collision at all, so a surface crossing is a
-  state hardware cannot reach; no value may flow through it. The a80
-  reference keeps every listed link >= +10.8 mm clear on every frame.
+  ``gate="none"`` judges the whole episode, ``"standing"`` only the frames
+  before the first scheduled engagement. These links have no wall
+  collision, so a surface crossing is a state the hardware cannot reach and
+  no value may flow through it. The a80 reference keeps every listed link
+  at least 10.8 mm clear on every frame.
   """
   state: dict[str, object] = {"ids": None, "half": None}
 
@@ -184,22 +182,20 @@ def engage_constraint_termination():
                    schedule says OFF and no rising edge is due within
                    ``edge_lead_time_s`` (binary)
 
-  ``mode="cat"``: terminate with probability δ = max_i p_i·v_i (Bernoulli
-  inside the term — rsl_rl sees an ordinary ``terminated``); ``"hard"``:
-  any v_i > 0; ``"off"``: never (play). The violations and δ are cached on the callable
-  (``last_violations``, ``last_delta``) for the metric lanes.
+  ``mode="cat"``: terminate with probability δ = max_i p_i·v_i (a Bernoulli
+  draw inside the term; rsl_rl sees an ordinary ``terminated``); ``"hard"``:
+  any v_i > 0; ``"off"``: never (play). The violations and δ are cached on
+  the callable (``last_violations``, ``last_delta``) for the metric lanes.
 
-  Persistence (v1b, 2026-08-21): C1, C2-grind, C3 and C4 count only once
-  the violating condition has held ``persist_steps`` consecutive policy
-  steps per pad (5 = 0.1 s, the weld engine's own debounce). The v1 launch
-  showed why: with σ = 0.6 exploration a 0.1 rad/step target jitter moves a
-  touching pad at ~1 m/s and slams it with tens of N, so a third of all
-  envs violated "grind" on EVERY step — the cone was killing the noise
-  floor, lifetimes stayed at 6 steps while σ collapsed 0.60 → 0.40 in 44
-  iterations (the v14 desert by another door). A 1-2 step spike is noise;
-  a 0.1 s sustained grind/press/crooked touch is behaviour. The slam test
-  (impact speed on the contact rising edge) is inherently one-step and
-  stays instantaneous.
+  Persistence: C1, C2-grind, C3 and C4 count only once the violating
+  condition has held ``persist_steps`` consecutive policy steps on the pad
+  (5 = 0.1 s, the weld engine's own debounce). Exploration noise alone
+  (σ = 0.6) moves a touching pad at ~1 m/s and slams it with tens of
+  newtons; without persistence a third of all envs violate "grind" on
+  every step, episodes last 6 steps and the action std collapses. A 1-2
+  step spike is noise; a sustained 0.1 s grind, press or crooked touch is
+  behavior. The slam test (impact speed on the contact rising edge) is
+  inherently one-step and stays instantaneous.
   """
   state: dict[str, torch.Tensor | None] = {
     "touch": None,
@@ -266,12 +262,11 @@ def engage_constraint_termination():
     lead = edge_lead_time_s / motion.cycle_time_s
     regrip_soon = motion.ref_edge_countdowns[..., 1] <= lead
     free = ~engaged
-    # Seed-settle exemption, the rip law's mirror (monitor finding, v1b):
-    # a seeded weld torn off by the birth transient leaves a free pad
-    # pressed on the wall at settle-transient speeds/forces — the cone
-    # killed it in the same 0.5 s the rip law had just spared. A pad whose
-    # seed was lost inside the settle window is exempt from C1-C4 until the
-    # window closes (counters keep running, nothing bills).
+    # Seed-settle exemption, mirroring the rip bill's: a seeded weld torn off
+    # by the birth transient leaves a free pad pressed on the wall at
+    # settle-transient speeds and forces. A pad whose seed was lost inside
+    # the settle window is exempt from C1-C4 until the window closes
+    # (counters keep running, nothing counts).
     seed_lost = state["seed_lost"]
     if seed_lost is None or seed_lost.shape != touch.shape:
       seed_lost = torch.zeros_like(touch)
@@ -353,15 +348,14 @@ def engage_constraint_termination():
 
 
 def scheduled_contact_loss_termination():
-  """Factory: terminate when a SCHEDULED contact stays missing past grace.
+  """Factory: terminate when a scheduled contact stays missing past its grace.
 
-  The LadderMan enforcement (arXiv 2606.05873, Table 5: "required ladder
-  contacts lost for >30 steps -> terminate"), this package's own copy of the
-  2026-08-16 law: one counter per EE over ``ref_engaged & ~satisfied``
-  (satisfied = welded within ``anchor_radius_m`` of the EE's OWN scheduled
-  anchor — on a featureless wall every spot welds); ANY reset of the
-  condition clears it. Covers late first latch, ripped-and-not-re-seated
-  and skipped re-engagement alike. R4 reseat holds are exempt.
+  LadderMan's enforcement (arXiv 2606.05873, Table 5: "required ladder
+  contacts lost for >30 steps -> terminate"): one counter per EE over
+  ``ref_engaged & ~satisfied``, where satisfied means welded within
+  ``anchor_radius_m`` of the EE's own scheduled anchor (on a featureless
+  wall every spot welds); any reset of the condition clears it. Covers a
+  late first latch, a rip never re-welded and a skipped re-engagement alike.
   """
   state: dict[str, torch.Tensor | None] = {"count": None}
 

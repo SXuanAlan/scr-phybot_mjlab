@@ -1,10 +1,10 @@
-"""Transition80 rewards: BeyondMimic's tracking kernels + one engage-progress term.
+"""Transition rewards: BeyondMimic's tracking kernels and one engage-progress term.
 
 Ports of mjlab ``tasks/tracking/mdp/rewards.py`` against the
-``TransitionMotionCommand`` properties, plus ``engage_progress`` — the single
-reward that sees the contact-rich engage chain. Everything that used to be
-a wage, bonus, tax, tow, fence or rent in the transition ledger is absent
-on purpose: the terminations own legality, these terms own quality.
+``TransitionMotionCommand`` properties, plus ``engage_progress`` (the one
+reward that sees the contact-rich engage chain), a dwell wage on loaded
+welds and the rip bill. Legality belongs to the terminations; these terms
+price quality.
 """
 
 from __future__ import annotations
@@ -49,15 +49,13 @@ def _gated(
   grace_s: float,
   grace_fraction: float | None,
 ) -> torch.Tensor:
-  """Climb's schedule-adherence discount (v1e, user call 2026-08-21):
-  pose income is multiplied by ``engage_match_gate`` in [floor, 1] — full
-  pay only while every pad's latch state matches the chart, ``floor`` of it
-  when it does not, ramped near scheduled edges (instant compliance is
-  impossible). Without it a pad hovering unwelded inside its window collected
-  full tracking pay for the whole contact-law grace and the weld's only
-  margin lay beyond the 3 s horizon (model_1100 probe: in-window pads within
-  10 cm of the anchor only 14-25 % of the time, zero down-shear). Multiplicative
-  and bounded below — the ledger stays positive. None disables the gate."""
+  """Climb's schedule-adherence discount: pose income is multiplied by
+  ``engage_match_gate`` in [floor, 1], full pay only while every pad's latch
+  state matches the chart and ``floor`` of it when one does not, ramped near
+  scheduled edges (instant compliance is impossible). Without it a pad
+  hovering unwelded inside its window collects full tracking pay until the
+  contact law ends the episode. Multiplicative and bounded below, so the
+  income stays positive. None disables the gate."""
   if floor is None:
     return reward
   return reward * engage_match_gate(cmd, floor, grace_s, grace_fraction)
@@ -101,7 +99,10 @@ def transition_body_position_error_exp(
   engage_gate_grace_s: float = 0.25,
   engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
-  """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies."""
+  """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies.
+
+  Takes the anchor kernels' gate parameters but does not apply them.
+  """
   cmd = _tracking(env, command_name)
   error = (cmd.body_pos_w - cmd.robot_body_pos_w).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
@@ -115,7 +116,10 @@ def transition_body_orientation_error_exp(
   engage_gate_grace_s: float = 0.25,
   engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
-  """exp(-mean_B θ_b² / std²) over the tracked bodies."""
+  """exp(-mean_B θ_b² / std²) over the tracked bodies.
+
+  Takes the anchor kernels' gate parameters but does not apply them.
+  """
   cmd = _tracking(env, command_name)
   ref = cmd.body_quat_w
   rob = cmd.robot_body_quat_w
@@ -128,11 +132,11 @@ def motion_pad_center_error_exp(
   command_name: str = "climb_motion",
   std: float = 0.2,
 ) -> torch.Tensor:
-  """exp(-mean_pads |c - ĉ|² / std²) on the pad FACE centers (world).
+  """exp(-mean_pads |c - ĉ|² / std²) on the pad face centers (world).
 
-  Deliberately UNGATED: the face reaching the reference face (= the anchor
-  while scheduled) is the path to schedule compliance, so it is the one
-  pose income that must not be discounted while unwelded (v1g)."""
+  Never gated: the face reaching the reference face (the anchor while
+  scheduled) is the path to schedule compliance, so it is the one pose
+  income that must not be discounted while unwelded."""
   cmd = _tracking(env, command_name)
   error = (cmd.ref_pad_center_w - cmd.robot_pad_center_w).square().sum(dim=-1).mean(dim=-1)
   return torch.exp(-error / std**2)
@@ -239,16 +243,16 @@ def scheduled_hold_margin_wage(
   affordance_command_name: str = "microspine_affordance",
   full_margin: float = 0.3,
 ) -> torch.Tensor:
-  """Dwell wage for SAFELY loaded scheduled welds (v3, 2026-08-22).
+  """Dwell wage for safely loaded scheduled welds.
 
-  Per pad that the chart says engaged AND that is welded, pay
-  ``clip(hold_margin / full_margin, 0, 1)`` — the plant's worst-unit hold
-  margin (1 = unloaded, 0 = at capacity, < 0 = violating); averaged over the
+  Per pad that the chart says engaged and that is welded, pay
+  ``clip(hold_margin / full_margin, 0, 1)``, the plant's worst-unit hold
+  margin (1 = unloaded, 0 = at capacity, < 0 = violating), averaged over the
   scheduled-engaged pads so the count of welds does not change the scale.
   A positive term gated on being welded: never a reason not to weld, only a
   preference for sharing the load (feet under the hips, soft landings)
-  before the rip law has anything to say. Weight stays well under the
-  tracking income so it can never become rent (08-13 lesson)."""
+  before a rip is billed. Its weight stays well under the tracking income,
+  since a per-step charge above the income makes an early death optimal."""
   cmd = _tracking(env, command_name)
   aff = env.command_manager.get_term(affordance_command_name)
   scheduled = cmd.ref_engaged
@@ -289,19 +293,15 @@ def scheduled_rip_events(
 
 
 def scheduled_anchor_rip_penalty():
-  """Factory: per-step bill while a RIPPED scheduled anchor stays un-welded.
+  """Factory: a per-step bill while a ripped scheduled anchor stays unwelded.
 
-  v5 (2026-08-23, user decision): climb's rule — a rip is a penalty, not a
-  death. The flag is raised on the rip event exactly as the retired
-  ``anchor_rip`` termination defined it (a forced limit-surface release while
-  the chart says hold, outside the release lead, not an R4 reseat, and not a
-  SEEDED anchor inside the birth-settle exemption) and cleared when the pad
-  is welded again or the chart releases it. Value = ``weight_per_pad`` x the
-  number of flagged pads (the cfg weight is -1); ``weight_per_pad`` climbs
-  on a curriculum. Kept under the tracking income per pad so a rip is never
-  worth dying over (08-13 lesson: a bill above the income makes the early
-  death the optimum). The contact law (LadderMan grace) stays as the
-  backstop for a pad that is never re-seated.
+  As in climb, a rip is a penalty, not a death. The flag rises on a rip
+  event (:func:`scheduled_rip_events`) and clears when the pad is welded
+  again or the chart releases it. Value = ``weight_per_pad`` × the number
+  of flagged pads (the cfg weight is -1); ``weight_per_pad`` climbs on a
+  curriculum and stays under the per-pad tracking income, since a bill
+  above the income makes an early death optimal. The contact law remains
+  the backstop for a pad that is never re-welded.
   """
   state: dict[str, torch.Tensor | None] = {"flag": None}
 

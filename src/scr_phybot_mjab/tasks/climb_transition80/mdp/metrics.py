@@ -1,4 +1,4 @@
-"""Transition80 metrics: handoff readiness + the engage cone's lanes."""
+"""Transition metrics: handoff readiness, rips, hold margins and the engage cone's lanes."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ def scheduled_hold_margin(
   ee_index: int | None = None,
 ) -> torch.Tensor:
   """Mean worst-unit hold margin over welded scheduled pads (or one pad), 1.0
-  when none is welded — the wage's own quantity, for the digest."""
+  when none is welded: the dwell wage's own quantity."""
   cmd = env.command_manager.get_term(command_name)
   aff = env.command_manager.get_term(affordance_command_name)
   gate = cmd.ref_engaged & aff.engaged
@@ -91,7 +91,7 @@ def _rip_term(env: ManagerBasedRlEnv, reward_name: str):
 
 
 def scheduled_anchor_rips(env: ManagerBasedRlEnv, reward_name: str = "anchor_rip_penalty") -> torch.Tensor:
-  """(E,) number of scheduled-anchor RIP events this step (the v5 rip bill's
+  """(E,) number of scheduled-anchor rip events this step (the rip bill's
   event lane; its episode mean x steps = rips per episode)."""
   term = _rip_term(env, reward_name)
   rips = getattr(term, "last_rips", None) if term else None

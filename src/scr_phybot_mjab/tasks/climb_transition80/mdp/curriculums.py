@@ -1,10 +1,10 @@
-"""Transition80 curricula: generic stepwise schedulers (own copies).
+"""Transition curricula: stepwise and piecewise-linear parameter schedulers.
 
-Stage lookup convention (shared by every scheduler here): ``stages`` is a
-list of ``{"iter": int, "value": float}``; the active value is the last
-stage whose ``iter`` <= the cumulative learning iteration
-``common_step_counter // steps_per_iter``. The resume path RESTORES the
-counter, so stage iters are cumulative across a lineage (08-18 finding).
+Every scheduler here reads ``stages``, a list of ``{"iter": int, "value":
+float}``; the active value is the last stage whose ``iter`` <= the
+cumulative learning iteration ``common_step_counter // steps_per_iter``.
+Resuming restores the counter, so stage iterations count across resumed
+runs.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ __all__ = (
 
 
 def stage_value_at(stages: list[dict], iteration: int) -> float:
-  """Pure stage lookup (also the exam scripts' helper)."""
+  """Pure stage lookup."""
   current = stages[0]["value"]
   for stage in sorted(stages, key=lambda item: item["iter"]):
     if iteration >= stage["iter"]:
@@ -79,7 +79,7 @@ def termination_param_schedule(
   stages: list[dict],
   steps_per_iter: int = 96,
 ) -> torch.Tensor:
-  """Stage a termination term's PARAM by training iteration (mutates the
+  """Stage a termination term's param by training iteration (mutates the
   live termination cfg's params dict)."""
   del env_ids
   current = stage_value_at(stages, env.common_step_counter // steps_per_iter)
@@ -96,9 +96,9 @@ def reward_param_schedule(
   steps_per_iter: int = 96,
   interpolate: bool = False,
 ) -> torch.Tensor:
-  """Stage a reward term's PARAM by training iteration (mutates the live
-  reward cfg's params dict). ``interpolate`` = piecewise-linear ramp between
-  the stages instead of steps (v5 rip bill)."""
+  """Stage a reward term's param by training iteration (mutates the live
+  reward cfg's params dict). ``interpolate`` ramps piecewise-linearly
+  between the stages instead of stepping."""
   del env_ids
   iteration = env.common_step_counter // steps_per_iter
   current = stage_interp_at(stages, iteration) if interpolate else stage_value_at(stages, iteration)
@@ -114,16 +114,14 @@ def pad_gimbal_travel_schedule(
   asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", joint_names=(".*_gimbal_[xyz]",)),
   steps_per_iter: int = 96,
 ) -> None:
-  """EVENT (startup + reset): pad-gimbal travel ladder, +-deg by iteration.
+  """Event (startup and reset): the pad gimbals' stop travel, +-deg by iteration.
 
-  v5 (2026-08-23, user design): angle compliance as a curriculum — the
-  passive wrist ball joints open at +-15 deg and anneal (piecewise-linear)
-  to the +-3 deg real stop, the way climb annealed its tilt-peel band.
-  Writes the plant's per-world ``jnt_range`` of the 12 gimbal hinges for the
-  envs being reset (every episode is <= 21 s, so the whole fleet follows the
-  ladder within one episode); ``startup`` seeds all worlds. The stops'
-  solref stays the constant block's. Clips, the validator and the probes
-  are untouched (they read the constants module).
+  Angle compliance as a curriculum: the passive wrist ball joints open wide
+  and anneal (piecewise-linear) toward the real +-3 deg stop. Writes the
+  per-world ``jnt_range`` of the 12 gimbal hinges for the envs being reset,
+  so the fleet follows the schedule within one episode; ``startup`` seeds
+  all worlds. The stops' solref stays the asset's. Clips and the reference
+  tools read the asset constants and never see this range.
   """
   iteration = env.common_step_counter // steps_per_iter
   travel = math.radians(stage_interp_at(stages, iteration))
