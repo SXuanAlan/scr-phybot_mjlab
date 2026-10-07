@@ -1,11 +1,18 @@
 """The equivalence harness itself: canonical dumps and rollout judging."""
 
+import json
 from dataclasses import dataclass, field
 
 import numpy as np
 
 from scr_phybot_mjab.tools.equivalence.canonical import apply_renames, canonical_lines
-from scr_phybot_mjab.tools.equivalence.compare import Removals, _column_noise, _signal_problem, _value_problems
+from scr_phybot_mjab.tools.equivalence.compare import (
+  Removals,
+  _column_noise,
+  _signal_problem,
+  _value_problems,
+  compare_rollouts,
+)
 
 
 @dataclass
@@ -105,3 +112,18 @@ def test_declared_removals_drop_keys_and_shrink_dict_headers_only():
     "declared removal 'params\\[gone\\]': 1 base entries",
     "declared removal '[./]gone_field$': 2 base entries",
   ]
+
+
+def test_rollout_term_stacks_drop_declared_terms_by_name(tmp_path):
+  values = np.random.default_rng(0).normal(size=(5, 2, 3)).astype(np.float32)
+  for root, terms, data in (
+    (tmp_path / "base", ["a", "gone", "b"], values),
+    (tmp_path / "new", ["a", "b"], values[..., [0, 2]]),
+  ):
+    (root / "rollout").mkdir(parents=True)
+    np.savez(root / "rollout" / "task.npz", metrics=data)
+    (root / "rollout" / "task.json").write_text(json.dumps({"metric_terms": terms}))
+  declared = compare_rollouts(tmp_path / "base", tmp_path / "new", {}, Removals([r"Episode_Metrics/gone$"]))
+  assert [finding.ok for finding in declared] == [True]
+  undeclared = compare_rollouts(tmp_path / "base", tmp_path / "new", {}, Removals([]))
+  assert [finding.ok for finding in undeclared] == [False]

@@ -18,6 +18,13 @@ from scr_phybot_mjab.tools.equivalence.fingerprint import changed_parts
 # Private command attributes may be renamed by a refactor; their effects are
 # still checked through observations, rewards and public state.
 _PRIVATE_PREFIXES = ("cmd_private/", "reset/cmd_private/")
+# Signals stacking one column per manager term, with the meta key naming the
+# columns and the log key under which a removed term is declared.
+_TERM_STACKS = {
+  "reward/terms": ("reward_terms", "log/Episode_Reward/{}"),
+  "metrics": ("metric_terms", "log/Episode_Metrics/{}"),
+  "reset/metrics": ("metric_terms", "log/Episode_Metrics/{}"),
+}
 _MAX_DETAIL_LINES = 40
 # Rollout noise is calibrated per signal column (trailing axes after steps and
 # envs): quiet columns such as reward terms differ by ~1e-8 between same-code
@@ -82,6 +89,10 @@ class Removals:
   def allows_signal(self, key: str) -> bool:
     return self._match(key)
 
+  def covers(self, key: str) -> bool:
+    """Whether a pattern matches ``key``, without counting it as a hit."""
+    return any(pattern.search(key) for pattern in self.patterns)
+
   def report(self) -> list[str]:
     return [f"declared removal '{p.pattern}': {self.hits[p.pattern]} base entries" for p in self.patterns]
 
@@ -122,7 +133,9 @@ def compare_rollouts(
     if new_file is None or base_file is None:
       findings.append(_unpaired("rollout", name, base_file))
       continue
-    problems = _meta_problems(base_file, new_file) + _signal_problems(base_file, new_file, name, floor, removed)
+    problems = _meta_problems(base_file, new_file, removed) + _signal_problems(
+      base_file, new_file, name, floor, removed
+    )
     findings.append(Finding("rollout", name, not problems, "\n".join(problems[:_MAX_DETAIL_LINES])))
   return findings
 
@@ -178,13 +191,22 @@ def _signal_problems(
   base_file: Path, new_file: Path, name: str, floor: dict[str, np.ndarray], removed: Removals | None = None
 ) -> list[str]:
   problems = []
+  old_meta = json.loads(base_file.with_suffix(".json").read_text())
+  new_meta = json.loads(new_file.with_suffix(".json").read_text())
   with np.load(base_file) as old, np.load(new_file) as cur:
     for key in old.files:
       if key not in cur.files:
         if not key.startswith(_PRIVATE_PREFIXES) and not (removed is not None and removed.allows_signal(key)):
           problems.append(f"{key}: missing")
         continue
-      problem = _signal_problem(key, old[key], cur[key], floor.get(f"{name}|{key}"))
+      base_values, noise = old[key], floor.get(f"{name}|{key}")
+      if key in _TERM_STACKS:
+        meta_key, _ = _TERM_STACKS[key]
+        kept = _kept_columns(old_meta.get(meta_key), new_meta.get(meta_key), key, removed)
+        if kept is not None:
+          base_values = base_values[..., kept]
+          noise = None if noise is None else noise[kept]
+      problem = _signal_problem(key, base_values, cur[key], noise)
       if problem:
         problems.append(problem)
     new_keys = [key for key in cur.files if key not in old.files and not key.startswith(_PRIVATE_PREFIXES)]
@@ -262,10 +284,31 @@ def _first_step(key: str, old: np.ndarray, cur: np.ndarray) -> str:
   return f"{unit} {rows[0]}" if rows.size else "?"
 
 
-def _meta_problems(base_file: Path, new_file: Path) -> list[str]:
+def _meta_problems(base_file: Path, new_file: Path, removed: Removals | None = None) -> list[str]:
   old = json.loads(base_file.with_suffix(".json").read_text())
   cur = json.loads(new_file.with_suffix(".json").read_text())
-  return [f"meta {k}: {old[k]!r} -> {cur.get(k)!r}" for k in old if old[k] != cur.get(k)]
+  stacks = {meta_key: stack for stack, (meta_key, _) in _TERM_STACKS.items()}
+  return [
+    f"meta {k}: {old[k]!r} -> {cur.get(k)!r}"
+    for k in old
+    if old[k] != cur.get(k) and not (k in stacks and _kept_columns(old[k], cur.get(k), stacks[k], removed))
+  ]
+
+
+def _kept_columns(
+  old_terms: list[str] | None, new_terms: list[str] | None, stack: str, removed: Removals | None
+) -> list[int] | None:
+  """Base columns of a term stack that remain, in new order, when the only
+  change is the removal of declared terms; None otherwise."""
+  if removed is None or old_terms is None or new_terms is None or old_terms == new_terms:
+    return None
+  _, log_key = _TERM_STACKS[stack]
+  dropped = [term for term in old_terms if term not in new_terms]
+  if [term for term in old_terms if term in new_terms] != new_terms:
+    return None
+  if not all(removed.covers(log_key.format(term)) for term in dropped):
+    return None
+  return [old_terms.index(term) for term in new_terms]
 
 
 def _load_clip(path: Path) -> Any:
