@@ -1,6 +1,6 @@
 """Config contract of the 80-degree transition task (``tasks/climb_transition80``).
 
-A package built by mutating the climb builder's output. Promises asserted here: the real-robot PD table, the
+Promises asserted here: the real-robot PD table, the
 explicit v2 observation contract (actor 238 / critic 419, dead climb lanes
 retired, BeyondMimic reference lanes, pad faces, wall face corners), the BeyondMimic-minimal
 reward table, the termination-first table with the engage cone in CaT
@@ -15,19 +15,17 @@ import pytest
 import torch
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
-from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import (
-  TRANSITION80_ACTOR_DIM,
-  TRANSITION80_ACTOR_TERMS,
-  TRANSITION80_ANCHOR_RADIUS_STAGES,
-  TRANSITION80_CRITIC_DIM,
-  TRANSITION80_CRITIC_TAIL,
-  TRANSITION80_OBS_DIMS,
-  TRANSITION80_REMOVED_OBS,
-  TRANSITION80_SEED_GUARD_STEPS,
-  TRANSITION80_SPAWN_XY_NOISE,
-  TRANSITION80_SPAWN_YAW_NOISE,
-  phybot_c2_climb_transition80_env_cfg,
+from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.commands import SPAWN_XY_NOISE, SPAWN_YAW_NOISE
+from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import phybot_c2_climb_transition80_env_cfg
+from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.observations import (
+  ACTOR_DIM,
+  ACTOR_TERMS,
+  CRITIC_DIM,
+  CRITIC_TAIL,
+  OBS_DIMS,
+  REMOVED_OBS,
 )
+from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.schedules import ANCHOR_RADIUS_STAGES
 from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import (
   DEFAULT_TRACKING_BODY_NAMES,
   TransitionMotionCommandCfg,
@@ -82,18 +80,18 @@ def test_transition80_observation_contract() -> None:
   cfg = phybot_c2_climb_transition80_env_cfg()
   actor = cfg.observations["actor"]
   critic = cfg.observations["critic"]
-  assert tuple(actor.terms) == TRANSITION80_ACTOR_TERMS
-  assert tuple(critic.terms) == TRANSITION80_ACTOR_TERMS + TRANSITION80_CRITIC_TAIL
-  assert TRANSITION80_ACTOR_DIM == 238 and TRANSITION80_CRITIC_DIM == 419
-  assert set(TRANSITION80_OBS_DIMS) == set(critic.terms)
-  for name in TRANSITION80_REMOVED_OBS:
+  assert tuple(actor.terms) == ACTOR_TERMS
+  assert tuple(critic.terms) == ACTOR_TERMS + CRITIC_TAIL
+  assert ACTOR_DIM == 238 and CRITIC_DIM == 419
+  assert set(OBS_DIMS) == set(critic.terms)
+  for name in REMOVED_OBS:
     assert name not in actor.terms and name not in critic.terms, name
   assert tuple(cfg.commands) == ("microspine_affordance", "climb_motion")
   assert "climb_velocity" not in cfg.commands
   assert tuple(cfg.actions) == ("joint_pos",)
   assert tuple(cfg.actions["joint_pos"].actuator_names) == tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
   # The reference lanes read the motion command; the pad lanes the affordance.
-  for name in TRANSITION80_ACTOR_TERMS[11:17]:
+  for name in ACTOR_TERMS[11:17]:
     assert actor.terms[name].params == {"command_name": "climb_motion"}, name
   assert actor.terms["microspine_pad_center_world"].params == {"command_name": "microspine_affordance"}
   assert actor.terms["motion_command"].func.__name__ == "generated_commands"
@@ -114,15 +112,15 @@ def test_transition80_obs_noise_and_critic_copies() -> None:
   assert critic.enable_corruption is False
   for name in _NOISY_PROPRIO:
     assert actor.terms[name].noise is not None, name
-  for name in TRANSITION80_ACTOR_TERMS[11:]:
+  for name in ACTOR_TERMS[11:]:
     assert actor.terms[name].noise is None, name
-  for name in TRANSITION80_ACTOR_TERMS:
+  for name in ACTOR_TERMS:
     assert critic.terms[name] is not actor.terms[name], name
     assert critic.terms[name].noise is None, name
     assert critic.terms[name].func is actor.terms[name].func, name
   play = phybot_c2_climb_transition80_env_cfg(play=True)
   assert play.observations["actor"].enable_corruption is False
-  assert tuple(play.observations["actor"].terms) == TRANSITION80_ACTOR_TERMS
+  assert tuple(play.observations["actor"].terms) == ACTOR_TERMS
 
 
 def test_wall_face_corner_constants_match_the_asset() -> None:
@@ -164,8 +162,8 @@ def test_transition80_command_is_the_tracking_subclass() -> None:
   assert motion.spawn_bias_auto_rake_frames == 0  # v6e: explicit windows replace auto rake
   assert motion.spawn_bias_segments == ()
   assert not hasattr(motion, "angle_clip_files")  # no band machinery here
-  assert motion.spawn_xy_noise == TRANSITION80_SPAWN_XY_NOISE
-  assert motion.spawn_yaw_noise == TRANSITION80_SPAWN_YAW_NOISE
+  assert motion.spawn_xy_noise == SPAWN_XY_NOISE
+  assert motion.spawn_yaw_noise == SPAWN_YAW_NOISE
   for pad in motion.ee_body_names:
     assert pad in motion.body_names
   assert motion.body_names == DEFAULT_TRACKING_BODY_NAMES
@@ -184,7 +182,7 @@ def test_transition80_reward_table_is_beyondmimic_minimal() -> None:
   negatives = [n for n, w in _EXPECTED_REWARDS.items() if w < 0]
   assert negatives == ["anchor_rip_penalty", "action_rate_l2", "dof_pos_limits"]
   phi = cfg.rewards["engage_progress"].params
-  assert phi["anchor_radius_m"] == pytest.approx(TRANSITION80_ANCHOR_RADIUS_STAGES[0]["value"])
+  assert phi["anchor_radius_m"] == pytest.approx(ANCHOR_RADIUS_STAGES[0]["value"])
   assert phi["edge_lead_time_s"] == pytest.approx(2.0)
   assert cfg.rewards["motion_pad_pos"].func.__name__ == "motion_pad_center_error_exp"
   assert cfg.rewards["motion_pad_pos"].params["std"] == pytest.approx(0.08)
@@ -314,10 +312,9 @@ def test_transition80_plant_flags() -> None:
   # before a new engage, and the contact buffers fit the 12-unit pads.
   assert ms.engage_unit_preload_n == 10.0
   assert cfg.sim.nconmax >= 256 and cfg.sim.njmax >= 512
-  assert ms.limit_surface.seed_hold_judge_guard_steps == TRANSITION80_SEED_GUARD_STEPS
-  # v3b: the clock freeze (25) and the judge guard (6, the v2 regime) are decoupled —
-  # a guard spanning the freeze let the policy lean on unbreakable seeds (91 % rips at step 26).
-  assert TRANSITION80_SEED_GUARD_STEPS == 6
+  # The judge guard (6) is shorter than the clock freeze (25): a guard spanning
+  # the freeze would make the seeds unbreakable.
+  assert ms.limit_surface.seed_hold_judge_guard_steps == 6
   motion = cfg.commands["climb_motion"]
   assert motion.birth_freeze_steps == 25
   assert motion.birth_exclude_frames == ()  # v4b: mask off (user decision 2026-08-22); re-arm via the tyro flag
@@ -439,8 +436,8 @@ def test_cfg_survives_cloudpickle_for_multi_gpu_launch() -> None:
     back = cloudpickle.loads(blob)
     assert tuple(back.terminations) == tuple(cfg.terminations)
     assert tuple(back.rewards) == tuple(cfg.rewards)
-    assert tuple(back.observations["actor"].terms) == TRANSITION80_ACTOR_TERMS
-    assert tuple(back.observations["critic"].terms) == (TRANSITION80_ACTOR_TERMS + TRANSITION80_CRITIC_TAIL)
+    assert tuple(back.observations["actor"].terms) == ACTOR_TERMS
+    assert tuple(back.observations["critic"].terms) == (ACTOR_TERMS + CRITIC_TAIL)
 
 
 def _gains(cfg) -> dict[str, tuple[float, float]]:

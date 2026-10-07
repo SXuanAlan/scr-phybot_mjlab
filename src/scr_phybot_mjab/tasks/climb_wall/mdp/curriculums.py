@@ -36,11 +36,7 @@ def reward_weight(
   env_ids: torch.Tensor,
   reward_name: str,
   weight_stages: list[RewardWeightStage],
-  steps_per_iter: int = 96,  # matches BOTH live tasks' rl_cfg
-  # num_steps_per_env (was 24 until 08-19 — a fossil from the early climb
-  # era; a full-repo audit found every live wiring passes this explicitly:
-  # climb via the tested _STEPS_PER_ITER constant, transition via literal
-  # 96s plus a test guard. walk has its own step-keyed scheduler).
+  steps_per_iter: int = 96,  # climb_wall_env_cfg.STEPS_PER_ITER; every task passes it explicitly
 ) -> torch.Tensor:
   """Update a reward term's weight based on training iteration stages.
 
@@ -181,11 +177,7 @@ def wall_angle(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,
   angle_stages: list[WallAngleStage],
-  steps_per_iter: int = 96,  # matches BOTH live tasks' rl_cfg
-  # num_steps_per_env (was 24 until 08-19 — a fossil from the early climb
-  # era; a full-repo audit found every live wiring passes this explicitly:
-  # climb via the tested _STEPS_PER_ITER constant, transition via literal
-  # 96s plus a test guard. walk has its own step-keyed scheduler).
+  steps_per_iter: int = 96,  # climb_wall_env_cfg.STEPS_PER_ITER; every task passes it explicitly
   angle_jitter_deg: float = 0.0,
   jitter_below_deg: float = 90.0,
   wall_entity_name: str = "wall",

@@ -10,7 +10,7 @@ proves a static load path exists; a passive PD robot must also realise it.
 
 GATE per frame: seed loss <= --fail-frac AND gimbal p90 <= --gimbal-deg AND
 no wall-contact / fall deaths. MASK: frames losing >= --mask-frac merged
-into TRANSITION80_BIRTH_EXCLUDE_FRAMES ranges (end exclusive).
+into birth_exclude_frames ranges (end exclusive; climb_transition80/config/phybot_c2/commands.py).
 Usage: CUDA_VISIBLE_DEVICES=2 python scripts/mount_clip_passive_gate.py [--clip PATH] [--stride 10]
        [--guard 25] [--envs 128] [--steps 40] [--fail-frac 0.05] [--mask-frac 0.20] [--gimbal-deg 2.5] [--out FILE]
 """
@@ -193,7 +193,7 @@ for f, loss, *_ in rows:
     else:
       mask.append([f, f + args.stride])
 emit(
-  "MASK (loss >= %.0f%%): TRANSITION80_BIRTH_EXCLUDE_FRAMES = %s"
+  "MASK (loss >= %.0f%%): birth_exclude_frames = %s"
   % (args.mask_frac * 100, tuple((a, b) for a, b in mask))
 )
 gim_fail = [r[0] for r in rows if r[2] > args.gimbal_deg and r[1] < args.mask_frac]

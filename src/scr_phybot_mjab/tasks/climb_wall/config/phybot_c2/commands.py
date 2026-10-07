@@ -38,6 +38,16 @@ TRACKING_BODY_NAMES = (
 """Bodies the BeyondMimic tracking terms compare against the reference."""
 
 
+def affordance_command(microspine_cfg: MicrospineCfg) -> MicrospineAffordanceCfg:
+  """The grip affordance: the per-pad latch state machine."""
+  return MicrospineAffordanceCfg(
+    microspine_cfg=microspine_cfg,
+    contact_sensor_name=MICROSPINE_CONTACT_SENSOR,
+    physics_event_name=MICROSPINE_GRIP_EVENT,
+    skip_zero_time_update=True,
+  )
+
+
 def climb_commands(microspine_cfg: MicrospineCfg, motion_file: Path) -> dict[str, CommandTermCfg]:
   # Command exactly the average climb rate one reference cycle delivers, so
   # the height-progress normalization and the commanded-velocity observation
@@ -53,12 +63,7 @@ def climb_commands(microspine_cfg: MicrospineCfg, motion_file: Path) -> dict[str
         lin_vel_z=(clip_vz, clip_vz),
       ),
     ),
-    MICROSPINE_AFFORDANCE_COMMAND: MicrospineAffordanceCfg(
-      microspine_cfg=microspine_cfg,
-      contact_sensor_name=MICROSPINE_CONTACT_SENSOR,
-      physics_event_name=MICROSPINE_GRIP_EVENT,
-      skip_zero_time_update=True,
-    ),
+    MICROSPINE_AFFORDANCE_COMMAND: affordance_command(microspine_cfg),
     # After the affordance on purpose: its reset (RSI) seeds the per-env
     # latch state and must run after the affordance's own reset (the command
     # asserts this order).

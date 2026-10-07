@@ -26,10 +26,13 @@ MICROSPINE_CONTACT_SENSOR = "microspine_wall_contact"
 TOE_CONTACT_SENSOR = "climb_toe_contact"
 UNDESIRED_CONTACT_SENSOR = "climb_undesired_contact"
 
-# One PPO rollout must hold a full release -> cooldown -> re-engage -> hold
-# sequence (~0.7 s). Must equal the phybot_c2 rl_cfg's num_steps_per_env
-# (test_climb_task_config cross-checks).
-_STEPS_PER_ITER = 96
+STEPS_PER_ITER = 96
+"""Policy steps per PPO iteration; curricula convert iterations with it.
+
+One rollout must hold a full release -> cooldown -> re-engage -> hold
+sequence (~0.7 s). Equals the phybot_c2 runner's num_steps_per_env
+(test_climb_task_config cross-checks).
+"""
 
 
 DECIMATION = 10
@@ -44,7 +47,7 @@ def climb_curriculum(angle_stages=mdp.WALL_ANGLE_STAGES) -> dict[str, Curriculum
       func=mdp.wall_angle,
       params={
         "angle_stages": [dict(stage) for stage in angle_stages],
-        "steps_per_iter": _STEPS_PER_ITER,
+        "steps_per_iter": STEPS_PER_ITER,
         "angle_jitter_deg": 5.0,
       },
     ),

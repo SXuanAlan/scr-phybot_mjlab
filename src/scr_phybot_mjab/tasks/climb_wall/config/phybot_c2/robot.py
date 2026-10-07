@@ -6,8 +6,10 @@ import dataclasses
 
 import mujoco
 from mjlab.entity import EntityCfg
+from mjlab.managers.action_manager import ActionTermCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
+  PHYBOT_C2_ACTION_SCALE,
   PHYBOT_C2_ACTUATOR_ANKLE_PITCH,
   PHYBOT_C2_ACTUATOR_ANKLE_ROLL,
   PHYBOT_C2_ACTUATOR_ELBOW_PITCH,
@@ -20,15 +22,22 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_ACTUATOR_SHOULDER_ROLL,
   PHYBOT_C2_ACTUATOR_SHOULDER_YAW,
   PHYBOT_C2_ACTUATOR_WAIST_YAW,
+  PHYBOT_C2_POLICY_JOINT_NAMES,
   get_phybot_c2_robot_cfg,
   get_spec,
 )
 from scr_phybot_mjab.microspine.spec import ToeContact, add_toe_geoms
+from scr_phybot_mjab.tasks.climb_wall import mdp
 
 from .stance import climb_initial_state
 
 
-def climb_robot_cfg(toe_contacts: tuple[ToeContact, ...]) -> EntityCfg:
+def climb_robot_cfg(
+  toe_contacts: tuple[ToeContact, ...],
+  actuators: tuple | None = None,
+  init_state: EntityCfg.InitialStateCfg | None = None,
+) -> EntityCfg:
+  """The C2 with bracing toes; the climbing PD table and stance unless given."""
   robot_cfg = get_phybot_c2_robot_cfg()
 
   def _robot_spec_with_toes() -> mujoco.MjSpec:
@@ -41,22 +50,27 @@ def climb_robot_cfg(toe_contacts: tuple[ToeContact, ...]) -> EntityCfg:
   robot_cfg.spec_fn = _robot_spec_with_toes
   # A task-level init state: robot_cfg's keyframe is a singleton other C2
   # tasks share.
-  initial = climb_initial_state()
-  robot_cfg.init_state = EntityCfg.InitialStateCfg(
-    pos=tuple(initial["root_position"]),
-    rot=tuple(initial["root_quaternion_wxyz"]),
-    joint_pos=initial["joint_positions"],
-    joint_vel={".*": 0.0},
-  )
+  robot_cfg.init_state = init_state or climb_init_state()
   robot_cfg.articulation = dataclasses.replace(
     robot_cfg.articulation,
     # Reserve 1% of the hard range at each end: the reference cycle works
     # 0.06 rad from some stops and tracking must never fight the target
     # clamp; the physical stop remains the final guard.
     soft_joint_pos_limit_factor=0.98,
-    actuators=climb_actuators(),
+    actuators=actuators or climb_actuators(),
   )
   return robot_cfg
+
+
+def climb_init_state() -> EntityCfg.InitialStateCfg:
+  """The canonical climbing stance (the RSI overwrites it on every reset)."""
+  initial = climb_initial_state()
+  return EntityCfg.InitialStateCfg(
+    pos=tuple(initial["root_position"]),
+    rot=tuple(initial["root_quaternion_wxyz"]),
+    joint_pos=initial["joint_positions"],
+    joint_vel={".*": 0.0},
+  )
 
 
 def climb_actuators() -> tuple:
@@ -84,3 +98,16 @@ def climb_actuators() -> tuple:
     pd100(PHYBOT_C2_ACTUATOR_ELBOW_PITCH),
     PHYBOT_C2_ACTUATOR_NECK,
   )
+
+
+def climb_actions() -> dict[str, ActionTermCfg]:
+  """Joint position targets for the policy joints, offset from the default pose."""
+  return {
+    "joint_pos": mdp.SoftJointPositionActionCfg(
+      entity_name="robot",
+      actuator_names=PHYBOT_C2_POLICY_JOINT_NAMES,
+      preserve_order=True,
+      scale=PHYBOT_C2_ACTION_SCALE,
+      use_default_offset=True,
+    ),
+  }

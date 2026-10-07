@@ -15,10 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from mjlab.envs import ManagerBasedRlEnvCfg
-from mjlab.viewer import ViewerConfig
 
 from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS60_MOTION, CAD_CLIMB_CORNERS80_MOTION, CAD_CLIMB_MOTION
-from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_ACTION_SCALE, PHYBOT_C2_POLICY_JOINT_NAMES
 from scr_phybot_mjab.microspine.constraint import make_constraint_event_cfg
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
@@ -37,8 +35,8 @@ from .domain_rand import DOMAIN_RAND_EVENTS, actor_obs_noise, domain_rand_events
 from .microspine import climb_microspine_cfg
 from .observations import climb_observations
 from .rewards import climb_rewards
-from .robot import climb_robot_cfg
-from .scene import climb_scene, climb_sim
+from .robot import climb_actions, climb_robot_cfg
+from .scene import climb_scene, climb_sim, climb_viewer
 from .stance import climb_toe_contacts
 
 
@@ -81,23 +79,9 @@ def phybot_c2_climb_wall_env_cfg(
     episode_length_s=30.0,
     scene=climb_scene(climb_robot_cfg(toe_contacts), microspine_cfg, toe_contacts),
     sim=climb_sim(),
-    viewer=ViewerConfig(
-      origin_type=ViewerConfig.OriginType.WORLD,
-      lookat=(1.5, 0.0, 1.2),
-      distance=5.0,
-      elevation=-20.0,
-      azimuth=135.0,
-    ),
+    viewer=climb_viewer(),
     observations=climb_observations(microspine_cfg, actor_obs_noise() if domain_rand else None),
-    actions={
-      "joint_pos": mdp.SoftJointPositionActionCfg(
-        entity_name="robot",
-        actuator_names=PHYBOT_C2_POLICY_JOINT_NAMES,
-        preserve_order=True,
-        scale=PHYBOT_C2_ACTION_SCALE,
-        use_default_offset=True,
-      ),
-    },
+    actions=climb_actions(),
     commands=climb_commands(microspine_cfg, motion_file),
     rewards=climb_rewards(),
     curriculum=climb_curriculum(angle_stages),

@@ -28,6 +28,7 @@ __all__ = (
   "prev_action",
   "prev_prev_action",
   "privileged_critic_group",
+  "privileged_microspine_terms",
   "velocity_command",
 )
 
@@ -196,6 +197,25 @@ def microspine_forced_release(
   return affordance.forced_release_this_step.float()
 
 
+def privileged_microspine_terms(command_name: str = "microspine_affordance") -> dict[str, ObservationTermCfg]:
+  """Microspine state a real robot cannot sense: hold margin, anchor load, forced releases."""
+  return {
+    "microspine_hold_margin": ObservationTermCfg(
+      func=microspine_hold_margin,
+      params={"command_name": command_name},
+    ),
+    "microspine_anchor_load": ObservationTermCfg(
+      func=microspine_anchor_load,
+      params={"command_name": command_name},
+      scale=0.01,  # Newtons → O(1).
+    ),
+    "microspine_forced_release": ObservationTermCfg(
+      func=microspine_forced_release,
+      params={"command_name": command_name},
+    ),
+  }
+
+
 def privileged_critic_group(
   actor_group: ObservationGroupCfg,
   command_name: str = "microspine_affordance",
@@ -210,19 +230,7 @@ def privileged_critic_group(
   copies pick them up.
   """
   critic_terms = {name: dataclasses.replace(term) for name, term in actor_group.terms.items()}
-  critic_terms["microspine_hold_margin"] = ObservationTermCfg(
-    func=microspine_hold_margin,
-    params={"command_name": command_name},
-  )
-  critic_terms["microspine_anchor_load"] = ObservationTermCfg(
-    func=microspine_anchor_load,
-    params={"command_name": command_name},
-    scale=0.01,  # Newtons → O(1).
-  )
-  critic_terms["microspine_forced_release"] = ObservationTermCfg(
-    func=microspine_forced_release,
-    params={"command_name": command_name},
-  )
+  critic_terms.update(privileged_microspine_terms(command_name))
   return ObservationGroupCfg(
     terms=critic_terms,
     concatenate_terms=True,

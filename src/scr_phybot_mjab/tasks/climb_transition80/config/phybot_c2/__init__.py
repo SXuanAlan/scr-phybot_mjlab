@@ -5,11 +5,8 @@ from mjlab.tasks.registry import register_mjlab_task
 from .env_cfgs import phybot_c2_climb_transition80_env_cfg
 from .rl_cfg import phybot_c2_climb_transition80_ppo_runner_cfg
 
-# The v2 observation contract (actor 238: proprio + BeyondMimic reference
-# lanes + pad faces + wall face corners; critic 419), on the a80 prologue at
-# a wall pinned to 80 deg, real-robot PD table: BeyondMimic tracking
-# rewards, one engage-progress potential, termination-first legality with
-# the engage constraint cone in CaT mode.
+# Stand at an 80-degree wall and latch all four pads, tracking the a80 mount
+# clip with the real robot's PD table (actor 238, critic 419).
 register_mjlab_task(
   task_id="Mjlab-Climb-Transition80-Phybot-C2",
   env_cfg=phybot_c2_climb_transition80_env_cfg(),

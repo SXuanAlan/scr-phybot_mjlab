@@ -8,6 +8,7 @@ from mjlab.scene import SceneCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg, SensorCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
+from mjlab.viewer import ViewerConfig
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   configure_phybot_c2_floor_geom,
@@ -111,4 +112,15 @@ def climb_sim() -> SimulationCfg:
     nconmax=256,
     njmax=512,
     contact_sensor_maxmatch=500,
+  )
+
+
+def climb_viewer() -> ViewerConfig:
+  """A fixed world camera looking at the wall from the side."""
+  return ViewerConfig(
+    origin_type=ViewerConfig.OriginType.WORLD,
+    lookat=(1.5, 0.0, 1.2),
+    distance=5.0,
+    elevation=-20.0,
+    azimuth=135.0,
   )
