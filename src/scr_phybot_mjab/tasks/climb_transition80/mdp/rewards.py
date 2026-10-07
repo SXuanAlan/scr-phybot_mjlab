@@ -31,10 +31,10 @@ __all__ = (
   "motion_pad_center_error_exp",
   "motion_anchor_orientation_error_exp",
   "motion_anchor_position_error_exp",
-  "motion_body_angular_velocity_error_exp",
-  "motion_body_linear_velocity_error_exp",
-  "motion_body_orientation_error_exp",
-  "motion_body_position_error_exp",
+  "transition_body_angular_velocity_error_exp",
+  "transition_body_linear_velocity_error_exp",
+  "transition_body_orientation_error_exp",
+  "transition_body_position_error_exp",
 )
 
 
@@ -93,7 +93,7 @@ def motion_anchor_orientation_error_exp(
   return _gated(reward, cmd, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
 
 
-def motion_body_position_error_exp(
+def transition_body_position_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.3,
@@ -107,7 +107,7 @@ def motion_body_position_error_exp(
   return torch.exp(-error / std**2)
 
 
-def motion_body_orientation_error_exp(
+def transition_body_orientation_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 0.4,
@@ -138,7 +138,7 @@ def motion_pad_center_error_exp(
   return torch.exp(-error / std**2)
 
 
-def motion_body_linear_velocity_error_exp(
+def transition_body_linear_velocity_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 1.0,
@@ -149,7 +149,7 @@ def motion_body_linear_velocity_error_exp(
   return torch.exp(-error / std**2)
 
 
-def motion_body_angular_velocity_error_exp(
+def transition_body_angular_velocity_error_exp(
   env: ManagerBasedRlEnv,
   command_name: str = "climb_motion",
   std: float = 3.14,

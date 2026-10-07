@@ -23,3 +23,7 @@
 # Not a pure move: climb's copy read the live gravity, which equals the nominal
 # world-down vector bit for bit because no task changes gravity (verified by rollouts).
 "scr_phybot_mjab.tasks.climb_wall.mdp.observations.projected_gravity_from_framequat_sensor" = "scr_phybot_mjab.tasks.common.observations.projected_gravity_from_framequat_sensor"
+"scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.motion_body_position_error_exp" = "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.transition_body_position_error_exp"
+"scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.motion_body_orientation_error_exp" = "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.transition_body_orientation_error_exp"
+"scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.motion_body_linear_velocity_error_exp" = "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.transition_body_linear_velocity_error_exp"
+"scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.motion_body_angular_velocity_error_exp" = "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.transition_body_angular_velocity_error_exp"

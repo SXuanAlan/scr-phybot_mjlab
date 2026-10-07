@@ -661,12 +661,12 @@ def phybot_c2_climb_transition80_env_cfg(play: bool = False, domain_rand: bool =
       params={"command_name": "climb_motion", "std": 0.4, **gate},
     ),
     "motion_body_pos": RewardTermCfg(
-      func=mdp.motion_body_position_error_exp,
+      func=mdp.transition_body_position_error_exp,
       weight=1.0,
       params={"command_name": "climb_motion", "std": 0.3, **gate},
     ),
     "motion_body_ori": RewardTermCfg(
-      func=mdp.motion_body_orientation_error_exp,
+      func=mdp.transition_body_orientation_error_exp,
       weight=1.0,
       params={"command_name": "climb_motion", "std": 0.4, **gate},
     ),
@@ -681,12 +681,12 @@ def phybot_c2_climb_transition80_env_cfg(play: bool = False, domain_rand: bool =
       params={"command_name": "climb_motion", "std": 0.08},
     ),
     "motion_body_lin_vel": RewardTermCfg(
-      func=mdp.motion_body_linear_velocity_error_exp,
+      func=mdp.transition_body_linear_velocity_error_exp,
       weight=1.0,
       params={"command_name": "climb_motion", "std": 1.0},
     ),
     "motion_body_ang_vel": RewardTermCfg(
-      func=mdp.motion_body_angular_velocity_error_exp,
+      func=mdp.transition_body_angular_velocity_error_exp,
       weight=1.0,
       params={"command_name": "climb_motion", "std": 3.14},
     ),
