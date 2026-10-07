@@ -64,28 +64,13 @@ def height_above_spawn(
   return (altitude - baseline_z).unsqueeze(-1)  # (E, 1)
 
 
-def velocity_command(
-  env: ManagerBasedRlEnv,
-  command_name: str | None = None,
-  vx_cmd: float = 0.0,
-  vy_cmd: float = 0.0,
-  vz_cmd: float = 0.08,
-) -> torch.Tensor:
+def velocity_command(env: ManagerBasedRlEnv, command_name: str = "climb_velocity") -> torch.Tensor:
   """Commanded linear velocity (world frame), shape (E, 3).
 
-  When ``command_name`` is provided this reads the live command manager term,
-  so observation and velocity-tracking rewards use the same per-env target. The
-  fixed ``vx_cmd``/``vy_cmd``/``vz_cmd`` path is kept for legacy configs.
+  Read from the live command term, so the observation and the progress
+  terms share one per-env target.
   """
-  if command_name is not None:
-    return env.command_manager.get_command(command_name)
-
-  cmd = torch.tensor(
-    [vx_cmd, vy_cmd, vz_cmd],
-    device=env.device,
-    dtype=torch.float32,
-  )
-  return cmd.unsqueeze(0).expand(env.num_envs, 3)
+  return env.command_manager.get_command(command_name)
 
 
 def microspine_pad_normal_force(
@@ -111,24 +96,14 @@ def microspine_pad_normal_force(
   return torch.where(affordance.engaged, anchor_compression, affordance.pad_press_force)
 
 
-def microspine_engaged_state(
-  env: ManagerBasedRlEnv,
-  event_term_name: str = "microspine_grip",
-  command_name: str | None = None,
-) -> torch.Tensor:
+def microspine_engaged_state(env: ManagerBasedRlEnv, command_name: str = "microspine_affordance") -> torch.Tensor:
   """Per-EE microspine latch state, shape ``(E, num_ee)`` in ``{0, 1}``.
 
-  The affordance command is preferred because it is the source of truth and is
-  already initialized on the reset observation; the physics event mirrors that
-  state into equalities one event pass later. ``event_term_name`` retains the
-  legacy physics-state path.
+  Read from the affordance command, the source of truth, which is already
+  set on the reset observation; the physics event mirrors it into the
+  equalities one event pass later.
   """
-  if command_name is not None:
-    engaged = env.command_manager.get_term(command_name).engaged
-  else:
-    term_cfg = env.event_manager.get_term_cfg(event_term_name)
-    engaged = term_cfg.func.engaged  # (E, H) bool
-  return engaged.float()
+  return env.command_manager.get_term(command_name).engaged.float()
 
 
 def microspine_contact_fraction(
