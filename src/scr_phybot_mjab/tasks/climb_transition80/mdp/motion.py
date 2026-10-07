@@ -56,8 +56,8 @@ from scr_phybot_mjab.tasks.climb_wall.mdp.motion import (
   ClimbMotionClip,
   ClimbMotionCommand,
   ClimbMotionCommandCfg,
-  _lerp_frames,
-  _np_quat_mul,
+  lerp_frames,
+  np_quat_mul,
 )
 
 if TYPE_CHECKING:
@@ -269,7 +269,7 @@ def finite_difference_velocities(pos: np.ndarray, quat: np.ndarray, fps: float) 
   lin[:-1] = (pos[1:] - pos[:-1]) * fps
   ang = np.zeros_like(pos)
   q_conj = quat[:-1] * np.array([1.0, -1.0, -1.0, -1.0])
-  q_rel = _np_quat_mul(quat[1:], q_conj)
+  q_rel = np_quat_mul(quat[1:], q_conj)
   q_rel = q_rel * np.where(q_rel[..., 0:1] >= 0.0, 1.0, -1.0)
   vec_norm = np.linalg.norm(q_rel[..., 1:4], axis=-1)
   angle = 2.0 * np.arctan2(vec_norm, q_rel[..., 0])
@@ -432,7 +432,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
     if abs(src_fps - target_fps) > 1.0e-6:
       duration = (pads.shape[0] - 1) / src_fps
       n_new = int(np.floor(duration * target_fps)) + 1
-      pads = _lerp_frames(pads, np.arange(n_new) / target_fps * src_fps)
+      pads = lerp_frames(pads, np.arange(n_new) / target_fps * src_fps)
     pads = pads[: self.clip.cycle_frames]
     if pads.shape[0] != self.clip.cycle_frames:
       raise ValueError("pad_positions shorter than the playable clip.")

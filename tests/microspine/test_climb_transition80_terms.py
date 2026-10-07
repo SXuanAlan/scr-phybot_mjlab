@@ -646,14 +646,14 @@ def test_birth_mask_ranges_and_draws():
   assert bool(((frames >= 40) & (frames < 55)).any()) and bool(((frames >= 60) & (frames < 80)).any())
 
 
-def test_phi_v3e_pays_the_last_centimetres_and_the_press(monkeypatch):
+def test_phi_v3e_pays_the_last_centimetres_and_the_press():
   """Hover-trap fix: the wall-normal approach and the press earn Phi."""
   import scr_phybot_mjab.tasks.climb_transition80.mdp.rewards as rw
 
   env, motion, aff = _stub(dist=torch.full((E, H), 0.05))
   motion.ref_engaged[0, 0] = True
   gaps = torch.full((E, H * 4), 0.034)  # every sphere 3.4 cm off the wall
-  monkeypatch.setattr(rw._SphereGeomCache, "surface_distances", classmethod(lambda cls, e: gaps))
+  aff.proxy_wall_gaps = lambda: gaps
   aff.pad_press_force = torch.zeros(E, H)
   kw = dict(
     reach_radius_m=0.5, load_share=0.2, approach_share=0.15, approach_radius_m=0.10, press_share=0.2, press_ref_n=20.0

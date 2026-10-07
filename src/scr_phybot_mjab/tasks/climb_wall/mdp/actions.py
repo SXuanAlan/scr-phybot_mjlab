@@ -12,6 +12,12 @@ from dataclasses import dataclass
 import torch
 from mjlab.envs.mdp.actions import JointPositionAction, JointPositionActionCfg
 
+__all__ = (
+  "SoftJointPositionAction",
+  "SoftJointPositionActionCfg",
+  "clamp_to_joint_limits",
+)
+
 
 def clamp_to_joint_limits(
   target: torch.Tensor,

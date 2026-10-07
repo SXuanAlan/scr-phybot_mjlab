@@ -19,6 +19,11 @@ from mjlab.utils.lab_api.math import quat_apply
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "ClimbVelocityCommand",
+  "ClimbVelocityCommandCfg",
+)
+
 
 def _sample_uniform(count: int, value_range: tuple[float, float], device: torch.device) -> torch.Tensor:
   lo, hi = value_range

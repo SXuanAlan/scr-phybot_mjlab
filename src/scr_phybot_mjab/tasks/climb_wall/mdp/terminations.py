@@ -11,6 +11,13 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "bad_state",
+  "motion_body_tracking_divergence",
+  "prolonged_support_loss",
+  "root_below_wall_altitude",
+)
+
 
 def root_below_wall_altitude(
   env: ManagerBasedRlEnv,

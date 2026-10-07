@@ -17,6 +17,23 @@ from mjlab.utils.lab_api.math import quat_apply_inverse
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "ee_disengage_time_obs",
+  "height_above_spawn",
+  "microspine_anchor_load",
+  "microspine_contact_fraction",
+  "microspine_cooldown_obs",
+  "microspine_engaged_state",
+  "microspine_forced_release",
+  "microspine_hold_margin",
+  "microspine_pad_normal_force",
+  "prev_action",
+  "prev_prev_action",
+  "privileged_critic_group",
+  "projected_gravity_from_framequat_sensor",
+  "velocity_command",
+)
+
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
 

@@ -8,5 +8,6 @@ from .curriculums import *  # noqa: F403
 from .metrics import *  # noqa: F403
 from .motion import *  # noqa: F403
 from .observations import *  # noqa: F403
-from .rewards import *  # noqa: F403
+from .rewards_contact import *  # noqa: F403
+from .rewards_tracking import *  # noqa: F403
 from .terminations import *  # noqa: F403

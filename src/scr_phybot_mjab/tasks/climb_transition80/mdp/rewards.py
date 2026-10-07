@@ -14,10 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 from mjlab.utils.lab_api.math import quat_error_magnitude
 
-from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
-  _engage_match_gate,
-  _SphereGeomCache,
-)
+from scr_phybot_mjab.tasks.climb_wall.mdp.rewards_tracking import engage_match_gate
 
 from .observations import unit_preload_fraction
 
@@ -52,7 +49,7 @@ def _gated(
   grace_fraction: float | None,
 ) -> torch.Tensor:
   """Climb's schedule-adherence discount (v1e, user call 2026-08-21):
-  pose income is multiplied by ``_engage_match_gate`` in [floor, 1] — full
+  pose income is multiplied by ``engage_match_gate`` in [floor, 1] — full
   pay only while every pad's latch state matches the chart, ``floor`` of it
   when it does not, ramped near scheduled edges (instant compliance is
   impossible). Without it a pad hovering unwelded inside its window collected
@@ -62,7 +59,7 @@ def _gated(
   and bounded below — the ledger stays positive. None disables the gate."""
   if floor is None:
     return reward
-  return reward * _engage_match_gate(cmd, floor, grace_s, grace_fraction)
+  return reward * engage_match_gate(cmd, floor, grace_s, grace_fraction)
 
 
 def motion_anchor_position_error_exp(
@@ -222,7 +219,7 @@ def engage_progress(
 
   reach = reach_share * (1.0 - (dist / reach_radius_m).clamp(max=1.0))
   if approach_share > 0.0:
-    gaps = _SphereGeomCache.surface_distances(env).view(dist.shape[0], dist.shape[1], -1)
+    gaps = affordance.proxy_wall_gaps().view(dist.shape[0], dist.shape[1], -1)
     gap = gaps.min(dim=-1).values.clamp(min=0.0)  # closest sphere surface -> wall
     reach = reach + approach_share * (1.0 - (gap / approach_radius_m).clamp(max=1.0))
   load = touch_level + load_share * unit_preload_fraction(affordance)

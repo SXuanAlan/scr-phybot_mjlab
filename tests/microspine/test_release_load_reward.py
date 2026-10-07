@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from scr_phybot_mjab.microspine.wrench import distribute_wrench_to_units_numpy
-from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import microspine_release_load_reward
+from scr_phybot_mjab.tasks.climb_wall.mdp.rewards_contact import microspine_release_load_reward
 
 
 def release_env(tangent_loads, *, count=4, dt=0.02):

@@ -11,6 +11,20 @@ from scr_phybot_mjab.assets.wall import WALL_OFFSET, WALL_PIVOT_X
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
 
+__all__ = (
+  "CORNERS60_WALL_ANGLE_STAGES",
+  "RewardWeightStage",
+  "WALL_ANGLE_STAGES",
+  "WallAngleStage",
+  "pin_curricula_to_final_stage",
+  "resolve_wall_angle",
+  "resolve_wall_stage",
+  "reward_weight",
+  "sample_wall_angles",
+  "wall_angle",
+  "wall_pose_for_angle",
+)
+
 
 class RewardWeightStage(TypedDict):
   iter: int

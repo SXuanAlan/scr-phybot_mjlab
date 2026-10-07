@@ -342,7 +342,7 @@ TRANSITION80_PHI_REACH_RADIUS_M = 0.5
 # transition itself was underpaid: forensics diff only +17 % vs welded).
 TRANSITION80_PHI_WEIGHT = 3.0
 # v3e (2026-08-22 04:4x): Phi shape for the hover trap — pay the last 10 cm of
-# wall-normal approach and the press itself (see mdp.rewards.engage_progress).
+# wall-normal approach and the press itself (see mdp.engage_progress).
 # reach 0.3 + approach 0.15 < touch 0.5; touch 0.5 + load 0.2 + press 0.2 = weld 0.9.
 TRANSITION80_PHI_APPROACH_SHARE = 0.19
 TRANSITION80_PHI_REACH_SHARE = 0.25  # v6: 0.30 -> 0.25 (reach+approach 0.44 < touch_level)

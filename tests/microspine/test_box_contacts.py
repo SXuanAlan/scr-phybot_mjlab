@@ -10,8 +10,8 @@ import torch
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
 from scr_phybot_mjab.microspine.config import MicrospineCfg
 from scr_phybot_mjab.microspine.contact import pad_contact_center, pad_contact_face_centers, sphere_names
+from scr_phybot_mjab.microspine.pad_proxies import ProxyWallGaps
 from scr_phybot_mjab.microspine.spec import add_attachment_equalities
-from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import _SphereGeomCache
 
 
 @pytest.fixture(scope="module")
@@ -158,8 +158,9 @@ def test_box_wall_gap_matches_physical_contacts_and_retraction(bench, angle_deg)
       )
     },
   )
-  gaps = _SphereGeomCache.surface_distances(env)[0].numpy()
-  ids = _SphereGeomCache.get(env).geom_ids.tolist()
+  proxy_gaps = ProxyWallGaps(model, cfg, "cpu")
+  gaps = proxy_gaps(env)[0].numpy()
+  ids = proxy_gaps.geom_ids.tolist()
   for gid, gap in zip(ids, gaps):
     contacts = [c.dist for c in data.contact if gid in c.geom]
     if contacts:

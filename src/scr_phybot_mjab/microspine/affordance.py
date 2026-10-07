@@ -15,6 +15,7 @@ from scr_phybot_mjab.microspine.empirical_limit_surface import DEFAULT_TABLE
 from scr_phybot_mjab.microspine.engage_gate import SpineField, engage_frame, face_wall_cos, to_engage_frame
 from scr_phybot_mjab.microspine.hold_judge import HoldJudge, UnitVerdict
 from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry
+from scr_phybot_mjab.microspine.pad_proxies import ProxyWallGaps
 from scr_phybot_mjab.microspine.quat import rotate
 from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 from scr_phybot_mjab.microspine.retraction import LatchedContactRetraction
@@ -86,6 +87,7 @@ class MicrospineAffordance(CommandTerm):
     )
     self._contacts = PadContactReader(env, cfg.contact_sensor_name, self._mcfg, self._proxy_inward_normal)
     self._retraction = LatchedContactRetraction(env, self._mcfg, self._face_local_axis)
+    self._proxy_wall_gaps: ProxyWallGaps | None = None
     self._executor = None
     self._init_state((self.num_envs, self._num_ee), self.hold_judge.unit_count)
     self._sample_limit_params(torch.arange(self.num_envs, device=self.device))
@@ -160,6 +162,12 @@ class MicrospineAffordance(CommandTerm):
   def cooldown_steps(self) -> torch.Tensor:
     """Remaining per-EE re-engagement cooldown in policy steps."""
     return self._cooldown_steps
+
+  def proxy_wall_gaps(self) -> torch.Tensor:
+    """Signed wall gap of each contact proxy's closest surface, (E, H*S); see ``ProxyWallGaps``."""
+    if self._proxy_wall_gaps is None:
+      self._proxy_wall_gaps = ProxyWallGaps(self._env.sim.mj_model, self._mcfg, self.device)
+    return self._proxy_wall_gaps(self._env)
 
   def set_initial_engaged_mask(self, mask: tuple[bool, ...]) -> None:
     """Set the latch mask used by subsequent episode resets."""

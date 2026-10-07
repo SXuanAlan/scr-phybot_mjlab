@@ -10,14 +10,14 @@ import torch
 from mjlab.tasks.registry import load_env_cfg
 
 import scr_phybot_mjab.tasks  # noqa: F401
-from scr_phybot_mjab.tasks.climb_wall.mdp import rewards, terminations
-from scr_phybot_mjab.tasks.climb_wall.mdp.body_tracking import (
+from scr_phybot_mjab.tasks.climb_wall.mdp import rewards_contact, rewards_tracking, terminations
+from scr_phybot_mjab.tasks.climb_wall.mdp.motion import (
+  AdaptivePhaseSampler,
+  ClimbMotionCommand,
   align_body_reference,
   body_velocities_from_poses,
   build_body_pose_tables,
 )
-from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionCommand
-from scr_phybot_mjab.tasks.climb_wall.mdp.phase_sampling import AdaptivePhaseSampler
 
 
 @pytest.mark.parametrize(
@@ -144,14 +144,14 @@ def test_pose_gate_applies_to_new_body_terms_and_velocities_remain_ungated():
   params = dict(engage_gate_floor=0.25, engage_gate_grace_fraction=0.3)
   m.robot_body_pos_w[0, 0, 0] = 0.1
   m.robot_body_quat_w[0, 0] = torch.tensor([math.cos(0.15), 0.0, 0.0, math.sin(0.15)])
-  for f in (rewards.motion_body_position_error_exp, rewards.motion_body_orientation_error_exp):
+  for f in (rewards_tracking.motion_body_position_error_exp, rewards_tracking.motion_body_orientation_error_exp):
     assert f(env, **params).item() == pytest.approx(math.exp(-1.0) * 0.8125, rel=1.0e-5)
-  assert rewards.motion_body_linear_velocity_error_exp(env).item() == 1.0
-  assert rewards.motion_body_angular_velocity_error_exp(env).item() == 1.0
+  assert rewards_tracking.motion_body_linear_velocity_error_exp(env).item() == 1.0
+  assert rewards_tracking.motion_body_angular_velocity_error_exp(env).item() == 1.0
   m.robot_body_lin_vel_w[0, 0, 0] = 1.0
   m.robot_body_ang_vel_w[0, 0, 0] = 3.14
-  assert rewards.motion_body_linear_velocity_error_exp(env).item() == pytest.approx(math.exp(-1.0))
-  assert rewards.motion_body_angular_velocity_error_exp(env).item() == pytest.approx(math.exp(-1.0))
+  assert rewards_tracking.motion_body_linear_velocity_error_exp(env).item() == pytest.approx(math.exp(-1.0))
+  assert rewards_tracking.motion_body_angular_velocity_error_exp(env).item() == pytest.approx(math.exp(-1.0))
 
 
 def test_unwanted_contact_reward_retains_a_brief_impact():
@@ -163,7 +163,7 @@ def test_unwanted_contact_reward_retains_a_brief_impact():
       sensors={"climb_undesired_contact": SimpleNamespace(data=SimpleNamespace(force_history=history))}
     )
   )
-  torch.testing.assert_close(rewards.undesired_body_contacts(env), torch.tensor([1.0, 0.0]))
+  torch.testing.assert_close(rewards_contact.undesired_body_contacts(env), torch.tensor([1.0, 0.0]))
 
 
 def test_adaptive_sampler_keeps_coverage_and_accumulates_failures_once():

@@ -6,13 +6,15 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.microspine.release_reason import ReleaseReason
 from scr_phybot_mjab.tasks.climb_wall.mdp.metrics import microspine_engage_events
-from scr_phybot_mjab.tasks.climb_wall.mdp.rewards import (
+from scr_phybot_mjab.tasks.climb_wall.mdp.rewards_contact import (
   microspine_support_loss,
+  unsafe_microspine_release_penalty,
+)
+from scr_phybot_mjab.tasks.climb_wall.mdp.rewards_tracking import (
   motion_engage_mismatch,
   motion_ref_height_tracking,
   motion_root_ori_error_exp,
   motion_swing_approach,
-  unsafe_microspine_release_penalty,
 )
 
 

@@ -13,6 +13,17 @@ import torch
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "action_saturation_fraction",
+  "joint_soft_limit_violation",
+  "joint_target_clamp_fraction",
+  "microspine_engage_events",
+  "microspine_engagement_occupancy",
+  "microspine_forced_release_rate",
+  "microspine_hold_margin_engaged",
+  "motion_height_gained",
+)
+
 
 def microspine_engagement_occupancy(
   env: ManagerBasedRlEnv,
