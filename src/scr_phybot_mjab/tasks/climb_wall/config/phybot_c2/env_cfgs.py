@@ -33,7 +33,7 @@ from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
 )
 
 from .commands import climb_commands
-from .domain_rand import DOMAIN_RAND_EVENTS, actor_obs_noise, domain_rand_events, random_release_event
+from .domain_rand import DOMAIN_RAND_EVENTS, actor_obs_noise, domain_rand_events
 from .microspine import climb_microspine_cfg
 from .observations import climb_observations
 from .rewards import climb_rewards
@@ -45,7 +45,6 @@ from .stance import climb_toe_contacts
 def phybot_c2_climb_wall_env_cfg(
   play: bool = False,
   domain_rand: bool = True,
-  robustness_release: bool = False,
   unit_layout: str | None = None,
   wall_angle_deg: float | None = None,
   *,
@@ -58,7 +57,6 @@ def phybot_c2_climb_wall_env_cfg(
     play: evaluation mode (single env, pinned curriculum, no randomization).
     domain_rand: observation noise and startup friction, mass and encoder
       randomization.
-    robustness_release: inject random unscheduled latch releases.
     unit_layout: active CAD unit sites, "all" (default) or the four
       "corners" of the hardware variants.
     wall_angle_deg: pin training and play to this angle from horizontal,
@@ -78,8 +76,6 @@ def phybot_c2_climb_wall_env_cfg(
   }
   if domain_rand:
     events |= domain_rand_events()
-  if robustness_release:
-    events["random_release"] = random_release_event()
   cfg = ManagerBasedRlEnvCfg(
     decimation=DECIMATION,
     episode_length_s=30.0,

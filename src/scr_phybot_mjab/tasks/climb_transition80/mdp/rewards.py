@@ -299,7 +299,7 @@ def scheduled_anchor_rip_penalty():
     released = aff.forced_release_this_step
     lead = release_lead_time_s / motion.cycle_time_s
     release_soon = motion.ref_edge_countdowns[..., 0] <= lead
-    rip = released & motion.ref_engaged & ~aff.dr_release_pending & ~release_soon
+    rip = released & motion.ref_engaged & ~release_soon
     if seed_settle_exempt_s > 0.0:
       settle_steps = max(1, int(round(seed_settle_exempt_s / env.step_dt)))
       settling = (env.episode_length_buf <= settle_steps).unsqueeze(-1)

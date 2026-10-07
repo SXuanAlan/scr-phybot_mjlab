@@ -177,7 +177,7 @@ def scheduled_anchor_rip(
   released = aff.forced_release_this_step
   lead = release_lead_time_s / motion.cycle_time_s
   release_soon = motion.ref_edge_countdowns[..., 0] <= lead
-  rip = released & motion.ref_engaged & ~aff.dr_release_pending & ~release_soon
+  rip = released & motion.ref_engaged & ~release_soon
   if seed_settle_exempt_s > 0.0:
     settle_steps = max(1, int(round(seed_settle_exempt_s / env.step_dt)))
     settling = (env.episode_length_buf <= settle_steps).unsqueeze(-1)
@@ -251,8 +251,7 @@ def engage_constraint_termination():
 
   ``mode="cat"``: terminate with probability δ = max_i p_i·v_i (Bernoulli
   inside the term — rsl_rl sees an ordinary ``terminated``); ``"hard"``:
-  any v_i > 0; ``"off"``: never (play). Exempt: ``dr_release_pending``
-  pads. The violations and δ are cached on the callable
+  any v_i > 0; ``"off"``: never (play). The violations and δ are cached on the callable
   (``last_violations``, ``last_delta``) for the metric lanes.
 
   Persistence (v1b, 2026-08-21): C1, C2-grind, C3 and C4 count only once
@@ -331,7 +330,7 @@ def engage_constraint_termination():
 
     lead = edge_lead_time_s / motion.cycle_time_s
     regrip_soon = motion.ref_edge_countdowns[..., 1] <= lead
-    free = ~engaged & ~aff.dr_release_pending
+    free = ~engaged
     # Seed-settle exemption, the rip law's mirror (monitor finding, v1b):
     # a seeded weld torn off by the birth transient leaves a free pad
     # pressed on the wall at settle-transient speeds/forces — the cone
@@ -446,7 +445,7 @@ def scheduled_contact_loss_termination():
       executor = aff._get_executor()
       dist = (executor.pad_center_world() - motion.ref_anchor_pos_w).norm(dim=-1)
       satisfied = satisfied & (dist <= anchor_radius_m)
-    missing = motion.ref_engaged & ~satisfied & ~aff.dr_release_pending
+    missing = motion.ref_engaged & ~satisfied
     count = state["count"]
     if count is None or count.shape != missing.shape:
       count = torch.zeros_like(missing, dtype=torch.long)

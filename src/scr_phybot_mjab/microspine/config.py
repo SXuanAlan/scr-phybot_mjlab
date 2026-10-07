@@ -226,10 +226,6 @@ class MicrospineCfg:
   reengage_cooldown_steps: int = 30
   """Steps after release during which re-engagement is blocked."""
 
-  dr_reseat_hold_timeout_steps: int = 75
-  """Policy steps the motion clock waits for an externally released pad to
-  re-seat (75 at 50 Hz = 1.5 s) before the reseat hold is abandoned."""
-
   face_local_axis: tuple[float, float, float] = (0.0, -1.0, 0.0)
   """Local EE axis that should face the wall inward normal."""
 

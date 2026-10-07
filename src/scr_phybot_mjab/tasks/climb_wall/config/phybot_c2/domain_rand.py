@@ -7,10 +7,7 @@ from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
-from scr_phybot_mjab.tasks.climb_wall import mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import MICROSPINE_AFFORDANCE_COMMAND
-
-DOMAIN_RAND_EVENTS = ("body_friction", "base_mass", "encoder_bias", "random_release")
+DOMAIN_RAND_EVENTS = ("body_friction", "base_mass", "encoder_bias")
 """Every randomization event; play removes them all."""
 
 
@@ -64,13 +61,3 @@ def domain_rand_events() -> dict[str, EventTermCfg]:
       },
     ),
   }
-
-
-def random_release_event() -> EventTermCfg:
-  """An optional recovery drill: random unscheduled latch releases."""
-  return EventTermCfg(
-    mode="interval",
-    interval_range_s=(6.0, 12.0),
-    func=mdp.random_microspine_release,
-    params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
-  )

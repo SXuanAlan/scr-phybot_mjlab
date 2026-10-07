@@ -44,24 +44,6 @@ def microspine_engage_events(
   return affordance.engaged_this_step.float().sum(dim=1) / env.step_dt
 
 
-def microspine_reseat_hold_fraction(
-  env: ManagerBasedRlEnv,
-  command_name: str = "microspine_affordance",
-) -> torch.Tensor:
-  """Fraction of steps in the R4 reseat hold (phase clock frozen), (E,)."""
-  affordance = env.command_manager.get_term(command_name)
-  return affordance.reseat_hold.float()
-
-
-def microspine_reseat_pending_count(
-  env: ManagerBasedRlEnv,
-  command_name: str = "microspine_affordance",
-) -> torch.Tensor:
-  """Mean count of EEs awaiting a dr-forced reseat, (E,)."""
-  affordance = env.command_manager.get_term(command_name)
-  return affordance.dr_release_pending.float().sum(dim=1)
-
-
 def microspine_hold_margin_engaged(
   env: ManagerBasedRlEnv,
   command_name: str = "microspine_affordance",

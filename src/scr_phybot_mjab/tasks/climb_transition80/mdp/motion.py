@@ -628,11 +628,10 @@ class TransitionMotionCommand(ClimbMotionCommand):
     self._affordance().seed_engaged(env_ids, self.clip.ee_engaged[frames])
 
   def _update_command(self) -> None:
-    # R4 reseat freeze preserved; past the end the clock CLAMPS on the last
-    # playable frame (no root_offset step bump: the prologue never tiles).
+    # Past the end the clock clamps on the last playable frame (no
+    # root_offset step bump: the prologue never tiles).
     frozen = self._birth_freeze_left > 0
-    hold = self._affordance().reseat_hold | frozen
-    next_steps = torch.where(hold, self.time_steps, self.time_steps + 1)
+    next_steps = torch.where(frozen, self.time_steps, self.time_steps + 1)
     self.time_steps = next_steps.clamp(max=self.clip.cycle_frames - 1)
     self._birth_freeze_left = (self._birth_freeze_left - 1).clamp(min=0)
     self.metrics["birth_frozen"][:] = frozen.to(self.metrics["birth_frozen"].dtype)

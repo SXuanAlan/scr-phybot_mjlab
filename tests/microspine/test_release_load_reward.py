@@ -22,7 +22,6 @@ def release_env(tangent_loads, *, count=4, dt=0.02):
     engaged=torch.tensor([[False, True, True, True]]).expand(batch, -1).clone(),
     forced_release_this_step=torch.tensor([[True, False, False, False]]).expand(batch, -1).clone(),
     release_reason=torch.tensor([[2, 0, 0, 0]]).expand(batch, -1).clone(),
-    dr_release_pending=torch.zeros(batch, 4, dtype=torch.bool),
   )
   motion = SimpleNamespace(
     ref_engaged=aff.engaged.clone(),
@@ -93,11 +92,10 @@ def test_off_schedule_and_unsafe_loaded_releases_are_still_penalized():
   assert score[0] < 0 and score[1] < 0 and score[2] == 0
 
 
-def test_dr_events_and_recovery_do_not_pay_and_empirical_failures_are_not_bonuses():
-  env, aff, _ = release_env([[20, 0], [0, 0], [0, 0], [0, 0]])
-  aff.release_reason[:, 0] = torch.tensor([6, 7, 8, 2])
-  aff.dr_release_pending[3, 1] = True
-  torch.testing.assert_close(event_score(env), torch.zeros(4))
+def test_empirical_failures_are_not_bonuses():
+  env, aff, _ = release_env([[0, 0], [0, 0]])
+  aff.release_reason[:, 0] = torch.tensor([7, 8])
+  torch.testing.assert_close(event_score(env), torch.zeros(2))
 
 
 def test_one_bonus_spans_release_lead_and_swing_and_rearms_next_cycle():

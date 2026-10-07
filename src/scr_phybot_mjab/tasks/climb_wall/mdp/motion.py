@@ -840,19 +840,13 @@ class ClimbMotionCommand(CommandTerm):
     super().compute(dt)
 
   def _update_command(self) -> None:
-    # R4 reseat hold (2026-08-03): while a dr-forced release awaits
-    # re-seating, the phase clock waits with it — all 16 command dims freeze
-    # together, so recovery tracks a self-consistent standing target instead
-    # of racing the schedule. Economics: frozen ref height = paused climb
-    # income is the only time cost; the pending EE's mismatch is exempted at
-    # the bill, and the press-shaping window is already open for it (frozen
-    # ref says engaged, robot says not). Deploy mirror: the C++ phase player
-    # needs the same pause keyed on a loss signal (gimbal sensing); a
-    # no-pause fallback is exactly pre-R4 behavior.
-    hold = self._affordance().reseat_hold
     if self.cfg.synchronize_reset_phase:
-      hold = hold | self._fresh | (not self._advance_time)
-    next_steps = torch.where(hold, self.time_steps, self.time_steps + 1)
+      # A freshly reset env holds its reference frame for one step, and no
+      # frame advances while no physics time elapsed.
+      hold = self._fresh | (not self._advance_time)
+      next_steps = torch.where(hold, self.time_steps, self.time_steps + 1)
+    else:
+      next_steps = self.time_steps + 1
     wrapped = next_steps >= self.clip.cycle_frames
     self.time_steps = torch.where(wrapped, torch.zeros_like(next_steps), next_steps)
     # The loop's state-5-equals-state-1 closure is one step height up; keep

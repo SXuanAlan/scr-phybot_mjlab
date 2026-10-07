@@ -612,7 +612,6 @@ def phybot_c2_climb_transition80_env_cfg(
   cfg = phybot_c2_climb_wall_env_cfg(
     play=play,
     domain_rand=domain_rand,
-    robustness_release=False,
   )
 
   # Floor contact ON.

@@ -124,7 +124,6 @@ def test_alignment_follows_xy_and_yaw_but_keeps_reference_height():
 def _reward_env():
   q = torch.tensor([[[1.0, 0.0, 0.0, 0.0]]])
   zero = torch.zeros(1, 1, 3)
-  aff = SimpleNamespace(dr_release_pending=torch.zeros(1, 4, dtype=torch.bool))
   motion = SimpleNamespace(
     robot_body_pos_w=zero.clone(),
     robot_body_quat_w=q.clone(),
@@ -138,7 +137,6 @@ def _reward_env():
     ref_edge_distance=torch.ones(1, 4),
     ref_run_time=torch.ones(1, 4),
     cycle_time_s=9.0,
-    _affordance=lambda: aff,
   )
   return SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda _: motion)), motion
 
@@ -232,7 +230,6 @@ def test_body_failure_checks_relative_pose_global_orientation_and_wall_height():
 def test_reset_phase_clock_skips_zero_time_and_only_holds_fresh_rows():
   m = SimpleNamespace(
     cfg=SimpleNamespace(synchronize_reset_phase=True, initialize_seeded_anchors=False),
-    _affordance=lambda: SimpleNamespace(reseat_hold=torch.tensor([False, False])),
     time_steps=torch.tensor([449, 50]),
     _fresh=torch.tensor([False, True]),
     _advance_time=False,

@@ -155,16 +155,10 @@ def _make_motion_env(motion):
   )
 
 
-def _no_pending_affordance(num_ee: int = 4):
-  """R4 stub: no dr-forced reseat pending (the mismatch exemption no-ops)."""
-  return SimpleNamespace(dr_release_pending=torch.zeros(1, num_ee, dtype=torch.bool))
-
-
 def test_motion_engage_mismatch_counts_per_ee_disagreements():
   motion = SimpleNamespace(
     ref_engaged=torch.tensor([[True, True, False, False]]),
     robot_engaged=torch.tensor([[True, False, True, False]]),
-    _affordance=_no_pending_affordance,
   )
   env = _make_motion_env(motion)
   assert motion_engage_mismatch(env).item() == 2.0
@@ -177,7 +171,6 @@ def test_motion_engage_mismatch_grace_discounts_near_schedule_edges():
     # Nearest-edge distances: 2.5 s, 0.25 s, and 0 s out on a 5 s cycle.
     ref_edge_distance=torch.tensor([[0.5, 0.05, 0.0, 0.0]]),
     cycle_time_s=5.0,
-    _affordance=_no_pending_affordance,
   )
   env = _make_motion_env(motion)
   # Full price deep in a segment, half price at half the grace window, free
@@ -194,7 +187,6 @@ def test_motion_engage_mismatch_grace_fraction_scales_with_window():
     # ...inside windows of 2.0 / 1.0 / 1.0 / 1.0 s.
     ref_run_time=torch.tensor([[0.4, 0.2, 0.2, 0.2]]),
     cycle_time_s=5.0,
-    _affordance=_no_pending_affordance,
   )
   env = _make_motion_env(motion)
   # Grace = 0.3 x own window = 0.6 / 0.3 / 0.3 / 0.3 s: full price deep
@@ -299,7 +291,6 @@ def test_engage_gate_scales_pose_income_by_schedule_adherence():
       robot_engaged=torch.tensor([match_pattern]),
       ref_edge_distance=torch.full((1, 4), edge_frac),
       cycle_time_s=4.0,
-      _affordance=_no_pending_affordance,
     )
 
   # Full match -> full pay.

@@ -44,7 +44,7 @@ mc.sampling_mode = "uniform"
 mc.height_offset_range = (0.0, 0.0)
 mc.joint_pos_noise = 0.0
 cfg.commands["microspine_affordance"].microspine_cfg.limit_surface.seed_hold_judge_guard_steps = args.guard
-for name in ("encoder_bias", "body_friction", "base_mass", "random_release"):
+for name in ("encoder_bias", "body_friction", "base_mass"):
   cfg.events.pop(name, None)
 # wall angle: the final-stage curriculum pins it; override if a different angle is wanted
 if "wall_angle" in cfg.curriculum:

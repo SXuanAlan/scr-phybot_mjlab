@@ -108,15 +108,6 @@ def climb_metrics() -> dict[str, MetricsTermCfg]:
       func=mdp.microspine_engagement_occupancy,
       params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
     ),
-    # Reseat-hold duty cycle and pending-EE count.
-    "microspine_reseat_hold_fraction": MetricsTermCfg(
-      func=mdp.microspine_reseat_hold_fraction,
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
-    ),
-    "microspine_reseat_pending_count": MetricsTermCfg(
-      func=mdp.microspine_reseat_pending_count,
-      params={"command_name": MICROSPINE_AFFORDANCE_COMMAND},
-    ),
     **occupancy,
     "microspine_forced_release_rate_hz": MetricsTermCfg(
       func=mdp.microspine_forced_release_rate,

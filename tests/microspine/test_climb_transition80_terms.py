@@ -76,7 +76,6 @@ def _stub(
     pad_press_force=press,
     unit_preload_n=preload,
     face_cos=face_cos,
-    dr_release_pending=z(torch.bool),
     forced_release_this_step=released,
     released_was_seeded=z(torch.bool),
     _mcfg=SimpleNamespace(engage_unit_preload_n=preload_n),
@@ -169,7 +168,6 @@ def _cone(**kw):
 
 def test_cone_off_never_fires_but_still_reports():
   term, env, _, aff = _cone(touch=torch.ones(E, H, dtype=torch.bool), face_cos=torch.zeros(E, H))  # 90 deg tilt
-  aff.dr_release_pending = torch.zeros(E, H, dtype=torch.bool)
   out = term(env, mode="off", persist_steps=1)
   assert not out.any()
   assert term.last_violations["tilt"].max().item() == pytest.approx(1.0)
@@ -235,9 +233,6 @@ def test_rip_fires_only_for_scheduled_anchors_away_from_their_release_edge():
   motion.ref_edge_countdowns[0, 0, 0] = _sec(0.3)  # release due in 0.3 s (lead 0.5)
   assert not scheduled_anchor_rip(env).any()
   motion.ref_edge_countdowns[0, 0, 0] = 1.0
-  aff.dr_release_pending[0, 0] = True
-  assert not scheduled_anchor_rip(env).any()
-  aff.dr_release_pending[0, 0] = False
   assert scheduled_anchor_rip(env)[0]
   # A seeded anchor lost inside the birth-settle window is exempt; the same
   # loss later in the episode is a rip.
@@ -351,7 +346,6 @@ def test_cone_seed_settle_exemption_mirrors_the_rip_law():
 def test_pose_kernel_is_discounted_by_schedule_mismatch():
   """Matched latch state -> full pay; a pad welded/unwelded against the chart,
   far from any scheduled edge -> the floor; None -> ungated."""
-  aff = SimpleNamespace(dr_release_pending=torch.zeros(E, H, dtype=torch.bool))
   cmd = SimpleNamespace(
     anchor_pos_w=torch.zeros(E, 3),
     robot_anchor_pos_w=torch.zeros(E, 3),
@@ -360,7 +354,6 @@ def test_pose_kernel_is_discounted_by_schedule_mismatch():
     ref_edge_distance=torch.ones(E, H),  # "never" sentinel: far from edges
     ref_run_time=torch.ones(E, H),
     cycle_time_s=CYCLE_S,
-    _affordance=lambda: aff,
   )
   env = SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda n: cmd))
   full = motion_anchor_position_error_exp(env, engage_gate_floor=0.25, engage_gate_grace_fraction=0.3)
@@ -610,7 +603,6 @@ def test_birth_freeze_holds_the_clock_then_releases():
   cmd.time_steps = torch.tensor([10, 20])
   cmd._birth_freeze_left = torch.tensor([3, 0])  # env0 seeded birth, env1 standing
   cmd.metrics = {"birth_frozen": torch.zeros(2)}
-  cmd._affordance = lambda: SimpleNamespace(reseat_hold=torch.tensor([False, False]))
   clocks = []
   for _ in range(5):
     cmd._update_command()

@@ -158,9 +158,6 @@ def _engage_match_gate(
   one).
   """
   mismatch = _graced_mismatch(motion, grace_time_s, grace_fraction)
-  # R4: pending reseat EEs are exempt here too — a frozen-clock recovery
-  # must not throttle the whole robot's tracking income through the gate.
-  mismatch = mismatch * (~motion._affordance().dr_release_pending).float()
   match = 1.0 - mismatch.mean(dim=-1)
   return floor + (1.0 - floor) * match
 
@@ -280,11 +277,7 @@ def motion_engage_mismatch(
   — the weld-through bill then survives clip retiming unchanged.
   """
   motion = _motion(env, command_name)
-  bill = _graced_mismatch(motion, grace_time_s, grace_fraction)
-  # R4: EEs lost to a dr-forced release are exempt while their reseat hold
-  # is armed — the frozen clock exists so recovery is not billed as truancy.
-  pending = motion._affordance().dr_release_pending
-  return (bill * (~pending).float()).sum(dim=-1)
+  return _graced_mismatch(motion, grace_time_s, grace_fraction).sum(dim=-1)
 
 
 def motion_anchor_landing():
@@ -507,7 +500,7 @@ def microspine_release_load_reward():
     load_cost = torch.where(finite, load_cost.clamp(max=max_load_cost), max_load_cost)
 
     reason = affordance.release_reason
-    released = affordance.forced_release_this_step & (reason > 0) & (reason != 6)
+    released = affordance.forced_release_this_step & (reason > 0)
     release_soon = motion.ref_edge_countdowns[..., 0] * motion.cycle_time_s <= release_lead_time_s
     window = ~motion.ref_engaged | release_soon
     paid = state["paid"]
@@ -518,10 +511,9 @@ def microspine_release_load_reward():
     fresh = (env.episode_length_buf <= 1).unsqueeze(-1)
     paid = torch.where(fresh, window, paid) & window
     support_ok = affordance.engaged.sum(dim=-1) >= minimum_supports
-    recovering = affordance.dr_release_pending.any(dim=-1)
     # Unknown/early empirical failures are not successful controlled releases.
     controlled_reason = (reason >= 1) & (reason <= 5)
-    pay = released & controlled_reason & finite & window & ~paid & support_ok.unsqueeze(-1) & ~recovering.unsqueeze(-1)
+    pay = released & controlled_reason & finite & window & ~paid & support_ok.unsqueeze(-1)
     # Consume even an unsuccessful first release: relatch/release retries in
     # the same window cannot turn a bad release into extra positive income.
     state["paid"] = paid | (released & window)

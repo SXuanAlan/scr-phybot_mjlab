@@ -61,7 +61,7 @@ def build_env(
   cfg.curriculum = {}  # Gravity is set explicitly per test.
   # These are deterministic physics probes: strip every DR event so a
   # domain_rand cfg cannot perturb the benches.
-  for dr_event in ("encoder_bias", "body_friction", "base_mass", "random_release"):
+  for dr_event in ("encoder_bias", "body_friction", "base_mass"):
     cfg.events.pop(dr_event, None)
   cfg.observations["actor"].enable_corruption = False
   # Mechanics probes deliberately hold a fixed pose or apply artificial force

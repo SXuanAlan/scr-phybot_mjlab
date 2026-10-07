@@ -51,7 +51,6 @@ def test_climb_microspine_contract_and_command_ordering():
   # Hold checks wait only for the one-step constraint-force readout.
   assert microspine.limit_surface.hold_judge_guard_steps == 2
   assert microspine.limit_surface.seed_hold_judge_guard_steps is None
-  assert "random_release" not in cfg.events
   assert cfg.commands["climb_motion"].joint_pos_noise == 0
   assert microspine.limit_surface.hold_grace_steps == 14  # re-seat window only
   # The main task uses the complete 3x4 CAD array for preload and holding.

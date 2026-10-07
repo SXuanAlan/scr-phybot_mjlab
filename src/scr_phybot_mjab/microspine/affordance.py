@@ -120,11 +120,6 @@ class MicrospineAffordance(CommandTerm):
     # flags, for one step, the release of a seeded anchor.
     self._seeded = torch.zeros(shape, dtype=torch.bool, device=self.device)
     self.released_was_seeded = torch.zeros(shape, dtype=torch.bool, device=self.device)
-    # Reseat hold: an external release (``force_release``) stays pending until
-    # that EE re-latches, the hold times out or the env resets; the motion
-    # command freezes its clock while any EE is pending (``reseat_hold``).
-    self.dr_release_pending = torch.zeros(shape, dtype=torch.bool, device=self.device)
-    self._reseat_hold_steps = torch.zeros(shape[0], dtype=torch.long, device=self.device)
 
     # Contact readouts, live whether or not a pad is latched.
     self.face_cos = torch.zeros(shape, device=self.device)
@@ -166,11 +161,6 @@ class MicrospineAffordance(CommandTerm):
     """Remaining per-EE re-engagement cooldown in policy steps."""
     return self._cooldown_steps
 
-  @property
-  def reseat_hold(self) -> torch.Tensor:
-    """(E,) bool: clock-freeze request while an external release awaits reseat."""
-    return self.dr_release_pending.any(dim=-1)
-
   def set_initial_engaged_mask(self, mask: tuple[bool, ...]) -> None:
     """Set the latch mask used by subsequent episode resets."""
     if len(mask) != self._num_ee:
@@ -200,72 +190,10 @@ class MicrospineAffordance(CommandTerm):
     self._engaged[env_ids] = engaged.to(device=self.device, dtype=torch.bool)
     self._seeded[env_ids] = self._engaged[env_ids]
     self.released_was_seeded[env_ids] = False
-    self.dr_release_pending[env_ids] = False
-    self._reseat_hold_steps[env_ids] = 0
     self._engage_count[env_ids] = 0
     self._cooldown_steps[env_ids] = 0
     self._violation_count[env_ids] = 0
     self._steps_since_engage[env_ids] = 0
-    self._sync_retraction()
-
-  def force_release(
-    self,
-    env_ids: torch.Tensor,
-    ee_mask: torch.Tensor,
-    reason: int = ReleaseReason.EXTERNAL,
-    report: bool = True,
-  ) -> None:
-    """Release latched EEs outside the hold judgement.
-
-    Serves the DR random-release event and scripted diagnostics. Callers run
-    after this step's ``_update_command``, so ``forced_release_this_step`` is
-    OR-ed (a same-step hold release must survive) while the latch bookkeeping
-    mirrors a real release: the cooldown starts and the pad's contact
-    proxies are restored so it can press the wall again. The equality
-    constraint follows the cleared latch bit on the next step's constraint
-    event, the same one-step lag as every latch transition.
-
-    ``report=False`` skips the ``forced_release_this_step``/``release_reason``
-    writes: a scheduled scripted release is not a fault and must not pollute
-    forced-release statistics or the reason-billed penalty.
-    """
-    if not self._mcfg.grip_enabled:
-      return
-    if ee_mask.shape[-1] != self._num_ee:
-      raise ValueError(f"Release mask has {ee_mask.shape[-1]} EEs; expected {self._num_ee}.")
-    mask = ee_mask.to(device=self.device, dtype=torch.bool)
-    mask = mask & self._engaged[env_ids]
-    if not bool(mask.any()):
-      return
-    if report:
-      # A scripted no-fault release never counts as seed demolition either.
-      self.released_was_seeded[env_ids] |= mask & self._seeded[env_ids]
-    self._seeded[env_ids] = self._seeded[env_ids] & ~mask
-    self._engaged[env_ids] = self._engaged[env_ids] & ~mask
-    if report and reason == ReleaseReason.EXTERNAL:
-      # Arm the reseat hold; scripted no-fault releases never freeze the clock.
-      self.dr_release_pending[env_ids] = self.dr_release_pending[env_ids] | mask
-      self._reseat_hold_steps[env_ids] = torch.where(
-        mask.any(dim=-1),
-        torch.zeros_like(self._reseat_hold_steps[env_ids]),
-        self._reseat_hold_steps[env_ids],
-      )
-    cooldown_set = max(0, self._mcfg.reengage_cooldown_steps)
-    self._cooldown_steps[env_ids] = torch.where(
-      mask,
-      torch.full_like(self._cooldown_steps[env_ids], cooldown_set),
-      self._cooldown_steps[env_ids],
-    )
-    self._engage_count[env_ids] = latch_state.clear_where(mask, self._engage_count[env_ids])
-    self._violation_count[env_ids] = latch_state.clear_where(mask, self._violation_count[env_ids])
-    self._steps_since_engage[env_ids] = latch_state.clear_where(mask, self._steps_since_engage[env_ids])
-    if report:
-      self.forced_release_this_step[env_ids] |= mask
-      self.release_reason[env_ids] = torch.where(
-        mask,
-        torch.full_like(self.release_reason[env_ids], reason),
-        self.release_reason[env_ids],
-      )
     self._sync_retraction()
 
   # ------------------------------------------------------- command term
@@ -294,8 +222,6 @@ class MicrospineAffordance(CommandTerm):
     self.anchor_effective_load_tnl[env_ids] = 0.0
     self.hold_margin[env_ids] = 1.0
     self.hold_margin_raw[env_ids] = 1.0
-    self.dr_release_pending[env_ids] = False
-    self._reseat_hold_steps[env_ids] = 0
     self.face_cos[env_ids] = 0.0
     self.contact_count[env_ids] = 0.0
     self.pad_press_force[env_ids] = 0.0
@@ -427,7 +353,6 @@ class MicrospineAffordance(CommandTerm):
     self.released_was_seeded |= was_engaged & ~new_engaged & self._seeded
     self._seeded &= new_engaged
     self._engaged[:] = new_engaged
-    self._tick_reseat_hold()
     self._redraw_empirical_latches(engage)
     # Latched pads need no engage count.
     self._engage_count = latch_state.clear_where(self._engaged, engage_count)
@@ -439,23 +364,6 @@ class MicrospineAffordance(CommandTerm):
     self._sync_retraction()
     self._steps_since_engage = latch_state.advance_engage_age(self._steps_since_engage, self._engaged, engage)
     self._violation_count = latch_state.clear_where(~self._engaged, self._violation_count)
-
-  def _tick_reseat_hold(self) -> None:
-    """A re-latch clears a pending reseat; a hold outliving its timeout is abandoned."""
-    self.dr_release_pending &= ~self._engaged
-    hold_active = self.dr_release_pending.any(dim=-1)
-    self._reseat_hold_steps = torch.where(
-      hold_active,
-      self._reseat_hold_steps + 1,
-      torch.zeros_like(self._reseat_hold_steps),
-    )
-    expired = self._reseat_hold_steps > self._mcfg.dr_reseat_hold_timeout_steps
-    self.dr_release_pending = torch.where(
-      expired.unsqueeze(-1),
-      torch.zeros_like(self.dr_release_pending),
-      self.dr_release_pending,
-    )
-    self._reseat_hold_steps = torch.where(expired, torch.zeros_like(self._reseat_hold_steps), self._reseat_hold_steps)
 
   def _redraw_empirical_latches(self, engage_transition: torch.Tensor) -> None:
     """Only newly engaged pads change; every retained unit surface is stable."""

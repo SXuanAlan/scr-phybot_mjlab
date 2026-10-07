@@ -336,7 +336,6 @@ def test_transition80_plant_flags() -> None:
   assert motion.birth_freeze_steps == 25
   assert motion.birth_exclude_frames == ()  # v4b: mask off (user decision 2026-08-22); re-arm via the tyro flag
   assert "scheduled_hold_margin" in cfg.metrics and "rh_hold_margin" in cfg.metrics
-  assert "random_release" not in cfg.events
   assert "mount_handoff_ready" in cfg.metrics
   for key in ("tilt", "grind", "slam", "force", "unscheduled"):
     assert f"constraint_{key}_violation" in cfg.metrics
