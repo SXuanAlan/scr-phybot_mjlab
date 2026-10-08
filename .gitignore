@@ -35,6 +35,7 @@ tmp_sharpa_render/
 # Vendored third-party bulk and large reference papers.
 src/scr_phybot_mjab/assets/toddlerbot/upstream/
 docs/reference/WoCoCo/
+docs/reference/pivot.pdf
 
 # Regenerable outputs and throwaway work.
 /artifacts/
