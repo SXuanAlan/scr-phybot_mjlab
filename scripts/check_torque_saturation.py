@@ -9,7 +9,7 @@ Examples:
 
 import re
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
 from typing import Literal
@@ -17,19 +17,17 @@ from typing import Literal
 import mjlab  # noqa: F401
 import torch
 import tyro
-from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import (
   list_tasks,
   load_env_cfg,
   load_rl_cfg,
-  load_runner_cls,
 )
 from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 
 import scr_phybot_mjab.tasks  # noqa: F401
 from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_wall_angle
+from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 
 @dataclass(frozen=True)
@@ -236,8 +234,7 @@ def run(task_id: str, cfg: Cfg):
       checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
     )
 
-  env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
-  env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+  env = make_env(task_id, env_cfg, device)
 
   asset = env.unwrapped.scene["robot"]
   ctrl_ids = asset.indexing.ctrl_ids
@@ -254,15 +251,7 @@ def run(task_id: str, cfg: Cfg):
     def policy(_obs):
       return 2 * torch.rand(action_shape, device=device) - 1
   else:
-    runner_cls = load_runner_cls(task_id) or MjlabOnPolicyRunner
-    runner = runner_cls(env, asdict(agent_cfg), device=device)
-    runner.load(
-      str(resume_path),
-      load_cfg={"actor": True},
-      strict=True,
-      map_location=device,
-    )
-    policy = runner.get_inference_policy(device=device)
+    _, policy = load_policy(task_id, env, resume_path, device)
 
   obs, _ = env.reset()
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 _REPO_SRC = Path(__file__).resolve().parents[1] / "src"
@@ -24,9 +24,10 @@ import mjlab
 import torch
 import tyro
 from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg
 from mjlab.utils.torch import configure_torch_backends
+
+from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 
 @dataclass(frozen=True)
@@ -74,13 +75,9 @@ def run_export(task_id: str, cfg: ExportConfig):
   obs_group = agent_cfg.obs_groups[policy_set][0]
   env_cfg.observations[obs_group].enable_corruption = False
 
-  env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
-  wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-
-  runner_cls = load_runner_cls(task_id) or MjlabOnPolicyRunner
-  runner = runner_cls(wrapped, asdict(agent_cfg), device=device)
-  runner.load(str(resume_path), load_cfg={policy_set: True}, strict=True, map_location=device)
-  policy = runner.get_inference_policy(device=device)
+  wrapped = make_env(task_id, env_cfg, device)
+  env = wrapped.unwrapped
+  runner, policy = load_policy(task_id, wrapped, resume_path, device)
 
   jit_name = "policy.pt"
   runner.export_policy_to_jit(str(out_dir), jit_name)

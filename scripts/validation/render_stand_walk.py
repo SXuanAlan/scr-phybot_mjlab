@@ -4,24 +4,16 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
-from dataclasses import asdict
 from pathlib import Path
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 
-_REPO = Path("/home/spider/projects/scr-phybot_mjlab")
-if str(_REPO / "src") not in sys.path:
-  sys.path.insert(0, str(_REPO / "src"))
-
 import imageio.v2 as imageio
 import torch
-from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.tasks.registry import load_env_cfg
 from mjlab.utils.torch import configure_torch_backends
 
-import scr_phybot_mjab  # noqa: F401
+from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 
 def main() -> None:
@@ -48,14 +40,8 @@ def main() -> None:
   cfg.scene.num_envs = 2
   cfg.viewer.width = args.width
   cfg.viewer.height = args.height
-  agent_cfg = load_rl_cfg(args.task)
-
-  env = ManagerBasedRlEnv(cfg=cfg, device=device, render_mode="rgb_array")
-  env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-  runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
-  runner = runner_cls(env, asdict(agent_cfg), device=device)
-  runner.load(args.ckpt, load_cfg={"actor": True}, strict=True, map_location=device)
-  policy = runner.get_inference_policy(device=device)
+  env = make_env(args.task, cfg, device, render_mode="rgb_array")
+  _, policy = load_policy(args.task, env, args.ckpt, device)
 
   uenv = env.unwrapped
   twist = uenv.command_manager.get_term("twist")

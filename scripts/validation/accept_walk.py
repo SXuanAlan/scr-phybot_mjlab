@@ -16,23 +16,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from collections import defaultdict
-from dataclasses import asdict
-from pathlib import Path
-
-_REPO = Path("/home/spider/projects/scr-phybot_mjlab")
-if str(_REPO / "src") not in sys.path:
-  sys.path.insert(0, str(_REPO / "src"))
 
 import torch
-from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.tasks.registry import load_env_cfg
 from mjlab.utils.lab_api.math import quat_apply_inverse
 from mjlab.utils.torch import configure_torch_backends
 
-import scr_phybot_mjab  # noqa: F401  (registers tasks)
+from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 DEFAULT_TASK = "Mjlab-Walk-Phybot-C2"
 
@@ -52,15 +43,8 @@ def main() -> None:
 
   env_cfg = load_env_cfg(args.task, play=True)
   env_cfg.scene.num_envs = args.num_envs
-  agent_cfg = load_rl_cfg(args.task)
-
-  env = ManagerBasedRlEnv(cfg=env_cfg, device=device, render_mode=None)
-  env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-
-  runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
-  runner = runner_cls(env, asdict(agent_cfg), device=device)
-  runner.load(args.ckpt, load_cfg={"actor": True}, strict=True, map_location=device)
-  policy = runner.get_inference_policy(device=device)
+  env = make_env(args.task, env_cfg, device)
+  _, policy = load_policy(args.task, env, args.ckpt, device)
 
   uenv = env.unwrapped
   twist = uenv.command_manager.get_term("twist")

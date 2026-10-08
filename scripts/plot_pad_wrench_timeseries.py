@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -89,23 +88,19 @@ def parse_args() -> argparse.Namespace:
 # --------------------------------------------------------------------------
 def rollout(args: argparse.Namespace) -> dict:
   import torch
-  from mjlab.envs import ManagerBasedRlEnv
-  from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-  from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+  from mjlab.tasks.registry import load_env_cfg
 
   import scr_phybot_mjab.tasks  # noqa: F401  (registers tasks)
+  from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
   ckpt = args.ckpt.resolve()
   device = args.device
   env_cfg = load_env_cfg(args.task, play=True)
-  agent_cfg = load_rl_cfg(args.task)
   if "wall_angle" in env_cfg.curriculum:
     env_cfg.curriculum["wall_angle"].params["angle_stages"] = [{"iter": 0, "angle_deg": args.angle}]
-  env_cfg.curriculum.pop("gravity_ladder", None)
   env_cfg.scene.num_envs = 1
 
-  env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
-  env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+  env = make_env(args.task, env_cfg, device)
   u = env.unwrapped
   motion = u.command_manager.get_term(args.motion_term)
   aff = u.command_manager.get_term(args.aff_term)
@@ -115,11 +110,7 @@ def rollout(args: argparse.Namespace) -> dict:
   ee_names = tuple(aff._mcfg.ee_body_names)
   H = len(ee_names)
 
-  runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
-  runner = runner_cls(env, asdict(agent_cfg), device=device)
-  policy_set = "student" if hasattr(agent_cfg, "student") else "actor"
-  runner.load(str(ckpt), load_cfg={policy_set: True}, strict=True, map_location=device)
-  policy = runner.get_inference_policy(device=device)
+  _, policy = load_policy(args.task, env, ckpt, device)
 
   # Robot mass for the weight-support sanity line.
   mj = u.sim.mj_model

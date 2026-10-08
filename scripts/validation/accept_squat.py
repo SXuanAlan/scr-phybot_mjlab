@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 
 import torch
 import warp as wp
-from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.tasks.registry import load_env_cfg
 from mjlab.utils.lab_api.math import quat_apply_inverse
 from mjlab.utils.torch import configure_torch_backends
 
 import scr_phybot_mjab.tasks  # noqa: F401
+from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 TASK = "Mjlab-Squat-Phybot-C2"
 
@@ -41,18 +39,9 @@ def main() -> None:
   # exactly one action for each reference frame, but the final transition remains
   # observable instead of being hidden by timeout auto-reset.
   cfg.episode_length_s += cfg.sim.mujoco.timestep * cfg.decimation
-  agent_cfg = load_rl_cfg(TASK)
-  base_env = ManagerBasedRlEnv(cfg=cfg, device=args.device)
-  env = RslRlVecEnvWrapper(base_env, clip_actions=agent_cfg.clip_actions)
-  runner_cls = load_runner_cls(TASK) or MjlabOnPolicyRunner
-  runner = runner_cls(env, asdict(agent_cfg), device=args.device)
-  runner.load(
-    args.checkpoint,
-    load_cfg={"actor": True},
-    strict=True,
-    map_location=args.device,
-  )
-  policy = runner.get_inference_policy(device=args.device)
+  env = make_env(TASK, cfg, args.device)
+  base_env = env.unwrapped
+  _, policy = load_policy(TASK, env, args.checkpoint, args.device)
 
   robot = base_env.scene["robot"]
   foot_ids = robot.find_sites(("left_foot", "right_foot"), preserve_order=True)[0]

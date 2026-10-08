@@ -432,18 +432,15 @@ def save_contact_sheet(path, frames):
 
 
 def evaluate_angle(args, angle, checkpoint_info):
-  from dataclasses import asdict
-
   import imageio.v2 as imageio
   import torch
-  from mjlab.envs import ManagerBasedRlEnv
-  from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
-  from mjlab.tasks.registry import load_runner_cls
   from mjlab.viewer import ViewerConfig
+
+  from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
   out = args.output_dir / f"{args.profile}_{angle:g}deg"
   out.mkdir(parents=True, exist_ok=True)
-  cfg, agent_cfg = configure_evaluation(args.task, angle, args.num_envs, args.profile, args.seed)
+  cfg, _ = configure_evaluation(args.task, angle, args.num_envs, args.profile, args.seed)
   cfg.viewer = ViewerConfig(
     origin_type=ViewerConfig.OriginType.ASSET_ROOT,
     entity_name="robot",
@@ -454,16 +451,13 @@ def evaluate_angle(args, angle, checkpoint_info):
     width=args.width,
     max_extra_envs=0,
   )
-  env = ManagerBasedRlEnv(cfg, device=args.device, render_mode="rgb_array" if args.video else None)
-  wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+  wrapped = make_env(args.task, cfg, args.device, render_mode="rgb_array" if args.video else None)
+  env = wrapped.unwrapped
   motion = env.command_manager.get_term("climb_motion")
   aff = env.command_manager.get_term("microspine_affordance")
   if aff.unit_load_tln.shape[-2] != 4:
     raise RuntimeError("Expected four active units per pad in the physical runtime")
-  runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
-  runner = runner_cls(wrapped, asdict(agent_cfg), device=args.device)
-  runner.load(str(args.checkpoint), load_cfg={"actor": True}, strict=True, map_location=args.device)
-  policy = runner.get_inference_policy(device=args.device)
+  runner, policy = load_policy(args.task, wrapped, args.checkpoint, args.device)
   # Strict loading must include the actual actor state and normalization;
   # verify equality instead of relying on a permissive runner API.
   loaded_actor = torch.load(args.checkpoint, map_location="cpu", weights_only=False)["actor_state_dict"]
