@@ -1,16 +1,11 @@
 """Evaluation guards: reset seeds and static holds must never prove mastery."""
 
-import importlib.util
 import json
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-_PATH = Path(__file__).resolve().parents[2] / "scripts" / "evaluate_climb_checkpoint.py"
-_SPEC = importlib.util.spec_from_file_location("evaluate_climb_checkpoint", _PATH)
-evaluation = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(evaluation)
+from scr_phybot_mjab.tools import climb_evaluation as evaluation
 
 
 def test_static_seeded_hold_exposes_reference_off_failures():

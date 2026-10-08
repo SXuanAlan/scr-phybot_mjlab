@@ -3,18 +3,13 @@
 from __future__ import annotations
 
 import copy
-import importlib.util
 import json
 import os
 import sys
-from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).parents[2] / "scripts" / "supervise_climb60.py"
-SPEC = importlib.util.spec_from_file_location("climb60_supervisor", SCRIPT)
-supervisor = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(supervisor)
+from scr_phybot_mjab.tools.training_monitor import supervisor
 
 
 def control():

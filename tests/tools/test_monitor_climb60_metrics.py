@@ -1,15 +1,9 @@
 """Guard metric interpretation while reading concurrent/resumed logs."""
 
-import importlib.util
 import json
 import math
-from pathlib import Path
 
-spec = importlib.util.spec_from_file_location(
-  "climb60_digest", Path(__file__).resolve().parents[2] / "scripts/monitor_climb60_metrics.py"
-)
-monitor = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(monitor)
+from scr_phybot_mjab.tools.training_monitor import metrics as monitor
 
 
 def test_stdout_requires_complete_iteration_and_preserves_metric_units():
