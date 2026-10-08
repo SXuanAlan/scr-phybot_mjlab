@@ -1,6 +1,4 @@
-"""Opt-in Warp integration; PHYBOT_BRICK_TEST_DEVICE=cpu supports CPU validation."""
-
-import os
+"""MuJoCo Warp integration of the brick variants on a GPU (run with pytest --gpu)."""
 
 import mjlab  # noqa: F401
 import pytest
@@ -11,9 +9,7 @@ from scr_phybot_mjab.microspine.quat import rotate
 from scr_phybot_mjab.tasks.brick.config.phybot_c2.env_cfgs import brick_env_cfg
 from scr_phybot_mjab.tasks.brick.geometry import active_unit_count
 
-pytestmark = pytest.mark.skipif(
-  os.environ.get("PHYBOT_BRICK_GPU_TEST") != "1", reason="Opt-in MuJoCo Warp GPU integration"
-)
+pytestmark = pytest.mark.gpu
 
 
 @pytest.mark.parametrize(
@@ -30,7 +26,7 @@ pytestmark = pytest.mark.skipif(
 def test_parallel_task_reset_and_finite_physics(stage, randomized, enabled):
   cfg = brick_env_cfg(play=False, stage=stage, randomize=randomized, grip_enabled=enabled)
   cfg.scene.num_envs, cfg.auto_reset, cfg.seed = 4, False, 17
-  env = ManagerBasedRlEnv(cfg, device=os.environ.get("PHYBOT_BRICK_TEST_DEVICE", "cuda:0"))
+  env = ManagerBasedRlEnv(cfg, device="cuda:0")
   try:
     obs, _ = env.reset()
     command = env.command_manager.get_term("brick_task")

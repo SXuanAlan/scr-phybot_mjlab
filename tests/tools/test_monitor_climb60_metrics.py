@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location(
-  "climb60_digest", Path(__file__).resolve().parents[1] / "scripts/monitor_climb60_metrics.py"
+  "climb60_digest", Path(__file__).resolve().parents[2] / "scripts/monitor_climb60_metrics.py"
 )
 monitor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(monitor)

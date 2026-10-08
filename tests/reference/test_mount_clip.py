@@ -5,15 +5,14 @@ on the climb clip's frame 0 modulo a rigid vertical shift with all four pads
 engaged, and the motion loader must accept its acyclic schema.
 """
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
+from scr_phybot_mjab.assets.motions import MOTIONS_DIR
 from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import rebuild_acyclic_schedule
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionClip
 
-_ASSETS = Path(__file__).resolve().parents[2] / "src/scr_phybot_mjab/assets/motions"
+_ASSETS = MOTIONS_DIR
 _MOUNT = "climb_mount_prologue_a80.npy"
 
 

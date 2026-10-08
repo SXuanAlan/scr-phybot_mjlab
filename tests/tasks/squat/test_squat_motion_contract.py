@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 
 # Avoid MJLab entry-point discovery re-importing a partially initialized PHYBot
@@ -10,6 +9,7 @@ import mjlab  # noqa: F401
 import numpy as np
 import torch
 
+from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
@@ -27,8 +27,7 @@ from scr_phybot_mjab.tasks.squat.mdp import (
   SquatMotionLoader,
 )
 
-_REPO = Path(__file__).resolve().parents[1]
-_MOTION = _REPO / "src/scr_phybot_mjab/assets/motions/squat.npy"
+_MOTION = SQUAT_MOTION
 
 
 class SquatMotionContractTest(unittest.TestCase):

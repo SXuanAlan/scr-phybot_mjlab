@@ -8,12 +8,11 @@ mode, curricula limited to wall pin + anti-rake ladder + anneals, the a80 clip
 on a native 80-degree wall — and ZERO edits to either sibling package.
 """
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 import torch
 
+from scr_phybot_mjab.assets.motions import CLIMB_MOUNT80_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
 from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.commands import SPAWN_XY_NOISE, SPAWN_YAW_NOISE
 from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import phybot_c2_climb_transition80_env_cfg
@@ -38,8 +37,7 @@ from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
 )
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionCommandCfg
 
-_ASSETS = Path(__file__).resolve().parents[2] / "src/scr_phybot_mjab/assets/motions"
-_A80 = _ASSETS / "climb_mount_prologue_a80.npy"
+_A80 = CLIMB_MOUNT80_MOTION
 
 _EXPECTED_REWARDS = {
   "motion_anchor_pos": 0.5,
@@ -372,7 +370,6 @@ def test_adaptive_bin_probabilities_contract() -> None:
   assert uncapped[4].item() > 0.9
 
 
-@pytest.mark.skipif(not _A80.exists(), reason="a80 mount clip not generated")
 def test_fk_tables_match_the_clip_ee_positions() -> None:
   """The FK path reproduces the generator's own pad body positions."""
   import mujoco
