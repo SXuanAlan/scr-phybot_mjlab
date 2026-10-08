@@ -97,12 +97,6 @@ class MountRecipe:
   """Outward bulge of the left hand's placement arc."""
   place_lean: float = 0.02
   """Forward base drift allowed during the left hand's placement."""
-  place_bow: float = 0.0
-  """Nose-down trunk pitch the base bows to while the left hand lands (0 = upright)."""
-  touch_below: float = 0.0
-  """How far below the low rung the left pad first touches before sliding up."""
-  touch_frac: float = 0.5
-  """Share of the placement arc spent reaching that touch point."""
   place_right_pitch: float = 0.1
   """Trunk pitch toward the wall reached over the right hand's placement."""
   place_right_base_dz: float = 0.02
