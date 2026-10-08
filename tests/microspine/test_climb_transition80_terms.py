@@ -13,8 +13,11 @@ import torch
 
 from scr_phybot_mjab.tasks.climb_transition80.mdp.rewards import (
   engage_progress,
+  motion_anchor_orientation_error_exp,
   motion_anchor_position_error_exp,
   scheduled_rip_events,
+  transition_body_orientation_error_exp,
+  transition_body_position_error_exp,
 )
 from scr_phybot_mjab.tasks.climb_transition80.mdp.terminations import (
   bad_anchor_pos_termination,
@@ -346,12 +349,29 @@ def test_cone_seed_settle_exemption_mirrors_the_rip_law():
   assert term.last_violations["force"][0, 0].item() == 1.0
 
 
-def test_pose_kernel_is_discounted_by_schedule_mismatch():
-  """Matched latch state -> full pay; a pad welded/unwelded against the chart,
-  far from any scheduled edge -> the floor; None -> ungated."""
+@pytest.mark.parametrize(
+  "kernel",
+  [
+    motion_anchor_position_error_exp,
+    motion_anchor_orientation_error_exp,
+    transition_body_position_error_exp,
+    transition_body_orientation_error_exp,
+  ],
+)
+def test_pose_kernels_are_discounted_by_schedule_mismatch(kernel):
+  """Matched latch state -> full pay; pads welded/unwelded against the chart,
+  far from any scheduled edge, pull the pay toward the floor in proportion;
+  None -> ungated. Every gated kernel must apply the gate, not just accept it."""
+  identity = torch.tensor([1.0, 0.0, 0.0, 0.0])
   cmd = SimpleNamespace(
     anchor_pos_w=torch.zeros(E, 3),
     robot_anchor_pos_w=torch.zeros(E, 3),
+    anchor_quat_w=identity.repeat(E, 1),
+    robot_anchor_quat_w=identity.repeat(E, 1),
+    body_pos_w=torch.zeros(E, 3, 3),
+    robot_body_pos_w=torch.zeros(E, 3, 3),
+    body_quat_w=identity.repeat(E, 3, 1),
+    robot_body_quat_w=identity.repeat(E, 3, 1),
     ref_engaged=torch.zeros(E, H, dtype=torch.bool),
     robot_engaged=torch.zeros(E, H, dtype=torch.bool),
     ref_edge_distance=torch.ones(E, H),  # "never" sentinel: far from edges
@@ -359,15 +379,14 @@ def test_pose_kernel_is_discounted_by_schedule_mismatch():
     cycle_time_s=CYCLE_S,
   )
   env = SimpleNamespace(command_manager=SimpleNamespace(get_term=lambda n: cmd))
-  full = motion_anchor_position_error_exp(env, engage_gate_floor=0.25, engage_gate_grace_fraction=0.3)
-  assert torch.allclose(full, torch.ones(E))
+  gate = {"engage_gate_floor": 0.25, "engage_gate_grace_fraction": 0.3}
+  assert torch.allclose(kernel(env, **gate), torch.ones(E))
   cmd.ref_engaged[0, :] = True  # env0: all four scheduled ON, none welded
-  gated = motion_anchor_position_error_exp(env, engage_gate_floor=0.25, engage_gate_grace_fraction=0.3)
+  gated = kernel(env, **gate)
   assert gated[0].item() == pytest.approx(0.25) and gated[1].item() == pytest.approx(1.0)
   cmd.ref_engaged[0, :2] = False  # two of four mismatched -> halfway
-  half = motion_anchor_position_error_exp(env, engage_gate_floor=0.25, engage_gate_grace_fraction=0.3)
-  assert half[0].item() == pytest.approx(0.25 + 0.75 * 0.5)
-  assert motion_anchor_position_error_exp(env, engage_gate_floor=None)[0].item() == pytest.approx(1.0)
+  assert kernel(env, **gate)[0].item() == pytest.approx(0.25 + 0.75 * 0.5)
+  assert kernel(env, engage_gate_floor=None)[0].item() == pytest.approx(1.0)
 
 
 def test_adaptive_failures_are_charged_to_the_birth_bin():

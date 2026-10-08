@@ -13,10 +13,10 @@ from .schedules import ANCHOR_RADIUS_STAGES, RIP_PENALTY_STAGES, SEED_SETTLE_EXE
 
 
 def transition80_rewards() -> dict[str, RewardTermCfg]:
-  # Climb's schedule-adherence discount on pose income: while a pad's latch
-  # state disagrees with the chart, the anchor kernels pay ``floor`` of their
-  # value, ramped over a fixed 0.5 s near scheduled edges. The body kernels
-  # take the same parameters but do not apply them.
+  # Climb's schedule-adherence discount on the four pose kernels: each pays
+  # floor + (1 - floor) x the share of pads whose latch state follows the
+  # chart, a tenth with every pad off the chart; a mismatch near a scheduled
+  # edge is forgiven over a fixed 0.5 s ramp.
   gate = {"engage_gate_floor": 0.10, "engage_gate_grace_s": 0.5, "engage_gate_grace_fraction": None}
   return {
     "motion_anchor_pos": RewardTermCfg(

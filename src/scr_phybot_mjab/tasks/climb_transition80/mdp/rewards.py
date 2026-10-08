@@ -50,12 +50,12 @@ def _gated(
   grace_fraction: float | None,
 ) -> torch.Tensor:
   """Climb's schedule-adherence discount: pose income is multiplied by
-  ``engage_match_gate`` in [floor, 1], full pay only while every pad's latch
-  state matches the chart and ``floor`` of it when one does not, ramped near
-  scheduled edges (instant compliance is impossible). Without it a pad
-  hovering unwelded inside its window collects full tracking pay until the
-  contact law ends the episode. Multiplicative and bounded below, so the
-  income stays positive. None disables the gate."""
+  ``engage_match_gate`` = floor + (1 - floor) x the share of pads whose latch
+  state matches the chart, with a mismatch near a scheduled edge forgiven
+  over a ramp (instant compliance is impossible). Without it a pad hovering
+  unwelded inside its window collects full tracking pay until the contact
+  law ends the episode. Multiplicative and bounded below, so the income
+  stays positive. None disables the gate."""
   if floor is None:
     return reward
   return reward * engage_match_gate(cmd, floor, grace_s, grace_fraction)
@@ -99,13 +99,11 @@ def transition_body_position_error_exp(
   engage_gate_grace_s: float = 0.25,
   engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
-  """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies.
-
-  Takes the anchor kernels' gate parameters but does not apply them.
-  """
+  """exp(-mean_B |p_b - p̂_b|² / std²) over the tracked bodies."""
   cmd = _tracking(env, command_name)
   error = (cmd.body_pos_w - cmd.robot_body_pos_w).square().sum(dim=-1).mean(dim=-1)
-  return torch.exp(-error / std**2)
+  reward = torch.exp(-error / std**2)
+  return _gated(reward, cmd, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
 
 
 def transition_body_orientation_error_exp(
@@ -116,15 +114,13 @@ def transition_body_orientation_error_exp(
   engage_gate_grace_s: float = 0.25,
   engage_gate_grace_fraction: float | None = None,
 ) -> torch.Tensor:
-  """exp(-mean_B θ_b² / std²) over the tracked bodies.
-
-  Takes the anchor kernels' gate parameters but does not apply them.
-  """
+  """exp(-mean_B θ_b² / std²) over the tracked bodies."""
   cmd = _tracking(env, command_name)
   ref = cmd.body_quat_w
   rob = cmd.robot_body_quat_w
   error = quat_error_magnitude(ref.reshape(-1, 4), rob.reshape(-1, 4)).reshape(ref.shape[0], ref.shape[1])
-  return torch.exp(-error.square().mean(dim=-1) / std**2)
+  reward = torch.exp(-error.square().mean(dim=-1) / std**2)
+  return _gated(reward, cmd, engage_gate_floor, engage_gate_grace_s, engage_gate_grace_fraction)
 
 
 def motion_pad_center_error_exp(
