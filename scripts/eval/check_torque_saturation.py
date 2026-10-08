@@ -12,7 +12,6 @@ import re
 from math import ceil
 from pathlib import Path
 
-import mjlab  # noqa: F401
 import torch
 from mjlab.tasks.registry import (
   list_tasks,

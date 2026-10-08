@@ -4,7 +4,6 @@ import argparse
 from pathlib import Path
 
 import imageio.v2 as iio
-import mjlab  # noqa: F401
 import mujoco
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont

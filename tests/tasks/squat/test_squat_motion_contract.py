@@ -3,9 +3,6 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
-# Avoid MJLab entry-point discovery re-importing a partially initialized PHYBot
-# constants module during this direct contract-test import.
-import mjlab  # noqa: F401
 import numpy as np
 import torch
 

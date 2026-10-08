@@ -14,7 +14,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import mjlab  # noqa: F401  # Initialize task registry before robot imports.
 import mujoco
 import numpy as np
 

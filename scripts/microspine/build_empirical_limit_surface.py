@@ -5,8 +5,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import mjlab  # noqa: F401  # Initialize plugins before project imports.
-
 from scr_phybot_mjab.assets.microspine import EMPIRICAL_UNIT_TABLE
 from scr_phybot_mjab.tools.microspine.empirical_fitting import build_empirical_model
 from scr_phybot_mjab.tools.paths import DEFAULT_UNIT_TRIALS, EMPIRICAL_UNIT_DIR

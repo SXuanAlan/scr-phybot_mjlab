@@ -12,7 +12,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import mjlab  # noqa: F401  (initialize mjlab before project imports)
 import mujoco
 import numpy as np
 from scipy.optimize import linprog, minimize

@@ -14,7 +14,6 @@ import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 
-import mjlab  # noqa: F401  # Initialize plugins before importing task config.
 import mujoco
 import numpy as np
 from mjlab.envs import ManagerBasedRlEnv

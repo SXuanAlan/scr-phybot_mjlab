@@ -8,7 +8,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import mjlab  # noqa: F401
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 

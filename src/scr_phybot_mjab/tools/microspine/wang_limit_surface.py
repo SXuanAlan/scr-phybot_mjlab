@@ -114,10 +114,6 @@ class WangPadCfg:
 
 def climb_wang_pad_cfg() -> WangPadCfg:
   """The climb pad's CAD unit grid, drawn at the Wang per-pad F0 range."""
-  # mjlab imports the registered task packages on first import, and those
-  # import the robot asset module; import it first so that module is never
-  # caught half-initialized.
-  import mjlab  # noqa: F401
 
   from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_spec
   from scr_phybot_mjab.microspine.pad_geometry import matching_pad_geometry

@@ -15,7 +15,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import mjlab  # noqa: F401  (initialize mjlab before project imports)
 import numpy as np
 
 from scr_phybot_mjab.assets.motions import CAD_CLIMB_INITIAL_STATE, CAD_CLIMB_MOTION

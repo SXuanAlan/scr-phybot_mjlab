@@ -7,7 +7,6 @@ import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 
-import mjlab  # noqa: F401  # Initialize task plugins before importing asset constants.
 import mujoco
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont

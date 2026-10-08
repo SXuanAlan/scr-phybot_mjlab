@@ -4,8 +4,6 @@ import argparse
 import json
 from pathlib import Path
 
-import mjlab  # noqa: F401 -- initialize task plugins before robot constants
-
 from scr_phybot_mjab.assets.brick import BrickCfg
 from scr_phybot_mjab.tasks.brick.geometry import DEFAULT_UNIT_LAYOUT
 from scr_phybot_mjab.tasks.brick.reference import REFERENCE_PATH

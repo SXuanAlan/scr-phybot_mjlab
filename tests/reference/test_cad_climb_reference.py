@@ -1,6 +1,5 @@
 """CAD climbing reference geometry and pre-latch audit contracts."""
 
-import mjlab  # noqa: F401
 import mujoco
 import numpy as np
 import pytest

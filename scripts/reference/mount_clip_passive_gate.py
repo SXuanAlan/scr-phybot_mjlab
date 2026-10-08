@@ -22,7 +22,6 @@ import os
 os.environ.setdefault("MUJOCO_GL", "egl")
 from pathlib import Path
 
-import mjlab  # noqa
 import numpy as np
 import torch
 from mjlab.envs import ManagerBasedRlEnv

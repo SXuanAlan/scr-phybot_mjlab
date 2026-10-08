@@ -1,6 +1,5 @@
 """Checkpoint resolution and the climb wall-angle pin shared by play and the evaluation scripts."""
 
-import mjlab  # noqa: F401
 import pytest
 
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import phybot_c2_climb_wall_env_cfg

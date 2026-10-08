@@ -1,6 +1,5 @@
 """Task contracts and observable phase gates for floor manipulation."""
 
-import mjlab  # noqa: F401
 import numpy as np
 import torch
 

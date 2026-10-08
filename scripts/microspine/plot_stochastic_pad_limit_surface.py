@@ -10,7 +10,6 @@ import argparse
 import json
 
 import matplotlib
-import mjlab  # noqa: F401  (initialize mjlab before project imports)
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

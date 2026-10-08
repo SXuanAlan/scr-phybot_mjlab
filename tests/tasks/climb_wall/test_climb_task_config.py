@@ -1,4 +1,3 @@
-import mjlab  # noqa: F401
 import mujoco
 import pytest
 

@@ -13,7 +13,6 @@ import json
 import re
 from xml.etree import ElementTree as ET
 
-import mjlab  # noqa: F401  # Initialize plugins before project tool imports.
 import numpy as np
 import trimesh
 from scipy.spatial.transform import Rotation

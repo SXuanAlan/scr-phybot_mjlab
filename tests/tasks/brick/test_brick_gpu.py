@@ -1,6 +1,5 @@
 """MuJoCo Warp integration of the brick variants on a GPU (run with pytest --gpu)."""
 
-import mjlab  # noqa: F401
 import pytest
 import torch
 from mjlab.envs import ManagerBasedRlEnv

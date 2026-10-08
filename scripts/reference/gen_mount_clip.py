@@ -32,7 +32,6 @@ import argparse
 import dataclasses
 from pathlib import Path
 
-import mjlab  # noqa: F401  (registers mjlab entry points)
 import numpy as np
 
 from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION

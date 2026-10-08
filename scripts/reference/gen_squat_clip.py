@@ -35,9 +35,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-# Initialize MJLab task entry points before importing PHYBot constants. Otherwise
-# MJLab discovers this package while the constants module is only half initialized.
-import mjlab  # noqa: F401
 import mujoco
 import numpy as np
 

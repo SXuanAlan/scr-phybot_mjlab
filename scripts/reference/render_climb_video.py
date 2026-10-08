@@ -19,7 +19,6 @@ from pathlib import Path
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 import imageio.v2 as imageio
-import mjlab  # noqa: F401  # Initialize task entry points before PHYBot imports.
 import mujoco
 import numpy as np
 

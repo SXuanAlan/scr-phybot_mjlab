@@ -15,7 +15,6 @@ import argparse
 import json
 from pathlib import Path
 
-import mjlab  # noqa: F401  (initialize mjlab before project imports)
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg
