@@ -45,10 +45,6 @@ JOINT_NAMES = (
 )
 
 
-def default_deploy_repo(repo_root: Path) -> Path:
-  return repo_root.parent / "bdml_phybot_deploy_c2"
-
-
 def ensure_state_csv(source: Path, deploy_repo: Path) -> Path:
   """Resolve *source* (a state.csv or a robot_logs run dir) to a state.csv.
 

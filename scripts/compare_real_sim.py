@@ -25,27 +25,21 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import mujoco
 import numpy as np
 
-_REPO = Path(__file__).resolve().parents[1]
-for _p in (str(_REPO / "src"), str(_REPO / "scripts")):
-  if _p not in sys.path:
-    sys.path.insert(0, _p)
-
-import real_log  # noqa: E402
-
-from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_DEPLOY_TORQUE_LIMITS,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
   get_spec,
 )
+from scr_phybot_mjab.tools import deploy_logs
+from scr_phybot_mjab.tools.paths import DEPLOY_REPO_DIR, REPOSITORY_ROOT
 
-assert PHYBOT_C2_POLICY_JOINT_NAMES == real_log.JOINT_NAMES
+assert PHYBOT_C2_POLICY_JOINT_NAMES == deploy_logs.JOINT_NAMES
 
 # Real-robot PD gains (motor firmware, backends/real/config/phybot_mini_*.yaml
 # PDKp/PDKd) keyed by joint group -- same table as replay_pd_tracking.py.
@@ -138,12 +132,12 @@ def pin_base_linvel_to_contacts(model: mujoco.MjModel, data: mujoco.MjData, floo
 
 
 def replay(
-  log: real_log.RealLog, w0: int, w1: int, physics_dt: float, friction: float, settle_ticks: int
+  log: deploy_logs.RealLog, w0: int, w1: int, physics_dt: float, friction: float, settle_ticks: int
 ) -> tuple[np.ndarray, np.ndarray]:
   """Open-loop PD replay of q_des rows [w0, w1); returns (q_sim, tau_sim)."""
   model = build_model(friction)
   model.opt.timestep = physics_dt
-  substeps = max(int(round(real_log.TICK_DT / physics_dt)), 1)
+  substeps = max(int(round(deploy_logs.TICK_DT / physics_dt)), 1)
   data = mujoco.MjData(model)
 
   jname = PHYBOT_C2_POLICY_JOINT_NAMES
@@ -196,8 +190,8 @@ def replay(
     print("warning: no floor contact at window start; base lin vel starts at 0")
 
   n = w1 - w0
-  q_sim = np.zeros((n, real_log.N_DOFS))
-  tau_sim = np.zeros((n, real_log.N_DOFS))
+  q_sim = np.zeros((n, deploy_logs.N_DOFS))
+  tau_sim = np.zeros((n, deploy_logs.N_DOFS))
   for s in range(n):
     q_sim[s] = data.qpos[qadr]  # state at row time, before this tick's torque
     target = log.q_des[w0 + s]
@@ -221,11 +215,11 @@ def divergence_time(err: np.ndarray, thr: float, sustain_ticks: int = 25) -> flo
     return np.nan
   runs = np.convolve(over.astype(int), np.ones(sustain_ticks, int), "valid")
   idx = np.flatnonzero(runs == sustain_ticks)
-  return float(idx[0] * real_log.TICK_DT) if len(idx) else np.nan
+  return float(idx[0] * deploy_logs.TICK_DT) if len(idx) else np.nan
 
 
 def report(
-  log: real_log.RealLog,
+  log: deploy_logs.RealLog,
   w0: int,
   w1: int,
   q_sim: np.ndarray,
@@ -235,17 +229,17 @@ def report(
   run_name: str,
 ) -> None:
   jname = PHYBOT_C2_POLICY_JOINT_NAMES
-  t = np.arange(w1 - w0) * real_log.TICK_DT
+  t = np.arange(w1 - w0) * deploy_logs.TICK_DT
   q_real = log.q[w0:w1]
   err = q_sim - q_real
   thr = np.radians(thr_deg)
-  one_s = min(len(t), int(round(1.0 / real_log.TICK_DT)))
+  one_s = min(len(t), int(round(1.0 / deploy_logs.TICK_DT)))
 
   rmse_1s = np.degrees(np.sqrt(np.mean(err[:one_s] ** 2, axis=0)))
   rmse_full = np.degrees(np.sqrt(np.mean(err**2, axis=0)))
   t_div = np.array([divergence_time(err[:, i], thr) for i in range(err.shape[1])])
 
-  print(f"\nwindow: rows [{w0}, {w1}) = {t[-1] + real_log.TICK_DT:.2f} s @ 500 Hz")
+  print(f"\nwindow: rows [{w0}, {w1}) = {t[-1] + deploy_logs.TICK_DT:.2f} s @ 500 Hz")
   print(f"command |vx| mean/max: {np.abs(log.js[w0:w1, 0]).mean():.2f}/{np.abs(log.js[w0:w1, 0]).max():.2f} m/s")
   print(f"{'joint':<20}{'rmse@1s(deg)':>14}{'rmse(deg)':>11}{'max(deg)':>10}{'t_div(s)':>10}")
   for i, name in enumerate(jname):
@@ -344,7 +338,7 @@ def main() -> None:
   parser.add_argument(
     "--deploy-repo",
     type=Path,
-    default=real_log.default_deploy_repo(_REPO),
+    default=DEPLOY_REPO_DIR,
     help="bdml_phybot_deploy_c2 checkout (for log2csv)",
   )
   parser.add_argument("--task-code", type=int, default=None, help="pin the walk_amp select_code instead of auto-detect")
@@ -361,10 +355,10 @@ def main() -> None:
   parser.add_argument("--output-dir", type=Path, default=None, help="default: results/sim2real/<run name>")
   args = parser.parse_args()
 
-  csv = real_log.ensure_state_csv(args.run_dir or args.csv, args.deploy_repo)
-  log = real_log.load_state_csv(csv)
+  csv = deploy_logs.ensure_state_csv(args.run_dir or args.csv, args.deploy_repo)
+  log = deploy_logs.load_state_csv(csv)
   default_dof_pos = np.array([PHYBOT_C2_STANDING_JOINT_POS[n] for n in PHYBOT_C2_POLICY_JOINT_NAMES])
-  seg = real_log.find_walk_segment(log, default_dof_pos, task_code=args.task_code)
+  seg = deploy_logs.find_walk_segment(log, default_dof_pos, task_code=args.task_code)
   print(
     f"walk segment: rows [{seg.start}, {seg.end}) = {seg.duration_s:.1f} s, "
     f"task_code={seg.task_code}, first inference row {seg.infer_rows[0]}"
@@ -372,21 +366,21 @@ def main() -> None:
   )
 
   # Snap the window start to a policy step so it begins on a fresh target.
-  w0_min = seg.infer_rows[0] + int(round(args.t_start / real_log.TICK_DT))
+  w0_min = seg.infer_rows[0] + int(round(args.t_start / deploy_logs.TICK_DT))
   later = seg.infer_rows[seg.infer_rows >= w0_min]
   if len(later) == 0:
     raise SystemExit(f"--t-start {args.t_start} is past the segment end")
   w0 = int(later[0])
   w1 = seg.end
   if np.isfinite(args.duration):
-    w1 = min(w1, w0 + int(round(args.duration / real_log.TICK_DT)))
-  if w1 - w0 < 2 * real_log.DECIMATION:
+    w1 = min(w1, w0 + int(round(args.duration / deploy_logs.TICK_DT)))
+  if w1 - w0 < 2 * deploy_logs.DECIMATION:
     raise SystemExit("comparison window is shorter than two policy steps")
 
   q_sim, tau_sim = replay(log, w0, w1, args.physics_dt, args.friction, args.settle_ticks)
 
   run_name = csv.parent.name if csv.name == "state.csv" else csv.stem
-  out_dir = args.output_dir or (_REPO / "results" / "sim2real" / run_name)
+  out_dir = args.output_dir or (REPOSITORY_ROOT / "results" / "sim2real" / run_name)
   report(log, w0, w1, q_sim, tau_sim, args.div_threshold_deg, out_dir, run_name)
 
 

@@ -22,18 +22,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 import yaml
 
-_REPO = Path(__file__).resolve().parents[2]
-if str(_REPO / "scripts") not in sys.path:
-  sys.path.insert(0, str(_REPO / "scripts"))
-
-import real_log  # noqa: E402
+from scr_phybot_mjab.tools import deploy_logs
+from scr_phybot_mjab.tools.paths import DEPLOY_REPO_DIR, REPOSITORY_ROOT
 
 _TERMS = (("ang_vel", 3), ("gravity", 3), ("pos", 21), ("vel", 21), ("action", 21), ("command", 3))
 
@@ -41,9 +37,9 @@ _TERMS = (("ang_vel", 3), ("gravity", 3), ("pos", 21), ("vel", 21), ("action", 2
 def load_walk_amp_params(path: Path) -> dict:
   with open(path) as f:
     p = yaml.safe_load(f)
-  assert p["decimation"] == real_log.DECIMATION
+  assert p["decimation"] == deploy_logs.DECIMATION
   assert p["history_len"] == 10 and p["num_observations"] == 720
-  assert p["num_of_dofs"] == real_log.N_DOFS
+  assert p["num_of_dofs"] == deploy_logs.N_DOFS
   p["action_scale"] = np.asarray(p["action_scale"], dtype=np.float64)
   p["default_dof_pos"] = np.asarray(p["default_dof_pos"], dtype=np.float64)
   return p
@@ -90,7 +86,7 @@ class WalkAmpObsBuilder:
     return np.concatenate([self.buf[name].reshape(-1) for name, _ in _TERMS])
 
 
-def build_observations(log: real_log.RealLog, rows: np.ndarray, actions: np.ndarray, p: dict) -> np.ndarray:
+def build_observations(log: deploy_logs.RealLog, rows: np.ndarray, actions: np.ndarray, p: dict) -> np.ndarray:
   builder = WalkAmpObsBuilder(p["history_len"])
   obs = np.zeros((len(rows), 720), np.float32)
   for k, r in enumerate(rows):
@@ -101,7 +97,7 @@ def build_observations(log: real_log.RealLog, rows: np.ndarray, actions: np.ndar
         "pos": log.q[r] - p["default_dof_pos"],
         "vel": log.dq[r],
         # obs carries the PREVIOUS step's raw action (zero right after entry).
-        "action": actions[k - 1] if k > 0 else np.zeros(real_log.N_DOFS),
+        "action": actions[k - 1] if k > 0 else np.zeros(deploy_logs.N_DOFS),
         "command": quantize_command(log.js[r, 0], log.js[r, 2], p),
       }
     )
@@ -114,7 +110,7 @@ def main() -> None:
   src = parser.add_mutually_exclusive_group(required=True)
   src.add_argument("--run-dir", type=Path, help="robot_logs run dir (data.lcmlog)")
   src.add_argument("--csv", type=Path, help="pre-exported state.csv")
-  parser.add_argument("--deploy-repo", type=Path, default=real_log.default_deploy_repo(_REPO))
+  parser.add_argument("--deploy-repo", type=Path, default=DEPLOY_REPO_DIR)
   parser.add_argument("--policy", type=Path, default=None, help="default: <deploy-repo>/tasks/walk_amp/model/policy.pt")
   parser.add_argument(
     "--params", type=Path, default=None, help="default: <deploy-repo>/tasks/walk_amp/config/walk_amp.yaml"
@@ -139,9 +135,9 @@ def main() -> None:
   params_path = args.params or deploy / "tasks/walk_amp/config/walk_amp.yaml"
   p = load_walk_amp_params(params_path)
 
-  csv = real_log.ensure_state_csv(args.run_dir or args.csv, deploy)
-  log = real_log.load_state_csv(csv)
-  seg = real_log.find_walk_segment(log, p["default_dof_pos"], task_code=args.task_code)
+  csv = deploy_logs.ensure_state_csv(args.run_dir or args.csv, deploy)
+  log = deploy_logs.load_state_csv(csv)
+  seg = deploy_logs.find_walk_segment(log, p["default_dof_pos"], task_code=args.task_code)
   rows = seg.infer_rows
   if args.max_steps:
     rows = rows[: args.max_steps]
@@ -181,7 +177,7 @@ def main() -> None:
   )
   print("worst joints:")
   for i in worst:
-    print(f"  {real_log.JOINT_NAMES[i]:<20} max {per_joint_max[i]:.3e}")
+    print(f"  {deploy_logs.JOINT_NAMES[i]:<20} max {per_joint_max[i]:.3e}")
 
   ok = d.max() <= args.atol
   print(f"\n{'PASS' if ok else 'FAIL'}: max action mismatch {d.max():.3e} {'<=' if ok else '>'} atol {args.atol:g}")
@@ -193,15 +189,15 @@ def main() -> None:
     import matplotlib.pyplot as plt
 
     run_name = csv.parent.name if csv.name == "state.csv" else csv.stem
-    out_dir = args.output_dir or (_REPO / "results" / "sim2real" / run_name)
+    out_dir = args.output_dir or (REPOSITORY_ROOT / "results" / "sim2real" / run_name)
     out_dir.mkdir(parents=True, exist_ok=True)
-    t = (rows - rows[0]) * real_log.TICK_DT
+    t = (rows - rows[0]) * deploy_logs.TICK_DT
     show = [int(worst[0]), 3]  # worst joint + left_knee
     fig, axes = plt.subplots(len(show) + 1, 1, figsize=(10, 7), sharex=True)
     for ax, i in zip(axes, show):
       ax.plot(t, actions[:, i], lw=1.0, label="executed (from pos_des)")
       ax.plot(t, pred[:, i], lw=1.0, ls="--", label="policy(rebuilt obs)")
-      ax.set_ylabel(real_log.JOINT_NAMES[i], fontsize=8)
+      ax.set_ylabel(deploy_logs.JOINT_NAMES[i], fontsize=8)
     axes[0].legend(fontsize=8)
     axes[-1].plot(t[eval_mask], d.max(axis=1), lw=0.8, color="r")
     axes[-1].set_ylabel("max |delta|", fontsize=8)
