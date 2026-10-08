@@ -19,6 +19,25 @@ from .motion_command import SquatMotionCommand
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "feet_xy_anchor_huber_error",
+  "feet_xy_velocity_huber_error",
+  "joint_action_limit_cost",
+  "joint_action_pair_symmetry_huber_error",
+  "joint_action_reference_tube_cost",
+  "joint_pair_symmetry_huber_error",
+  "joint_pos_tracking_huber_error",
+  "track_base_lin_vel",
+  "track_base_orientation",
+  "track_base_position",
+  "track_feet_anchor",
+  "track_feet_stationary",
+  "track_joint_pos",
+  "track_joint_pos_cauchy",
+  "track_joint_vel",
+  "track_joint_vel_cauchy",
+)
+
 
 def track_joint_pos(
   env: ManagerBasedRlEnv,

@@ -28,6 +28,12 @@ if TYPE_CHECKING:
   from mjlab.entity import Entity
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "SquatMotionCommand",
+  "SquatMotionCommandCfg",
+  "SquatMotionLoader",
+)
+
 
 class SquatMotionLoader:
   """Loads one standalone ``.npy`` squat clip and derives velocities.

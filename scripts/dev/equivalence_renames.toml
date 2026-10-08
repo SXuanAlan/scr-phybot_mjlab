@@ -28,3 +28,7 @@
 "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.motion_body_linear_velocity_error_exp" = "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.transition_body_linear_velocity_error_exp"
 "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.motion_body_angular_velocity_error_exp" = "scr_phybot_mjab.tasks.climb_transition80.mdp.rewards.transition_body_angular_velocity_error_exp"
 "scr_phybot_mjab.tasks.brick.env_cfg.brick_env_cfg.<locals>.spec_fn" = "scr_phybot_mjab.tasks.brick.config.phybot_c2.scene.brick_scene.<locals>.spec_fn"
+"scr_phybot_mjab.tasks.walk.mdp.rewards.energy" = "scr_phybot_mjab.tasks.common.rewards.energy"
+"scr_phybot_mjab.tasks.walk.mdp.rewards.feet_lateral_distance" = "scr_phybot_mjab.tasks.common.rewards.feet_lateral_distance"
+"scr_phybot_mjab.tasks.walk.mdp.rewards.self_collision_cost" = "scr_phybot_mjab.tasks.common.rewards.self_collision_cost"
+"scr_phybot_mjab.tasks.walk.mdp.terminations.illegal_contact" = "scr_phybot_mjab.tasks.common.terminations.illegal_contact"
