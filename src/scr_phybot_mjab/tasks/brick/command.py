@@ -16,6 +16,14 @@ from scr_phybot_mjab.microspine.quat import conjugate, multiply, rotate
 from .geometry import DEFAULT_UNIT_LAYOUT
 from .reference import REFERENCE_PATH, load_reference
 
+__all__ = (
+  "BrickTaskCommand",
+  "BrickTaskCommandCfg",
+  "interpolate_reference",
+  "measured_phase_gates",
+  "quaternion_error",
+)
+
 
 def quaternion_error(q, target):
   return 2 * torch.acos((q * target).sum(-1).abs().clamp(max=1.0))

@@ -11,7 +11,8 @@ from PIL import Image, ImageDraw, ImageFont
 from scipy.spatial.transform import Rotation
 
 from scr_phybot_mjab.assets.brick import BrickCfg
-from scr_phybot_mjab.tasks.brick.reference import PHASE_NAMES, REFERENCE_PATH, BrickIK, load_reference
+from scr_phybot_mjab.tasks.brick.reference import PHASE_NAMES, REFERENCE_PATH, load_reference
+from scr_phybot_mjab.tools.brick_reference import BrickIK
 
 
 def render_frame(ik, renderer, camera, ref, phase, progress):

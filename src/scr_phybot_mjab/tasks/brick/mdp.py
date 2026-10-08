@@ -4,6 +4,25 @@ import torch
 
 from .command import quaternion_error
 
+__all__ = (
+  "completion",
+  "contact_force",
+  "failed",
+  "finished",
+  "foot_drift",
+  "grip",
+  "grip_quality",
+  "illegal_contact",
+  "milestone",
+  "object_tracking",
+  "overload",
+  "privileged_state",
+  "slip",
+  "squeeze",
+  "task",
+  "tracking",
+)
+
 
 def task(env):
   return env.command_manager.get_term("brick_task")

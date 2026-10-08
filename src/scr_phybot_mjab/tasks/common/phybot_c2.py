@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
@@ -24,12 +25,17 @@ def policy_joint_cfg() -> SceneEntityCfg:
 
 
 def apply_real_pd_damping(cfg: ManagerBasedRlEnvCfg) -> None:
-  """Set actuator damping to the deployed PD table (hip/knee kd 5 -> 10).
+  """Give a built config's robot the deployed PD damping (see ``real_pd_robot``)."""
+  cfg.scene.entities["robot"] = real_pd_robot(cfg.scene.entities["robot"])
 
-  The robot cfg is deep-copied first: actuator cfgs are module singletons
-  shared with every other task.
+
+def real_pd_robot(robot_cfg: EntityCfg) -> EntityCfg:
+  """A copy of ``robot_cfg`` with the deployed PD table's damping (hip/knee kd 5 -> 10).
+
+  A deep copy: the actuator cfgs are module singletons shared with every
+  other task.
   """
-  robot_cfg = copy.deepcopy(cfg.scene.entities["robot"])
+  robot_cfg = copy.deepcopy(robot_cfg)
   damping_by_target_expr = {(f".*_{group}",): damping for group, damping in PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP.items()}
 
   updated = set()
@@ -43,4 +49,4 @@ def apply_real_pd_damping(cfg: ManagerBasedRlEnvCfg) -> None:
   if missing:
     raise ValueError(f"Missing PHYBot C2 real-PD actuator damping targets: {sorted(missing)}")
 
-  cfg.scene.entities["robot"] = robot_cfg
+  return robot_cfg

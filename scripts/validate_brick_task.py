@@ -13,7 +13,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 
 from scr_phybot_mjab.tasks.brick import mdp
-from scr_phybot_mjab.tasks.brick.env_cfg import brick_env_cfg
+from scr_phybot_mjab.tasks.brick.config.phybot_c2.env_cfgs import brick_env_cfg
 
 
 @torch.inference_mode()

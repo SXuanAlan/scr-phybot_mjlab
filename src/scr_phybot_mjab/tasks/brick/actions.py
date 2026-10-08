@@ -6,6 +6,11 @@ from mjlab.envs.mdp.actions import JointPositionAction, JointPositionActionCfg
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
 
+__all__ = (
+  "BrickJointPositionAction",
+  "BrickJointPositionActionCfg",
+)
+
 
 @dataclass(kw_only=True)
 class BrickJointPositionActionCfg(JointPositionActionCfg):

@@ -8,7 +8,8 @@ import mjlab  # noqa: F401 -- initialize task plugins before robot constants
 
 from scr_phybot_mjab.assets.brick import BrickCfg
 from scr_phybot_mjab.tasks.brick.geometry import DEFAULT_UNIT_LAYOUT
-from scr_phybot_mjab.tasks.brick.reference import REFERENCE_PATH, audit_reference, generate_reference
+from scr_phybot_mjab.tasks.brick.reference import REFERENCE_PATH
+from scr_phybot_mjab.tools.brick_reference import audit_reference, generate_reference
 
 
 def main():

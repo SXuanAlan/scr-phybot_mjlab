@@ -6,6 +6,8 @@ import shutil
 
 from .reference import PHASE_NAMES
 
+__all__ = ("export_brick_sidecars",)
+
 
 def export_brick_sidecars(env, output_dir):
   command = env.command_manager.get_term("brick_task")

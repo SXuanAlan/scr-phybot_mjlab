@@ -6,7 +6,7 @@ import torch
 
 from scr_phybot_mjab.assets.brick import BrickCfg
 from scr_phybot_mjab.tasks.brick.command import interpolate_reference, measured_phase_gates
-from scr_phybot_mjab.tasks.brick.env_cfg import brick_env_cfg
+from scr_phybot_mjab.tasks.brick.config.phybot_c2.env_cfgs import brick_env_cfg
 from scr_phybot_mjab.tasks.brick.reference import load_reference
 
 
