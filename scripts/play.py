@@ -16,7 +16,6 @@ default):
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -34,12 +33,11 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.scripts.play import PlayConfig as MjlabPlayConfig
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
-from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wrappers import VideoRecorder
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
-from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_wall_angle
+from scr_phybot_mjab.utils.runtime import pin_climb_wall_angle, resolve_checkpoint
 
 
 @dataclass(frozen=True)
@@ -97,61 +95,6 @@ def _normalize_cli_aliases(argv: list[str]) -> list[str]:
       if next_arg is None or next_arg.startswith("-"):
         normalized.append("True")
   return normalized
-
-
-def _checkpoint_iteration(path_or_name: str | Path | None) -> int | None:
-  if path_or_name is None:
-    return None
-  name = Path(path_or_name).name
-  match = re.search(r"(?:model|checkpoint|ckpt)[_-](\d+)", name)
-  if match is None:
-    match = re.search(r"(\d+)(?=\.[^.]+$)", name)
-  return int(match.group(1)) if match is not None else None
-
-
-def _apply_climb_wall_play_angle(
-  env_cfg,
-  *,
-  wall_angle_deg: float | None,
-  checkpoint_path: Path | None,
-  checkpoint_hint: str | None = None,
-) -> None:
-  curriculum = getattr(env_cfg, "curriculum", None)
-  if not curriculum:
-    return
-  if "gravity_angle" in curriculum or "climb_difficulty" in curriculum:
-    raise RuntimeError(
-      "Stale gravity-representation curriculum key in this config; the climb "
-      "task tilts the WALL now (curriculum key 'wall_angle'). A silent no-op "
-      "here would run every exam at the wrong angle."
-    )
-  if "wall_angle" not in curriculum:
-    return  # not a climb task (walk/squat/transition have no angle ladder)
-
-  term_cfg = curriculum["wall_angle"]
-  stages = term_cfg.params.get("angle_stages")
-  if not stages:
-    return
-
-  if wall_angle_deg is not None:
-    angle_deg = float(wall_angle_deg)
-    source = "CLI override"
-  else:
-    checkpoint_iter = _checkpoint_iteration(checkpoint_path)
-    if checkpoint_iter is None:
-      checkpoint_iter = _checkpoint_iteration(checkpoint_hint)
-    if checkpoint_iter is None:
-      print(
-        "[WARN]: Could not infer the wall angle because checkpoint name does "
-        "not look like model_<iter>.pt; keeping play curriculum at its "
-        "initial angle."
-      )
-      return
-    angle_deg = float(resolve_wall_angle(checkpoint_iter, stages))
-    source = f"checkpoint iter {checkpoint_iter}"
-
-  term_cfg.params["angle_stages"] = [{"iter": 0, "angle_deg": angle_deg}]
-  print(f"[INFO]: Play wall angle set to {angle_deg:.2f} deg ({source})")
 
 
 def _setup_gamepad(env, cfg: PlayConfig):
@@ -281,28 +224,16 @@ def run_play(task_id: str, cfg: PlayConfig):
   log_dir: Path | None = None
   resume_path: Path | None = None
   if trained_mode:
-    log_root_path = (Path("logs") / "rsl_rl" / agent_cfg.experiment_name).resolve()
-    if cfg.checkpoint_file is not None:
-      resume_path = Path(cfg.checkpoint_file)
-      if not resume_path.exists():
-        raise FileNotFoundError(f"Checkpoint file not found: {resume_path}")
-      print(f"[INFO]: Loading checkpoint: {resume_path.name}")
-    else:
-      if cfg.wandb_run_path is None:
-        raise ValueError("`wandb_run_path` is required when `checkpoint_file` is not provided.")
-      resume_path, was_cached = get_wandb_checkpoint_path(
-        log_root_path, Path(cfg.wandb_run_path), cfg.wandb_checkpoint_name
-      )
-      run_id = resume_path.parent.name
-      checkpoint_name = resume_path.name
-      cached_str = "cached" if was_cached else "downloaded"
-      print(f"[INFO]: Loading checkpoint: {checkpoint_name} (run: {run_id}, {cached_str})")
+    resume_path, source = resolve_checkpoint(
+      agent_cfg.experiment_name, cfg.checkpoint_file, cfg.wandb_run_path, cfg.wandb_checkpoint_name
+    )
+    print(f"[INFO]: Loading checkpoint: {source}")
     log_dir = resume_path.parent
 
-  _apply_climb_wall_play_angle(
+  pin_climb_wall_angle(
     env_cfg,
     wall_angle_deg=cfg.wall_angle_deg,
-    checkpoint_path=resume_path,
+    checkpoint=resume_path,
     checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
   )
   if cfg.disable_microspine:

@@ -22,12 +22,10 @@ from mjlab.tasks.registry import (
   load_env_cfg,
   load_rl_cfg,
 )
-from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 
 import scr_phybot_mjab.tasks  # noqa: F401
-from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import resolve_wall_angle
-from scr_phybot_mjab.utils.runtime import load_policy, make_env
+from scr_phybot_mjab.utils.runtime import load_policy, make_env, pin_climb_wall_angle, resolve_checkpoint
 
 
 @dataclass(frozen=True)
@@ -49,60 +47,6 @@ class Cfg:
   """Directory for plots. Defaults to results/checkpoint/<experiment>/<run>/<checkpoint>."""
   plot_env_idx: int = 0
   """Environment index used for signed torque-vs-time traces."""
-
-
-def _checkpoint_iteration(path_or_name: str | Path | None) -> int | None:
-  if path_or_name is None:
-    return None
-  name = Path(path_or_name).name
-  match = re.search(r"(?:model|checkpoint|ckpt)[_-](\d+)", name)
-  if match is None:
-    match = re.search(r"(\d+)(?=\.[^.]+$)", name)
-  return int(match.group(1)) if match is not None else None
-
-
-def _apply_climb_wall_angle(
-  env_cfg,
-  *,
-  wall_angle_deg: float | None,
-  checkpoint_path: Path | None,
-  checkpoint_hint: str | None = None,
-) -> None:
-  curriculum = getattr(env_cfg, "curriculum", None)
-  if not curriculum:
-    return
-  if "gravity_angle" in curriculum or "climb_difficulty" in curriculum:
-    raise RuntimeError(
-      "Stale gravity-representation curriculum key in this config; the climb "
-      "task tilts the WALL now (curriculum key 'wall_angle')."
-    )
-  if "wall_angle" not in curriculum:
-    return  # not a climb task
-
-  term_cfg = curriculum["wall_angle"]
-  stages = term_cfg.params.get("angle_stages")
-  if not stages:
-    return
-
-  if wall_angle_deg is not None:
-    angle_deg = float(wall_angle_deg)
-    source = "CLI override"
-  else:
-    checkpoint_iter = _checkpoint_iteration(checkpoint_path)
-    if checkpoint_iter is None:
-      checkpoint_iter = _checkpoint_iteration(checkpoint_hint)
-    if checkpoint_iter is None:
-      print(
-        "[WARN]: Could not infer the wall angle because checkpoint name does "
-        "not look like model_<iter>.pt; keeping curriculum at its initial "
-        "angle."
-      )
-      return
-    angle_deg = float(resolve_wall_angle(checkpoint_iter, stages))
-    source = f"checkpoint iter {checkpoint_iter}"
-
-  term_cfg.params["angle_stages"] = [{"iter": 0, "angle_deg": angle_deg}]
-  print(f"[INFO]: Saturation check wall angle set to {angle_deg:.2f} deg ({source})")
 
 
 def _safe_path_part(value: str) -> str:
@@ -216,21 +160,15 @@ def run(task_id: str, cfg: Cfg):
 
   resume_path: Path | None = None
   if cfg.agent == "trained":
-    log_root = (Path("logs") / "rsl_rl" / agent_cfg.experiment_name).resolve()
-    if cfg.checkpoint_file:
-      resume_path = Path(cfg.checkpoint_file)
-      if not resume_path.exists():
-        raise FileNotFoundError(resume_path)
-    elif cfg.wandb_run_path:
-      resume_path, _ = get_wandb_checkpoint_path(log_root, Path(cfg.wandb_run_path), cfg.wandb_checkpoint_name)
-    else:
-      raise ValueError("trained agent requires --checkpoint-file or --wandb-run-path")
+    resume_path, _ = resolve_checkpoint(
+      agent_cfg.experiment_name, cfg.checkpoint_file, cfg.wandb_run_path, cfg.wandb_checkpoint_name
+    )
 
   if cfg.agent == "trained" or cfg.wall_angle_deg is not None:
-    _apply_climb_wall_angle(
+    pin_climb_wall_angle(
       env_cfg,
       wall_angle_deg=cfg.wall_angle_deg,
-      checkpoint_path=resume_path,
+      checkpoint=resume_path,
       checkpoint_hint=cfg.wandb_checkpoint_name or cfg.checkpoint_file,
     )
 
