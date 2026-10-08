@@ -23,18 +23,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from matplotlib.lines import Line2D
-from plot_empirical_pad_limit_surface import (
-  DEFAULT_DATA,
-  ROOT,
-  EmpiricalPad,
-  Geometry,
-  load_data,
-  verify_model,
-)
-from plot_pad_limit_surface import RC_PARAMS, PadSurface, load_limit_surface_cfg, save_three
-from plot_wang_limit_surface import surface_metrics
 
+from scr_phybot_mjab.tools.microspine.empirical_pad import EmpiricalPad, Geometry, load_data, verify_model
 from scr_phybot_mjab.tools.microspine.wang_comparison import WangUnit
+from scr_phybot_mjab.tools.microspine.wang_limit_surface import surface_metrics
+from scr_phybot_mjab.tools.microspine.wang_pad_surface import PadSurface, load_limit_surface_cfg
+from scr_phybot_mjab.tools.paths import DEFAULT_UNIT_TRIALS as DEFAULT_DATA
+from scr_phybot_mjab.tools.paths import FIGURES_DIR
+from scr_phybot_mjab.tools.plotting import RC_PARAMS, save_three
 
 
 def optional_float(value):
@@ -44,7 +40,7 @@ def optional_float(value):
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
-  parser.add_argument("--out", type=Path, default=ROOT / "docs/figures/fig_empirical_vs_wang")
+  parser.add_argument("--out", type=Path, default=FIGURES_DIR / "fig_empirical_vs_wang")
   args = parser.parse_args()
   torch.set_num_threads(4)
   cfg = load_limit_surface_cfg(False)

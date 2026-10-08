@@ -258,3 +258,33 @@ def effective_capacity(
   """
   r = capacity_ratio(lut, f_t, f_l, f_n)
   return f0 * r.clamp_min(cfg.wang_r_floor)
+
+
+# Paper Fig 8 anchor ratios (single tile, normalized by the pure-shear
+# capacity F(0)) with loose read-off-the-figure tolerances.
+ANCHORS = {
+  "pure shear": (1.0, 0.01),
+  "peak tension ratio": (0.14, 0.05),
+  "peak tension elevation [deg]": (16.0, 6.0),
+  "pure lateral": (0.56, 0.15),
+  "pure reverse": (0.05, 0.04),
+  "pure tension": (0.0, 0.03),
+}
+
+
+def surface_metrics(lut: torch.Tensor) -> dict[str, float]:
+  def r(ft: float, fl: float, fn: float) -> float:
+    return float(capacity_ratio(lut, torch.tensor(ft), torch.tensor(fl), torch.tensor(fn)))
+
+  phis = [p * 0.5 for p in range(181)]
+  fwd = [r(math.cos(math.radians(p)), 0.0, math.sin(math.radians(p))) for p in phis]
+  z = [ri * math.sin(math.radians(p)) for ri, p in zip(fwd, phis)]
+  i_peak = max(range(len(z)), key=z.__getitem__)
+  return {
+    "pure shear": fwd[0],
+    "peak tension ratio": z[i_peak],
+    "peak tension elevation [deg]": phis[i_peak],
+    "pure lateral": r(0.0, 1.0, 0.0),
+    "pure reverse": r(-1.0, 0.0, 0.0),
+    "pure tension": r(0.0, 0.0, 1.0),
+  }

@@ -31,19 +31,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from scr_phybot_mjab.tools.plotting import style_3d, style_slice
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from plot_pad_limit_surface import (  # noqa: E402
-  HANG_FN,
-  HANG_FT,
-  INK,
-  RC_PARAMS,
-  SEC,
-  PadSurface,
-  load_limit_surface_cfg,
-  save_three,
-)
+from scr_phybot_mjab.tools.microspine.wang_pad_surface import HANG_FN, HANG_FT, PadSurface, load_limit_surface_cfg
+from scr_phybot_mjab.tools.plotting import INK, RC_PARAMS, SEC, save_three, style_3d, style_slice
 
 REL_C = "#e34948"
 
