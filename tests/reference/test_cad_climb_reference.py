@@ -1,8 +1,5 @@
 """CAD climbing reference geometry and pre-latch audit contracts."""
 
-import importlib.util
-from pathlib import Path
-
 import mjlab  # noqa: F401
 import mujoco
 import numpy as np
@@ -10,17 +7,15 @@ import pytest
 
 import scr_phybot_mjab.tasks  # noqa: F401
 from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
-from scr_phybot_mjab.tools.climbing_reference.model import build_reference_model
+from scr_phybot_mjab.microspine.empirical_limit_surface import EmpiricalLimitSurface
+from scr_phybot_mjab.tools.climbing_reference import cad_cycle_audit as audit
+from scr_phybot_mjab.tools.climbing_reference.model import WallGeometry, build_reference_model
 
 
 @pytest.fixture(scope="module")
 def reference():
   clip = np.load(CAD_CLIMB_MOTION, allow_pickle=True).item()
   model, sites, bodies, toes, _ = build_reference_model(tuple(clip["ee_list"]))
-  path = Path(__file__).resolve().parents[2] / "scripts/audit_cad_climb_reference.py"
-  spec = importlib.util.spec_from_file_location("cad_reference_audit", path)
-  audit = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(audit)
   return clip, model, sites, bodies, toes, audit
 
 
@@ -51,7 +46,7 @@ def test_eighty_degree_audit_rotates_contacts_but_keeps_real_gravity(reference):
   clip, model, sites, bodies, _, audit = reference
   tilted = {**clip, "wall_angle": 80.0, "unit_layout": "corners"}
   data = mujoco.MjData(model)
-  wall = audit.WallGeometry(80.0, 1.5)
+  wall = WallGeometry(80.0, 1.5)
   audit.set_frame(model, data, tilted, 0)
   for i, ee in enumerate(clip["ee_list"]):
     np.testing.assert_allclose(
@@ -97,7 +92,7 @@ def test_audit_toe_loads_obey_the_actual_task_friction_cone(reference):
   assert parameters["preload_friction"].default == parameters["toe_friction"].default == mu
   data = mujoco.MjData(model)
   audit.set_frame(model, data, clip, 50)
-  row, _ = audit.static_frame(model, data, clip, 50, sites, bodies, toes, audit.EmpiricalLimitSurface())
+  row, _ = audit.static_frame(model, data, clip, 50, sites, bodies, toes, EmpiricalLimitSurface())
   assert row["characteristic_feasible"]
   assert row["toe_load_wall_xyz_n"]
   for force in row["toe_load_wall_xyz_n"].values():
@@ -121,7 +116,7 @@ def test_sixty_degree_hold_can_carry_more_than_ten_n_compression_per_unit(refere
   tilted = {**clip, "wall_angle": 60.0, "unit_layout": "corners"}
   data = mujoco.MjData(model)
   audit.set_frame(model, data, tilted, 0)
-  row, _ = audit.static_frame(model, data, tilted, 0, sites, bodies, toes, audit.EmpiricalLimitSurface())
+  row, _ = audit.static_frame(model, data, tilted, 0, sites, bodies, toes, EmpiricalLimitSurface())
   assert row["characteristic_feasible"]
   assert row["maximum_unit_compression_n"] > 10.0
 
@@ -129,7 +124,7 @@ def test_sixty_degree_hold_can_carry_more_than_ten_n_compression_per_unit(refere
 def test_preload_audit_cannot_credit_adhesion_to_an_approaching_pad(reference):
   clip, model, sites, bodies, toes, audit = reference
   data = mujoco.MjData(model)
-  surface = audit.EmpiricalLimitSurface()
+  surface = EmpiricalLimitSurface()
   previous, index = np.argwhere(np.diff(clip["ee_engaged"].astype(int), axis=0) > 0)[0]
   frame, ee = int(previous), clip["ee_list"][index]
   audit.set_frame(model, data, clip, frame)
