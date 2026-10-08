@@ -162,7 +162,7 @@
 - 新 `scripts/reference_certificate.py <clip>`：串行跑四关并写 `.certificate.json`：
   1. 静力审计（`validate_climb_reference.py` 主体，import 复用）；
   2. 时序审计（同上）；
-  3. reference-hold 回放（`validate_microspine_constraint.py` reference-hold 模式）；
+  3. reference-hold 回放（`validate_microspine_constraint.py` reference-hold 模式；该台架的前提在 empirical plant 下不成立，已于 2026-10-08 退役，代码见 tag `archive/microspine-constraint-bench`）；
   4. **出生稳定性门**：复用 `scripts/reference/climb_cycle_passive_gate.py` / `mount_clip_passive_gate.py` 的规则（每 stride 帧出生 128 env、deploy PD 被动保持 40 步、guard 25 步后：种子丢失 ≤5%、万向节 p90 ≤2.5°、零墙碰/零摔），统一成一个函数。
 - 阈值沿用 passive gate 默认；`--strict` 下万向节超限为 FAIL。
 - 验收：现役 paced、a80 各出一份证书（作为基线数字进论文）；步骤二/三产物证书四关全绿。
