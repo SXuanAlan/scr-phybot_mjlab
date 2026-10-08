@@ -1,294 +1,99 @@
-# Stanford Climbing Robot & PHYBOT MJLab
+# Stanford Climbing Robot & PHYBot MJLab
 
-MJLab-based reinforcement learning environments for PHYBOT C2, using MuJoCo
-Warp GPU simulation.
-
-The main task is `Mjlab-Climb-Wall-Phybot-C2`: PHYBot C2 climbs with four
-microspine pads (`left/right_hand_spine`, `left/right_foot_spine`), each using
-all 12 CAD units, on a wall-angle curriculum ending at 90 degrees.
-`Mjlab-Climb-Wall-Phybot-C2-Corners-A60` uses the four corner units per pad
-and a curriculum ending at 60 degrees. Both use the empirical unit model:
-ordinary contacts supply compression, equality anchors supply grip, and
-per-unit load limits determine release. Every active unit must reach at
-least 10 N of estimated compression before a new engage.
-
-## Registered Tasks
-
-```bash
-python scripts/list_envs.py
-```
-
-Expected project tasks:
-
-- `Mjlab-Climb-Wall-Phybot-C2`
-- `Mjlab-Climb-Wall-Phybot-C2-Corners-A60`
-- `Mjlab-Climb-Wall-Phybot-C2-Corners-A80` (fixed-angle diagnostic variant)
-- `Mjlab-Walk-Phybot-C2`
-- `Mjlab-Microspine-Brick-Phybot-C2` (dual-hand floor pickup, carry and placement;
-  `-Hold`, `-Engage`, `-Place`, `-DR`, and `-NoGrip` variants)
-
-The brick task keeps both feet planted and uses a free rigid brick with
-body-relative microspine anchors. See [the brick task guide](docs/tasks/brick/README.md)
-for staged training, reference generation, evaluation, and the external-pose
-deployment interface.
+Reinforcement-learning environments for the PHYBot C2 humanoid on MJLab
+(MuJoCo Warp, RSL-RL): wall climbing on four microspine pads, the mount onto
+an 80-degree wall, a two-handed brick carry, and walking, standing and
+squatting for the deployed robot.
 
 ## Setup
 
 ```bash
-conda activate env_mjlab15
-pip install -e .
+conda activate env_mjlab15   # Python 3.11, MuJoCo 3.10, mjlab 1.5, RSL-RL 5.4
+pip install -e ".[dev]"
+pre-commit install
 ```
 
-## Common Commands
+`environment.yml` records the full environment.
 
-Train:
+## Tasks
+
+| Task | What it trains | Details |
+| --- | --- | --- |
+| `Mjlab-Climb-Wall-Phybot-C2` | Climbing with all 12 spine units per pad; wall-angle curriculum 45° → 90° | [climb_wall](docs/tasks/climb_wall.md) |
+| `Mjlab-Climb-Wall-Phybot-C2-Corners-A60` | The four corner units per pad; curriculum 45° → 60° | [climb_wall](docs/tasks/climb_wall.md) |
+| `Mjlab-Climb-Wall-Phybot-C2-Corners-A80` | The four corner units on a fixed 80° wall | [climb_wall](docs/tasks/climb_wall.md) |
+| `Mjlab-Climb-Transition80-Phybot-C2` | Mounting from standing onto the 80° wall along the a80 clip, handing off to the climb cycle | [env_cfgs.py](src/scr_phybot_mjab/tasks/climb_transition80/config/phybot_c2/env_cfgs.py), [history](docs/archive/transition80_history.md) |
+| `Mjlab-Microspine-Brick-Phybot-C2` | Picking up, carrying and placing a brick with a pad on each hand | [brick](docs/tasks/brick/README.md) |
+| `Mjlab-Microspine-Brick-Phybot-C2-DR` | The same with domain randomization | [brick](docs/tasks/brick/README.md) |
+| `Mjlab-Microspine-Brick-Phybot-C2-Hold`, `Mjlab-Microspine-Brick-Phybot-C2-Engage`, `Mjlab-Microspine-Brick-Phybot-C2-Place` | Training stages that start from the hold, engage or place phase | [brick](docs/tasks/brick/README.md) |
+| `Mjlab-Microspine-Brick-Phybot-C2-NoGrip` | The ablation with the pads unable to grip | [brick](docs/tasks/brick/README.md) |
+| `Mjlab-Walk-Phybot-C2` | Velocity tracking with plain PPO | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
+| `Mjlab-Stand-Default-Phybot-C2` | Recovering to and holding the standing pose (the deployed "prepare" policy) | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
+| `Mjlab-Walk-Amp-Phybot-C2` | Preset gaits with an AMP style reward and the deployed PD damping | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
+| `Mjlab-Squat-Phybot-C2` | Tracking one full-body squat clip | [env_cfgs.py](src/scr_phybot_mjab/tasks/squat/config/phybot_c2/env_cfgs.py) |
+
+Transition80 checkpoints trained before it moved to the empirical pad model
+(3e155ad) do not apply to the current task.
+
+## Common commands
 
 ```bash
-python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[0, 1]"
+python scripts/list_envs.py
+python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 --gpu-ids "[1]" --env.scene.num-envs 4096
+python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file logs/rsl_rl/<experiment>/<run>/model_<iter>.pt
+python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent zero
+python scripts/export_policy.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/rsl_rl/phybot_c2_walk/<run>/model_<iter>.pt
+tensorboard --logdir logs/rsl_rl
 ```
 
-Train the four-corner task with a curriculum ending at 60 degrees:
+- Resume training: add `--agent.resume --agent.load-run <run> --agent.load-checkpoint model_<iter>.pt`.
+- Play picks the climb wall angle that the checkpoint's iteration reached;
+  `--wall-angle-deg 90` overrides it. `--video` records the rollout.
+- Run long jobs in `tmux` (`tmux new -s train`, detach with `Ctrl-b d`,
+  return with `tmux attach -t train`).
+- Every script prints its options with `--help`. `scripts/` holds the four
+  commands above at the top and the rest by purpose: `train/`, `eval/`,
+  `reference/`, `validate/`, `microspine/`, `deploy/` and `dev/`.
+
+## Tests and checks
 
 ```bash
-python scripts/train.py Mjlab-Climb-Wall-Phybot-C2-Corners-A60 --gpu-ids "[0, 1]"
+pytest                                    # CPU tests
+CUDA_VISIBLE_DEVICES=1 pytest --gpu       # also the GPU integration tests
+ruff check . && ruff format --check .
+pre-commit run --files $(git ls-files)    # every hook (--all-files needs git >= 2.31)
 ```
 
-This task writes to `logs/rsl_rl/phybot_c2_climb_wall_corners60`; the main
-12-unit task keeps `logs/rsl_rl/phybot_c2_climb_wall`.
+Refactors are checked against recorded behaviour snapshots with
+`scripts/dev/equivalence.py` (see [AGENTS.md](AGENTS.md)).
 
-Train the PHYBot C2 walk task:
-
-```bash
-python scripts/train.py Mjlab-Walk-Phybot-C2 --gpu-ids "[0, 1]"
-```
-
-Run a longer headless training job:
-
-```bash
-nohup python scripts/train.py Mjlab-Climb-Wall-Phybot-C2 \
-  --gpu-ids "[0, 1]" \
-  --env.scene.num-envs 4096 \
-  --agent.max-iterations 12000 \
-  > train.log 2>&1 &
-```
-
-For long training over SSH, prefer `tmux` so the job keeps running if the SSH
-session disconnects:
-
-```bash
-tmux new -s train
-python scripts/train.py Mjlab-Walk-Phybot-C2 --gpu-ids "[0, 1]"
-```
-
-Detach from the session without stopping training:
+## Layout
 
 ```text
-Ctrl-b then d
-```
-
-Reconnect to the training session:
-
-```bash
-tmux attach -t train
-```
-
-List active tmux sessions:
-
-```bash
-tmux ls
-```
-
-Kill the training session:
-
-```bash
-tmux kill-session -t train
-```
-
-Resume walk training from a local checkpoint:
-
-```bash
-python scripts/train.py Mjlab-Walk-Phybot-C2 \
-  --gpu-ids "[0, 1]" \
-  --agent.resume \
-  --agent.load-run <run> \
-  --agent.load-checkpoint model_<iter>.pt
-```
-
-Play with zero actions:
-
-```bash
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --agent zero --num-envs 1
-```
-
-Play the walk task with zero actions:
-
-```bash
-python scripts/play.py Mjlab-Walk-Phybot-C2 --agent zero --num-envs 1
-```
-
-Play from a checkpoint:
-
-```bash
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
-  --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt \
-  --num-envs 1
-```
-
-Play walk from a checkpoint:
-
-```bash
-python scripts/play.py Mjlab-Walk-Phybot-C2 \
-  --checkpoint-file logs/rsl_rl/phybot_c2_walk/<run>/model_<iter>.pt \
-  --num-envs 1
-```
-
-Override the play-mode wall angle:
-
-```bash
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
-  --checkpoint-file logs/rsl_rl/<run>/model_<iter>.pt \
-  --wall-angle-deg 90 \
-  --num-envs 1
-```
-
-Record video:
-
-```bash
-python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 \
-  --checkpoint-file <path> \
-  --video
-```
-
-TensorBoard:
-
-```bash
-tensorboard --logdir logs/rsl_rl --bind_all
-```
-
-Tune the initial pose in a Viser browser UI:
-
-```bash
-python scripts/reference/tune_pose.py
-```
-
-Inspect the C2 robot model without RL:
-
-```bash
-python -m scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants
-```
-
-## Climb-Wall Task
-
-The two curriculum tasks share the environment implementation, PPO settings,
-rewards, reference-state initialization, observations and PD control:
-
-| Task suffix | Active units per pad | Training wall angles | Default evaluation |
-| --- | ---: | --- | --- |
-| `Phybot-C2` | 12 (3×4) | 45±5 → 75±12 → 80±5 → 85±3 → 88±2 → 90° | Exact 90° |
-| `Phybot-C2-Corners-A60` | 4 corners | 45±5 → 55±5 → 60° | Exact 60° |
-| `Phybot-C2-Corners-A80` | 4 corners | Fixed 80° | Exact 80° |
-
-The main task keeps the original stage boundaries at iterations 0, 1500,
-3300, 3900, 4550 and 5150 (`mdp.curriculums.WALL_ANGLE_STAGES`). The four-corner
-60-degree task changes stages at 0, 1500 and 3300
-(`CORNERS60_WALL_ANGLE_STAGES`). Its final stage explicitly disables jitter:
-training never samples above 60 degrees. Each resetting environment picks
-the current stage; walls of running episodes stay stationary.
-
-The main task uses `climb_cad_empirical.npy`; the 60-degree task uses
-`climb_cad_empirical_corners_a60.npy`. Both references loop every 9 seconds
-and advance 20 mm per cycle. The velocity command follows this average
-along-wall rate. Training samples the full cycle with a failure-adaptive RSI
-histogram (one-second bins, EMA 0.001, additive uniform floor 0.1). Reset
-restores reference pose, velocity, passive gimbals and scheduled initial
-grips. Physical anchors are installed before the first physics step;
-zero-time resets do not advance the reference or engage debounce.
-Evaluation starts at frame 0 with no additional reset jitter.
-
-Empirical tasks now use 16 rewards: four BeyondMimic body kernels, root
-orientation, height/landing/swing tracking, four contact terms, three
-regularizers, and a failure penalty. Existing position/orientation/climbing
-scales and low-shear/lateral release shaping are retained. The mismatch gate
-applies to body position, body orientation and root orientation. There is no
-explicit survival reward. Legacy Wang transition rewards are unchanged.
-
-See the [reward/reset review and verification results](docs/reports/empirical_climb/beyondmimic_2026-09-07/README.md)
-before training. Reset/reward/termination integration passes GPU checks, but
-reference-position PD still loses grips rapidly and has not demonstrated a
-successful climb or regrip. The reference contains kinematics, not force or
-feedforward-torque targets. No training was started for this review.
-
-Gravity is always physically down. The curriculum TILTS THE WALL about its
-base line (per env, mocap pose): shallow angles are a ramp the robot lies on,
-90 degrees is standard vertical-wall climbing — and exactly the world the
-climb-transition (mount) task runs in, so the two tasks chain.
-
-Terminations:
-
-- `time_out`
-- `base_height`: base fell below `0.3` m of along-wall altitude
-- `bad_state`: NaN or excessive velocity guard
-- `bad_tracking`: any tracked body's aligned position error exceeds `0.3` m,
-  global root orientation error exceeds `1.0` rad, or along-wall root height
-  error exceeds `0.25` m
-- `lost_support`: all pads remain unlatched continuously for `0.4` s
-
-## Walk Task
-
-Command:
-
-- Task id: `Mjlab-Walk-Phybot-C2`
-- Command term: `twist`
-- Resampling interval: `3.0` to `8.0` s
-- Training ranges:
-  - `lin_vel_x`: `(-1.0, 1.0)` m/s
-  - `lin_vel_y`: `(-1.0, 1.0)` m/s
-  - `ang_vel_z`: `(-0.5, 0.5)` rad/s
-  - `heading`: `(-pi, pi)` rad
-- Heading command is enabled with heading-control stiffness `0.5`.
-- Standing-env ratio is `0.1`; heading-env ratio is `0.3`.
-- Flat-terrain play mode widens `lin_vel_x` to `(-1.5, 2.0)` m/s and
-  `ang_vel_z` to `(-0.7, 0.7)` rad/s.
-
-The actor observes the generated `twist` command, base sensors from the C2 XML,
-policy joint position/velocity, and last action. Contact sensors are used for
-critic terms, rewards, and self-collision termination; they are not actor
-observations.
-
-## Project Layout
-
-```text
-scripts/
-  train.py              # Register project tasks, then delegate to MJLab train.
-  play.py               # Play/evaluate with climb-wall angle controls.
-  tune_pose.py          # Viser-based pose tuning.
-  list_envs.py          # List registered tasks.
-
 src/scr_phybot_mjab/
-  assets/
-    motions/           # Runtime motion clips and shared clip/initial-state paths.
-    microspine/        # Packaged empirical unit distribution; no raw bench logs.
-    phybot_c2/          # PHYBot C2 MJCF, meshes, actuator config.
-    wall/               # Wall entity.
-  microspine/
-    config.py           # Microspine config and affordance command cfg.
-    affordance.py       # Contact-sensor engage/disengage state machine.
-    contact.py          # Contact-grid names and ordinary wall contact pairs.
-    constraint.py       # Runtime equality anchors and load readout.
-    pad_geometry.py     # C/unit geometry read from asset sites.
-    wrench.py           # Shared Torch/NumPy per-unit wrench mechanics.
-    empirical_limit_surface.py  # Conditional-distribution lookup and unit limits.
-  tools/
-    climbing_reference/ # Public offline IK, cycle synthesis and audit model tools.
-    microspine/         # Fitting and stochastic pad analysis using runtime mechanics.
-    plotting.py         # Shared figure style/export helpers.
-  tasks/
-    climb_wall/         # C2 wall-climbing task.
-    walk/               # C2 walking task.
+  assets/       the C2 robot (MJCF, meshes), wall, brick, motion clips and their recipes
+  microspine/   the pad plant: contact features, engage gate, hold judge, equality anchors
+  tasks/        one package per task: config/phybot_c2/ (what the task is), mdp/ (per-step terms)
+    common/     pieces the tasks share
+  tools/        offline code: reference generation, microspine analysis, evaluation, the equivalence harness
+  utils/        helpers for scripts: building envs, loading policies, CLI options
+scripts/        thin command-line wrappers
+tests/          microspine/, tasks/<task>/, reference/, tools/, conventions/
+docs/           see docs/README.md
+data/           inputs: the CAD model and bench data (raw trials are not in git)
+artifacts/      generated outputs (ignored)
 ```
 
-Raw microspine trials live in `data/microspine/raw/` (not in git); the fit
-report and calibration/baseline tables live in `data/microspine/empirical_unit_v1/`;
-generated analyses go to the ignored `artifacts/`.
-See [the empirical climbing code layout](docs/reports/empirical_climb/code_layout.md)
-for active resource paths, shared computations, and regeneration commands.
+## Data and assets
+
+- Raw microspine trials live in `data/microspine/raw/` and are not in git;
+  `data/microspine/empirical_unit_v1/` records how the packaged unit model
+  was fitted.
+- Every committed clip in `assets/motions/` has a `<clip>.recipe.txt` with the
+  command that regenerates it.
+- The clips record the hash of `assets/phybot_c2/xml/phybot_c2.xml`; change
+  that file only together with regenerating every clip.
+- Logs, checkpoints, W&B runs and videos stay out of git.
+
+Rules for changing the code, for people and coding agents alike, are in
+[AGENTS.md](AGENTS.md).

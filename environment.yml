@@ -1,4 +1,7 @@
-name: env_mjlab
+# The env_mjlab15 environment, exported with conda env export --no-builds.
+# Create it with: conda env create -f environment.yml
+# then install this repository into it: pip install -e ".[dev]"
+name: env_mjlab15
 channels:
   - defaults
 dependencies:
@@ -44,46 +47,64 @@ dependencies:
       - asttokens==3.0.1
       - attrs==25.4.0
       - bcrypt==5.0.0
+      - blinker==1.9.0
+      - cairocffi==1.7.1
+      - cairosvg==2.9.0
       - certifi==2026.2.25
       - cffi==2.0.0
+      - cfgv==3.5.0
       - charset-normalizer==3.4.6
       - click==8.3.1
       - cloudpickle==3.1.2
+      - cmeel==0.59.0
+      - colorama==0.4.6
       - colorlog==6.10.1
       - contourpy==1.3.3
       - cryptography==46.0.5
+      - cssselect2==0.9.0
       - cuda-bindings==12.9.4
       - cuda-pathfinder==1.4.2
       - cycler==0.12.1
+      - daqp==0.8.5
       - decorator==5.2.1
+      - defusedxml==0.7.1
       - deprecated==1.3.1
+      - distlib==0.4.3
       - docstring-parser==0.17.0
       - embreex==2.17.7.post7
       - etils==1.14.0
       - executing==2.2.1
       - fabric==3.2.2
       - filelock==3.25.2
+      - flask==3.1.3
       - fonttools==4.62.1
       - fsspec==2026.2.0
+      - general-motion-retargeting==0.2.0
       - gitdb==4.0.12
       - gitpython==3.1.46
       - glfw==2.10.0
       - grpcio==1.78.0
       - h11==0.16.0
+      - hidapi==0.15.0
+      - hiredis==3.3.1
       - httpcore==1.0.9
       - httpx==0.28.1
+      - identify==2.6.20
       - idna==3.11
       - imageio==2.37.3
       - imageio-ffmpeg==0.6.0
       - importlib-metadata==8.7.1
+      - iniconfig==2.3.0
       - invoke==2.2.1
       - ipython==9.10.0
       - ipython-pygments-lexers==1.1.1
+      - itsdangerous==2.2.0
       - jedi==0.19.2
       - jinja2==3.1.6
       - jsonschema==4.26.0
       - jsonschema-specifications==2025.9.1
       - kiwisolver==1.5.0
+      - loop-rate-limiters==1.2.0
       - lxml==6.0.2
       - manifold3d==3.4.0
       - mapbox-earcut==2.0.0
@@ -94,6 +115,7 @@ dependencies:
       - matplotlib-inline==0.2.1
       - mdurl==0.1.2
       - mediapy==1.2.6
+      - mink==1.1.0
       - mjlab==1.5.0
       - mjviser==0.0.14
       - ml-dtypes==0.5.4
@@ -101,7 +123,9 @@ dependencies:
       - msgspec==0.20.0
       - mujoco==3.10.0
       - mujoco-warp==3.10.0.1
+      - natsort==8.4.0
       - networkx==3.6.1
+      - nodeenv==1.11.0
       - numpy==2.4.3
       - nvidia-cublas-cu12==12.8.4.1
       - nvidia-cuda-cupti-cu12==12.8.90
@@ -121,46 +145,62 @@ dependencies:
       - onnx==1.20.1
       - onnx-ir==0.2.0
       - onnxscript==0.6.2
+      - opencv-python==4.13.0.92
       - orjson==3.11.7
       - paramiko==4.0.0
       - parso==0.8.6
       - pexpect==4.9.0
       - pillow==12.3.0
       - platformdirs==4.9.4
+      - pluggy==1.6.0
+      - pre-commit==4.6.2
       - prettytable==3.17.0
       - prompt-toolkit==3.0.52
       - protobuf==6.33.5
+      - proxsuite==0.7.2
+      - psutil==7.2.2
       - ptyprocess==0.7.0
       - pure-eval==0.2.3
       - pycollada==0.9.3
       - pycparser==3.0
       - pydantic==2.12.5
       - pydantic-core==2.41.5
+      - pygame==2.6.1
       - pygments==2.19.2
       - pynacl==1.6.2
       - pyopengl==3.1.10
       - pyparsing==3.3.2
+      - pyqt5==5.15.11
+      - pyqt5-qt5==5.15.19
+      - pyqt5-sip==12.18.0
+      - pyqtgraph==0.14.0
+      - pytest==9.1.1
       - python-dateutil==2.9.0.post0
+      - python-discovery==1.6.1
       - pyvers==0.2.2
       - pyyaml==6.0.3
+      - qpsolvers==4.11.0
+      - redis==7.4.0
       - referencing==0.37.0
       - requests==2.32.5
       - rich==14.3.3
       - rpds-py==0.30.0
       - rsl-rl-lib==5.4.0
       - rtree==1.4.1
+      - ruff==0.16.8
       - scipy==1.17.1
       - sentry-sdk==2.54.0
       - shapely==2.1.2
       - six==1.17.0
       - smmap==5.0.3
-      - scr_phybot_mjab==0.1.0
+      - smplx==0.1.28
       - stack-data==0.6.3
       - svg-path==7.0
       - sympy==1.14.0
       - tensorboard==2.20.0
       - tensorboard-data-server==0.7.2
       - tensordict==0.11.0
+      - tinycss2==1.5.1
       - torch==2.10.0
       - torchrunx==0.3.4
       - torchvision==0.25.0
@@ -174,15 +214,17 @@ dependencies:
       - tyro==1.0.9
       - urllib3==2.6.3
       - vhacdx==0.0.10
+      - virtualenv==21.14.1
       - viser==1.0.30
       - wandb==0.25.1
       - warp-lang==1.14.0
       - wcwidth==0.6.0
+      - webencodings==0.5.1
       - websockets==15.0.1
       - werkzeug==3.1.6
       - wrapt==2.1.2
+      - xacro==2.1.1
       - xxhash==3.6.0
       - yourdfpy==0.0.60
       - zipp==3.23.0
       - zstandard==0.25.0
-prefix: /home/sxuan/miniconda3/envs/env_mjlab

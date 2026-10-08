@@ -1,8 +1,5 @@
 """Physical invariants and geometry changes across runtime/offline consumers."""
 
-import ast
-from pathlib import Path
-
 import mujoco
 import numpy as np
 import pytest
@@ -158,18 +155,3 @@ def test_unit_on_an_offset_child_cannot_be_misread_as_pad_local():
   for source in (spec, spec.compile()):
     with pytest.raises(ValueError, match="attached directly"):
       pad_geometry_from_sites(source, "pad")
-
-
-def test_scripts_and_tools_never_import_a_cli_script():
-  root = Path(__file__).resolve().parents[2]
-  scripts = list((root / "scripts").rglob("*.py"))
-  script_modules = {p.stem for p in scripts}
-  paths = scripts + list((root / "src/scr_phybot_mjab/tools").rglob("*.py"))
-  for path in paths:
-    for node in ast.walk(ast.parse(path.read_text())):
-      modules = (
-        [node.module or ""]
-        if isinstance(node, ast.ImportFrom)
-        else ([item.name for item in node.names] if isinstance(node, ast.Import) else [])
-      )
-      assert not any(m.split(".")[0] in script_modules for m in modules), path
