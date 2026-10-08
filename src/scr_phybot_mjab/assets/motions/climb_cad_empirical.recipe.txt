@@ -1,14 +1,14 @@
 CAD climbing loop regenerated 2026-09-06. 490 frames at 50 Hz; playable cycle 450 frames / 9 s; rise 20 mm; 0.8 s end hold.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/gen_cad_climb_reference.py --step-height 0.02
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/gen_cad_climb_reference.py --step-height 0.02
 
 Initial pose: climb_cad_empirical_initial.json. The initial full pose is unchanged, preserving the A80 mount handoff.
 Validation: all 490 frames pass CAD contact geometry and empirical characteristic holding-load checks. 120 related regression tests passed.
 Engage preload: all four transitions fail the current-pose quasistatic 10 N/unit characteristic-capacity check (three pre-latch frames each). This is a geometry reference, not a validated 10 N/unit execution reference. No capacity or preload thresholds were relaxed.
 
 Audit:
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/audit_cad_climb_reference.py --stride 1
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/audit_cad_climb_reference.py --stride 1
 
 Render:
-MUJOCO_GL=egl python scripts/render_climb_video.py src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy
+MUJOCO_GL=egl python scripts/reference/render_climb_video.py src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy
 
 Full findings: climb_cad_empirical.audit.json; docs/empirical_climb_review/README.md. No policy training or physical rollout was performed in this regeneration.

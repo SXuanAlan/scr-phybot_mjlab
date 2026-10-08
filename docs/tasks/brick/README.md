@@ -27,8 +27,8 @@
 
 ```bash
 conda activate env_mjlab15
-python scripts/gen_brick_reference.py
-python scripts/validate_brick_task.py --stage hold --num-envs 4 --steps 200
+python scripts/reference/gen_brick_reference.py
+python scripts/validate/validate_brick_task.py --stage hold --num-envs 4 --steps 200
 CUDA_VISIBLE_DEVICES=0 PHYBOT_BRICK_GPU_TEST=1 python -m pytest -q tests/microspine/test_brick_gpu.py
 ```
 
@@ -76,7 +76,7 @@ python scripts/train.py Mjlab-Microspine-Brick-Phybot-C2-Engage \
 
 参考文件为 [`brick_pick_place.npz`](../../../src/scr_phybot_mjab/assets/motions/brick_pick_place.npz)，
 审计结果为同目录下的 [`brick_pick_place.audit.json`](../../../src/scr_phybot_mjab/assets/motions/brick_pick_place.audit.json)。
-生成入口是 [`scripts/gen_brick_reference.py`](../../../scripts/gen_brick_reference.py)，
+生成入口是 [`scripts/reference/gen_brick_reference.py`](../../../scripts/reference/gen_brick_reference.py)，
 IK 与加载逻辑在 [`tasks/brick/reference.py`](../../../src/scr_phybot_mjab/tasks/brick/reference.py)。
 参考包含七阶段的关节、根部、被动 gimbal、手掌和砖块轨迹，每阶段 21 个采样姿态：
 `reach → engage → lift → carry → place → release → stand`。
@@ -103,8 +103,8 @@ actor 没有仿真挂接状态，阶段切换也不读取它。
 可重新渲染视频或阶段端点；无显示器时可使用 OSMesa：
 
 ```bash
-MUJOCO_GL=osmesa python scripts/render_brick_reference.py --output docs/tasks/brick/reference.mp4
-MUJOCO_GL=osmesa python scripts/render_brick_reference.py --output docs/tasks/brick/reference_preview.png
+MUJOCO_GL=osmesa python scripts/reference/render_brick_reference.py --output docs/tasks/brick/reference.mp4
+MUJOCO_GL=osmesa python scripts/reference/render_brick_reference.py --output docs/tasks/brick/reference_preview.png
 ```
 
 完整任务的评分使用仿真真值，要求：
@@ -122,7 +122,7 @@ MUJOCO_GL=osmesa python scripts/render_brick_reference.py --output docs/tasks/br
 更改砖块几何后需要重新生成参考，并同步环境的 `brick` 与 `reference_file` 配置，例如：
 
 ```bash
-python scripts/gen_brick_reference.py --size .18 .32 .20 --mass 1.0 \
+python scripts/reference/gen_brick_reference.py --size .18 .32 .20 --mass 1.0 \
   --start-x .32 --goal-y .15 --output /tmp/custom_brick.npz
 ```
 
@@ -170,11 +170,11 @@ python scripts/export_policy.py Mjlab-Microspine-Brick-Phybot-C2 \
 ## 评估
 
 ```bash
-python scripts/validate_brick_task.py --policy <exported/policy.pt> \
+python scripts/validate/validate_brick_task.py --policy <exported/policy.pt> \
   --num-envs 32 --episodes 100 --report /tmp/brick_nominal.json
-python scripts/validate_brick_task.py --policy <exported/policy.pt> \
+python scripts/validate/validate_brick_task.py --policy <exported/policy.pt> \
   --num-envs 32 --episodes 100 --dr --report /tmp/brick_dr.json
-python scripts/validate_brick_task.py --policy <exported/policy.pt> \
+python scripts/validate/validate_brick_task.py --policy <exported/policy.pt> \
   --num-envs 32 --episodes 100 --no-grip --report /tmp/brick_no_grip.json
 ```
 

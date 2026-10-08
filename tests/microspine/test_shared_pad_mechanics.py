@@ -160,21 +160,11 @@ def test_unit_on_an_offset_child_cannot_be_misread_as_pad_local():
       pad_geometry_from_sites(source, "pad")
 
 
-def test_active_offline_tools_do_not_import_other_cli_scripts():
+def test_scripts_and_tools_never_import_a_cli_script():
   root = Path(__file__).resolve().parents[2]
-  script_modules = {p.stem for p in (root / "scripts").glob("*.py")}
-  paths = [
-    root / "scripts" / name
-    for name in (
-      "gen_cad_climb_reference.py",
-      "gen_mount_clip.py",
-      "audit_cad_climb_reference.py",
-      "build_empirical_limit_surface.py",
-      "plot_stochastic_pad_limit_surface.py",
-    )
-  ]
-  paths += list((root / "src/scr_phybot_mjab/tools/climbing_reference").rglob("*.py"))
-  paths += list((root / "src/scr_phybot_mjab/tools/microspine").glob("*.py"))
+  scripts = list((root / "scripts").rglob("*.py"))
+  script_modules = {p.stem for p in scripts}
+  paths = scripts + list((root / "src/scr_phybot_mjab/tools").rglob("*.py"))
   for path in paths:
     for node in ast.walk(ast.parse(path.read_text())):
       modules = (

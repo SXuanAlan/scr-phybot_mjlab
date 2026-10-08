@@ -59,7 +59,7 @@ def apply_play_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
   """The exact standing start and fixed physical parameters.
 
   The randomization events stay, pinned to single values, so a validation
-  run can set the foot friction it tests (scripts/validation/accept_squat.py).
+  run can set the foot friction it tests (scripts/eval/accept_squat.py).
   """
   cfg.observations["actor"].enable_corruption = False
   motion = cfg.commands[MOTION_COMMAND]

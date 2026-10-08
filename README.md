@@ -168,7 +168,7 @@ tensorboard --logdir logs/rsl_rl --bind_all
 Tune the initial pose in a Viser browser UI:
 
 ```bash
-python scripts/tune_pose.py
+python scripts/reference/tune_pose.py
 ```
 
 Inspect the C2 robot model without RL:

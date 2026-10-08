@@ -2,10 +2,10 @@ CAD A80 mount reference, regenerated 2026-09-06: 1280 frames / 25.60 s / 50 Hz. 
 Parameters: the defaults of MountRecipe (src/scr_phybot_mjab/tools/climbing_reference/mount/recipe.py).
 
 Generate from the repository root (MuJoCo 3.10.0, mjlab 1.5.0):
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/gen_mount_clip.py --output src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --handoff-motion src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/gen_mount_clip.py --output src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --handoff-motion src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy
 
 Geometry audit (all frames, actual collision mesh vertices and primitives):
-python scripts/audit_mount_reference.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy
+python scripts/reference/audit_mount_reference.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy
 Body FK max error 0.00024561 mm; contact C FK max error 0.00024614 mm; engaged-anchor drift max 2.6573 mm.
 Worst floor clearance -1.9150 mm (2 mm floor seating bias); worst wall clearance -1.8281 mm.
 
@@ -16,7 +16,7 @@ Static result: all 1280 frames verified (1279 in the initial sweep; frame 582 co
 Regression: 142 tests passed. GPU smoke: 2 environments (standing and handoff RSI), complete passive state and FK tables, 12 finite steps. No new policy training was run.
 
 Render:
-MUJOCO_GL=egl python scripts/render_climb_video.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --azimuth 95 --elevation -10 --distance 2.5 --width 1280 --height 720
+MUJOCO_GL=egl python scripts/reference/render_climb_video.py src/scr_phybot_mjab/assets/motions/climb_mount_prologue_a80.npy --azimuth 95 --elevation -10 --distance 2.5 --width 1280 --height 720
 
 Handoff: climb_cad_empirical.npy frame 0, with a rigid along-wall height shift; policy joints, passive joints, root orientation and relative contact positions match.
 Retargeting: hand ladder shifted up 120 mm from the old recipe; mirrored shoulder yaw during arm folding; right raise endpoint -2.4 rad; right placement trunk pitch 0.1 rad with 20 mm base rise.

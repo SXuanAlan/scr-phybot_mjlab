@@ -23,7 +23,7 @@ PHASE_NAMES = ("reach", "engage", "lift", "carry", "place", "release", "stand")
 def load_reference(path=REFERENCE_PATH, *, require_audit=True):
   if not Path(path).exists():
     raise FileNotFoundError(
-      f"Generate the brick reference first: python scripts/gen_brick_reference.py --output {path}"
+      f"Generate the brick reference first: python scripts/reference/gen_brick_reference.py --output {path}"
     )
   with np.load(path, allow_pickle=False) as archive:
     result = {key: archive[key].copy() for key in archive.files}

@@ -30,7 +30,7 @@ def clip_jobs() -> list[ClipJob]:
   jobs = [
     ClipJob(
       "climb_cad_empirical",
-      "scripts/gen_cad_climb_reference.py",
+      "scripts/reference/gen_cad_climb_reference.py",
       (
         "--step-height",
         "0.02",
@@ -46,7 +46,7 @@ def clip_jobs() -> list[ClipJob]:
     jobs.append(
       ClipJob(
         name,
-        "scripts/gen_cad_climb_reference.py",
+        "scripts/reference/gen_cad_climb_reference.py",
         (
           "--source-motion",
           cad_climb,
@@ -64,9 +64,9 @@ def clip_jobs() -> list[ClipJob]:
   jobs.append(
     ClipJob(
       "climb_mount_prologue_a80",
-      "scripts/gen_mount_clip.py",
+      "scripts/reference/gen_mount_clip.py",
       (
-        *recipe_args("climb_mount_prologue_a80", "scripts/gen_mount_clip.py"),
+        *recipe_args("climb_mount_prologue_a80", "scripts/reference/gen_mount_clip.py"),
         "--output",
         "{out}/climb_mount_prologue_a80.npy",
       ),
@@ -75,7 +75,7 @@ def clip_jobs() -> list[ClipJob]:
   jobs.append(
     ClipJob(
       "brick_pick_place",
-      "scripts/gen_brick_reference.py",
+      "scripts/reference/gen_brick_reference.py",
       ("--output", "{out}/brick_pick_place.npz"),
     )
   )

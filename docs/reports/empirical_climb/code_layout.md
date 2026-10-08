@@ -90,16 +90,16 @@ NumPy 离线计算使用同一算式；静力优化需要的矩阵通过对六�
 export PYTHONPATH=src
 export MUJOCO_GL=egl
 export OPENBLAS_NUM_THREADS=1
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/build_empirical_limit_surface.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/gen_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/audit_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/plot_stochastic_pad_limit_surface.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/build_empirical_limit_surface.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/gen_cad_climb_reference.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/audit_cad_climb_reference.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/plot_stochastic_pad_limit_surface.py
 ```
 
 分开指定生成目标的示例：
 
 ```sh
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/build_empirical_limit_surface.py \
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/build_empirical_limit_surface.py \
   --data data/microspine/raw/20260905-110314/results.csv \
   --output /tmp/empirical_candidate.npz \
   --analysis-dir /tmp/empirical_candidate_analysis

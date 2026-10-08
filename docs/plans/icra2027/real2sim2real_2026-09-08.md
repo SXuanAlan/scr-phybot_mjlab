@@ -91,7 +91,7 @@ Sim-to-real 的最低证据是一端真实硬件完成规定的建立、加载�
 
 对于随机接触，不要求每次挂接在毫秒级复现同一随机失效，应比较多次独立挂接下的结果分布、保持比例、事件时刻分布及模型的错误接受。相同场景上多种预先冻结的参考，也可以比较 sim/real 的成功率与排序；少量参考的相关系数只能作辅助证据，不能替代试验次数和误差分析。判断模型有效应依赖未参与识别的完整试验，不能对 runtime 表的训练样本回放后宣称独立验证。
 
-代码中已有可复用思路：[compare_real_sim.py](../../../scripts/compare_real_sim.py) 会把 C2 真机日志中的实际 PD 位置指令重放到 MuJoCo，比较关节轨迹与发散。当前脚本面向 walk_amp，尚不是完成的 microspine 接触序列验证器；可以复用日志对齐与同输入回放方式。旧 [tilt calibration 文档](../../archive/microspine_tilt_calibration.md) 已注明部分设计被后续硬件替代，其中的仿真探针不能当作当前 pad 的真实参数辨识结果。
+代码中已有可复用思路：[compare_real_sim.py](../../../scripts/deploy/compare_real_sim.py) 会把 C2 真机日志中的实际 PD 位置指令重放到 MuJoCo，比较关节轨迹与发散。当前脚本面向 walk_amp，尚不是完成的 microspine 接触序列验证器；可以复用日志对齐与同输入回放方式。旧 [tilt calibration 文档](../../archive/microspine_tilt_calibration.md) 已注明部分设计被后续硬件替代，其中的仿真探针不能当作当前 pad 的真实参数辨识结果。
 
 **若论文突出 real2sim2real，建议调整原 E4 主比较，明确区分接触模型与 reference 的作用。** 固定机器人、几何、执行接口和策略配方，使用下面三组作为最小学习比较：
 

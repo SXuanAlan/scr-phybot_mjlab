@@ -2,8 +2,8 @@
 
 Run this in a separate tmux session from training::
 
-  python scripts/supervise_climb60.py RUN_DIR --gpu 1 --training-log RUN_DIR/train.log
-  python scripts/supervise_climb60.py RUN_DIR --once
+  python scripts/train/supervise_climb60.py RUN_DIR --gpu 1 --training-log RUN_DIR/train.log
+  python scripts/train/supervise_climb60.py RUN_DIR --once
 
 The training process must already consume RUN_DIR/curriculum_control.json.
 This process only writes that control file and monitoring artifacts; it never

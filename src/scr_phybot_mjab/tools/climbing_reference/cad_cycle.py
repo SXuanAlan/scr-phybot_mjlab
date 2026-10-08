@@ -117,7 +117,7 @@ def solve_initial_stance() -> dict:
     pad_centers_world_m=centers,
     max_center_wall_error_m=max_gap,
     gimbal_angles="x at lower -3 degree stop; y,z zero; passive RSI state, never actuator targets",
-    generator="scripts/gen_cad_climb_reference.py",
+    generator="scripts/reference/gen_cad_climb_reference.py",
     protocol_note=(
       "Four seeded mature contacts with lower-stop support. "
       "Stop strength, seating and dynamic stability are not hardware validated"
@@ -290,7 +290,7 @@ def project_to_pad_faces(clip: dict, initial_state: dict | None = None) -> dict:
   clip["passive_joint_positions"] = np.asarray(passive_out, dtype=np.float32)
   clip["contact_reference_point"] = "C"
   clip["gimbal_stop_support"] = "lower x stop throughout; unilateral stop strength unvalidated"
-  clip["generator"] = "scripts/gen_cad_climb_reference.py"
+  clip["generator"] = "scripts/reference/gen_cad_climb_reference.py"
   clip["offline_projection_max_error_m"] = max_error
   clip["asset_xml_sha256"] = hashlib.sha256(PHYBOT_C2_XML.read_bytes()).hexdigest()
   clip["engage_unit_preload_n"] = 10.0

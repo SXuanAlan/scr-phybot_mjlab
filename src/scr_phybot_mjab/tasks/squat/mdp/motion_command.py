@@ -1,6 +1,6 @@
 """Phase-driven full-body squat reference command.
 
-Loads the standalone ``squat.npy`` produced by ``scripts/gen_squat_clip.py`` and
+Loads the standalone ``squat.npy`` produced by ``scripts/reference/gen_squat_clip.py`` and
 exposes its joint/base targets.  Start-mode playback is synchronized directly to
 the episode step, so one episode consumes exactly one motion frame per control
 step without skipping frame zero after a timeout reset.
@@ -38,7 +38,7 @@ __all__ = (
 class SquatMotionLoader:
   """Loads one standalone ``.npy`` squat clip and derives velocities.
 
-  The clip uses the AMP/motion schema (see ``scripts/gen_squat_clip.py``): a dict
+  The clip uses the AMP/motion schema (see ``scripts/reference/gen_squat_clip.py``): a dict
   with ``joints_list``, ``joint_positions`` (T, N), ``root_position`` (T, 3),
   ``root_quaternion`` (T, 4) in xyzw, ``foot_sites_list``, ``foot_positions``
   (T, 2, 3), and ``fps``.
@@ -66,7 +66,7 @@ class SquatMotionLoader:
       if not path.is_file():
         raise FileNotFoundError(
           f"Squat motion file not found: {path}. Generate it with "
-          "`python scripts/gen_squat_clip.py` (or gen_stand_clip.py)."
+          "`python scripts/reference/gen_squat_clip.py` (or gen_stand_clip.py)."
         )
       data = np.load(path, allow_pickle=True).item()
       clip_joints = list(data["joints_list"])

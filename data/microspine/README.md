@@ -13,7 +13,7 @@ The three storage roles are separate:
 | Packaged runtime distribution | `src/scr_phybot_mjab/assets/microspine/empirical_unit_v1.npz` |
 | Fitting report and calibration/baseline tables | `data/microspine/empirical_unit_v1/` |
 
-Run `scripts/build_empirical_limit_surface.py` to rebuild. Its `--data`,
+Run `scripts/microspine/build_empirical_limit_surface.py` to rebuild. Its `--data`,
 `--output`, and `--analysis-dir` arguments select these three destinations
 independently. Runtime tasks only read the packaged distribution table.
 Calibration and raw-cell baseline tables are analysis artifacts, not inputs
@@ -27,7 +27,7 @@ including 86 trials carried over from `20260922-144929`. Analyze first slip
 across drag, lateral and normal loading with:
 
 ```bash
-python scripts/analyze_microspine_first_failure.py --data data/microspine/raw/20260922-163807
+python scripts/microspine/analyze_microspine_first_failure.py --data data/microspine/raw/20260922-163807
 ```
 
 The first-failure report (generated locally into the ignored `artifacts/limit_surface/20260922-163807/README.md`)

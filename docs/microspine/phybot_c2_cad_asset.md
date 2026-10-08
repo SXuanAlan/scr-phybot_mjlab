@@ -107,11 +107,11 @@ validation of the passive stops or full-pad load capacity.
 export PYTHONPATH=src
 export MUJOCO_GL=egl
 export OPENBLAS_NUM_THREADS=1
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/build_phybot_microspine_assets.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/audit_phybot_cad_asset.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/render_phybot_asset.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/render_pad_collisions.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/gen_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/audit_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/render_climb_initial.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/build_phybot_microspine_assets.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/validate/audit_phybot_cad_asset.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/validate/render_phybot_asset.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/validate/render_pad_collisions.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/gen_cad_climb_reference.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/audit_cad_climb_reference.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/render_climb_initial.py
 ```

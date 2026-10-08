@@ -1,6 +1,6 @@
 # Four-corner 60-degree checkpoint evaluation
 
-`scripts/evaluate_climb_checkpoint.py` evaluates the registered
+`scripts/eval/evaluate_climb_checkpoint.py` evaluates the registered
 `Mjlab-Climb-Wall-Phybot-C2-Corners-A60` PPO actor. It verifies every loaded
 actor tensor, including observation normalization, and checks the actual
 wall angle and four active empirical units per pad at runtime.
@@ -8,7 +8,7 @@ wall angle and four active empirical units per pad at runtime.
 ```sh
 CUDA_VISIBLE_DEVICES=1 MUJOCO_GL=egl OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
   /home/spider/miniconda3/envs/env_mjlab15/bin/python \
-  scripts/evaluate_climb_checkpoint.py \
+  scripts/eval/evaluate_climb_checkpoint.py \
   --checkpoint logs/rsl_rl/phybot_c2_climb_wall_corners60/RUN/model_250.pt \
   --angles 40 45 50 --num-envs 32 --duration-s 30 \
   --profile canonical --output-dir logs/eval/RUN/model_250_canonical

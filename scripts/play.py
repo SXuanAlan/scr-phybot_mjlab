@@ -21,10 +21,6 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-_REPO_SRC = Path(__file__).resolve().parents[1] / "src"
-if _REPO_SRC.is_dir() and str(_REPO_SRC) not in sys.path:
-  sys.path.insert(0, str(_REPO_SRC))
-
 import mjlab
 import torch
 import tyro
@@ -49,7 +45,7 @@ class PlayConfig(MjlabPlayConfig):
   gamepad: bool = False
   """Drive the walk velocity command from a physical gamepad (left stick = linear x/y, right stick = yaw)."""
   gamepad_auto_bridge: bool = True
-  """When --gamepad is enabled, also start scripts/gamepad_bridge.py as a local child process."""
+  """When --gamepad is enabled, also start scripts/deploy/gamepad_bridge.py as a local child process."""
   gamepad_host: str = "127.0.0.1"
   """Host the gamepad receiver binds to (use the SSH-forwarded loopback)."""
   gamepad_port: int = 8766
@@ -124,7 +120,7 @@ def _setup_gamepad(env, cfg: PlayConfig):
 
 def _start_gamepad_bridge(cfg: PlayConfig) -> subprocess.Popen | None:
   """Start the local gamepad bridge process for same-machine play."""
-  script = Path(__file__).resolve().with_name("gamepad_bridge.py")
+  script = Path(__file__).resolve().parent / "deploy" / "gamepad_bridge.py"
   cmd = [
     sys.executable,
     str(script),

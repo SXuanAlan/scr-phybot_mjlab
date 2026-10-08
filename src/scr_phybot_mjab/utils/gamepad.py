@@ -1,7 +1,7 @@
 """Receive gamepad joystick input for play and map it to a velocity command.
 
 The physical gamepad lives on a local machine and forwards normalized stick
-deflections over a TCP socket (see ``scripts/gamepad_bridge.py``), mirroring the
+deflections over a TCP socket (see ``scripts/deploy/gamepad_bridge.py``), mirroring the
 SpaceMouse bridge. This module runs the receiving side inside ``scripts/play.py``:
 a background thread reads newline-delimited JSON packets and the latest state is
 mapped to a ``(lin_vel_x, lin_vel_y, ang_vel_z)`` command on demand.
@@ -96,7 +96,7 @@ class GamepadReceiver:
     print(
       f"[INFO]: Gamepad receiver listening on {self._host}:{self._port} "
       f"(default speed: {SPEED_PRESETS[DEFAULT_SPEED_INDEX].name}). "
-      "Waiting for scripts/gamepad_bridge.py."
+      "Waiting for scripts/deploy/gamepad_bridge.py."
     )
 
   def _status_loop(self) -> None:

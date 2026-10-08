@@ -228,11 +228,11 @@ Wang 对照使用仓库原有模型参数，没有重新数字化文献。
 export PYTHONPATH=src
 export MUJOCO_GL=egl
 export OPENBLAS_NUM_THREADS=1
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/build_empirical_limit_surface.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/gen_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/audit_cad_climb_reference.py --stride 1
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/plot_stochastic_pad_limit_surface.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/render_climb_initial.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/build_empirical_limit_surface.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/gen_cad_climb_reference.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/audit_cad_climb_reference.py --stride 1
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/plot_stochastic_pad_limit_surface.py
+/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/render_climb_initial.py
 ```
 
 这些命令只生成/检查离线材料，最后一个会构建 GPU 环境并 reset，不执行物理步进。

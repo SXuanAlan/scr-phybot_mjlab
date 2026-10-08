@@ -64,14 +64,14 @@
 
 ```sh
 CLIMB_PYTHON=/home/spider/miniconda3/envs/env_mjlab15/bin/python
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 "$CLIMB_PYTHON" scripts/gen_cad_climb_reference.py \
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 "$CLIMB_PYTHON" scripts/reference/gen_cad_climb_reference.py \
   --source-motion src/scr_phybot_mjab/assets/motions/climb_cad_empirical.npy \
   --output src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy \
   --wall-angle 80 --unit-layout corners
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 "$CLIMB_PYTHON" scripts/audit_cad_climb_reference.py \
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 "$CLIMB_PYTHON" scripts/reference/audit_cad_climb_reference.py \
   --motion src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy \
   --stride 1 --output-dir docs/empirical_climb_review/corners80
-MUJOCO_GL=egl "$CLIMB_PYTHON" scripts/render_climb_video.py \
+MUJOCO_GL=egl "$CLIMB_PYTHON" scripts/reference/render_climb_video.py \
   src/scr_phybot_mjab/assets/motions/climb_cad_empirical_corners_a80.npy --distance 2.8
 ```
 

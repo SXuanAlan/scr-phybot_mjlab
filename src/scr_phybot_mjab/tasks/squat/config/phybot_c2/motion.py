@@ -1,4 +1,4 @@
-"""The squat clip (scripts/gen_squat_clip.py) and the joint groups the rewards track.
+"""The squat clip (scripts/reference/gen_squat_clip.py) and the joint groups the rewards track.
 
 Every policy joint is tracked. The neck is not policy-controlled; it is
 absent from the clip and its actuators hold it.

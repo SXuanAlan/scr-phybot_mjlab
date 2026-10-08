@@ -12,7 +12,7 @@
 
 ## 0 现状与事实（09-04 核实）
 
-**现役生成链**：`scripts/gen_climb_clip.py`（cycle，单层加权 DLS，焊接权重 1000/500）、`scripts/gen_mount_clip.py`（mount，同一 IK 引擎，5.7k 行，含 `--weld-hard` / `--weld-gimbal-deg` 两个未启用的 monkeypatch）、`scripts/validate_climb_reference.py`（静力存在性审计 + 时序审计）。
+**现役生成链**：`scripts/gen_climb_clip.py`（cycle，单层加权 DLS，焊接权重 1000/500）、`scripts/reference/gen_mount_clip.py`（mount，同一 IK 引擎，5.7k 行，含 `--weld-hard` / `--weld-gimbal-deg` 两个未启用的 monkeypatch）、`scripts/validate_climb_reference.py`（静力存在性审计 + 时序审计）。
 **现役消费端**：`climb_wall/mdp/motion.py::ClimbMotionCommand`（相位钟、RSI、R4 reseat hold、墙角旋转）；`climb_transition80/mdp/motion.py::TransitionMotionCommand`（终止保持、acyclic 表、FK 身体表 `build_fk_tables`、自适应 RSI、birth mask、rake 教室窗）。
 **实测缺陷**（本计划要修的）：
 
@@ -77,7 +77,7 @@
 ### 2.3 改动文件
 
 - `scripts/gen_climb_clip.py`：输出段加新键；`main` 记录 recipe。
-- `scripts/gen_mount_clip.py`：同上；`handoff_frame`/`handoff_state_id`。
+- `scripts/reference/gen_mount_clip.py`：同上；`handoff_frame`/`handoff_state_id`。
 - `src/.../climb_wall/mdp/motion.py`：`from_dict` 保持忽略未知键（已是）；可选读 `ee_gimbal_angles`。
 - `src/.../climb_transition80/mdp/motion.py::build_fk_tables`：万向节槽位读 clip。
 - `scripts/validate_climb_reference.py::_set_motion_frame`：写万向节角。
@@ -117,7 +117,7 @@
 - `solve_frame` 拆 `_assemble_rows` + `_step_legacy`（现有代码原样搬家）+ `_step_lexqp`；哪个垫焊着由任务 `hard` 标记经 `sid→ee` 反查，调用方签名不变。`_Residual` 增 `hard_pos/hard_rot/feasible/active_bounds`。
 - `_weld_task`：`hard = ik.hard_welds`。步后 `np.clip` 保留为断言。
 - `generate_clip`/`main`：新旋钮 `--hard-welds --gimbal-travel-deg 2.0 --limit-hard-margin-frac 0.01 --no-wall-clearance-hard --qp-solver --strict`；逐帧记录 `γ`；报告新增：硬残差、每垫万向节最大使用角、活跃界计数、不可行帧汇总；输出 schema v2。**默认全关 = 旧行为**。
-- `scripts/gen_mount_clip.py`：保留旧 `--weld-hard/--weld-gimbal-deg` monkeypatch 作 legacy；新增 `--lexqp` 直接透传 `_ClimbIK(...)`，不动其它逻辑。
+- `scripts/reference/gen_mount_clip.py`：保留旧 `--weld-hard/--weld-gimbal-deg` monkeypatch 作 legacy；新增 `--lexqp` 直接透传 `_ClimbIK(...)`，不动其它逻辑。
 - `scripts/validate_climb_reference.py`：写万向节角（步骤一已做）；报告打印 `ik_mode`。
 
 ### 3.3 验收门
@@ -153,7 +153,7 @@
 
 - 基座 |a| 无 >0.2 g 帧；关节速度 ≤ v_max、加速度 ≤ a_max（报告）；闭合误差 0（逐位）。
 - 三关证书 PASS；静力最坏利用率不劣于逐帧版 +0.02。
-- 与逐帧版逐关节差异统计；渲染视频人工核（`scripts/render_climb_video.py`）。
+- 与逐帧版逐关节差异统计；渲染视频人工核（`scripts/reference/render_climb_video.py`）。
 
 ---
 
@@ -163,7 +163,7 @@
   1. 静力审计（`validate_climb_reference.py` 主体，import 复用）；
   2. 时序审计（同上）；
   3. reference-hold 回放（`validate_microspine_constraint.py` reference-hold 模式）；
-  4. **出生稳定性门**：复用 `scripts/climb_cycle_passive_gate.py` / `mount_clip_passive_gate.py` 的规则（每 stride 帧出生 128 env、deploy PD 被动保持 40 步、guard 25 步后：种子丢失 ≤5%、万向节 p90 ≤2.5°、零墙碰/零摔），统一成一个函数。
+  4. **出生稳定性门**：复用 `scripts/reference/climb_cycle_passive_gate.py` / `mount_clip_passive_gate.py` 的规则（每 stride 帧出生 128 env、deploy PD 被动保持 40 步、guard 25 步后：种子丢失 ≤5%、万向节 p90 ≤2.5°、零墙碰/零摔），统一成一个函数。
 - 阈值沿用 passive gate 默认；`--strict` 下万向节超限为 FAIL。
 - 验收：现役 paced、a80 各出一份证书（作为基线数字进论文）；步骤二/三产物证书四关全绿。
 

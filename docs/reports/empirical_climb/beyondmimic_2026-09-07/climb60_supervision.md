@@ -1,6 +1,6 @@
 # 四角 60° 训练监督
 
-`scripts/supervise_climb60.py` 监视已在 tmux 中运行的
+`scripts/train/supervise_climb60.py` 监视已在 tmux 中运行的
 `Mjlab-Climb-Wall-Phybot-C2-Corners-A60`，训练使用 GPU 0、4096 个环境，
 考试子进程单独设置 `CUDA_VISIBLE_DEVICES=1`（内部设备名 `cuda:0`）。
 监督程序只更改当前 run 的课程许可和未来迭代门槛，不改奖励、硬件、物理容量，也不启动或重启训练。
@@ -15,7 +15,7 @@ logs/rsl_rl/phybot_c2_climb_wall_corners60/2026-09-07_21-17-18_bm16_4096_live
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /home/spider/miniconda3/envs/env_mjlab15/bin/python \
-  scripts/supervise_climb60.py \
+  scripts/train/supervise_climb60.py \
   logs/rsl_rl/phybot_c2_climb_wall_corners60/2026-09-07_21-17-18_bm16_4096_live --gpu 1
 ```
 

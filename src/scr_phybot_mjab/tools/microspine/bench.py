@@ -10,7 +10,7 @@ Each ``cmd_*`` bench returns whether it passed:
                       the robot falls, so the anchors carry the weight.
   cmd_readout         the efc-row force gather tracks the kinematic anchor
                       error under a time-varying torso push.
-scripts/validate_microspine_constraint.py runs them from the command line.
+scripts/validate/validate_microspine_constraint.py runs them from the command line.
 """
 
 from __future__ import annotations

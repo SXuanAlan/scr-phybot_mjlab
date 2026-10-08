@@ -38,7 +38,7 @@ unit 包络包含侧翼，不是打孔小面的宽高，也不代表实际钢针
 各块前表面均在 `y = -40` mm。共享力矩计算模块读取的中心跨度为
 切向 63 mm、横向 84 mm，与横 4、纵 3 的站点位置一致。
 
-当前 `scripts/build_phybot_microspine_assets.py` 的 `normalize_geometry()`
+当前 `scripts/microspine/build_phybot_microspine_assets.py` 的 `normalize_geometry()`
 为满足先前指定的安装偏置，对连接件顶点施加了非刚性位移：沿长度方向增加 34.5 mm，
 并按位置改变法向偏移，最大 12.25 mm。背板连接孔附近又移动了约 2.984 mm，
 使背板总高从 167.50 mm 变为 164.52 mm。因此这套装配是按照指定安装尺寸调整过的

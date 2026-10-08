@@ -57,7 +57,7 @@ normalized anchors: peak tension ratio ~0.12 at ~15 deg elevation (paper
 ~0.14 @ ~16 deg), pure lateral 0.57 (~0.56), pure reverse 0.043 (~0.05),
 forward lobe closing near 30 deg (~35-40 deg), azimuth profile smooth
 (max grid step < 0.01).
-``scripts/plot_wang_limit_surface.py`` regenerates these numbers and the
+``scripts/microspine/plot_wang_limit_surface.py`` regenerates these numbers and the
 cross-section figure.
 """
 

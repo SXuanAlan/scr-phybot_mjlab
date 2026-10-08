@@ -831,7 +831,7 @@ class TransitionMotionCommandCfg(ClimbMotionCommandCfg):
   # without a seeded pad never freeze; 0 = off.
   birth_freeze_steps: int = 0
   # (start, end) frame ranges, end exclusive, that RSI never births into,
-  # such as frames a passive hold cannot keep (scripts/mount_clip_passive_gate.py
+  # such as frames a passive hold cannot keep (scripts/reference/mount_clip_passive_gate.py
   # maps them). Those frames stay reachable by playing through from earlier births.
   birth_exclude_frames: tuple[tuple[int, int], ...] = ()
   # The ignition classroom: the ``spawn_early_fraction`` share of births

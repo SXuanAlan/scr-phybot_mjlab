@@ -106,7 +106,7 @@ def clip_data(b: MountBuilder, handoff_motion: Path) -> dict:
     :, [ik.qpos_addresses[name] for name in passive_names]
   ].astype(np.float32)
   out["pad_reference_point"] = "C"
-  out["generator"] = "scripts/gen_mount_clip.py"
+  out["generator"] = "scripts/reference/gen_mount_clip.py"
   out["handoff_motion"] = handoff_motion.name
   out["handoff_motion_sha256"] = hashlib.sha256(handoff_motion.read_bytes()).hexdigest()
   out["asset_xml_sha256"] = hashlib.sha256(PHYBOT_C2_XML.read_bytes()).hexdigest()
