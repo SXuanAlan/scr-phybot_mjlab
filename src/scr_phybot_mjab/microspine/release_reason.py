@@ -2,6 +2,8 @@
 
 from enum import IntEnum
 
+__all__ = ("ReleaseReason", "release_reason_name")
+
 
 class ReleaseReason(IntEnum):
   """Release codes the affordance writes on the step a latch drops.
@@ -18,3 +20,11 @@ class ReleaseReason(IntEnum):
   EMPIRICAL_EARLY = 8
   # A moving grasp surface no longer covers the pad.
   OFF_SURFACE = 9
+
+
+def release_reason_name(code: int) -> str:
+  """The lower-case name of a release code (2 -> "normal"); unassigned codes read "code<N>"."""
+  try:
+    return ReleaseReason(int(code)).name.lower()
+  except ValueError:
+    return f"code{int(code)}"

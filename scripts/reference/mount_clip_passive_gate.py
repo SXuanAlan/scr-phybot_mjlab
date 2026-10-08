@@ -29,6 +29,7 @@ from mjlab.tasks.registry import load_env_cfg
 
 import scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants as K
 import scr_phybot_mjab.tasks  # noqa
+from scr_phybot_mjab.microspine.release_reason import release_reason_name
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -83,17 +84,6 @@ def main(argv: list[str] | None = None) -> None:
 
   EE = ["LH", "RH", "LF", "RF"]
   EEJ = ["left_hand", "right_hand", "left_foot", "right_foot"]
-  REASON = {
-    0: "none",
-    1: "rev-shear",
-    2: "tension",
-    3: "lateral",
-    4: "ultimate",
-    6: "dr",
-    7: "emp-domain",
-    8: "emp-early",
-    9: "off-surface",
-  }
   tnames = list(term.active_terms)
 
   def tidx(n):
@@ -158,7 +148,7 @@ def main(argv: list[str] | None = None) -> None:
     fall = float((death == I_FALL).float().mean()) if I_FALL >= 0 else 0.0
     rip = float((death == I_RIP).float().mean()) if I_RIP >= 0 else 0.0
     rtxt = " ".join(
-      f"{EE[e]} {REASON[int(r)]}"
+      f"{EE[e]} {release_reason_name(r)}"
       for e in sched
       for r in [torch.bincount(reason[first_rel[:, e] >= 0, e], minlength=7).argmax()]
       if loss_ee[e] > 0

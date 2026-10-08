@@ -40,18 +40,12 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 
 import numpy as np
 
+from scr_phybot_mjab.microspine.release_reason import release_reason_name
 from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
 
 REPO = REPOSITORY_ROOT
 
 EE_SHORT = ("LH", "RH", "LF", "RF")
-REASON_NAMES = {
-  1: "reverse-shear(free)",
-  2: "tension",
-  3: "lateral",
-  4: "ultimate",
-  6: "dr-forced",
-}
 # Categorical slots 1-3 of the validated reference palette (all-pairs safe).
 C_UP, C_LAT, C_IN = "#2a78d6", "#eb6834", "#1baf7a"
 C_CONTACT = "#52514e"
@@ -396,7 +390,8 @@ def summarize(rec: dict) -> None:
   n_forced = int(rec["forced"].sum())
   hist = {}
   for r in rec["reason"][rec["forced"]]:
-    hist[REASON_NAMES.get(int(r), str(int(r)))] = hist.get(REASON_NAMES.get(int(r), str(int(r))), 0) + 1
+    name = release_reason_name(r)
+    hist[name] = hist.get(name, 0) + 1
   print(f"forced releases={n_forced} reasons={hist}")
   print(
     f"height gained (last)={rec['height'][-1]:.3f} m; resets at"

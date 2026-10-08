@@ -20,6 +20,7 @@ from mjlab.tasks.registry import load_env_cfg
 
 import scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants as K
 import scr_phybot_mjab.tasks  # noqa
+from scr_phybot_mjab.microspine.release_reason import release_reason_name
 from scr_phybot_mjab.tasks.climb_wall.mdp.curriculums import pin_curricula_to_final_stage
 
 
@@ -71,16 +72,6 @@ def main(argv: list[str] | None = None) -> None:
 
   EE = ["LH", "RH", "LF", "RF"]
   EEJ = ["left_hand", "right_hand", "left_foot", "right_foot"]
-  REASON = {
-    0: "none",
-    1: "rev-shear",
-    2: "tension",
-    3: "lateral",
-    4: "ultimate",
-    6: "dr",
-    7: "emp-domain",
-    8: "emp-early",
-  }
   tnames = list(term.active_terms)
   gim_ids = [i for i, n in enumerate(robot.joint_names) if "gimbal" in n]
   gim_ee = [[k for k, i in enumerate(gim_ids) if EEJ[e] in robot.joint_names[i]] for e in range(4)]
@@ -144,7 +135,7 @@ def main(argv: list[str] | None = None) -> None:
       f"{tnames[k]} {int((death == k).sum()) / N:.2f}" for k in range(len(tnames)) if int((death == k).sum())
     )
     rtxt = " ".join(
-      f"{EE[e]} {REASON[int(torch.bincount(reason[first_rel[:, e] >= 0, e], minlength=7).argmax())]}"
+      f"{EE[e]} {release_reason_name(int(torch.bincount(reason[first_rel[:, e] >= 0, e], minlength=7).argmax()))}"
       for e in sched
       if loss_ee[e] > 0
     )

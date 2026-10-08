@@ -19,17 +19,10 @@ from pathlib import Path
 
 import numpy as np
 
+from scr_phybot_mjab.microspine.release_reason import ReleaseReason
+
 TASK = "Mjlab-Climb-Wall-Phybot-C2-Corners-A60"
 PAD_NAMES = ("LH", "RH", "LF", "RF")
-RELEASE_NAMES = {
-  1: "reverse_shear",
-  2: "normal_capacity",
-  3: "lateral",
-  4: "ultimate",
-  6: "external_dr",
-  7: "empirical_domain",
-  8: "empirical_early_loading",
-}
 
 
 def write_json(path: Path, value: dict) -> None:
@@ -264,7 +257,9 @@ def summarize(trajectory, episodes, num_envs, dt, duration_s, cycle_duration_s):
   for ep in episodes:
     for term in ep["termination_reasons"]:
       termination_counts[term] = termination_counts.get(term, 0) + 1
-  reason_counts = {name: int((trajectory["release_reason"] == reason).sum()) for reason, name in RELEASE_NAMES.items()}
+  reason_counts = {
+    reason.name.lower(): int((trajectory["release_reason"] == reason).sum()) for reason in ReleaseReason if reason
+  }
   # This is explicitly an automatic candidate check, not a substitute for
   # the schedule plot and video review. A static seeded hang cannot pass.
   sufficient_horizon = duration_s >= 30.0 - dt / 2

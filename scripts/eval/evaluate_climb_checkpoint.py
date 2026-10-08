@@ -25,6 +25,9 @@ import math
 import os
 from pathlib import Path
 
+# Before anything imports mujoco, which picks its GL backend on import.
+os.environ.setdefault("MUJOCO_GL", "egl")
+
 from scr_phybot_mjab.tools.climb_evaluation import TASK, evaluate_checkpoint
 
 
@@ -59,7 +62,6 @@ def main(argv: list[str] | None = None) -> None:
   args.checkpoint = args.checkpoint.resolve(strict=True)
   args.output_dir = args.output_dir.resolve()
   args.output_dir.mkdir(parents=True, exist_ok=True)
-  os.environ.setdefault("MUJOCO_GL", "egl")
   evaluate_checkpoint(args)
 
 
