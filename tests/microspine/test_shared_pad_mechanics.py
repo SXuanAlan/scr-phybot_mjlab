@@ -173,7 +173,7 @@ def test_active_offline_tools_do_not_import_other_cli_scripts():
       "plot_stochastic_pad_limit_surface.py",
     )
   ]
-  paths += list((root / "src/scr_phybot_mjab/tools/climbing_reference").glob("*.py"))
+  paths += list((root / "src/scr_phybot_mjab/tools/climbing_reference").rglob("*.py"))
   paths += list((root / "src/scr_phybot_mjab/tools/microspine").glob("*.py"))
   for path in paths:
     for node in ast.walk(ast.parse(path.read_text())):
