@@ -33,8 +33,10 @@ REMOVED_OBS = (
 )
 """Climb lanes left out: on a mount at a pinned 80-degree wall each is
 constant or another lane's copy (root_pose_world gives the height, the face
-corners the wall). The motion_command chart also drops its six constant
-lanes, 16 -> 10."""
+corners the wall). The motion_command chart has 10 lanes instead of 16:
+one next-edge countdown per pad replaces the release and regrip
+countdowns, and the toe-brace flags go (the mount clip has no toe
+braces)."""
 
 ACTOR_TERMS = (
   "base_lin_vel",

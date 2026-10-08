@@ -25,8 +25,9 @@ per-env wall frame) for a single acyclic clip:
   clip second, concentrate births where episodes fail.
 * A 10-lane motion command, ``[cos, sin, engaged(4), t_next_edge(4)]``:
   each pad reads the countdown to its own next edge (release while engaged,
-  regrip while not). Climb's 16-lane chart is constant in six lanes on this
-  clip: it has no toe braces, and only the left hand ever releases.
+  regrip while not), where climb's 16-lane chart carries separate release
+  and regrip countdowns plus two toe-brace flags. The mount clip has no toe
+  braces, and its feet never release.
 """
 
 from __future__ import annotations
@@ -704,8 +705,8 @@ class TransitionMotionCommand(ClimbMotionCommand):
 
   @property
   def command(self) -> torch.Tensor:
-    """Transition80 motion_command, (E, 10) = [cos, sin, engaged(4),
-    t_next_edge(4)] — see the module docstring (MOTION_COMMAND 10).
+    """The 10-lane motion command, (E, 10) = [cos, sin, engaged(4),
+    t_next_edge(4)]; see the module docstring.
     ``ref_edge_countdowns`` (both lanes) stays available for the reward /
     termination / Phi code."""
     phase = self.time_steps.float() / self.clip.cycle_frames * (2.0 * torch.pi)
