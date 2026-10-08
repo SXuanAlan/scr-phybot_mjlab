@@ -1,9 +1,9 @@
 """Play/evaluate RL agent after registering scr_phybot_mjab tasks.
 
-Adds climb-wall gravity playback controls on top of mjlab's play script:
+Adds climb wall-angle playback controls on top of mjlab's play script:
 
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file logs/.../model_2000.pt
-  python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --gravity-angle-deg 90 --agent zero
+  python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --wall-angle-deg 90 --agent zero
   python scripts/play.py Mjlab-Climb-Wall-Phybot-C2 --checkpoint-file ... --disable-microspine
 
 Walk can also be driven by a local physical gamepad (left stick = linear x/y,
@@ -73,24 +73,20 @@ def _display_available() -> bool:
     return False
 
 
-def _normalize_cli_aliases(argv: list[str]) -> list[str]:
-  aliases = {
-    "--gravity-angle": "--gravity-angle-deg",
-    "--gravity-angle-degrees": "--gravity-angle-deg",
-  }
+def _expand_bare_bool_flags(argv: list[str]) -> list[str]:
+  """Accept bare ``--gamepad``-style flags; mjlab's tyro flags want ``--gamepad True``."""
   bool_flags = {"--disable-microspine", "--gamepad", "--gamepad-auto-bridge"}
-  normalized: list[str] = []
-  for idx, raw_arg in enumerate(argv):
-    if raw_arg == "--no-gamepad-auto-bridge":
-      normalized.extend(["--gamepad-auto-bridge", "False"])
+  expanded: list[str] = []
+  for idx, arg in enumerate(argv):
+    if arg == "--no-gamepad-auto-bridge":
+      expanded.extend(["--gamepad-auto-bridge", "False"])
       continue
-    arg = aliases.get(raw_arg, raw_arg)
-    normalized.append(arg)
+    expanded.append(arg)
     if arg in bool_flags:
       next_arg = argv[idx + 1] if idx + 1 < len(argv) else None
       if next_arg is None or next_arg.startswith("-"):
-        normalized.append("True")
-  return normalized
+        expanded.append("True")
+  return expanded
 
 
 def _setup_gamepad(env, cfg: PlayConfig):
@@ -319,14 +315,17 @@ def run_play(task_id: str, cfg: PlayConfig):
   env.close()
 
 
-def main():
+def main(argv: list[str] | None = None) -> None:
   import scr_phybot_mjab.tasks  # noqa: F401
 
-  sys.argv[:] = _normalize_cli_aliases(sys.argv)
+  argv = _expand_bare_bool_flags(sys.argv[1:] if argv is None else list(argv))
+  if "--viewer" not in argv and not _display_available():
+    argv += ["--viewer", "viser"]
 
   all_tasks = list_tasks()
   chosen_task, remaining_args = tyro.cli(
     tyro.extras.literal_type_from_choices(all_tasks),
+    args=argv,
     add_help=False,
     return_unknown_args=True,
     config=mjlab.TYRO_FLAGS,
@@ -344,6 +343,4 @@ def main():
 
 
 if __name__ == "__main__":
-  if "--viewer" not in sys.argv and not _display_available():
-    sys.argv.extend(["--viewer", "viser"])
   main()

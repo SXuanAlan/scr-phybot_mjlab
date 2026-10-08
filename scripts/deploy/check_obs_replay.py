@@ -105,7 +105,7 @@ def build_observations(log: deploy_logs.RealLog, rows: np.ndarray, actions: np.n
   return obs
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   src = parser.add_mutually_exclusive_group(required=True)
   src.add_argument("--run-dir", type=Path, help="robot_logs run dir (data.lcmlog)")
@@ -128,7 +128,7 @@ def main() -> None:
   parser.add_argument("--atol", type=float, default=1e-3, help="max |predicted - executed| action to PASS")
   parser.add_argument("--plot", action="store_true")
   parser.add_argument("--output-dir", type=Path, default=None)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   deploy = args.deploy_repo
   policy_path = args.policy or deploy / "tasks/walk_amp/model/policy.pt"

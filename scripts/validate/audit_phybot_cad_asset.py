@@ -1,5 +1,6 @@
 """Verify the compiled asset against the source CAD and render a comparison."""
 
+import argparse
 import json
 import os
 
@@ -10,7 +11,8 @@ from scr_phybot_mjab.tools.microspine.cad_audit import audit_rigid_cad_asset, re
 from scr_phybot_mjab.tools.paths import CLIMB_REVIEW_DIR, FIGURES_DIR
 
 
-def main():
+def main(argv: list[str] | None = None):
+  argparse.ArgumentParser(description=__doc__).parse_args(argv)
   report = audit_rigid_cad_asset()
   path = CLIMB_REVIEW_DIR / "rigid_cad_asset_audit.json"
   path.write_text(json.dumps(report, indent=2) + "\n")

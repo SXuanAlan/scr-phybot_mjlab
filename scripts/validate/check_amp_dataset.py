@@ -149,7 +149,7 @@ def _render_clip(
   return out
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument(
     "--data-dir",
@@ -166,7 +166,7 @@ def main() -> None:
   parser.add_argument("--height", type=int, default=720)
   parser.add_argument("--render-stride", type=int, default=2)
   parser.add_argument("--max-render-frames", type=int, default=500)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   expected_joints = list(PHYBOT_C2_POLICY_JOINT_NAMES)
   paths = sorted(args.data_dir.glob("*.npy"))

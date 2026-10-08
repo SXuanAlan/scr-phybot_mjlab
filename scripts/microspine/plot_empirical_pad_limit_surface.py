@@ -227,7 +227,7 @@ def make_figure(pad: EmpiricalPad, trials, stem: Path):
   )
 
 
-def main():
+def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
   parser.add_argument("--out", type=Path, default=FIGURES_DIR / "fig_pad_limit_surface_empirical")
@@ -235,7 +235,7 @@ def main():
   parser.add_argument("--cols", type=int)
   parser.add_argument("--span-rake-m", type=float)
   parser.add_argument("--span-lateral-m", type=float)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   geometry_args = [args.rows, args.cols, args.span_rake_m, args.span_lateral_m]
   if any(x is None for x in geometry_args):
     from scr_phybot_mjab.tools.microspine.wang_limit_surface import climb_wang_pad_cfg

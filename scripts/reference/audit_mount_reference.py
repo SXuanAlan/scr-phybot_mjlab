@@ -141,11 +141,11 @@ def audit_motion_file(path: Path) -> dict:
   }
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("motion_file", type=Path)
   parser.add_argument("--output", type=Path)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   report = audit_motion_file(args.motion_file)
   output = args.output or args.motion_file.with_suffix(".audit.json")
   output.write_text(json.dumps(report, indent=2) + "\n")

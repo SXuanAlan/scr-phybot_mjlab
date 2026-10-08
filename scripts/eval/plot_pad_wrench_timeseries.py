@@ -60,7 +60,7 @@ C_RELEASE = "#e34948"
 C_WEIGHT = "#52514e"
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
   p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   p.add_argument("ckpt", nargs="?", type=Path, help="policy checkpoint (.pt)")
   p.add_argument("--task", default="Mjlab-Climb-Wall-Phybot-C2")
@@ -77,7 +77,7 @@ def parse_args() -> argparse.Namespace:
     help="output prefix (default logs/eval/<run>/padwrench_<angle>deg_<ckpt>)",
   )
   p.add_argument("--replot", type=Path, default=None, help="re-render from a saved .npz")
-  args = p.parse_args()
+  args = p.parse_args(argv)
   if args.replot is None and args.ckpt is None:
     p.error("a checkpoint (or --replot <npz>) is required")
   return args
@@ -410,8 +410,8 @@ def summarize(rec: dict) -> None:
   )
 
 
-def main() -> None:
-  args = parse_args()
+def main(argv: list[str] | None = None) -> None:
+  args = parse_args(argv)
   if args.replot is not None:
     data = np.load(args.replot, allow_pickle=False)
     rec = {k: data[k] for k in data.files}

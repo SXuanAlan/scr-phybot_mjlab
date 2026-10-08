@@ -229,7 +229,7 @@ def _report(
   print(f"saved {out}")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
     "--motion-file",
@@ -239,7 +239,7 @@ def main() -> None:
   parser.add_argument("--output-dir", type=Path, default=REPOSITORY_ROOT / "results/pd_tracking")
   parser.add_argument("--settle-s", type=float, default=1.0, help="hold frame 0 before playback (s)")
   parser.add_argument("--sat-threshold", type=float, default=0.95)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   replay(args.motion_file, args.output_dir, args.settle_s, args.sat_threshold)
 

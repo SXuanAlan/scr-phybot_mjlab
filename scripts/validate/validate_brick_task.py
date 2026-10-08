@@ -17,7 +17,7 @@ from scr_phybot_mjab.tasks.brick.config.phybot_c2.env_cfgs import brick_env_cfg
 
 
 @torch.inference_mode()
-def main():
+def main(argv: list[str] | None = None):
   p = argparse.ArgumentParser(description=__doc__)
   p.add_argument("--stage", choices=("full", "hold", "engage", "place"), default="full")
   p.add_argument("--num-envs", type=int, default=4)
@@ -29,7 +29,7 @@ def main():
   p.add_argument("--no-grip", action="store_true")
   p.add_argument("--policy", type=Path, help="Exported TorchScript policy, actor normalization included")
   p.add_argument("--report", type=Path)
-  a = p.parse_args()
+  a = p.parse_args(argv)
   cfg = brick_env_cfg(play=not a.dr, stage=a.stage, randomize=a.dr, grip_enabled=not a.no_grip)
   cfg.scene.num_envs = a.num_envs
   cfg.seed = a.seed

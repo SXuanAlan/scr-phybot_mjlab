@@ -388,7 +388,7 @@ def generate_clip(
     print("  WARNING: foot IK did not converge; reduce --depth or check foot targets.")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
     "--output",
@@ -413,7 +413,7 @@ def main() -> None:
     action="store_false",
     help="disable CoM-over-feet pelvis balancing",
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   generate_clip(
     output=args.output,

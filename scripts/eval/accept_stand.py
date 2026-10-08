@@ -32,7 +32,7 @@ def _geom_id_with_suffix(model, suffix: str) -> int:
   return matches[0]
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--checkpoint", required=True)
   parser.add_argument("--num-envs", type=int, default=256)
@@ -44,7 +44,7 @@ def main() -> None:
     action="store_true",
     help="use deterministic play reset instead of the training recovery reset",
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   configure_torch_backends()
   cfg = load_env_cfg(TASK, play=args.nominal)

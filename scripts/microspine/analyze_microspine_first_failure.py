@@ -623,14 +623,14 @@ R1–R3 各 77 次；S=0 的正、负 side 是相同载荷目标的重复，合�
   return audit
 
 
-def main():
+def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--data", type=Path, default=ROOT / "data/microspine/raw/20260922-163807")
   parser.add_argument("--out", type=Path)
   parser.add_argument(
     "--skip-audit-pdf", action="store_true", help="Skip the full per-trial review PDF during iteration"
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   data = args.data.resolve()
   out = (args.out or LIMIT_SURFACE_ANALYSIS_DIR / data.name).resolve()
   if out == data or data in out.parents:

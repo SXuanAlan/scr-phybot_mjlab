@@ -64,7 +64,7 @@ class BridgeConfig:
   calibrate: bool
 
 
-def _parse_args() -> BridgeConfig:
+def _parse_args(argv: list[str] | None = None) -> BridgeConfig:
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--host", default="127.0.0.1", help="Forwarded TCP host.")
   parser.add_argument("--port", type=int, default=8766, help="Forwarded TCP port.")
@@ -82,7 +82,7 @@ def _parse_args() -> BridgeConfig:
   parser.add_argument("--speed-down-button", type=int, default=4, help="Button to slow down (default LB).")
   parser.add_argument("--list", dest="list_devices", action="store_true", help="List gamepads and exit.")
   parser.add_argument("--calibrate", action="store_true", help="Live-print axis/button values and exit.")
-  a = parser.parse_args()
+  a = parser.parse_args(argv)
   return BridgeConfig(
     host=a.host,
     port=a.port,
@@ -224,8 +224,8 @@ def _button(joystick, index: int) -> bool:
   return bool(joystick.get_button(index))
 
 
-def main() -> None:
-  config = _parse_args()
+def main(argv: list[str] | None = None) -> None:
+  config = _parse_args(argv)
   try:
     import pygame
   except ImportError as exc:

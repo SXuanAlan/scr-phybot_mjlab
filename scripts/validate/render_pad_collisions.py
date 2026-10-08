@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import os
 from xml.etree import ElementTree as ET
@@ -14,7 +15,8 @@ from PIL import Image, ImageDraw, ImageFont
 from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
 
 
-def main():
+def main(argv: list[str] | None = None):
+  argparse.ArgumentParser(description=__doc__).parse_args(argv)
   root = REPOSITORY_ROOT
   asset = root / "src/scr_phybot_mjab/assets/phybot_c2"
   original = ET.parse(asset / "xml/phybot_c2.xml")

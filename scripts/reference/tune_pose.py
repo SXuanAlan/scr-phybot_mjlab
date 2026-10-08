@@ -97,7 +97,7 @@ def _joint_limits(model: mujoco.MjModel, jnt_id: int) -> tuple[float, float]:
   return (-1.0, 1.0)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description="Interactive pose tuner.")
   parser.add_argument(
     "--robot",
@@ -105,7 +105,7 @@ def main() -> None:
     default="phybot_c2",
     help="Robot to display (default: phybot_c2).",
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   spec = _build_scene_spec(args.robot)
   model = spec.compile()

@@ -7,6 +7,7 @@ the copied host model's appearance; it does not move the robot to fit the wall.
 
 from __future__ import annotations
 
+import argparse
 import copy
 import json
 import os
@@ -240,7 +241,8 @@ def render(model, data, report):
   print("Saved", OUTPUT / "phybot_c2_climb_initial.png")
 
 
-def main():
+def main(argv: list[str] | None = None):
+  argparse.ArgumentParser(description=__doc__).parse_args(argv)
   render(*capture())
 
 

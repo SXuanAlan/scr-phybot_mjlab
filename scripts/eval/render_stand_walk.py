@@ -16,7 +16,7 @@ from mjlab.utils.torch import configure_torch_backends
 from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument("--task", default="Mjlab-Walk-Amp-Phybot-C2")
   ap.add_argument("--ckpt", required=True)
@@ -31,7 +31,7 @@ def main() -> None:
     default="stand,walk06,walk10,stopgo",
     help="comma-separated: stand,walk06,walk10,side,stopgo",
   )
-  args = ap.parse_args()
+  args = ap.parse_args(argv)
 
   configure_torch_backends()
   device = args.device

@@ -11,32 +11,18 @@ written next to the model.
 
 from __future__ import annotations
 
+import argparse
 import json
-import sys
-from dataclasses import dataclass
 from pathlib import Path
 
-import mjlab
+import mjlab  # noqa: F401  (initialize mjlab before project imports)
 import torch
-import tyro
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg
 from mjlab.utils.torch import configure_torch_backends
 
+from scr_phybot_mjab.utils.cli import add_bool_option
 from scr_phybot_mjab.utils.runtime import load_policy, make_env
-
-
-@dataclass(frozen=True)
-class ExportConfig:
-  checkpoint_file: str
-  """Path to the rsl_rl checkpoint (model_<iter>.pt)."""
-  output_dir: str | None = None
-  """Output directory. Defaults to `<checkpoint dir>/exported/`."""
-  onnx: bool = False
-  """Also export an ONNX copy."""
-  self_test_steps: int = 100
-  """Env steps to roll for the jit-vs-runner consistency check (0 disables)."""
-  device: str | None = None
 
 
 def _obs_slice_table(env: ManagerBasedRlEnv, group: str = "actor"):
@@ -54,7 +40,7 @@ def _obs_slice_table(env: ManagerBasedRlEnv, group: str = "actor"):
   return table, offset
 
 
-def run_export(task_id: str, cfg: ExportConfig):
+def run_export(task_id: str, cfg: argparse.Namespace) -> None:
   configure_torch_backends()
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -195,23 +181,20 @@ def run_export(task_id: str, cfg: ExportConfig):
   env.close()
 
 
-def main():
+def main(argv: list[str] | None = None) -> None:
   import scr_phybot_mjab.tasks  # noqa: F401
 
-  all_tasks = list_tasks()
-  chosen_task, remaining_args = tyro.cli(
-    tyro.extras.literal_type_from_choices(all_tasks),
-    add_help=False,
-    return_unknown_args=True,
-    config=mjlab.TYRO_FLAGS,
+  parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument("task", choices=list_tasks())
+  parser.add_argument("--checkpoint-file", required=True, help="the rsl_rl checkpoint (model_<iter>.pt)")
+  parser.add_argument("--output-dir", help="output directory (default: <checkpoint dir>/exported/)")
+  add_bool_option(parser, "--onnx", default=False, help="also export an ONNX copy")
+  parser.add_argument(
+    "--self-test-steps", type=int, default=100, help="env steps of the jit-vs-runner check, 0 disables (default: 100)"
   )
-  args = tyro.cli(
-    ExportConfig,
-    args=remaining_args,
-    prog=sys.argv[0] + f" {chosen_task}",
-    config=mjlab.TYRO_FLAGS,
-  )
-  run_export(chosen_task, args)
+  parser.add_argument("--device", help="default: cuda:0 when available, else cpu")
+  args = parser.parse_args(argv)
+  run_export(args.task, args)
 
 
 if __name__ == "__main__":

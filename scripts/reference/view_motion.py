@@ -42,7 +42,7 @@ def _load(motion_file: Path):
   )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
     "motion_file",
@@ -52,7 +52,7 @@ def main() -> None:
     help=f"clip .npy to view (default: {_DEFAULT_CLIP.name})",
   )
   parser.add_argument("--speed", type=float, default=1.0, help="playback speed multiplier")
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   joints, joint_pos, root_pos, root_quat_xyzw, fps = _load(args.motion_file)
 

@@ -156,7 +156,7 @@ def force_slice_grid(surf: PadSurface, ft: float, fl_max: float, fn_lo: float, f
   return fl.numpy(), fn.numpy(), occ.numpy()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--out-stem", default="docs/figures/fig_pad_limit_surface_3d")
   parser.add_argument(
@@ -166,7 +166,7 @@ def main() -> int:
   )
   parser.add_argument("--defaults", action="store_true")
   parser.add_argument("--f0", type=float, default=None)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   cfg = load_limit_surface_cfg(args.defaults)
   f0 = float(args.f0) if args.f0 is not None else float(cfg.f_t_max_range[0])

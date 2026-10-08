@@ -51,14 +51,14 @@ def caption_frame(frame, phase, time_s, duration_s, font):
   return np.asarray(canvas)
 
 
-def main():
+def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--reference", type=Path, default=REFERENCE_PATH)
   parser.add_argument("--output", type=Path, default=Path("/tmp/brick_reference_preview.png"))
   parser.add_argument("--fps", type=int, default=25, help="MP4 frames per second")
   parser.add_argument("--width", type=int, default=640)
   parser.add_argument("--height", type=int, default=640, help="Scene height, excluding the MP4 caption")
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   if args.output.suffix.lower() not in (".png", ".mp4"):
     parser.error("--output must end in .png or .mp4")
   if min(args.fps, args.width, args.height) <= 0:

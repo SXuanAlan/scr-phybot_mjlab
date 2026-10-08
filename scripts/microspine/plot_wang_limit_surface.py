@@ -27,7 +27,7 @@ from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
 )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--out", default="docs/wang2017_limit_surface.png")
   parser.add_argument(
@@ -35,7 +35,7 @@ def main() -> int:
     action="store_true",
     help="Use the climb pad instead of WangPadCfg defaults.",
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   cfg = climb_wang_pad_cfg() if args.climb else WangPadCfg()
 
   lut = build_capacity_lut(cfg, "cpu")

@@ -236,7 +236,7 @@ def draw_theory_panels(axs, th: dict, f0: float) -> None:
   ax.set_title("(c) bending interaction", fontsize=7.5)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
     "--out-stem",
@@ -254,7 +254,7 @@ def main() -> int:
     default=None,
     help="Per-pad F0 [N] for the physical-unit plots (default: DR floor).",
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   cfg = load_limit_surface_cfg(args.defaults)
   f0_lo, f0_hi = cfg.f_t_max_range

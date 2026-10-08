@@ -28,7 +28,7 @@ from scr_phybot_mjab.utils.runtime import load_policy, make_env
 DEFAULT_TASK = "Mjlab-Walk-Phybot-C2"
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument("--ckpt", required=True)
   ap.add_argument("--task", default=DEFAULT_TASK)
@@ -36,7 +36,7 @@ def main() -> None:
   ap.add_argument("--device", default="cuda:0")
   ap.add_argument("--steps", type=int, default=750, help="steps per phase (50 Hz)")
   ap.add_argument("--phases", default="stand,walk,sidestep,stopgo")
-  args = ap.parse_args()
+  args = ap.parse_args(argv)
 
   configure_torch_backends()
   device = args.device

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -18,7 +19,8 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
 from scr_phybot_mjab.tools.paths import FIGURES_DIR
 
 
-def main():
+def main(argv: list[str] | None = None):
+  argparse.ArgumentParser(description=__doc__).parse_args(argv)
   output = FIGURES_DIR
   output.mkdir(parents=True, exist_ok=True)
   width, height = 1100, 1400

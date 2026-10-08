@@ -330,7 +330,7 @@ def report(
   print(f"saved {out_dir / 'torque_legs.png'}")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   src = parser.add_mutually_exclusive_group(required=True)
   src.add_argument("--run-dir", type=Path, help="robot_logs run dir (data.lcmlog)")
@@ -353,7 +353,7 @@ def main() -> None:
   parser.add_argument("--settle-ticks", type=int, default=100, help="vertical contact-loading settle before the replay")
   parser.add_argument("--div-threshold-deg", type=float, default=5.0)
   parser.add_argument("--output-dir", type=Path, default=None, help="default: results/sim2real/<run name>")
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   csv = deploy_logs.ensure_state_csv(args.run_dir or args.csv, args.deploy_repo)
   log = deploy_logs.load_state_csv(csv)

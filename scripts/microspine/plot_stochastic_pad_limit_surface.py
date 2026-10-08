@@ -6,6 +6,7 @@ first-unit release, NOT hardware-calibrated pad reliability/confidence bands.
 
 from __future__ import annotations
 
+import argparse
 import json
 
 import matplotlib
@@ -23,7 +24,8 @@ from scr_phybot_mjab.tools.plotting import RC_PARAMS, save_three, style_3d, styl
 STEM = FIGURES_DIR / "fig_pad_limit_surface_stochastic_cad"
 
 
-def main():
+def main(argv: list[str] | None = None):
+  argparse.ArgumentParser(description=__doc__).parse_args(argv)
   plt.rcParams.update(RC_PARAMS)
   pad = StochasticPad()
   ft = np.linspace(pad.count * pad.surface.s_min, pad.count * pad.surface.s_max, 46)

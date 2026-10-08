@@ -12,7 +12,7 @@ from scr_phybot_mjab.tasks.brick.reference import REFERENCE_PATH
 from scr_phybot_mjab.tools.brick_reference import audit_reference, generate_reference
 
 
-def main():
+def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--output", type=Path, default=REFERENCE_PATH)
   parser.add_argument("--knots", type=int, default=21)
@@ -25,7 +25,7 @@ def main():
   parser.add_argument("--lift-height", type=float, default=0.12)
   parser.add_argument("--unit-layout", choices=("all", "corners"), default=DEFAULT_UNIT_LAYOUT)
   parser.add_argument("--audit-only", action="store_true", help="Re-audit the existing --output file")
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   brick = BrickCfg(
     size=tuple(args.size),
     mass=args.mass,

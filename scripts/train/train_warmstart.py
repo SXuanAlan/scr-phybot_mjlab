@@ -22,7 +22,7 @@ DEFAULT_TASK = "Mjlab-Walk-Amp-Phybot-C2"
 DEFAULT_WARMSTART = "logs/rsl_rl/phybot_c2_walk_amp/2026-06-13_10-08-48_autoresearch_4096x12000_s1_gpu0/model_11999.pt"
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
   parser = argparse.ArgumentParser()
   parser.add_argument("task", nargs="?", default=DEFAULT_TASK)
   parser.add_argument("--warmstart-checkpoint", type=Path, default=Path(DEFAULT_WARMSTART))
@@ -38,11 +38,11 @@ def _parse_args() -> argparse.Namespace:
     default="actor",
     help=("actor: load only actor; policy: actor+critic+discriminator; full: policy plus optimizer"),
   )
-  return parser.parse_args()
+  return parser.parse_args(argv)
 
 
-def main() -> None:
-  args = _parse_args()
+def main(argv: list[str] | None = None) -> None:
+  args = _parse_args(argv)
   if not args.warmstart_checkpoint.exists():
     raise FileNotFoundError(args.warmstart_checkpoint)
 

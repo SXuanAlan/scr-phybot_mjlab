@@ -7,16 +7,13 @@ Examples:
       --agent trained --checkpoint-file logs/.../model.pt
 """
 
+import argparse
 import re
-import sys
-from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
-from typing import Literal
 
 import mjlab  # noqa: F401
 import torch
-import tyro
 from mjlab.tasks.registry import (
   list_tasks,
   load_env_cfg,
@@ -25,35 +22,15 @@ from mjlab.tasks.registry import (
 from mjlab.utils.torch import configure_torch_backends
 
 import scr_phybot_mjab.tasks  # noqa: F401
+from scr_phybot_mjab.utils.cli import add_bool_option
 from scr_phybot_mjab.utils.runtime import load_policy, make_env, pin_climb_wall_angle, resolve_checkpoint
-
-
-@dataclass(frozen=True)
-class Cfg:
-  agent: Literal["zero", "random", "trained"] = "trained"
-  checkpoint_file: str | None = None
-  wandb_run_path: str | None = None
-  wandb_checkpoint_name: str | None = None
-  num_envs: int = 16
-  steps: int = 500
-  device: str | None = None
-  sat_threshold: float = 0.95
-  """Ratio |tau|/limit at or above which a sample counts as saturated."""
-  wall_angle_deg: float | None = None
-  """Override the climb wall angle. If omitted, infer from model_<iter>.pt."""
-  save_plots: bool = True
-  """Save torque-vs-time plots under results/checkpoint by default."""
-  output_dir: str | None = None
-  """Directory for plots. Defaults to results/checkpoint/<experiment>/<run>/<checkpoint>."""
-  plot_env_idx: int = 0
-  """Environment index used for signed torque-vs-time traces."""
 
 
 def _safe_path_part(value: str) -> str:
   return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "unnamed"
 
 
-def _default_output_dir(task_id: str, cfg: Cfg, checkpoint_path: Path | None) -> Path:
+def _default_output_dir(task_id: str, cfg: argparse.Namespace, checkpoint_path: Path | None) -> Path:
   if cfg.output_dir is not None:
     return Path(cfg.output_dir)
 
@@ -150,7 +127,7 @@ def _save_torque_plots(
   print(f"[INFO]: Wrote torque plots to {out_dir}")
 
 
-def run(task_id: str, cfg: Cfg):
+def run(task_id: str, cfg: argparse.Namespace) -> None:
   configure_torch_backends()
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -272,24 +249,33 @@ def run(task_id: str, cfg: Cfg):
   env.close()
 
 
-def main():
-  import mjlab.tasks  # noqa: F401
+def main(argv: list[str] | None = None) -> None:
 
-  all_tasks = list_tasks()
-  chosen, remaining = tyro.cli(
-    tyro.extras.literal_type_from_choices(all_tasks),
-    add_help=False,
-    return_unknown_args=True,
-    config=mjlab.TYRO_FLAGS,
+  parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument("task", choices=list_tasks())
+  parser.add_argument("--agent", choices=("zero", "random", "trained"), default="trained")
+  parser.add_argument("--checkpoint-file")
+  parser.add_argument("--wandb-run-path")
+  parser.add_argument("--wandb-checkpoint-name")
+  parser.add_argument("--num-envs", type=int, default=16)
+  parser.add_argument("--steps", type=int, default=500)
+  parser.add_argument("--device", help="default: cuda:0 when available, else cpu")
+  parser.add_argument(
+    "--sat-threshold",
+    type=float,
+    default=0.95,
+    help="|tau|/limit at which a sample counts as saturated (default: 0.95)",
   )
-  args = tyro.cli(
-    Cfg,
-    args=remaining,
-    default=Cfg(),
-    prog=sys.argv[0] + f" {chosen}",
-    config=mjlab.TYRO_FLAGS,
+  parser.add_argument("--wall-angle-deg", type=float, help="climb wall angle; default: inferred from model_<iter>.pt")
+  add_bool_option(parser, "--save-plots", default=True, help="save torque-vs-time plots")
+  parser.add_argument(
+    "--output-dir", help="plot directory (default: results/checkpoint/<experiment>/<run>/<checkpoint>)"
   )
-  run(chosen, args)
+  parser.add_argument(
+    "--plot-env-idx", type=int, default=0, help="environment of the signed torque traces (default: 0)"
+  )
+  args = parser.parse_args(argv)
+  run(args.task, args)
 
 
 if __name__ == "__main__":

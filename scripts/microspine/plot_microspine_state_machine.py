@@ -676,7 +676,7 @@ Panels B-D are evaluated directly from the simulation's model code.
 """
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   ap = argparse.ArgumentParser(description=__doc__)
   ap.add_argument(
     "--out",
@@ -684,7 +684,7 @@ def main() -> None:
     default=Path("docs/figures/microspine_state_machine"),
     help="output stem; .pdf/.svg/.png are written",
   )
-  args = ap.parse_args()
+  args = ap.parse_args(argv)
   args.out.parent.mkdir(parents=True, exist_ok=True)
   build(args.out)
 

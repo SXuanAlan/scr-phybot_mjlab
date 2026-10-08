@@ -82,7 +82,7 @@ def generate_clip(
   print(f"wrote {output} ({frames} frames, {duration_s:.2f}s @ {fps:.1f} fps, jitter={jitter_rad:.4f} rad)")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument(
     "--output",
@@ -93,7 +93,7 @@ def main() -> None:
   parser.add_argument("--fps", type=float, default=50.0)
   parser.add_argument("--jitter-rad", type=float, default=0.003)
   parser.add_argument("--seed", type=int, default=7)
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   generate_clip(
     output=args.output,

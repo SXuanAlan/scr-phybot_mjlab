@@ -126,7 +126,7 @@ def _build_model(width: int, height: int, wall_angle: float = 90.0) -> mujoco.Mj
   return spec.compile()
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("motion_file", type=Path, nargs="?", default=_DEFAULT_CLIP)
   parser.add_argument(
@@ -152,7 +152,7 @@ def main() -> None:
     default=None,
     help="render this single frame to a PNG instead of the full video",
   )
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
 
   clip = np.load(args.motion_file, allow_pickle=True).item()
   joints = list(clip["joints_list"])

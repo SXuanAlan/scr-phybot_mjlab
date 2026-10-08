@@ -37,11 +37,11 @@ def optional_float(value):
   return float(value) if np.isfinite(value) else None
 
 
-def main():
+def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
   parser.add_argument("--out", type=Path, default=FIGURES_DIR / "fig_empirical_vs_wang")
-  args = parser.parse_args()
+  args = parser.parse_args(argv)
   torch.set_num_threads(4)
   cfg = load_limit_surface_cfg(False)
   wang = WangUnit(cfg)

@@ -6,6 +6,7 @@ seats on the bare forearm end. No CAD vertices are warped or rescaled.
 
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
@@ -325,7 +326,8 @@ def sync_urdf(pads, mounts, forearms):
   path.write_text(text)
 
 
-def main():
+def main(argv: list[str] | None = None):
+  argparse.ArgumentParser(description=__doc__).parse_args(argv)
   outputs, pad_inertia, mount_inertia, assembly = normalize_geometry()
   path = ASSET / "xml/phybot_c2.xml"
   text = path.read_text()
