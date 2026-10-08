@@ -1,38 +1,20 @@
-"""The squat scene: the standing robot on a flat floor, its contact sensors, the simulation and the viewer."""
+"""The squat scene: the standing robot on a flat floor, the simulation and the viewer."""
 
 from __future__ import annotations
 
 from mjlab.entity import EntityCfg
 from mjlab.scene import SceneCfg
-from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_STANDING_JOINT_POS, get_phybot_c2_robot_cfg
-from scr_phybot_mjab.tasks.common.phybot_c2 import real_pd_robot
-
-TORSO_BODY = "torso"
-_FEET_ROOT_BODIES = r"^(left_ankle_roll|right_ankle_roll)$"
-_ILLEGAL_GROUND_BODIES = (
-  r"^(left_knee|right_knee"
-  r"|left_shoulder_roll|right_shoulder_roll"
-  r"|left_shoulder_yaw|right_shoulder_yaw"
-  r"|left_elbow_pitch|right_elbow_pitch"
-  r"|torso|torso_upper)$"
-)
+from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import get_phybot_c2_robot_cfg
+from scr_phybot_mjab.tasks.common.phybot_c2 import TORSO_BODY, ground_contact_sensors, real_pd_robot
 
 
 def squat_robot_cfg() -> EntityCfg:
-  """The C2 standing in the clip's first frame, with the deployed PD damping."""
-  robot = get_phybot_c2_robot_cfg()
-  robot.init_state = EntityCfg.InitialStateCfg(
-    pos=(0.0, 0.0, 0.726),
-    rot=(1.0, 0.0, 0.0, 0.0),
-    joint_pos=PHYBOT_C2_STANDING_JOINT_POS,
-    joint_vel={".*": 0.0},
-  )
-  return real_pd_robot(robot)
+  """The C2 at its standing keyframe, the clip's first frame, with the deployed PD damping."""
+  return real_pd_robot(get_phybot_c2_robot_cfg())
 
 
 def squat_scene(robot: EntityCfg) -> SceneCfg:
@@ -40,38 +22,7 @@ def squat_scene(robot: EntityCfg) -> SceneCfg:
     num_envs=1,
     terrain=TerrainEntityCfg(terrain_type="plane"),
     entities={"robot": robot},
-    sensors=(
-      # The stationary-feet reward reads it.
-      ContactSensorCfg(
-        name="feet_ground_contact",
-        primary=ContactMatch(mode="subtree", pattern=_FEET_ROOT_BODIES, entity="robot"),
-        secondary=ContactMatch(mode="body", pattern="terrain"),
-        fields=("found", "force"),
-        reduce="netforce",
-        num_slots=1,
-        track_air_time=True,
-      ),
-      # The self-collision cost counts the substeps of its force history.
-      ContactSensorCfg(
-        name="self_collision",
-        primary=ContactMatch(mode="subtree", pattern=TORSO_BODY, entity="robot"),
-        secondary=ContactMatch(mode="subtree", pattern=TORSO_BODY, entity="robot"),
-        fields=("found", "force"),
-        reduce="maxforce",
-        num_slots=1,
-        history_length=4,
-      ),
-      # A knee, an arm or the torso on the floor ends the episode.
-      ContactSensorCfg(
-        name="illegal_ground_contact",
-        primary=ContactMatch(mode="body", pattern=_ILLEGAL_GROUND_BODIES, entity="robot"),
-        secondary=ContactMatch(mode="body", pattern="terrain"),
-        fields=("found", "force"),
-        reduce="netforce",
-        num_slots=1,
-        history_length=4,
-      ),
-    ),
+    sensors=ground_contact_sensors(),
   )
 
 

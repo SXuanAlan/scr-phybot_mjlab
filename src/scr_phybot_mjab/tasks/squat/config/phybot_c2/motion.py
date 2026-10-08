@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
-  PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
 )
@@ -20,7 +19,6 @@ LEG_JOINT_NAMES = PHYBOT_C2_POLICY_JOINT_NAMES[:12]
 WAIST_JOINT_NAMES = (PHYBOT_C2_POLICY_JOINT_NAMES[12],)
 ARM_JOINT_NAMES = PHYBOT_C2_POLICY_JOINT_NAMES[13:21]
 assert LEG_JOINT_NAMES + WAIST_JOINT_NAMES + ARM_JOINT_NAMES == tuple(PHYBOT_C2_POLICY_JOINT_NAMES)
-FOOT_SITE_NAMES = tuple(site for _, site in PHYBOT_C2_FOOT_SITES)
 
 
 def motion_duration_s(path: Path, control_dt: float = 0.02) -> float:

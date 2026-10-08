@@ -32,3 +32,4 @@
 "scr_phybot_mjab.tasks.walk.mdp.rewards.feet_lateral_distance" = "scr_phybot_mjab.tasks.common.rewards.feet_lateral_distance"
 "scr_phybot_mjab.tasks.walk.mdp.rewards.self_collision_cost" = "scr_phybot_mjab.tasks.common.rewards.self_collision_cost"
 "scr_phybot_mjab.tasks.walk.mdp.terminations.illegal_contact" = "scr_phybot_mjab.tasks.common.terminations.illegal_contact"
+"scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs.phybot_c2_walk_env_cfg.<locals>.<lambda>" = "scr_phybot_mjab.tasks.walk.config.phybot_c2.scene._c2_floor"

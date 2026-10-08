@@ -8,11 +8,12 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_ACTION_SCALE
+from scr_phybot_mjab.tasks.common.phybot_c2 import FEET_GROUND_CONTACT_SENSOR, FOOT_SITE_NAMES, SELF_COLLISION_SENSOR
 from scr_phybot_mjab.tasks.common.rewards import energy, feet_lateral_distance, self_collision_cost
 from scr_phybot_mjab.tasks.squat import mdp
 
 from .commands import MOTION_COMMAND
-from .motion import ARM_JOINT_NAMES, FOOT_SITE_NAMES, LEG_JOINT_NAMES, WAIST_JOINT_NAMES, motion_action_limits
+from .motion import ARM_JOINT_NAMES, LEG_JOINT_NAMES, WAIST_JOINT_NAMES, motion_action_limits
 
 _LEFT_ARM_JOINT_NAMES = ARM_JOINT_NAMES[:4]
 _RIGHT_ARM_JOINT_NAMES = ARM_JOINT_NAMES[4:]
@@ -194,7 +195,7 @@ def squat_rewards() -> dict[str, RewardTermCfg]:
     "track_feet_stationary": RewardTermCfg(
       func=mdp.track_feet_stationary,
       weight=3.0,
-      params={"sensor_name": "feet_ground_contact", "std": 0.04, "asset_cfg": _feet()},
+      params={"sensor_name": FEET_GROUND_CONTACT_SENSOR, "std": 0.04, "asset_cfg": _feet()},
     ),
     "foot_slip_error": RewardTermCfg(
       func=mdp.feet_xy_velocity_huber_error,
@@ -221,7 +222,7 @@ def squat_rewards() -> dict[str, RewardTermCfg]:
     "self_collisions": RewardTermCfg(
       func=self_collision_cost,
       weight=-3.0,
-      params={"sensor_name": "self_collision", "force_threshold": 10.0},
+      params={"sensor_name": SELF_COLLISION_SENSOR, "force_threshold": 10.0},
     ),
     # The clip's feet stand about 0.296 m apart: 0.26 leaves roughly 3.6 cm of
     # lateral compliance and penalizes inward drift well before the shoes meet.

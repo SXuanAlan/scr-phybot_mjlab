@@ -7,13 +7,19 @@ from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactSensor
 
-from scr_phybot_mjab.tasks.common.observations import (  # noqa: F401
-  ROBOT_ASSET_CFG,
-  projected_gravity_from_framequat_sensor,
-)
+from scr_phybot_mjab.tasks.common.observations import ROBOT_ASSET_CFG
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
+
+__all__ = (
+  "foot_air_time",
+  "foot_contact",
+  "foot_contact_forces",
+  "foot_height",
+  "joint_pos",
+  "joint_vel",
+)
 
 _DEFAULT_ASSET_CFG = ROBOT_ASSET_CFG
 

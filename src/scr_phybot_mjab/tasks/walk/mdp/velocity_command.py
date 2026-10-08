@@ -19,6 +19,13 @@ if TYPE_CHECKING:
   from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
   from mjlab.viewer.debug_visualizer import DebugVisualizer
 
+__all__ = (
+  "PresetVelocityCommand",
+  "PresetVelocityCommandCfg",
+  "UniformVelocityCommand",
+  "UniformVelocityCommandCfg",
+)
+
 
 class UniformVelocityCommand(CommandTerm):
   cfg: UniformVelocityCommandCfg

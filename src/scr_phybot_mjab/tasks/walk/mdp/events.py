@@ -12,6 +12,8 @@ from mjlab.utils.lab_api.math import sample_uniform
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = ("reset_joints_by_scale",)
+
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
 

@@ -6,7 +6,7 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
-from mjlab.sensor import BuiltinSensor, ContactSensor
+from mjlab.sensor import ContactSensor
 from mjlab.utils.lab_api.math import quat_apply_inverse
 from mjlab.utils.lab_api.string import (
   resolve_matching_names_values,
@@ -14,6 +14,28 @@ from mjlab.utils.lab_api.string import (
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
+
+__all__ = (
+  "base_height",
+  "base_motion_when_standing",
+  "body_angular_velocity_penalty",
+  "feet_air_time",
+  "feet_clearance",
+  "feet_contact_when_standing",
+  "feet_flat_orientation",
+  "feet_lock_after_recovery",
+  "feet_slip",
+  "feet_stationary_when_standing",
+  "feet_swing_height",
+  "flat_orientation",
+  "preset_forward_velocity_band",
+  "preset_yaw_velocity_band",
+  "soft_landing",
+  "stand_still_joint_vel",
+  "track_angular_velocity",
+  "track_linear_velocity",
+  "variable_posture",
+)
 
 
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
@@ -160,19 +182,6 @@ def body_angular_velocity_penalty(
   ang_vel = ang_vel.squeeze(1)
   ang_vel_xy = ang_vel[:, :2]  # Don't penalize z-angular velocity.
   return torch.sum(torch.square(ang_vel_xy), dim=1)
-
-
-def angular_momentum_penalty(
-  env: ManagerBasedRlEnv,
-  sensor_name: str,
-) -> torch.Tensor:
-  """Penalize whole-body angular momentum to encourage natural arm swing."""
-  angmom_sensor: BuiltinSensor = env.scene[sensor_name]
-  angmom = angmom_sensor.data
-  angmom_magnitude_sq = torch.sum(torch.square(angmom), dim=-1)
-  angmom_magnitude = torch.sqrt(angmom_magnitude_sq)
-  env.extras["log"]["Metrics/angular_momentum_mean"] = torch.mean(angmom_magnitude)
-  return angmom_magnitude_sq
 
 
 def feet_air_time(

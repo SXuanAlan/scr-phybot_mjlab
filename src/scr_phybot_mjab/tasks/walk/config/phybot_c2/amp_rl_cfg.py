@@ -3,18 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from mjlab.rl import RslRlModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
+from scr_phybot_mjab.assets.motions import MOTIONS_DIR
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
-
-_AMP_MOTION_DIR = Path(__file__).resolve().parents[4] / "assets" / "motions"
 
 
 @dataclass
 class AmpDatasetCfg:
-  amp_data_path: str = str(_AMP_MOTION_DIR)
+  amp_data_path: str = str(MOTIONS_DIR)
   datasets: dict[str, float] = field(
     default_factory=lambda: {
       "c2_stand_zero": 4.0,

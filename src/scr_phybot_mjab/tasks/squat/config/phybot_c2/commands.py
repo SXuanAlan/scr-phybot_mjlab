@@ -6,9 +6,8 @@ from mjlab.managers.command_manager import CommandTermCfg
 
 from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
+from scr_phybot_mjab.tasks.common.phybot_c2 import FOOT_SITE_NAMES
 from scr_phybot_mjab.tasks.squat.mdp import SquatMotionCommandCfg
-
-from .motion import FOOT_SITE_NAMES
 
 MOTION_COMMAND = "motion"
 """The command's manager key; the observations, rewards and validation scripts read it."""

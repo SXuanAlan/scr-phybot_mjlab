@@ -7,16 +7,13 @@ from mjlab.envs.mdp import reset_joints_by_offset
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_POLICY_JOINT_NAMES,
 )
-from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import (
-  phybot_c2_stand_default_env_cfg,
-  phybot_c2_walk_env_cfg,
-)
+from scr_phybot_mjab.tasks.walk.config.phybot_c2.env_cfgs import phybot_c2_walk_env_cfg
 from scr_phybot_mjab.tasks.walk.mdp.rewards import feet_lock_after_recovery
 
 
 class StandContractTest(unittest.TestCase):
   def test_training_has_collision_safe_recovery_reset_then_strict_lock(self) -> None:
-    cfg = phybot_c2_stand_default_env_cfg(play=False)
+    cfg = phybot_c2_walk_env_cfg(variant="stand")
     self.assertNotIn("push_robot", cfg.events)
 
     reset_legs = cfg.events["reset_robot_joints"]
@@ -49,7 +46,7 @@ class StandContractTest(unittest.TestCase):
     self.assertEqual([s["weight"] for s in stages], [-0.25, -0.50, -0.75])
 
   def test_play_reset_is_deterministic(self) -> None:
-    cfg = phybot_c2_stand_default_env_cfg(play=True)
+    cfg = phybot_c2_walk_env_cfg(play=True, variant="stand")
     reset_joints = cfg.events["reset_robot_joints"]
     reset_upper_joints = cfg.events["reset_robot_upper_joints"]
     reset_base = cfg.events["reset_base"]
@@ -65,7 +62,7 @@ class StandContractTest(unittest.TestCase):
     self.assertEqual(cfg.curriculum, {})
 
   def test_walk_and_stand_self_collision_sensor_selects_strongest_contact(self) -> None:
-    for cfg in (phybot_c2_walk_env_cfg(), phybot_c2_stand_default_env_cfg()):
+    for cfg in (phybot_c2_walk_env_cfg(), phybot_c2_walk_env_cfg(variant="stand")):
       sensor = next(s for s in cfg.scene.sensors if s.name == "self_collision")
       self.assertEqual(sensor.reduce, "maxforce")
       self.assertEqual(sensor.num_slots, 1)

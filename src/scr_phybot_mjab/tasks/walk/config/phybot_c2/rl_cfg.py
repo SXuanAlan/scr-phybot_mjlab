@@ -15,9 +15,10 @@ def phybot_c2_walk_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
 
 
 def phybot_c2_stand_default_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
-  """Plain PPO for the stand-default task: identical to walk, renamed for logging."""
-  cfg = phybot_c2_walk_ppo_runner_cfg()
-  cfg.experiment_name = "phybot_c2_stand_default"
-  cfg.wandb_project = "scr_phybot_mjab-stand"
-  cfg.wandb_tags = ("phybot_c2", "stand")
-  return cfg
+  """Walk's plain PPO, logged under the stand names."""
+  return plain_ppo_runner_cfg(
+    experiment_name="phybot_c2_stand_default",
+    wandb_project="scr_phybot_mjab-stand",
+    wandb_tags=("phybot_c2", "stand"),
+    max_iterations=30_000,
+  )

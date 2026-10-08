@@ -33,6 +33,11 @@ if TYPE_CHECKING:
   from mjlab.entity import Entity
   from mjlab.envs import ManagerBasedRlEnv
 
+__all__ = (
+  "AmpReferenceResetCommand",
+  "AmpReferenceResetCommandCfg",
+)
+
 
 class AmpReferenceResetCommand(CommandTerm):
   cfg: AmpReferenceResetCommandCfg
