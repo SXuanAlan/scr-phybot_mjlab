@@ -344,7 +344,8 @@ def plot_examples(results, traces, all_events, out):
     0.065,
     0.943,
     "Solid = measured; dashed colored = commanded. Red = first event; pale red = later events; "
-    "black dashed = controller stop.\nMotion is reconstructed from TCP pose in a fixed initial frame, avoiding the logged displacement reset between stages.",
+    "black dashed = controller stop.\nMotion is reconstructed from TCP pose in a fixed initial frame, avoiding the "
+    "logged displacement reset between stages.",
     fontsize=10,
     color="#52514E",
     linespacing=1.6,
@@ -557,7 +558,8 @@ R1–R3 各 77 次；S=0 的正、负 side 是相同载荷目标的重复，合�
 5. 再次卡住：第一事件后速度 <0.40 mm/s，测量/命令误差 <max(1.5 N, 命令合力的 10%)，持续至少 0.35 s。
    只有重新稳定后才计为新的失效事件，同一次连续滑移不重复计数。
 6. 首次载荷取速度起点前 80–20 ms 的测量力中值；命令力另存。事件定位精度约 0.1 s，不能把 10 ms 采样间隔当作真实判定精度。
-   `fz_first_release_n` 只作对照，没有作为检测真值。控制器事件常落在第一条 `unload` 记录，保留该瞬间但不读取之后主动卸载的信号。
+   `fz_first_release_n` 只作对照，没有作为检测真值。
+   控制器事件常落在第一条 `unload` 记录，保留该瞬间但不读取之后主动卸载的信号。
 7. 位移、绝对力降和速度等检测阈值尺度分别取 0.75 / 1.00 / 1.25 复算；相对力降比例、时间窗和再卡住规则固定。
    首次阶段变化、法向命令跨度 >0.75 N、起点跨度 >1 s，
    以及渐进滑移或未识别，均需复核。本次共 {len(review)} 次。它们仍展示在分类与逐次表中，不作为确定的法向拟合点。

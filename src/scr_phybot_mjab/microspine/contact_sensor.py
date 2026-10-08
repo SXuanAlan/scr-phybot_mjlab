@@ -68,10 +68,10 @@ class WrenchContactSensor(ContactSensor):
   def _update_history(self) -> None:
     assert self._history_state is not None
     data = self._extract_sensor_data()
-    for field, history in self._history_state.items():
+    for name, history in self._history_state.items():
       history = history.roll(1, dims=2)
-      history[:, :, 0] = getattr(data, field)
-      self._history_state[field] = history
+      history[:, :, 0] = getattr(data, name)
+      self._history_state[name] = history
 
   def _compute_data(self) -> WrenchContactData:
     data = super()._compute_data()

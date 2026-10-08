@@ -190,7 +190,7 @@ class _SquatIK:
     self.data.qpos[3:7] = _pitch_quat_wxyz(pitch)
 
   def _foot_error(self) -> np.ndarray:
-    m, d = self.model, self.data
+    d = self.data
     err = np.zeros(12)
     for k, sid in enumerate(self._site_ids):
       pos = d.site_xpos[sid]

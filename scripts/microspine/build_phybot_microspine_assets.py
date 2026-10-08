@@ -407,18 +407,22 @@ def main(argv: list[str] | None = None):
     "cad_features_in_connector_frame": assembly.features,
     "pla_density_kg_m3": PLA_DENSITY,
     "density_source": "https://www.prusa3d.com/file/370474/prusament-pla-technical-data-sheet.pdf",
-    "inertia_assumption": "Sum of the unmodified CAD solids at solid-PLA density; hardware absent from the CAD is not added or calibrated.",
+    "inertia_assumption": "Sum of the unmodified CAD solids at solid-PLA density; hardware absent from the CAD is "
+    "not added or calibrated.",
     "contact_center_in_pad_m": assembly.contact_center.tolist(),
     "unit_centers_in_pad_m": (assembly.unit_centres - assembly.pivot).tolist(),
-    "unit_reference": "Frontmost printed unit plane, centered laterally and vertically; not a measured spine-tip offset.",
+    "unit_reference": "Frontmost printed unit plane, centered laterally and vertically; not a measured spine-tip "
+    "offset.",
     "contact_proxy": {"type": "box", "count_per_pad": 4, "unit_local_bounds_m": outputs["unit"].bounds.tolist()},
     "forearm_extension_m": float(assembly.pivot[2] - assembly.features["sleeve_shoulder_m"][2]),
-    "cad_adjustment": "None: all CAD solids retain their original shape and relative pose. The assembly is rigidly seated on the forearm tube at the CAD sleeve stop.",
+    "cad_adjustment": "None: all CAD solids retain their original shape and relative pose. The assembly is rigidly "
+    "seated on the forearm tube at the CAD sleeve stop.",
     "source_solid_count": len(assembly.parts),
     "part_bounds_in_pad_m": {name: mesh.bounds.tolist() for name, mesh in outputs.items()},
     "origins": origins,
     "bare_forearms": forearms,
-    "forearm_inertia_assumption": "Retain original actuator/tube link mass; reestimate COM and tensor over retained solid geometry, excluding the dummy hand shape.",
+    "forearm_inertia_assumption": "Retain original actuator/tube link mass; reestimate COM and tensor over retained "
+    "solid geometry, excluding the dummy hand shape.",
     "moving_pad": pad_inertia,
     "forearm_mount": mount_inertia,
   }

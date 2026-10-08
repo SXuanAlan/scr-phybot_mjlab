@@ -99,7 +99,6 @@ def rollout(args: argparse.Namespace) -> dict:
   motion = u.command_manager.get_term(args.motion_term)
   aff = u.command_manager.get_term(args.aff_term)
   executor = u.event_manager.get_term_cfg(args.grip_event).func
-  robot = u.scene["robot"]
   dt = float(u.step_dt)
   ee_names = tuple(aff._mcfg.ee_body_names)
   H = len(ee_names)

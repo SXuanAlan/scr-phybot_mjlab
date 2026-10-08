@@ -101,10 +101,13 @@ def main(argv: list[str] | None = None) -> None:
     lines.append(s)
 
   emit(
-    f"=== passive gate: clip {Path(mc.motion_file).name}  playable {C} frames  stride {args.stride}  guard {args.guard}  envs {N}  steps {args.steps}  gimbal stop +-{stop_deg:.1f} deg  (loss<= {args.fail_frac:.0%}, gimbal p90 <= {args.gimbal_deg} deg, wall/fall = 0) ==="
+    f"=== passive gate: clip {Path(mc.motion_file).name}  playable {C} frames  stride {args.stride}  guard "
+    f"{args.guard}  envs {N}  steps {args.steps}  gimbal stop +-{stop_deg:.1f} deg  (loss<= {args.fail_frac:.0%}, "
+    f"gimbal p90 <= {args.gimbal_deg} deg, wall/fall = 0) ==="
   )
   emit(
-    "frame segment            sched | loss% (post-guard, worst EE) per-EE | gimbal p90 deg per EE | wall fall rip | verdict"
+    "frame segment            sched | loss% (post-guard, worst EE) per-EE | gimbal p90 deg per EE | wall fall rip | "
+    "verdict"
   )
   rows = []
   for f in seeded_frames:
@@ -166,7 +169,9 @@ def main(argv: list[str] | None = None) -> None:
   worst = max(rows, key=lambda r: r[1]) if rows else None
   fails = [r for r in rows if not r[5]]
   emit(
-    f"\nGATE ({len(rows)} seeded frames): {'PASS' if not fails else 'FAIL'}  failing frames {len(fails)}  worst loss {worst[1]:.0%} @ {worst[0]}  max gimbal p90 {max(r[2] for r in rows):.1f} deg  wall-death frames {sum(1 for r in rows if r[3] > 0)}"
+    f"\nGATE ({len(rows)} seeded frames): {'PASS' if not fails else 'FAIL'}  failing frames {len(fails)}  worst loss "
+    f"{worst[1]:.0%} @ {worst[0]}  max gimbal p90 {max(r[2] for r in rows):.1f} deg  wall-death frames "
+    f"{sum(1 for r in rows if r[3] > 0)}"
   )
   mask = []
   for f, loss, *_ in rows:

@@ -3,7 +3,8 @@ births pinned to every --stride-th seeded frame of the cycle clip, hold the
 birth pose with the deploy PD, judge scheduled-seed loss after the guard.
 Same rule as scripts/reference/mount_clip_passive_gate.py, so the two references can
 be compared. Frames are pinned by intercepting the command's uniform draw.
-Usage: CUDA_VISIBLE_DEVICES=2 python scripts/reference/climb_cycle_passive_gate.py [--angle 90] [--stride 10] [--guard 25] [--steps 40] [--envs 128]
+Usage: CUDA_VISIBLE_DEVICES=2 python scripts/reference/climb_cycle_passive_gate.py
+  [--angle 90] [--stride 10] [--guard 25] [--steps 40] [--envs 128]
 """
 
 import argparse
@@ -87,7 +88,9 @@ def main(argv: list[str] | None = None) -> None:
 
   seeded = [f for f in range(0, C, args.stride) if engaged[f].any()]
   print(
-    f"=== climb cycle passive gate: {Path(mc.motion_file).name} cycle {C} frames, angle arg {args.angle}, stride {args.stride}, guard {args.guard}, steps {args.steps}, envs {N}, gimbal stop +-{math.degrees(float(K.PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD)):.1f} deg"
+    f"=== climb cycle passive gate: {Path(mc.motion_file).name} cycle {C} frames, angle arg {args.angle}, stride "
+    f"{args.stride}, guard {args.guard}, steps {args.steps}, envs {N}, gimbal stop "
+    f"+-{math.degrees(float(K.PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD)):.1f} deg"
   )
   print("frame segment            sched | loss% (post-guard, worst EE) per-EE | gimbal p90 deg | deaths | verdict")
   rows = []
@@ -150,7 +153,8 @@ def main(argv: list[str] | None = None) -> None:
     )
   fails = [r for r in rows if not r[2]]
   print(
-    f"\nGATE ({len(rows)} seeded frames): {'PASS' if not fails else 'FAIL'}  failing {len(fails)}  worst {max(r[1] for r in rows):.0%}"
+    f"\nGATE ({len(rows)} seeded frames): {'PASS' if not fails else 'FAIL'}  failing {len(fails)}  worst "
+    f"{max(r[1] for r in rows):.0%}"
   )
 
 

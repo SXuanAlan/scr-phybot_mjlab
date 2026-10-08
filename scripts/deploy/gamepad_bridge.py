@@ -12,7 +12,7 @@ Typical usage:
 
   # Remote gamepad usage: disable auto bridge, forward the receiver port,
   # then start this bridge on the machine the gamepad is plugged into.
-  python scripts/play.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/.../model_XXXX.pt --gamepad --no-gamepad-auto-bridge
+  python scripts/play.py Mjlab-Walk-Phybot-C2 --checkpoint-file logs/.../model_N.pt --gamepad --no-gamepad-auto-bridge
   ssh -L 8766:localhost:8766 <remote-host>
   python scripts/deploy/gamepad_bridge.py --host 127.0.0.1 --port 8766
 

@@ -200,7 +200,8 @@ def main(argv: list[str] | None = None):
     "empirical_checks": checks,
     "unit_tables": "Conditional median/IQR of all detached_normal command observations; no outlier removal",
     "pad_tables": "Identical fully engaged units, rigid equal-stiffness allocation, first characteristic unit limit",
-    "missing_baseline": "Blank when fixed S,L already exceed the zero-tension baseline; negative-Fn release not modeled",
+    "missing_baseline": "Blank when fixed S,L already exceed the zero-tension baseline; negative-Fn release not "
+    "modeled",
     "original_paper_audit": {
       "source": "Wang et al. 2017, Fig. 8, printed p. 991; local PDF page 7",
       "method": "Approximate visual reading, not precise digitization or fit",
@@ -208,7 +209,8 @@ def main(argv: list[str] | None = None):
       "reverse_shear_magnitude_n_approx": 7.5,
       "pure_lateral_n_approx": 18,
       "forward_peak_tension_magnitude_n_approx": 3.2,
-      "note": "Paper uses negative z for adhesion. Local documented 0.05 reverse and 0.56 lateral anchors do not reproduce these ratios.",
+      "note": "Paper uses negative z for adhesion. Local documented 0.05 reverse and 0.56 lateral anchors do not "
+      "reproduce these ratios.",
     },
   }
   args.out.with_suffix(".audit.json").write_text(json.dumps(audit, indent=2, allow_nan=False) + "\n")

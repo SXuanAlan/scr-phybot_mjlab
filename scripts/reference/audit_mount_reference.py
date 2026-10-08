@@ -135,7 +135,8 @@ def audit_motion_file(path: Path) -> dict:
     "engaged_anchor_drift_max_mm": drift * 1000,
     "checks": checks,
     "passed": all(checks.values()),
-    "scope": "Saved-frame FK, wall and floor collision geometry; excludes self-collision, force/preload feasibility and dynamic policy tracking.",
+    "scope": "Saved-frame FK, wall and floor collision geometry; excludes self-collision, force/preload feasibility "
+    "and dynamic policy tracking.",
     "clearances": clearances,
   }
 

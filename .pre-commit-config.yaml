@@ -1,0 +1,32 @@
+# Install once per clone: pre-commit install
+# Check everything:        pre-commit run --all-files
+exclude: ^(docs/archive/|data/|artifacts/|logs/|wandb/|scratch/)
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8  # keep in step with the dev extra in pyproject.toml
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        types_or: [python, markdown, toml, yaml]  # never asset XML or generated figures
+        args: [--markdown-linebreak-ext=md]
+      - id: check-yaml
+      - id: check-toml
+  - repo: local
+    hooks:
+      - id: no-probe-scripts
+        name: one-off probes go in the ignored scratch/, not scripts/
+        language: fail
+        entry: probe, forensics and exam scripts belong in scratch/
+        files: ^scripts/.*(probe|forensics|exam)[^/]*\.py$
+      - id: no-env-switches-in-runtime
+        name: runtime packages take settings from configs, not environment variables
+        language: pygrep
+        entry: os\.environ|getenv\(
+        files: ^src/scr_phybot_mjab/(assets|microspine|tasks)/

@@ -323,7 +323,8 @@ class ClimbIK:
     if self.debug_hard and hard_j and (residual.pos > 2.0e-3 or residual.rot > 0.02):
       print(
         f"    [hard-ik] rows {_hard_stats[0]} smax {_hard_stats[1]:.3f} smin {_hard_stats[2]:.2e} "
-        f"|err1| {_hard_stats[3] * 1000:.1f} mm -> residual pos {residual.pos * 1000:.1f} mm rot {np.degrees(residual.rot):.1f} deg "
+        f"|err1| {_hard_stats[3] * 1000:.1f} mm -> residual pos {residual.pos * 1000:.1f} mm rot "
+        f"{np.degrees(residual.rot):.1f} deg "
         f"iters {_ + 1} peak_dq {float(np.abs(dq).max()):.3f}"
       )
     return residual

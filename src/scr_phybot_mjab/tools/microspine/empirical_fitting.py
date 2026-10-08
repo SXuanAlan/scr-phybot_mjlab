@@ -282,7 +282,8 @@ def build_empirical_model(data_path=DEFAULT_UNIT_TRIALS, output=DEFAULT_TABLE, a
     ),
     assumptions=[
       "same substrate and 10 N unit seating protocol",
-      "Gaussian kernel pooling of observed outcomes; bandwidth selected by calibration-only leave-placement-out quantile loss",
+      "Gaussian kernel pooling of observed outcomes; bandwidth selected by calibration-only leave-placement-out "
+      "quantile loss",
       "negative lateral reflected from positive lateral; unmeasured symmetry",
       "same quantile rank across directions; unmeasured directional correlation",
       "early loading failure frequency indexed by intended S,L protocol; not a normal threshold",
@@ -291,8 +292,10 @@ def build_empirical_model(data_path=DEFAULT_UNIT_TRIALS, output=DEFAULT_TABLE, a
       "independent unit draws; no measured between-unit or between-pad correlation",
       "equal-stiffness allocation at C; first unit violation releases whole pad",
       "no shear/lateral extrapolation beyond measured S[-15,30], abs(L)[0,30]",
-      "10 N seating is a minimum engagement preload, not a compression limit; normal failure is an upper pull-off bound",
-      "additional compression does not increase fitted pull-off capacity; structural compression failure is not identified",
+      "10 N seating is a minimum engagement preload, not a compression limit; normal failure is an upper pull-off "
+      "bound",
+      "additional compression does not increase fitted pull-off capacity; structural compression failure is not "
+      "identified",
       "no dwell-time extrapolation, fatigue identification or full-pad physical validation",
     ],
     validation=dict(
@@ -307,7 +310,8 @@ def build_empirical_model(data_path=DEFAULT_UNIT_TRIALS, output=DEFAULT_TABLE, a
       kind="kernel-weighted conditional Kaplan-Meier inverse CDF",
       bandwidth_n=bandwidth,
       calibration_only_bandwidth_scores=bandwidth_scores,
-      model_development_note="Sparse-cell baseline coverage motivated pooling; spatial split is retrospective development evidence, not a preregistered confirmation test",
+      model_development_note="Sparse-cell baseline coverage motivated pooling; spatial split is retrospective "
+      "development evidence, not a preregistered confirmation test",
     ),
     runtime_table="refit on all listed trials AFTER split-only validation; do not validate this on its training rows",
   )
