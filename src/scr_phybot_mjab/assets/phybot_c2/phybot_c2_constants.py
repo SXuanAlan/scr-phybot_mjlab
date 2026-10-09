@@ -37,7 +37,7 @@ SPINE_BODY_NAMES = (
 # The microspine pad chassis mounts to the arm/shin through a passive ball
 # joint — three coincident hinges (mjlab rejects a literal ball joint carrying
 # joint springs). The explicit ball-center site B is distinct from the
-# contact-array center C: C-B = (0, -40, +75) mm in pad coordinates.
+# contact-array center C: C-B = (0, -47.5, +78.0) mm in pad coordinates.
 # Travel hard-stops at the hardware's +-3 deg. A weak centering spring
 # re-zeros the pad whenever it is unloaded, so joint zero is the nominal CAD
 # mounting orientation.
@@ -50,10 +50,9 @@ SPINE_BODY_NAMES = (
 ##
 
 PHYBOT_C2_PAD_GIMBAL_TRAVEL_RAD = math.radians(3.0)  # hardware stop
-# Centering spring per hinge. Sized for recentering only (bench 07-31:
-# k~0.7, d~0.015 settles a ~1e-4 kg*m^2 pad near-critically); under load it
-# is deliberately negligible next to the PD-structure path (~50-260
-# N*m/rad, see the calibration doc par.3).
+# Centering spring per hinge. Sized for recentering only (k~0.7, d~0.015
+# settle a ~1e-4 kg*m^2 pad near-critically); under load it is deliberately
+# negligible next to the PD-structure path (~50-260 N*m/rad).
 PHYBOT_C2_PAD_GIMBAL_STIFFNESS = 0.7  # N*m/rad
 PHYBOT_C2_PAD_GIMBAL_DAMPING = 0.015  # N*m*s/rad
 PHYBOT_C2_PAD_GIMBAL_STOP_SOLREF = (0.004, 1.0)  # +-3 deg hard stops

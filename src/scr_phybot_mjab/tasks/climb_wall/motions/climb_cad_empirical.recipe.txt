@@ -11,4 +11,4 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/audit_cad_clim
 Render:
 MUJOCO_GL=egl python scripts/reference/render_climb_video.py src/scr_phybot_mjab/tasks/climb_wall/motions/climb_cad_empirical.npy
 
-Full findings: climb_cad_empirical.audit.json; docs/empirical_climb_review/README.md. No policy training or physical rollout was performed in this regeneration.
+Full findings: climb_cad_empirical.audit.json. No policy training or physical rollout was performed in this regeneration.

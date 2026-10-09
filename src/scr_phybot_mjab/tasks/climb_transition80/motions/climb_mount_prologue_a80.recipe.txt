@@ -9,10 +9,7 @@ python scripts/reference/audit_mount_reference.py src/scr_phybot_mjab/tasks/clim
 Body FK max error 0.00024561 mm; contact C FK max error 0.00024614 mm; engaged-anchor drift max 2.6573 mm.
 Worst floor clearance -1.9150 mm (2 mm floor seating bias); worst wall clearance -1.8281 mm.
 
-Static audit command (legacy Transition80 Wang-2017 model, F0=400 N, moment-free pads):
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/validate_climb_reference.py src/scr_phybot_mjab/tasks/climb_transition80/motions/climb_mount_prologue_a80.npy --frame-stride 1
-
-Static result: all 1280 frames verified (1279 in the initial sweep; frame 582 converged on the 3000-iteration retry, with unchanged constraints and tolerances). Maximum anchor utilization 0.9211; maximum actuator utilization 0.5552. Full evidence: climb_mount_prologue_a80.static.json.
+Static check: climb_mount_prologue_a80.static.json verifies all 1280 frames under the Wang-2017 pad model (F0=400 N, moment-free pads), which the tasks no longer use. Maximum anchor utilization 0.9211; maximum actuator utilization 0.5552. Its validator, scripts/validate_climb_reference.py, is retired; tag archive/pre-cleanup-2026-09 keeps it.
 Regression: 142 tests passed. GPU smoke: 2 environments (standing and handoff RSI), complete passive state and FK tables, 12 finite steps. No new policy training was run.
 
 Render:

@@ -4,10 +4,10 @@ Generate the scenario (env_mjlab15 Python):
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/gen_cad_climb_reference.py --source-motion src/scr_phybot_mjab/tasks/climb_wall/motions/climb_cad_empirical.npy --output src/scr_phybot_mjab/tasks/climb_wall/motions/climb_cad_empirical_corners_a80.npy --wall-angle 80 --unit-layout corners
 
 Audit (expected exit code 1: infeasible current reference):
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/audit_cad_climb_reference.py --motion src/scr_phybot_mjab/tasks/climb_wall/motions/climb_cad_empirical_corners_a80.npy --stride 1 --output-dir docs/empirical_climb_review/corners80
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python scripts/reference/audit_cad_climb_reference.py --motion src/scr_phybot_mjab/tasks/climb_wall/motions/climb_cad_empirical_corners_a80.npy --stride 1 --output-dir artifacts/climb_review/corners80
 
 Render (kinematic playback, not a successful physics rollout):
 MUJOCO_GL=egl python scripts/reference/render_climb_video.py src/scr_phybot_mjab/tasks/climb_wall/motions/climb_cad_empirical_corners_a80.npy --distance 2.8
 
-Corrected preload semantics: every active unit needs >=10 N to engage; there is no 10 N compression ceiling. Geometry passes. Characteristic holding: 180/490 frames; pre-latch >=10 N/unit: 0/12 frames. Fitted pull-off distributions, shear/lateral support, friction and actuator limits are unchanged. See docs/empirical_climb_review/corners80/README.md.
+Corrected preload semantics: every active unit needs >=10 N to engage; there is no 10 N compression ceiling. Geometry passes. Characteristic holding: 180/490 frames; pre-latch >=10 N/unit: 0/12 frames. Fitted pull-off distributions, shear/lateral support, friction and actuator limits are unchanged. Full findings: climb_cad_empirical_corners_a80.audit.json.
 Task: Mjlab-Climb-Wall-Phybot-C2-Corners-A80. Historical toe/body probes and runtime smoke predate this fix and are not current validation.

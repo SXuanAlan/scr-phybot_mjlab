@@ -73,9 +73,10 @@ Refactors are checked against recorded behaviour snapshots with
 
 ```text
 src/scr_phybot_mjab/
-  assets/       the C2 robot (MJCF, meshes), wall, brick, motion clips and their recipes
+  assets/       the C2 robot (MJCF, meshes), wall and brick
   microspine/   the pad plant: contact features, engage gate, hold judge, equality anchors
-  tasks/        one package per task: config/phybot_c2/ (what the task is), mdp/ (per-step terms)
+  tasks/        one package per task: config/phybot_c2/ (what the task is), mdp/ (per-step terms),
+                motions/ (reference clips and their recipes)
     common/     pieces the tasks share
   tools/        offline code: reference generation, microspine analysis, evaluation, the equivalence harness
   utils/        helpers for scripts: building envs, loading policies, CLI options

@@ -64,7 +64,7 @@ walk/climb collision configuration. Forearm tube, motor and connector
 proxies remain enabled; connector envelopes are regenerated from CAD.
 
 The weld anchor, runtime executor, IK and mount WBC use the explicit C site.
-Older proxy-only benches fall back to their contact-face centroid. Moments
+A rig without a C site falls back to its contact-face centroid. Moments
 are evaluated about C; passive hinges pivot at B. The existing three-hinge
 approximation, ±3-degree stops, stiffness and damping remain simulation
 parameters: CAD geometry alone does not identify these mechanical properties.
@@ -97,20 +97,22 @@ CAD sleeve stops coincide with both bare forearm ends.
 The active `climb_cad_empirical_initial.json` and `climb_cad_empirical.npy`
 are regenerated for this geometry. `scripts/reference/audit_cad_climb_reference.py`
 reproduces the geometry, contact and static-load checks of the clip into
-`artifacts/climb_review/`.
-Climbing retraining remains pending user acceptance. Legacy ground-to-wall
-clips have not been retargeted. Geometric agreement is not a hardware
-validation of the passive stops or full-pad load capacity.
+`artifacts/climb_review/`. Geometric agreement is not a hardware validation
+of the passive stops or full-pad load capacity.
 
 ```sh
-export PYTHONPATH=src
 export MUJOCO_GL=egl
 export OPENBLAS_NUM_THREADS=1
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/microspine/build_phybot_microspine_assets.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/validate/audit_phybot_cad_asset.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/validate/render_phybot_asset.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/validate/render_pad_collisions.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/gen_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/audit_cad_climb_reference.py
-/home/spider/miniconda3/envs/env_mjlab15/bin/python scripts/reference/render_climb_initial.py
+python scripts/microspine/build_phybot_microspine_assets.py
+python scripts/validate/audit_phybot_cad_asset.py
+python scripts/validate/render_phybot_asset.py
+python scripts/validate/render_pad_collisions.py
 ```
+
+`build_phybot_microspine_assets.py` rewrites `phybot_c2.xml`. The climb and
+mount clips record its hash, so a rebuilt asset means regenerating them with
+the commands in their `<clip>.recipe.txt` (AGENTS.md rule 6):
+`climb_cad_empirical` first, since its corner variants and the a80 mount clip
+start from it. The brick reference depends on the pad geometry as well
+(`scripts/reference/gen_brick_reference.py`). Then
+`scripts/reference/render_climb_initial.py` redraws the initial-pose figures.
