@@ -10,8 +10,8 @@ Rules for changing this repository, for people and coding agents alike.
   composes them and holds `apply_play_overrides`. `mdp/` holds the per-step
   terms, `motions/` the task's reference clips with their recipes and preview
   videos. `tasks/common/` holds what several tasks share.
-- `src/scr_phybot_mjab/microspine/` is the pad plant; `assets/` the robot,
-  wall and brick; `tools/` offline code, the clip generators among it;
+- `src/scr_phybot_mjab/microspine/` is the pad plant; `assets/` the robot and
+  the wall; `tools/` offline code, the clip generators among it;
   `utils/` helpers for scripts.
 - `scripts/` are thin command-line wrappers; `tests/` is split by domain, with
   the repository rules checked in `tests/conventions/`.

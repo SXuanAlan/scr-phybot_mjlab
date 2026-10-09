@@ -1,4 +1,4 @@
-"""Robot, wall and brick assets of the PHYBot C2 tasks.
+"""Robot and wall assets of the PHYBot C2 tasks.
 
 mjlab is imported first: importing it loads its task plugins, these tasks
 among them, and they import this package's modules. Loading mjlab before

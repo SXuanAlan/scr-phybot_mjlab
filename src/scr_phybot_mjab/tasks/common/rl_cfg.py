@@ -1,4 +1,4 @@
-"""Plain PPO runner shared by the walk, stand, squat and brick tasks.
+"""Plain PPO runner shared by the walk, stand and squat tasks.
 
 Matches MJLab's official Unitree G1 velocity PPO baseline; tasks differ only
 in logging metadata and run length.

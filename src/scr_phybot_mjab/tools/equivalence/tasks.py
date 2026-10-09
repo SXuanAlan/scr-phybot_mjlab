@@ -9,12 +9,6 @@ KEPT_TASKS: tuple[str, ...] = (
   "Mjlab-Climb-Wall-Phybot-C2-Corners-A60",
   "Mjlab-Climb-Wall-Phybot-C2-Corners-A80",
   "Mjlab-Climb-Transition80-Phybot-C2",
-  "Mjlab-Microspine-Brick-Phybot-C2",
-  "Mjlab-Microspine-Brick-Phybot-C2-DR",
-  "Mjlab-Microspine-Brick-Phybot-C2-Hold",
-  "Mjlab-Microspine-Brick-Phybot-C2-Engage",
-  "Mjlab-Microspine-Brick-Phybot-C2-Place",
-  "Mjlab-Microspine-Brick-Phybot-C2-NoGrip",
   "Mjlab-Walk-Phybot-C2",
   "Mjlab-Stand-Default-Phybot-C2",
   "Mjlab-Walk-Amp-Phybot-C2",
@@ -32,7 +26,7 @@ MOTION_TASKS: frozenset[str] = frozenset(
 )
 
 # mjlab ships its own example tasks; project task ids carry one of these.
-_PROJECT_MARKERS = ("Phybot", "Rizon4", "ToddlerBot")
+_PROJECT_MARKERS = ("Phybot",)
 
 
 def project_tasks() -> list[str]:

@@ -23,10 +23,10 @@ release. Initial/RSI mature contacts bypass preload. Unit forces are estimated
 with equal stiffness, rather than measured individually by the contact proxies.
 `limit_surface.unit_layout` selects the active units. The main climb task and
 Transition80 use `"all"`, the twelve units. The Corners-A60/A80 climb variants
-and the brick task use `"corners"`, only CAD units (0,0), (0,3), (2,0) and
-(2,3): the four units retain the full pad lever arms, share both contact
-preload and latched wrench, and have four persistent empirical capacity draws,
-while the eight disabled units carry neither load nor capacity.
+use `"corners"`, only CAD units (0,0), (0,3), (2,0) and (2,3): the four units
+retain the full pad lever arms, share both contact preload and latched wrench,
+and have four persistent empirical capacity draws, while the eight disabled
+units carry neither load nor capacity.
 
 Force, centroid torque, contact position and C position histories use the same
 substeps. Each wrench is shifted to C before averaging over one policy step.

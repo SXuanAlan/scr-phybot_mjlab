@@ -78,7 +78,7 @@ AFFORDANCE_CFG_FIELDS = {
   "debug_vis",
 }
 
-# Read by task MDP terms (climb_wall, transition80, brick) and by scripts.
+# Read by task MDP terms (climb_wall, transition80) and by scripts.
 AFFORDANCE_READS = (
   "command",
   "engaged",

@@ -109,9 +109,6 @@ def run_export(task_id: str, cfg: argparse.Namespace) -> None:
     "torque_limits": torque_limit,
   }
   meta_path = out_dir / "policy_meta.json"
-  if "brick_task" in (env_cfg.commands or {}):
-    meta["action_note"] = "q_target = q_reference(current_phase, progress) + action_scale * action"
-    meta["action_offset_source"] = "brick_reference.npz; use the measured-pose phase controller in brick_task_meta.json"
   meta_path.write_text(json.dumps(meta, indent=2))
   print(f"[INFO] Metadata written to {meta_path}")
   print(f"[INFO] obs_group={obs_group}, obs_dim={obs_dim}, action_dim={len(joint_names)}")
@@ -154,11 +151,6 @@ def run_export(task_id: str, cfg: argparse.Namespace) -> None:
     print(f"[INFO] Motion command table ({cmd_table.shape[0]}x{cmd_table.shape[1]}) written to {cmd_path}")
 
   # --- Deploy-simulation self-test -------------------------------------------
-  if "brick_task" in (env_cfg.commands or {}):
-    from scr_phybot_mjab.tasks.brick.export import export_brick_sidecars
-
-    print(f"[INFO] Brick command contract written to {export_brick_sidecars(env, out_dir)}")
-
   if cfg.self_test_steps > 0:
     jit_policy = torch.jit.load(str(jit_path), map_location="cpu")
     jit_policy.eval()

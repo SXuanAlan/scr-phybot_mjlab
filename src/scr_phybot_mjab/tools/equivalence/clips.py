@@ -73,13 +73,6 @@ def clip_jobs() -> list[ClipJob]:
       ),
     )
   )
-  jobs.append(
-    ClipJob(
-      "brick_pick_place",
-      "scripts/reference/gen_brick_reference.py",
-      ("--output", "{out}/brick_pick_place.npz"),
-    )
-  )
   return jobs
 
 

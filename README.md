@@ -2,8 +2,8 @@
 
 Reinforcement-learning environments for the PHYBot C2 humanoid on MJLab
 (MuJoCo Warp, RSL-RL): wall climbing on four microspine pads, the mount onto
-an 80-degree wall, a two-handed brick carry, and walking, standing and
-squatting for the deployed robot.
+an 80-degree wall, and walking, standing and squatting for the deployed
+robot.
 
 ## Setup
 
@@ -23,10 +23,6 @@ pre-commit install
 | `Mjlab-Climb-Wall-Phybot-C2-Corners-A60` | The four corner units per pad; curriculum 45° → 60° | [climb_wall](docs/tasks/climb_wall.md) |
 | `Mjlab-Climb-Wall-Phybot-C2-Corners-A80` | The four corner units on a fixed 80° wall | [climb_wall](docs/tasks/climb_wall.md) |
 | `Mjlab-Climb-Transition80-Phybot-C2` | Mounting from standing onto the 80° wall along the a80 clip, handing off to the climb cycle | [env_cfgs.py](src/scr_phybot_mjab/tasks/climb_transition80/config/phybot_c2/env_cfgs.py) |
-| `Mjlab-Microspine-Brick-Phybot-C2` | Picking up, carrying and placing a brick with a pad on each hand | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
-| `Mjlab-Microspine-Brick-Phybot-C2-DR` | The same with domain randomization | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
-| `Mjlab-Microspine-Brick-Phybot-C2-Hold`, `Mjlab-Microspine-Brick-Phybot-C2-Engage`, `Mjlab-Microspine-Brick-Phybot-C2-Place` | Training stages that start from the hold, engage or place phase | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
-| `Mjlab-Microspine-Brick-Phybot-C2-NoGrip` | The ablation with the pads unable to grip | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
 | `Mjlab-Walk-Phybot-C2` | Velocity tracking with plain PPO | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
 | `Mjlab-Stand-Default-Phybot-C2` | Recovering to and holding the standing pose (the deployed "prepare" policy) | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
 | `Mjlab-Walk-Amp-Phybot-C2` | Preset gaits with an AMP style reward and the deployed PD damping | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
@@ -73,7 +69,7 @@ Refactors are checked against recorded behaviour snapshots with
 
 ```text
 src/scr_phybot_mjab/
-  assets/       the C2 robot (MJCF, meshes), wall and brick
+  assets/       the C2 robot (MJCF, meshes) and the wall
   microspine/   the pad plant: contact features, engage gate, hold judge, equality anchors
   tasks/        one package per task: config/phybot_c2/ (what the task is), mdp/ (per-step terms),
                 motions/ (reference clips and their recipes)

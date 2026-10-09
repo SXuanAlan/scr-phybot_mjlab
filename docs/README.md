@@ -1,7 +1,7 @@
 # Documentation
 
-- `tasks/`: the [climb_wall](tasks/climb_wall.md) guide. The brick, walk,
-  squat and transition80 configs document themselves in their
+- `tasks/`: the [climb_wall](tasks/climb_wall.md) guide. The walk, squat
+  and transition80 configs document themselves in their
   `config/phybot_c2/` module docstrings.
 - `microspine/`: the pad model. [state_machine.md](microspine/state_machine.md)
   covers engage, hold and release; [phybot_c2_cad_asset.md](microspine/phybot_c2_cad_asset.md)

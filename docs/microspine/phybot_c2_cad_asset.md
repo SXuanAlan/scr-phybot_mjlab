@@ -115,6 +115,5 @@ python scripts/validate/render_pad_collisions.py
 mount clips record its hash, so a rebuilt asset means regenerating them with
 the commands in their `<clip>.recipe.txt` (AGENTS.md rule 6):
 `climb_cad_empirical` first, since its corner variants and the a80 mount clip
-start from it. The brick reference depends on the pad geometry as well
-(`scripts/reference/gen_brick_reference.py`). Then
-`scripts/reference/render_climb_initial.py` redraws the initial-pose figures.
+start from it. Then `scripts/reference/render_climb_initial.py` redraws the
+initial-pose figures.
