@@ -33,10 +33,9 @@ tmp_sharpa_render/
 src/scr_phybot_mjab/tasks/*/motions/*.png
 *.log
 
-# Vendored third-party bulk and large reference papers.
+# Vendored third-party bulk; reference papers and reading notes stay on disk.
 src/scr_phybot_mjab/assets/toddlerbot/upstream/
-docs/reference/WoCoCo/
-docs/reference/pivot.pdf
+/docs/reference/
 
 # Regenerable outputs and throwaway work.
 /artifacts/

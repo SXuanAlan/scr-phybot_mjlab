@@ -10,7 +10,8 @@
   writes one. The scripts in `scripts/microspine/`, `scripts/reference/` and
   `scripts/validate/` regenerate them.
 - `paper/`: method write-ups in LaTeX.
-- `reference/`: papers this work builds on.
+- `reference/`: papers this work builds on and reading notes, kept on disk
+  and out of git.
 
 Analyses of a checkpoint stay beside it in `logs/`, and other generated
 outputs in the ignored `artifacts/`; see `src/scr_phybot_mjab/tools/paths.py`.
