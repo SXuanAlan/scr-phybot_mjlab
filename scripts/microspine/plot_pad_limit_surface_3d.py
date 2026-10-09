@@ -32,6 +32,7 @@ import numpy as np
 import torch
 
 from scr_phybot_mjab.tools.microspine.wang_pad_surface import HANG_FN, HANG_FT, PadSurface, load_limit_surface_cfg
+from scr_phybot_mjab.tools.paths import FIGURES_DIR
 from scr_phybot_mjab.tools.plotting import INK, RC_PARAMS, SEC, save_three, style_3d, style_slice
 
 REL_C = "#e34948"
@@ -158,10 +159,10 @@ def force_slice_grid(surf: PadSurface, ft: float, fl_max: float, fn_lo: float, f
 
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--out-stem", default="docs/figures/fig_pad_limit_surface_3d")
+  parser.add_argument("--out-stem", default=FIGURES_DIR / "fig_pad_limit_surface_3d")
   parser.add_argument(
     "--points-npz",
-    default="docs/figures/fig_pad_limit_surface_validation.npz",
+    default=FIGURES_DIR / "fig_pad_limit_surface_validation.npz",
     help="Rollout-validation cache to overlay (skipped if missing).",
   )
   parser.add_argument("--defaults", action="store_true")

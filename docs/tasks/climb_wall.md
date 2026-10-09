@@ -60,7 +60,9 @@ scales the body position/orientation and root orientation kernels.
 ## Evaluation
 
 - `scripts/eval/evaluate_climb_checkpoint.py`: the Corners-A60 exam (metrics,
-  trajectory, engage raster and video per angle).
+  trajectory, engage raster and video per angle), written to
+  `<run>/eval/<checkpoint>/climb/` beside the checkpoint.
 - `scripts/train/train_climb60_monitored.py`, `supervise_climb60.py` and
   `monitor_climb60_metrics.py`: a Corners-A60 run with a live curriculum gate.
-- `scripts/eval/plot_pad_wrench_timeseries.py`: wall-to-pad wrenches over a rollout.
+- `scripts/eval/plot_pad_wrench_timeseries.py`: wall-to-pad wrenches over a
+  rollout, also in `<run>/eval/<checkpoint>/`.

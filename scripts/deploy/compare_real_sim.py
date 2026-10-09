@@ -37,7 +37,7 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   get_spec,
 )
 from scr_phybot_mjab.tools import deploy_logs
-from scr_phybot_mjab.tools.paths import DEPLOY_REPO_DIR, REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR, DEPLOY_REPO_DIR
 
 # Real-robot PD gains (motor firmware, backends/real/config/phybot_mini_*.yaml
 # PDKp/PDKd) keyed by joint group -- same table as replay_pd_tracking.py.
@@ -350,7 +350,7 @@ def main(argv: list[str] | None = None) -> None:
   parser.add_argument("--friction", type=float, default=1.0)
   parser.add_argument("--settle-ticks", type=int, default=100, help="vertical contact-loading settle before the replay")
   parser.add_argument("--div-threshold-deg", type=float, default=5.0)
-  parser.add_argument("--output-dir", type=Path, default=None, help="default: results/sim2real/<run name>")
+  parser.add_argument("--output-dir", type=Path, default=None, help="default: artifacts/sim2real/<run name>")
   args = parser.parse_args(argv)
   # The log columns are in policy joint order; the replay relies on it.
   assert PHYBOT_C2_POLICY_JOINT_NAMES == deploy_logs.JOINT_NAMES
@@ -380,7 +380,7 @@ def main(argv: list[str] | None = None) -> None:
   q_sim, tau_sim = replay(log, w0, w1, args.physics_dt, args.friction, args.settle_ticks)
 
   run_name = csv.parent.name if csv.name == "state.csv" else csv.stem
-  out_dir = args.output_dir or (REPOSITORY_ROOT / "results" / "sim2real" / run_name)
+  out_dir = args.output_dir or (ARTIFACTS_DIR / "sim2real" / run_name)
   report(log, w0, w1, q_sim, tau_sim, args.div_threshold_deg, out_dir, run_name)
 
 

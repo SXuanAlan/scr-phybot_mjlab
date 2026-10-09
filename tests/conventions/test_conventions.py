@@ -104,6 +104,27 @@ def test_scripts_are_command_line_modules(path):
   assert [a.arg for a in main.args.args] == ["argv"], "main() should take argv"
 
 
+# Directories that hold generated files; a script's default path into one comes from tools/paths.py.
+GENERATED_DIRS = ("docs", "logs", "results", "artifacts", "scratch", "/tmp")
+
+
+def _spelled_out_output(default: ast.expr) -> bool:
+  names = {n.id for n in ast.walk(default) if isinstance(n, ast.Name)} - {"Path", "REPOSITORY_ROOT", "ROOT", "REPO"}
+  parts = [n.value for n in ast.walk(default) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+  return not names and any(part.startswith(GENERATED_DIRS) for part in parts)
+
+
+@pytest.mark.parametrize("path", _python_files(SCRIPTS), ids=lambda p: str(p.relative_to(SCRIPTS)))
+def test_script_defaults_take_output_locations_from_tools_paths(path):
+  offenders = []
+  for node in ast.walk(ast.parse(path.read_text())):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument":
+      default = next((k.value for k in node.keywords if k.arg == "default"), None)
+      if default is not None and _spelled_out_output(default):
+        offenders.append(f"line {node.lineno}: default={ast.unparse(default)}")
+  assert not offenders, offenders
+
+
 def test_scripts_and_tools_never_import_a_cli_script():
   scripts = _python_files(SCRIPTS)
   script_modules = {p.stem for p in scripts}

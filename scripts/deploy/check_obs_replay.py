@@ -29,7 +29,7 @@ import torch
 import yaml
 
 from scr_phybot_mjab.tools import deploy_logs
-from scr_phybot_mjab.tools.paths import DEPLOY_REPO_DIR, REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR, DEPLOY_REPO_DIR
 
 _TERMS = (("ang_vel", 3), ("gravity", 3), ("pos", 21), ("vel", 21), ("action", 21), ("command", 3))
 
@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> None:
     import matplotlib.pyplot as plt
 
     run_name = csv.parent.name if csv.name == "state.csv" else csv.stem
-    out_dir = args.output_dir or (REPOSITORY_ROOT / "results" / "sim2real" / run_name)
+    out_dir = args.output_dir or (ARTIFACTS_DIR / "sim2real" / run_name)
     out_dir.mkdir(parents=True, exist_ok=True)
     t = (rows - rows[0]) * deploy_logs.TICK_DT
     show = [int(worst[0]), 3]  # worst joint + left_knee

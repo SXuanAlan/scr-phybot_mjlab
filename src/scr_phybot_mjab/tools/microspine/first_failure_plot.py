@@ -20,8 +20,8 @@ from matplotlib.patches import Patch
 from .first_failure import predict_surface
 
 
-def plot_first_failure_surface(results, cells, fit, out: Path):
-  """Save the measured pre-slip surface in the reference four-panel layout."""
+def plot_first_failure_surface(results, cells, fit, stem: Path):
+  """Save the measured pre-slip surface in the reference four-panel layout as ``<stem>.{png,pdf,svg}``."""
   with plt.rc_context(
     {
       "font.family": "Liberation Sans",
@@ -44,7 +44,7 @@ def plot_first_failure_surface(results, cells, fit, out: Path):
     fig = _surface_figure(results, cells, fit)
     for extension in ("png", "pdf", "svg"):
       # Fixed canvas preserves the proportions of the 2148 x 1320 reference.
-      fig.savefig(out / f"02_first_failure_surface.{extension}", dpi=200, bbox_inches=None)
+      fig.savefig(stem.parent / f"{stem.name}.{extension}", dpi=200, bbox_inches=None)
     plt.close(fig)
 
 

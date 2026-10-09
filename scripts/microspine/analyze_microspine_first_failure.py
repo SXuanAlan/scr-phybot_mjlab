@@ -3,7 +3,9 @@
 Example (env_mjlab15):
   python scripts/microspine/analyze_microspine_first_failure.py --data data/microspine/raw/20260922-163807
 
-Outputs are analysis artifacts only. Raw CSVs and runtime model tables are untouched.
+The four-panel failure surface goes to docs/figures/fig_first_failure_surface
+with its caption; the report, tables and review figures go to
+artifacts/first_failure/<batch>/. Raw CSVs and runtime model tables are untouched.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
@@ -34,7 +37,7 @@ from scr_phybot_mjab.tools.microspine.first_failure import (  # noqa: E402
 from scr_phybot_mjab.tools.microspine.first_failure_plot import (  # noqa: E402
   plot_first_failure_surface as plot_surface,
 )
-from scr_phybot_mjab.tools.paths import LIMIT_SURFACE_ANALYSIS_DIR, REPOSITORY_ROOT  # noqa: E402
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR, FIGURES_DIR, REPOSITORY_ROOT  # noqa: E402
 
 ROOT = REPOSITORY_ROOT
 
@@ -459,7 +462,7 @@ def json_clean(obj):
   return obj
 
 
-def write_report(out, data, rows, results, cells, fit, config):
+def write_report(out, figure, data, rows, results, cells, fit, config):
   counts = Counter(r["category"] for r in results)
   original_counts = Counter(r["result"] for r in rows)
   advance = [r["time_advance_s"] for r in results if "time_advance_s" in r]
@@ -497,6 +500,7 @@ def write_report(out, data, rows, results, cells, fit, config):
       "source_status": "New visual reconstruction; original reference plotting source not found",
       "force_quantity": "Measured Fz median 80–20 ms before the detected first-slip onset",
       "plot_source": "src/scr_phybot_mjab/tools/microspine/first_failure_plot.py",
+      "figure": str(figure.relative_to(ROOT) if figure.is_relative_to(ROOT) else figure),
     },
     "script_sha256": sha256(Path(__file__)),
     "plot_script_sha256": sha256(ROOT / "src/scr_phybot_mjab/tools/microspine/first_failure_plot.py"),
@@ -507,6 +511,7 @@ def write_report(out, data, rows, results, cells, fit, config):
   )
   count_table = "\n".join(f"| {CATEGORIES[key][2]} | {counts[key]} |" for key in CATEGORIES)
   scores = ", ".join(f"{v['degree']} 阶 {v['loco_rmse_n']:.3f} N" for v in fit["cv_scores"])
+  figure_link = os.path.relpath(figure.parent / f"{figure.name}.png", out)
   report = f"""# 2026-09-22 microspine 首次失效分析
 
 输入：`{audit["data"]}`。共 {len(results)} 次试验、{audit["n_detail_rows"]:,} 条详细采样。
@@ -516,7 +521,7 @@ R1–R3 各 77 次；S=0 的正、负 side 是相同载荷目标的重复，合�
 ## 图和结果
 
 - [失效分类图](01_failure_classification.png)：各类数量、每个目标的重复试验、原判定与首次事件交叉表。
-- [首次失效四联图](02_first_failure_surface.png)：按旧 PNG 恢复的四面板布局、红线、粉色带、三维视角和 ±10 N 色标。
+- [首次失效四联图]({figure_link})：按旧 PNG 恢复的四面板布局、红线、粉色带、三维视角和 ±10 N 色标。
 - [代表试验时序](03_event_examples.png)：力、实际 TCP 位移、第一次及后续失效、控制器停止点。
 - [曲线修正对比](04_curve_correction.png)：终点命令与首次事件命令的同口径比较。
 - [拟合核查图](05_fit_diagnostics.png)：留出预测误差、常数基线对照、两个截面实际纳入的重复数。
@@ -625,19 +630,52 @@ R1–R3 各 77 次；S=0 的正、负 side 是相同载荷目标的重复，合�
   return audit
 
 
+def write_caption(figure: Path, audit: dict) -> None:
+  """The docs figure's caption, from the fitted numbers of this run."""
+  fit = audit["fit"]
+  text = (
+    f"Normal force just before the first slip of a single microspine unit, from {audit['n_trials']} bench trials "
+    f"({Path(audit['data']).name}). Each trial applies a drag force Fx along the spines, then a lateral force Fy, "
+    "then ramps the normal command from the preload towards tension; Fz is the measured normal force 80-20 ms "
+    "before the detected first-slip onset (+ tension, - compression). "
+    "(a) Target grid: filled circles are cell means coloured by Fz, crosses mark targets where a trial slipped "
+    "during the drag or lateral stage, and grey open circles mirror the untested negative lateral half. The red "
+    "line is the Fz = 0 contour of the mean fit; grey lines are its 2 N contours. "
+    "(b) The fitted surface with the cell means and their sample SD; crosses are drag and lateral slips at the "
+    "force they reached. "
+    "(c, d) Sections at Fy = 0 and Fx = 0: cell mean and SD (none for single trials), the fit (red) and the "
+    "residual spread of single trials (band; not a confidence interval). "
+    f"The fit is a degree-{fit['degree']} polynomial, even in Fy, over {fit['n_cells']} cells holding "
+    f"{fit['n_trials']} normal-stage trials; leave-one-cell-out RMSE {fit['loco_selected_rmse_n']:.2f} N against "
+    f"{fit['loco_constant_rmse_n']:.2f} N for a constant. It is drawn only inside the hull of the measured cells, "
+    "is conditional on surviving the drag and lateral stages, and is not a validated failure envelope.\n"
+  )
+  (figure.parent / f"{figure.name}.caption.txt").write_text(text)
+
+
 def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--data", type=Path, default=ROOT / "data/microspine/raw/20260922-163807")
-  parser.add_argument("--out", type=Path)
+  parser.add_argument(
+    "--out", type=Path, help="report, tables and review figures (default: artifacts/first_failure/<batch>/)"
+  )
+  parser.add_argument(
+    "--figure",
+    type=Path,
+    default=FIGURES_DIR / "fig_first_failure_surface",
+    help="stem of the four-panel failure surface; .png/.pdf/.svg and .caption.txt are written",
+  )
   parser.add_argument(
     "--skip-audit-pdf", action="store_true", help="Skip the full per-trial review PDF during iteration"
   )
   args = parser.parse_args(argv)
   data = args.data.resolve()
-  out = (args.out or LIMIT_SURFACE_ANALYSIS_DIR / data.name).resolve()
+  out = (args.out or ARTIFACTS_DIR / "first_failure" / data.name).resolve()
+  figure = args.figure.resolve()
   if out == data or data in out.parents:
     raise ValueError("Analysis outputs must be outside the raw data directory")
   out.mkdir(parents=True, exist_ok=True)
+  figure.parent.mkdir(parents=True, exist_ok=True)
   config = DetectorConfig()
   rows = csv_rows(data / "results.csv")
   ids = [int(row["trial"]) for row in rows]
@@ -667,14 +705,15 @@ def main(argv: list[str] | None = None):
   write_csv(out / "review_queue.csv", [r for r in results if r["review_required"]])
   style()
   plot_classification(results, out)
-  plot_surface(results, cells, fit, out)
+  plot_surface(results, cells, fit, figure)
   plot_examples(results, traces, all_events, out)
   plot_correction(results, cells, fit, out)
   plot_fit_diagnostics(results, cells, fit, out)
   if not args.skip_audit_pdf:
     print("Writing all-trial review PDF", flush=True)
     audit_pdf(results, traces, all_events, out)
-  audit = write_report(out, data, rows, results, cells, fit, config)
+  audit = write_report(out, figure, data, rows, results, cells, fit, config)
+  write_caption(figure, audit)
   print(
     json.dumps(
       {
@@ -693,7 +732,7 @@ def main(argv: list[str] | None = None):
       indent=2,
     )
   )
-  print(f"Artifacts: {out}", flush=True)
+  print(f"Figure: {figure}.png\nReport: {out}", flush=True)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from pathlib import Path
 
 import torch
 
@@ -25,11 +26,12 @@ from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
   climb_wang_pad_cfg,
   surface_metrics,
 )
+from scr_phybot_mjab.tools.paths import FIGURES_DIR
 
 
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--out", default="docs/wang2017_limit_surface.png")
+  parser.add_argument("--out", type=Path, default=FIGURES_DIR / "fig_wang2017_limit_surface.png")
   parser.add_argument(
     "--climb",
     action="store_true",
@@ -148,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     f"c_i={cfg.wang_c_i:g}, mu_s={cfg.wang_mu_channel:g})"
   )
   fig.tight_layout()
+  args.out.parent.mkdir(parents=True, exist_ok=True)
   fig.savefig(args.out, dpi=140)
   print(f"figure saved to {args.out}")
   return 0 if ok else 1

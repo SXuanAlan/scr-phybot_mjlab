@@ -30,9 +30,11 @@ across drag, lateral and normal loading with:
 python scripts/microspine/analyze_microspine_first_failure.py --data data/microspine/raw/20260922-163807
 ```
 
-The first-failure report (generated locally into the ignored `artifacts/limit_surface/20260922-163807/README.md`)
-contains classification and surface figures, per-trial event tables, threshold
-sensitivity flags and all-trial review plots. It uses force and TCP pose to
+The four-panel failure surface goes to `docs/figures/fig_first_failure_surface`
+with its caption. The rest of the report (generated locally into the ignored
+`artifacts/first_failure/20260922-163807/README.md`) contains the classification
+figures, per-trial event tables, threshold sensitivity flags and all-trial
+review plots. It uses force and TCP pose to
 estimate the first event before any re-engagement, while retaining the robot's
 terminal label for comparison. The 3 N experiment and the older 10 N experiment
 are distinct protocols. These analysis outputs do not update the runtime model.

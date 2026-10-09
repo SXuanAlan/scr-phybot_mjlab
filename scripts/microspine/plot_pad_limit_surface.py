@@ -48,6 +48,7 @@ from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
   capacity_ratio,
 )
 from scr_phybot_mjab.tools.microspine.wang_pad_surface import HANG_FN, HANG_FT, PadSurface, load_limit_surface_cfg
+from scr_phybot_mjab.tools.paths import FIGURES_DIR
 from scr_phybot_mjab.tools.plotting import CAT, INK, MUT, ORDINAL, RC_PARAMS, SEC, save_three
 
 # Categorical slots (validated trio) for the three moment axes; ordinal blue
@@ -240,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
     "--out-stem",
-    default="docs/figures/fig_pad_limit_surface",
+    default=FIGURES_DIR / "fig_pad_limit_surface",
     help="Output path stem; .svg/.pdf/.png are appended.",
   )
   parser.add_argument(

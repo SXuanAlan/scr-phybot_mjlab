@@ -2,7 +2,12 @@
 
 Runtime imports must use assets resource paths, never these analysis paths.
 Command-line tools expose overrides for datasets and analysis destinations.
-Generated outputs go under the ignored ``artifacts/``; inputs live in ``data/``.
+Inputs live in ``data/``. Generated files go to one of three places:
+
+- analyses of a checkpoint (figures, metrics, rollout videos) sit beside it,
+  in ``<run>/eval/<checkpoint>/`` (``checkpoint_eval_dir``);
+- figures for the docs and the paper go to ``docs/figures/`` (``FIGURES_DIR``);
+- everything else goes to the ignored ``artifacts/<area>/``.
 """
 
 from pathlib import Path
@@ -19,9 +24,14 @@ CAD_MODEL_DIR = DATA_DIR / "cad_model"
 
 ARTIFACTS_DIR = REPOSITORY_ROOT / "artifacts"
 CLIMB_REVIEW_DIR = ARTIFACTS_DIR / "climb_review"
-LIMIT_SURFACE_ANALYSIS_DIR = ARTIFACTS_DIR / "limit_surface"
 
 FIGURES_DIR = REPOSITORY_ROOT / "docs/figures"
 
 # Sibling checkout of the robot deploy repository (real-robot logs, log2csv).
 DEPLOY_REPO_DIR = REPOSITORY_ROOT.parent / "bdml_phybot_deploy_c2"
+
+
+def checkpoint_eval_dir(checkpoint: str | Path) -> Path:
+  """The directory for analyses of one checkpoint: ``<run>/eval/model_599/`` for ``<run>/model_599.pt``."""
+  checkpoint = Path(checkpoint).resolve()
+  return checkpoint.parent / "eval" / checkpoint.stem

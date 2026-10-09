@@ -47,6 +47,7 @@ from scr_phybot_mjab.tools.microspine.wang_limit_surface import (  # noqa: E402
   build_capacity_lut,
   capacity_ratio,
 )
+from scr_phybot_mjab.tools.paths import FIGURES_DIR  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # House palette (matches docs/figures/climb_pipeline_fig.svg). Two semantic
@@ -681,7 +682,7 @@ def main(argv: list[str] | None = None) -> None:
   ap.add_argument(
     "--out",
     type=Path,
-    default=Path("docs/figures/microspine_state_machine"),
+    default=FIGURES_DIR / "microspine_state_machine",
     help="output stem; .pdf/.svg/.png are written",
   )
   args = ap.parse_args(argv)

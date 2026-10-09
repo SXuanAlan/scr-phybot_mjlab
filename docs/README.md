@@ -11,3 +11,6 @@
   `scripts/validate/` regenerate them.
 - `paper/`: method write-ups in LaTeX.
 - `reference/`: papers this work builds on.
+
+Analyses of a checkpoint stay beside it in `logs/`, and other generated
+outputs in the ignored `artifacts/`; see `src/scr_phybot_mjab/tools/paths.py`.

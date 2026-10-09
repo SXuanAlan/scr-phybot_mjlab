@@ -19,7 +19,7 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_XML,
 )
-from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR
 
 _EXPECTED_AMP_DIM = 48
 
@@ -159,7 +159,7 @@ def main(argv: list[str] | None = None) -> None:
   parser.add_argument(
     "--output-dir",
     type=Path,
-    default=REPOSITORY_ROOT / "logs/amp_dataset_replay",
+    default=ARTIFACTS_DIR / "amp_dataset_replay",
   )
   parser.add_argument("--no-render", action="store_true")
   parser.add_argument("--width", type=int, default=960)

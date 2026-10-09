@@ -41,9 +41,7 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 import numpy as np
 
 from scr_phybot_mjab.microspine.release_reason import release_reason_name
-from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
-
-REPO = REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import checkpoint_eval_dir
 
 EE_SHORT = ("LH", "RH", "LF", "RF")
 # Categorical slots 1-3 of the validated reference palette (all-pairs safe).
@@ -68,7 +66,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     "--out",
     type=Path,
     default=None,
-    help="output prefix (default logs/eval/<run>/padwrench_<angle>deg_<ckpt>)",
+    help="output prefix (default <run>/eval/<checkpoint>/pad_wrench_<angle>deg)",
   )
   p.add_argument("--replot", type=Path, default=None, help="re-render from a saved .npz")
   args = p.parse_args(argv)
@@ -412,11 +410,7 @@ def main(argv: list[str] | None = None) -> None:
     prefix = args.out or args.replot.with_suffix("")
   else:
     rec = rollout(args)
-    if args.out is not None:
-      prefix = args.out
-    else:
-      run_name = args.ckpt.resolve().parent.name
-      prefix = REPO / "logs" / "eval" / run_name / f"padwrench_{args.angle:.0f}deg_{args.ckpt.stem}"
+    prefix = args.out or checkpoint_eval_dir(args.ckpt) / f"pad_wrench_{args.angle:.0f}deg"
     prefix.parent.mkdir(parents=True, exist_ok=True)
     np.savez(prefix.with_suffix(".npz"), **rec)
     print(f"wrote {prefix.with_suffix('.npz')}")

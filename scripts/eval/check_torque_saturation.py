@@ -5,6 +5,9 @@ Examples:
       --agent zero --num-envs 8 --steps 200
   python scripts/eval/check_torque_saturation.py Mjlab-Climb-Wall-Phybot-C2 \
       --agent trained --checkpoint-file logs/.../model.pt
+
+The plots of a trained policy go to <run>/eval/<checkpoint>/torque/ beside the
+checkpoint; those of the zero and random agents to artifacts/torque/.
 """
 
 import argparse
@@ -21,6 +24,7 @@ from mjlab.tasks.registry import (
 from mjlab.utils.torch import configure_torch_backends
 
 import scr_phybot_mjab.tasks  # noqa: F401
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR, checkpoint_eval_dir
 from scr_phybot_mjab.utils.cli import add_bool_option
 from scr_phybot_mjab.utils.runtime import load_policy, make_env, pin_climb_wall_angle, resolve_checkpoint
 
@@ -33,15 +37,9 @@ def _default_output_dir(task_id: str, cfg: argparse.Namespace, checkpoint_path: 
   if cfg.output_dir is not None:
     return Path(cfg.output_dir)
 
-  root = Path("results") / "checkpoint"
   if checkpoint_path is not None:
-    checkpoint_path = checkpoint_path.resolve()
-    checkpoint = _safe_path_part(checkpoint_path.stem)
-    run = _safe_path_part(checkpoint_path.parent.name)
-    experiment = _safe_path_part(checkpoint_path.parent.parent.name)
-    return root / experiment / run / checkpoint
-
-  return root / _safe_path_part(task_id) / _safe_path_part(cfg.agent)
+    return checkpoint_eval_dir(checkpoint_path) / "torque"
+  return ARTIFACTS_DIR / "torque" / _safe_path_part(task_id) / _safe_path_part(cfg.agent)
 
 
 def _save_torque_plots(
@@ -267,9 +265,7 @@ def main(argv: list[str] | None = None) -> None:
   )
   parser.add_argument("--wall-angle-deg", type=float, help="climb wall angle; default: inferred from model_<iter>.pt")
   add_bool_option(parser, "--save-plots", default=True, help="save torque-vs-time plots")
-  parser.add_argument(
-    "--output-dir", help="plot directory (default: results/checkpoint/<experiment>/<run>/<checkpoint>)"
-  )
+  parser.add_argument("--output-dir", help="plot directory (default: <run>/eval/<checkpoint>/torque/)")
   parser.add_argument(
     "--plot-env-idx", type=int, default=0, help="environment of the signed torque traces (default: 0)"
   )

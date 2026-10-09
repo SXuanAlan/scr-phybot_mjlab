@@ -49,6 +49,12 @@ Rules for changing this repository, for people and coding agents alike.
    raw data, videos, logs or checkpoints. The clips record the hash of
    `assets/phybot_c2/xml/phybot_c2.xml`: change it only while regenerating
    every clip.
+7. Generated files go to one of three places, taken from `tools/paths.py`,
+   never from a path relative to the working directory: analyses of a
+   checkpoint (figures, metrics, rollout videos) beside it in
+   `<run>/eval/<checkpoint>/` (`checkpoint_eval_dir`); figures for the docs
+   and the paper in `docs/figures/` (`FIGURES_DIR`), with a caption; anything
+   else in the ignored `artifacts/<area>/`.
 
 ## Commits
 

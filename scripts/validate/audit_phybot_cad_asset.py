@@ -14,6 +14,7 @@ def main(argv: list[str] | None = None):
   argparse.ArgumentParser(description=__doc__).parse_args(argv)
   report = audit_rigid_cad_asset()
   path = CLIMB_REVIEW_DIR / "rigid_cad_asset_audit.json"
+  path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text(json.dumps(report, indent=2) + "\n")
   if not report["passed"]:
     raise RuntimeError(f"CAD mismatch: {report['max_compiled_vertex_error_m']} m; see {path}")

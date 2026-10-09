@@ -39,7 +39,7 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_STANDING_JOINT_POS,
   get_spec,
 )
-from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR
 
 # Real-PD gains: nominal sim gains with the hip/knee damping override that the
 # deployed walk task uses (PHYBOT_C2_REAL_PD_DAMPING_BY_GROUP, kd 5 -> 10). Keyed
@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> None:
     type=Path,
     default=SQUAT_MOTION,
   )
-  parser.add_argument("--output-dir", type=Path, default=REPOSITORY_ROOT / "results/pd_tracking")
+  parser.add_argument("--output-dir", type=Path, default=ARTIFACTS_DIR / "pd_tracking")
   parser.add_argument("--settle-s", type=float, default=1.0, help="hold frame 0 before playback (s)")
   parser.add_argument("--sat-threshold", type=float, default=0.95)
   args = parser.parse_args(argv)

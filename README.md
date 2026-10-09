@@ -49,6 +49,8 @@ tensorboard --logdir logs/rsl_rl
 - Resume training: add `--agent.resume --agent.load-run <run> --agent.load-checkpoint model_<iter>.pt`.
 - Play picks the climb wall angle that the checkpoint's iteration reached;
   `--wall-angle-deg 90` overrides it. `--video` records the rollout.
+- Analyses of a checkpoint (play videos, the climb exam, torque and pad
+  wrench plots) land beside it, in `<run>/eval/model_<iter>/`.
 - Run long jobs in `tmux` (`tmux new -s train`, detach with `Ctrl-b d`,
   return with `tmux attach -t train`).
 - Every script prints its options with `--help`. `scripts/` holds the four
@@ -79,9 +81,10 @@ src/scr_phybot_mjab/
   utils/        helpers for scripts: building envs, loading policies, CLI options
 scripts/        thin command-line wrappers
 tests/          microspine/, tasks/<task>/, reference/, tools/, conventions/
-docs/           see docs/README.md
+docs/           see docs/README.md; docs/figures/ holds the figures for the paper
 data/           inputs: the CAD model and bench data (raw trials are not in git)
-artifacts/      generated outputs (ignored)
+logs/rsl_rl/    training runs (ignored); each checkpoint's analyses in <run>/eval/<checkpoint>/
+artifacts/      other generated outputs (ignored)
 ```
 
 ## Data and assets

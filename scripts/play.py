@@ -33,6 +33,7 @@ from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wrappers import VideoRecorder
 from mjlab.viewer import NativeMujocoViewer, ViserPlayViewer
 
+from scr_phybot_mjab.tools.paths import checkpoint_eval_dir
 from scr_phybot_mjab.utils.runtime import pin_climb_wall_angle, resolve_checkpoint
 
 
@@ -213,14 +214,12 @@ def run_play(task_id: str, cfg: PlayConfig):
             raise RuntimeError("No motion artifact found in the run.")
           motion_cmd.motion_file = str(Path(art.download()) / "motion.npz")
 
-  log_dir: Path | None = None
   resume_path: Path | None = None
   if trained_mode:
     resume_path, source = resolve_checkpoint(
       agent_cfg.experiment_name, cfg.checkpoint_file, cfg.wandb_run_path, cfg.wandb_checkpoint_name
     )
     print(f"[INFO]: Loading checkpoint: {source}")
-    log_dir = resume_path.parent
 
   pin_climb_wall_angle(
     env_cfg,
@@ -247,15 +246,16 @@ def run_play(task_id: str, cfg: PlayConfig):
 
   render_mode = "rgb_array" if (trained_mode and cfg.video) else None
   if cfg.video and dummy_mode:
-    print("[WARN] Video recording with dummy agents is disabled (no checkpoint/log_dir).")
+    print("[WARN] Video recording with dummy agents is disabled (videos go beside the checkpoint).")
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device, render_mode=render_mode)
 
   if trained_mode and cfg.video:
-    print("[INFO] Recording videos during play")
-    assert log_dir is not None
+    assert resume_path is not None
+    print(f"[INFO] Recording the rollout to {checkpoint_eval_dir(resume_path) / 'videos'}")
     env = VideoRecorder(
       env,
-      video_folder=log_dir / "videos" / "play",
+      video_folder=checkpoint_eval_dir(resume_path) / "videos",
+      name_prefix="play",
       step_trigger=lambda step: step == 0,
       video_length=cfg.video_length,
       disable_logger=True,

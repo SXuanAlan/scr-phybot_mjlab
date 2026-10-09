@@ -12,6 +12,7 @@ from scipy.spatial.transform import Rotation
 from scr_phybot_mjab.assets.brick import BrickCfg
 from scr_phybot_mjab.tasks.brick.reference import PHASE_NAMES, REFERENCE_PATH, load_reference
 from scr_phybot_mjab.tools.brick_reference import BrickIK
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR
 
 
 def render_frame(ik, renderer, camera, ref, phase, progress):
@@ -53,7 +54,7 @@ def caption_frame(frame, phase, time_s, duration_s, font):
 def main(argv: list[str] | None = None):
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--reference", type=Path, default=REFERENCE_PATH)
-  parser.add_argument("--output", type=Path, default=Path("/tmp/brick_reference_preview.png"))
+  parser.add_argument("--output", type=Path, default=ARTIFACTS_DIR / "reference" / "brick_reference_preview.png")
   parser.add_argument("--fps", type=int, default=25, help="MP4 frames per second")
   parser.add_argument("--width", type=int, default=640)
   parser.add_argument("--height", type=int, default=640, help="Scene height, excluding the MP4 caption")

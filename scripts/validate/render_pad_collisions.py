@@ -12,7 +12,7 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 import mujoco
 from PIL import Image, ImageDraw, ImageFont
 
-from scr_phybot_mjab.tools.paths import REPOSITORY_ROOT
+from scr_phybot_mjab.tools.paths import FIGURES_DIR, REPOSITORY_ROOT
 
 
 def main(argv: list[str] | None = None):
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None):
     font=font,
     fill="#25313d",
   )
-  output = root / "docs/figures/phybot_c2_pad_box_collisions.png"
+  output = FIGURES_DIR / "phybot_c2_pad_box_collisions.png"
   canvas.save(output)
   print(output)
 

@@ -1,4 +1,4 @@
-"""Render walk-policy rollouts of a checkpoint to mp4 for visual inspection."""
+"""Render walk-policy rollouts of a checkpoint to mp4, by default in <run>/eval/<checkpoint>/videos/."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import torch
 from mjlab.tasks.registry import load_env_cfg
 from mjlab.utils.torch import configure_torch_backends
 
+from scr_phybot_mjab.tools.paths import checkpoint_eval_dir
 from scr_phybot_mjab.utils.runtime import load_policy, make_env
 
 
@@ -20,7 +21,7 @@ def main(argv: list[str] | None = None) -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument("--task", default="Mjlab-Walk-Amp-Phybot-C2")
   ap.add_argument("--ckpt", required=True)
-  ap.add_argument("--output-dir", default="logs/amp_policy_replay")
+  ap.add_argument("--output-dir", type=Path, help="default: <run>/eval/<checkpoint>/videos/")
   ap.add_argument("--device", default="cuda:0")
   ap.add_argument("--steps", type=int, default=500, help="steps per single-command phase")
   ap.add_argument("--width", type=int, default=1280)
@@ -45,7 +46,7 @@ def main(argv: list[str] | None = None) -> None:
 
   uenv = env.unwrapped
   twist = uenv.command_manager.get_term("twist")
-  out_dir = Path(args.output_dir)
+  out_dir = args.output_dir or checkpoint_eval_dir(args.ckpt) / "videos"
   out_dir.mkdir(parents=True, exist_ok=True)
 
   def record(name: str, schedule: list[tuple[tuple[float, float, float], int]]) -> None:

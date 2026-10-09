@@ -3,10 +3,11 @@
 Example (CUDA_VISIBLE_DEVICES selects the physical evaluation GPU)::
 
   python scripts/eval/evaluate_climb_checkpoint.py --checkpoint logs/.../model_250.pt \
-    --angles 45 50 --num-envs 32 --duration-s 30 --output-dir logs/eval/model_250
+    --angles 45 50 --num-envs 32 --duration-s 30
 
 Every angle produces metrics.json, trajectory.npz, engage_schedule.png and a
-video of environment 0 from that same physical rollout. Terminations stay
+video of environment 0 from that same physical rollout, by default in
+<run>/eval/model_250/climb/ beside the checkpoint. Terminations stay
 enabled. We disable automatic reset only to record the terminal state, then
 explicitly reset done worlds before the next physics step. No capacity,
 reward, controller or failure threshold is changed.
@@ -29,6 +30,7 @@ from pathlib import Path
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 from scr_phybot_mjab.tools.climb_evaluation import TASK, evaluate_checkpoint
+from scr_phybot_mjab.tools.paths import checkpoint_eval_dir
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -48,7 +50,7 @@ def main(argv: list[str] | None = None) -> None:
   parser.add_argument("--settle-s", type=float, default=0.5)
   parser.add_argument("--profile", choices=("canonical", "training-rsi"), default="canonical")
   parser.add_argument("--seed", type=int, default=20260908)
-  parser.add_argument("--output-dir", type=Path, required=True)
+  parser.add_argument("--output-dir", type=Path, help="default: <run>/eval/<checkpoint>/climb/")
   parser.add_argument("--device", default="cuda:0")
   parser.add_argument("--video", action=argparse.BooleanOptionalAction, default=True)
   parser.add_argument("--video-fps", type=float, default=25.0)
@@ -60,7 +62,7 @@ def main(argv: list[str] | None = None) -> None:
   if any(not math.isfinite(angle) or not 0 < angle <= 60 for angle in args.angles):
     parser.error("The reduced-hardware curriculum evaluation supports explicit angles in (0, 60]")
   args.checkpoint = args.checkpoint.resolve(strict=True)
-  args.output_dir = args.output_dir.resolve()
+  args.output_dir = (args.output_dir or checkpoint_eval_dir(args.checkpoint) / "climb").resolve()
   args.output_dir.mkdir(parents=True, exist_ok=True)
   evaluate_checkpoint(args)
 
