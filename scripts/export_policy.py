@@ -2,8 +2,7 @@
 
 The exported .pt embeds the observation normalizer (rsl_rl EmpiricalNormalization),
 so the deploy side must feed RAW observations (no obs_scales, no clip_obs) in the
-layout documented in docs/walk_policy_deploy_interface.md and the JSON sidecar
-written next to the model.
+layout recorded in the JSON sidecar written next to the model.
 
   python scripts/export_policy.py Mjlab-Walk-Phybot-C2 \
       --checkpoint-file logs/rsl_rl/phybot_c2_walk/<run>/model_30000.pt

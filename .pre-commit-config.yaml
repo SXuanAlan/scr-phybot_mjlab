@@ -1,6 +1,6 @@
 # Install once per clone: pre-commit install
 # Check everything:        pre-commit run --all-files
-exclude: ^(docs/archive/|data/|artifacts/|logs/|wandb/|scratch/)
+exclude: ^(data/|artifacts/|logs/|wandb/|scratch/)
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.8  # keep in step with the dev extra in pyproject.toml

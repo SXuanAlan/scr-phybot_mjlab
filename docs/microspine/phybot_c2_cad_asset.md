@@ -6,12 +6,10 @@ The earlier manual 40/75/90 mm mounting dimensions are superseded. No
 vertices are stretched, scaled or locally displaced, and no fabricated
 pin or ball visual is added to the CAD assembly.
 
-![Original CAD and imported asset](../figures/phybot_c2_cad_rigid_comparison.png)
-
-The columns show original/imported front views, then original/imported back
-views, at identical orthographic scale. The earlier misleading arm detail
-showed the back; the current `phybot_c2_cad_arm_detail.png` shows the contact
-side. A separate `phybot_c2_cad_arm_back_detail.png` shows the rear.
+`scripts/validate/audit_phybot_cad_asset.py` renders the original and imported
+assembly side by side (front and back views at identical orthographic scale)
+to `docs/figures/phybot_c2_cad_rigid_comparison.png`;
+`scripts/validate/render_phybot_asset.py` renders the robot and arm details.
 
 ## CAD mounting references
 
@@ -89,16 +87,17 @@ nominal values; their COM/inertia estimates exclude the removed hand shape.
 
 ## Verification and reproduction
 
-[The compiled-asset audit](../reports/empirical_climb/rigid_cad_asset_audit.json)
-compares every pad visual and both connectors against the source solids
-in both nearest-vertex directions. Maximum deviation is about
+The compiled-asset audit (the same script, written to
+`artifacts/climb_review/rigid_cad_asset_audit.json`) compares every pad
+visual and both connectors against the source solids in both nearest-vertex
+directions. Maximum deviation is about
 0.0000112 mm, within float32 mesh storage precision. It also verifies the
 CAD sleeve stops coincide with both bare forearm ends.
 
 The active `climb_cad_empirical_initial.json` and `climb_cad_empirical.npy`
-are regenerated for this geometry. Current geometry, contact, static-load
-and runtime-reset results are in the
-[empirical climbing review](../reports/empirical_climb/README.md).
+are regenerated for this geometry. `scripts/reference/audit_cad_climb_reference.py`
+reproduces the geometry, contact and static-load checks of the clip into
+`artifacts/climb_review/`.
 Climbing retraining remains pending user acceptance. Legacy ground-to-wall
 clips have not been retargeted. Geometric agreement is not a hardware
 validation of the passive stops or full-pad load capacity.

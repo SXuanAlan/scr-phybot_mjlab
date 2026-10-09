@@ -5,7 +5,7 @@ Analysis only: the simulation judges holds with the empirical unit model
 comparison figures.
 
 Reference: "Design and modeling of linearly-constrained compliant spines for
-human-scale locomotion on rocky surfaces" (docs/wang-et-al-2017-*.pdf),
+human-scale locomotion on rocky surfaces" (docs/reference/Micro-spines/wang-et-al-2017-*.pdf),
 Sections 2.2-3.2 (eqs 1-4, 9-12). The model predicts the adhesion capacity of
 a unidirectional spine array as a function of load *direction*; the resulting
 surface is closed: capacity peaks along the rake (pure engaged shear), tension

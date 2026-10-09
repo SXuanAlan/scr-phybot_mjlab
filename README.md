@@ -22,11 +22,11 @@ pre-commit install
 | `Mjlab-Climb-Wall-Phybot-C2` | Climbing with all 12 spine units per pad; wall-angle curriculum 45° → 90° | [climb_wall](docs/tasks/climb_wall.md) |
 | `Mjlab-Climb-Wall-Phybot-C2-Corners-A60` | The four corner units per pad; curriculum 45° → 60° | [climb_wall](docs/tasks/climb_wall.md) |
 | `Mjlab-Climb-Wall-Phybot-C2-Corners-A80` | The four corner units on a fixed 80° wall | [climb_wall](docs/tasks/climb_wall.md) |
-| `Mjlab-Climb-Transition80-Phybot-C2` | Mounting from standing onto the 80° wall along the a80 clip, handing off to the climb cycle | [env_cfgs.py](src/scr_phybot_mjab/tasks/climb_transition80/config/phybot_c2/env_cfgs.py), [history](docs/archive/transition80_history.md) |
-| `Mjlab-Microspine-Brick-Phybot-C2` | Picking up, carrying and placing a brick with a pad on each hand | [brick](docs/tasks/brick/README.md) |
-| `Mjlab-Microspine-Brick-Phybot-C2-DR` | The same with domain randomization | [brick](docs/tasks/brick/README.md) |
-| `Mjlab-Microspine-Brick-Phybot-C2-Hold`, `Mjlab-Microspine-Brick-Phybot-C2-Engage`, `Mjlab-Microspine-Brick-Phybot-C2-Place` | Training stages that start from the hold, engage or place phase | [brick](docs/tasks/brick/README.md) |
-| `Mjlab-Microspine-Brick-Phybot-C2-NoGrip` | The ablation with the pads unable to grip | [brick](docs/tasks/brick/README.md) |
+| `Mjlab-Climb-Transition80-Phybot-C2` | Mounting from standing onto the 80° wall along the a80 clip, handing off to the climb cycle | [env_cfgs.py](src/scr_phybot_mjab/tasks/climb_transition80/config/phybot_c2/env_cfgs.py) |
+| `Mjlab-Microspine-Brick-Phybot-C2` | Picking up, carrying and placing a brick with a pad on each hand | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
+| `Mjlab-Microspine-Brick-Phybot-C2-DR` | The same with domain randomization | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
+| `Mjlab-Microspine-Brick-Phybot-C2-Hold`, `Mjlab-Microspine-Brick-Phybot-C2-Engage`, `Mjlab-Microspine-Brick-Phybot-C2-Place` | Training stages that start from the hold, engage or place phase | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
+| `Mjlab-Microspine-Brick-Phybot-C2-NoGrip` | The ablation with the pads unable to grip | [env_cfgs.py](src/scr_phybot_mjab/tasks/brick/config/phybot_c2/env_cfgs.py) |
 | `Mjlab-Walk-Phybot-C2` | Velocity tracking with plain PPO | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
 | `Mjlab-Stand-Default-Phybot-C2` | Recovering to and holding the standing pose (the deployed "prepare" policy) | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |
 | `Mjlab-Walk-Amp-Phybot-C2` | Preset gaits with an AMP style reward and the deployed PD damping | [variants.py](src/scr_phybot_mjab/tasks/walk/config/phybot_c2/variants.py) |

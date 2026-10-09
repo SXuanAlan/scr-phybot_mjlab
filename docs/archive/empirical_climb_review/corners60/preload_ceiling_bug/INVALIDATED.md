@@ -1,1 +1,0 @@
-Historical results with the erroneous 10 N/unit compression ceiling. The 10 N value is a minimum engagement preload. These results cannot establish climbing infeasibility. See the current parent-directory README and recomputed audit.

@@ -1,4 +1,0 @@
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /home/spider/miniconda3/envs/env_mjlab15/bin/python -m pytest -q tests/microspine/test_unit_preload.py tests/microspine/test_empirical_limit_surface.py tests/microspine/test_affordance_contacts.py tests/microspine/test_release_load_reward.py tests/microspine/test_shared_pad_mechanics.py tests/microspine/test_pad_gimbal.py tests/microspine/test_climb_task_config.py tests/microspine/test_climb_motion.py tests/microspine/test_climb_rewards.py tests/microspine/test_box_contacts.py
-
-121 passed, 35 warnings in 11.16s
-Warnings: torch.jit.script deprecation from installed mjlab/PyTorch dependency.

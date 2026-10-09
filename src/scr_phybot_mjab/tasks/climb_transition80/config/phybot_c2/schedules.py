@@ -3,8 +3,7 @@
 A schedule is a list of {"iter", "value"} stages over training iterations:
 its term starts at stage 0 and a curriculum term anneals it (curricula.py).
 Stages at iteration 50000 and later lie past the training horizon; those
-tightenings are advanced by hand. docs/archive/transition80_history.md
-records how the values were reached.
+tightenings are advanced by hand.
 """
 
 from __future__ import annotations

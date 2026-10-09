@@ -85,8 +85,7 @@ def resolve_wall_angle(current_iter: int, angle_stages: list[WallAngleStage]) ->
 
 # Wall-angle ladder. The iterations are ceilings driven by mastery gates, and
 # every angle hop overlaps its neighbor's jitter pool (75+-12 = 63-87 covers
-# 80+-5 = 75-85 covers 85+-3 = 82-88). Design rules:
-# docs/archive/climb_env_cfg_notes.md ("Curriculum").
+# 80+-5 = 75-85 covers 85+-3 = 82-88).
 # Consumers must copy at use ([dict(s) for s in ...]): these tuples are shared
 # module state and env cfgs are built eagerly at import time.
 WALL_ANGLE_STAGES: tuple[WallAngleStage, ...] = (

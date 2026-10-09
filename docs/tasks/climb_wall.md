@@ -64,6 +64,3 @@ scales the body position/orientation and root orientation kernels.
 - `scripts/train/train_climb60_monitored.py`, `supervise_climb60.py` and
   `monitor_climb60_metrics.py`: a Corners-A60 run with a live curriculum gate.
 - `scripts/eval/plot_pad_wrench_timeseries.py`: wall-to-pad wrenches over a rollout.
-
-Design reviews and evaluation reports from September are in
-`docs/reports/empirical_climb/`.

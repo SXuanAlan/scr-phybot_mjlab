@@ -14,7 +14,7 @@ Rules for changing this repository, for people and coding agents alike.
   scripts.
 - `scripts/` are thin command-line wrappers; `tests/` is split by domain, with
   the repository rules checked in `tests/conventions/`.
-- Retired code and how to recover it: [docs/archive/RETIRED.md](docs/archive/RETIRED.md).
+- Retired code lives on in the local `archive/*` git tags (`git tag -l 'archive/*'`).
 
 ## Commands
 
@@ -26,7 +26,7 @@ Rules for changing this repository, for people and coding agents alike.
   or `pre-commit run --files <files>`.
 - Behaviour snapshots: `python scripts/dev/equivalence.py record <dir> --tiers cfg,model,clips --strict-tasks`,
   then rollouts with `--tiers rollout --jobs 6` on GPU1, and `compare <base> <new>`.
-  Current baselines and their caveats: `artifacts/equivalence/NOTES.md`.
+  Record the base from the commit you start from, under the ignored `artifacts/equivalence/`.
 
 ## Rules
 
@@ -39,7 +39,7 @@ Rules for changing this repository, for people and coding agents alike.
 3. Across packages, import public names only; a module that is star-imported
    declares `__all__`.
 4. Comments give the reason in the present tense. Experiment history, run
-   names, versions and dates belong in commit messages or `docs/archive/`.
+   names, versions and dates belong in commit messages.
 5. Scripts are thin: `main(argv=None)`, nothing runs on import beyond
    choosing the GL or plot backend, and logic another script or a test needs
    lives in `src/`. Keep new scripts under 150 lines; long single-purpose

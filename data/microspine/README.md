@@ -19,8 +19,8 @@ independently. Runtime tasks only read the packaged distribution table.
 Calibration and raw-cell baseline tables are analysis artifacts, not inputs
 to the active climbing task. The report records the raw summary's SHA256.
 
-See [the code layout](../../docs/reports/empirical_climb/code_layout.md) for
-shared geometry, mechanics, reference-generation tools and the import flow.
+[docs/microspine/state_machine.md](../../docs/microspine/state_machine.md)
+describes how the simulation uses the packaged table.
 
 `raw/20260922-163807/` contains the newer 231-trial, 3 N preload experiment,
 including 86 trials carried over from `20260922-144929`. Analyze first slip
