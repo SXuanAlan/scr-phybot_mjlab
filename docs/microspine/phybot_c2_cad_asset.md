@@ -8,8 +8,10 @@ pin or ball visual is added to the CAD assembly.
 
 `scripts/validate/audit_phybot_cad_asset.py` renders the original and imported
 assembly side by side (front and back views at identical orthographic scale)
-to `docs/figures/phybot_c2_cad_rigid_comparison.png`;
-`scripts/validate/render_phybot_asset.py` renders the robot and arm details.
+to `artifacts/climb_review/phybot_c2_cad_rigid_comparison.png`;
+`scripts/validate/render_phybot_asset.py` renders the robot
+(`docs/figures/phybot_c2_cad_robot.png`) and, in `artifacts/asset_renders/`,
+the single views and arm details.
 
 ## CAD mounting references
 

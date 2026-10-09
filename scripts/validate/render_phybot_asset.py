@@ -1,4 +1,8 @@
-"""Render the actual get_spec() robot in its nominal standing pose."""
+"""Render the actual get_spec() robot in its nominal standing pose.
+
+The two-view composite is a docs figure; the single views and the arm
+details are working renders in artifacts/asset_renders/.
+"""
 
 from __future__ import annotations
 
@@ -15,13 +19,14 @@ from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_STANDING_JOINT_POS,
   get_spec,
 )
-from scr_phybot_mjab.tools.paths import FIGURES_DIR
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR, FIGURES_DIR
 
 
 def main(argv: list[str] | None = None):
   argparse.ArgumentParser(description=__doc__).parse_args(argv)
-  output = FIGURES_DIR
-  output.mkdir(parents=True, exist_ok=True)
+  views = ARTIFACTS_DIR / "asset_renders"
+  views.mkdir(parents=True, exist_ok=True)
+  FIGURES_DIR.mkdir(parents=True, exist_ok=True)
   width, height = 1100, 1400
   spec = get_spec()
   spec.visual.global_.offwidth = width
@@ -74,22 +79,22 @@ def main(argv: list[str] | None = None):
 
   front = render(35, -12, 2.65, [0, 0, 0.69])
   back = render(145, -12, 2.65, [0, 0, 0.69])
-  front.save(output / "phybot_c2_cad_front.png")
-  back.save(output / "phybot_c2_cad_back.png")
+  front.save(views / "phybot_c2_cad_front.png")
+  back.save(views / "phybot_c2_cad_back.png")
   b = data.site_xpos[model.site("left_hand_spine_ball_center").id]
   c = data.site_xpos[model.site("left_hand_spine_contact_center").id]
   lookat = (b + c) / 2 + [0, 0, 0.035]
   pad_rotation = data.xmat[model.body("left_hand_spine").id].reshape(3, 3)
   face = pad_rotation @ np.array([0, -1, 0])
-  # Pick the actual contact side from the live pad frame, rather than a
-  # fixed world azimuth that previously displayed the back of the assembly.
+  # Pick the actual contact side from the live pad frame; a fixed world
+  # azimuth can show the back of the assembly.
   forward = -(face + [0, 0.18, 0.08])
   azimuth = np.degrees(np.arctan2(forward[1], forward[0]))
   elevation = np.degrees(np.arctan2(forward[2], np.linalg.norm(forward[:2])))
   detail = render(azimuth, elevation, 0.72, lookat)
-  detail.save(output / "phybot_c2_cad_arm_detail.png")
+  detail.save(views / "phybot_c2_cad_arm_detail.png")
   back_detail = render(160, -5, 0.72, lookat)
-  back_detail.save(output / "phybot_c2_cad_arm_back_detail.png")
+  back_detail.save(views / "phybot_c2_cad_arm_back_detail.png")
   canvas = Image.new("RGB", (2 * width, height + 100), "#f3f5f7")
   canvas.paste(front, (0, 90))
   canvas.paste(back, (width, 90))
@@ -100,10 +105,10 @@ def main(argv: list[str] | None = None):
   draw.text((32, 16), "PHYBot C2 | Updated microspine assets", fill="#25313d", font=font)
   draw.text((32, 54), "Front three-quarter view", fill="#4c5a68", font=small)
   draw.text((width + 32, 54), "Rear three-quarter view", fill="#4c5a68", font=small)
-  canvas.save(output / "phybot_c2_cad_robot.png")
+  canvas.save(FIGURES_DIR / "phybot_c2_cad_robot.png")
   renderer.close()
-  print("Rendered", output / "phybot_c2_cad_robot.png")
-  print("Detail", output / "phybot_c2_cad_arm_detail.png")
+  print("Rendered", FIGURES_DIR / "phybot_c2_cad_robot.png")
+  print("Detail", views / "phybot_c2_cad_arm_detail.png")
   print("Total robot mass (kg)", model.body_mass.sum())
   for side in ("left", "right"):
     name = f"{side}_hand_spine"

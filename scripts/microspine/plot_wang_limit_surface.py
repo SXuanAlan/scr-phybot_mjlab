@@ -1,12 +1,11 @@
 """Verify and plot the Wang-2017 microspine limit surface against the paper.
 
-Rebuilds the normalized capacity surface from ``MicrospineLimitSurfaceCfg``
-defaults (or the climb task's overrides with --climb), checks its anchor
+Rebuilds the normalized capacity surface from ``WangPadCfg`` defaults (or
+on the climb pad's CAD unit grid with --climb), checks its anchor
 ratios against the single-tile 3D limit surface of Wang, Jiang & Cutkosky
 (IJRR 2017, Fig 8), and renders the two cross-sections plus the full LUT.
 
-Run inside the env_mjlab environment:
-  python scripts/microspine/plot_wang_limit_surface.py --out wang_surface.png
+The figure goes to artifacts/microspine/ unless --out says otherwise.
 """
 
 from __future__ import annotations
@@ -26,12 +25,12 @@ from scr_phybot_mjab.tools.microspine.wang_limit_surface import (
   climb_wang_pad_cfg,
   surface_metrics,
 )
-from scr_phybot_mjab.tools.paths import FIGURES_DIR
+from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR
 
 
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--out", type=Path, default=FIGURES_DIR / "fig_wang2017_limit_surface.png")
+  parser.add_argument("--out", type=Path, default=ARTIFACTS_DIR / "microspine" / "fig_wang2017_limit_surface.png")
   parser.add_argument(
     "--climb",
     action="store_true",
