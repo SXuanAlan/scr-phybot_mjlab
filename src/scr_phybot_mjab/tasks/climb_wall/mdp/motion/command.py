@@ -514,7 +514,7 @@ class ClimbMotionCommand(CommandTerm):
       dim=-1,
     )
     self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
-    self.robot.clear_state(env_ids=env_ids)
+    self.robot.reset(env_ids=env_ids)
 
     # Seed the microspine latches from the frame's engage schedule. The pads
     # of engaged EEs sit on the wall in every clip frame. Empirical tasks

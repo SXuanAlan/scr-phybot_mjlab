@@ -600,7 +600,7 @@ class TransitionMotionCommand(ClimbMotionCommand):
       dim=-1,
     )
     self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
-    self.robot.clear_state(env_ids=env_ids)
+    self.robot.reset(env_ids=env_ids)
     self._affordance().seed_engaged(env_ids, self.clip.ee_engaged[frames])
 
   def _update_command(self) -> None:
