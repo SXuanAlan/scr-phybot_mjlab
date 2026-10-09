@@ -1,31 +1,20 @@
 MUJOCO_LOG.TXT
 .DS_Store
 __pycache__/
-**/__pycache__/
 *.py[cod]
 *$py.class
 logs/
 recording/
 wandb/
-train.log
-results/
 nohup.out
 .agents
-others/
-/deploy/
-/image.png
 *.egg-info/
 build/
 dist/
 .pytest_cache/
 .ruff_cache/
-Testing/
 .superpowers/
 .codex
-/limit_surface_manual.npz
-
-# temporary render workbench (Sharpa hand illustration)
-tmp_sharpa_render/
 
 # Raw bench data and rendered previews stay on disk, out of git.
 /data/microspine/raw/
@@ -33,8 +22,7 @@ tmp_sharpa_render/
 src/scr_phybot_mjab/tasks/*/motions/*.png
 *.log
 
-# Vendored third-party bulk; reference papers and reading notes stay on disk.
-src/scr_phybot_mjab/assets/toddlerbot/upstream/
+# Reference papers and reading notes stay on disk.
 /docs/reference/
 
 # Regenerable outputs and throwaway work.
