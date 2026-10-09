@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_MOTION
 
 from . import audit, choreography, outputs
 from .builder import SEGMENT_NAMES, MountBuilder

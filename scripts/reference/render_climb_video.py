@@ -22,7 +22,6 @@ import imageio.v2 as imageio
 import mujoco
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   get_spec,
 )
@@ -31,6 +30,7 @@ from scr_phybot_mjab.assets.wall.wall_constants import (  # noqa: E402
   WALL_OFFSET,
 )
 from scr_phybot_mjab.microspine.pad_geometry import pad_geometry_from_sites
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_MOTION
 
 _DEFAULT_CLIP = CAD_CLIMB_MOTION
 

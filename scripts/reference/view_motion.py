@@ -8,7 +8,7 @@ Needs a display; for headless MP4 rendering use
 
 Usage:
     python scripts/reference/view_motion.py                                  # default squat clip
-    python scripts/reference/view_motion.py src/scr_phybot_mjab/assets/motions/mini_walk_slow.npy
+    python scripts/reference/view_motion.py src/scr_phybot_mjab/tasks/walk/motions/mini_walk_slow.npy
     python scripts/reference/view_motion.py <clip.npy> --speed 0.5
 """
 
@@ -22,11 +22,11 @@ import mujoco
 import mujoco.viewer
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_STANDING_JOINT_POS,
   get_spec,
 )
+from scr_phybot_mjab.tasks.squat.motions import SQUAT_MOTION
 
 _DEFAULT_CLIP = SQUAT_MOTION
 

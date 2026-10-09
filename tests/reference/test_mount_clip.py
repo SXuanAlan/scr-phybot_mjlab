@@ -8,22 +8,20 @@ engaged, and the motion loader must accept its acyclic schema.
 import numpy as np
 import pytest
 
-from scr_phybot_mjab.assets.motions import MOTIONS_DIR
 from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import rebuild_acyclic_schedule
+from scr_phybot_mjab.tasks.climb_transition80.motions import CLIMB_MOUNT80_MOTION
 from scr_phybot_mjab.tasks.climb_wall.mdp.motion import ClimbMotionClip
-
-_ASSETS = MOTIONS_DIR
-_MOUNT = "climb_mount_prologue_a80.npy"
+from scr_phybot_mjab.tasks.climb_wall.motions import MOTIONS_DIR as CLIMB_MOTIONS_DIR
 
 
 @pytest.fixture(scope="module")
 def mount() -> dict:
-  return np.load(_ASSETS / _MOUNT, allow_pickle=True).item()
+  return np.load(CLIMB_MOUNT80_MOTION, allow_pickle=True).item()
 
 
 @pytest.fixture(scope="module")
 def cycle(mount: dict) -> dict:
-  return np.load(_ASSETS / mount["handoff_motion"], allow_pickle=True).item()
+  return np.load(CLIMB_MOTIONS_DIR / mount["handoff_motion"], allow_pickle=True).item()
 
 
 def test_mount_wall_angle_metadata(mount: dict) -> None:

@@ -1,4 +1,4 @@
-"""Validate and replay AMP motion clips on the C2 MuJoCo model."""
+"""Validate the AMP motion clips on the C2 MuJoCo model and render each one beside it as <clip>.mp4."""
 
 from __future__ import annotations
 
@@ -14,12 +14,11 @@ import numpy as np
 from amp_rsl_rl.utils import AMPLoader, VelocityRepresentation  # noqa: E402
 
 import scr_phybot_mjab.tasks  # noqa: E402,F401
-from scr_phybot_mjab.assets.motions import MOTIONS_DIR
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_XML,
 )
-from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR
+from scr_phybot_mjab.tasks.walk.motions import AMP_MOTIONS_DIR
 
 _EXPECTED_AMP_DIM = 48
 
@@ -154,13 +153,9 @@ def main(argv: list[str] | None = None) -> None:
   parser.add_argument(
     "--data-dir",
     type=Path,
-    default=MOTIONS_DIR,
+    default=AMP_MOTIONS_DIR,
   )
-  parser.add_argument(
-    "--output-dir",
-    type=Path,
-    default=ARTIFACTS_DIR / "amp_dataset_replay",
-  )
+  parser.add_argument("--output-dir", type=Path, help="where the videos go (default: beside the clips)")
   parser.add_argument("--no-render", action="store_true")
   parser.add_argument("--width", type=int, default=960)
   parser.add_argument("--height", type=int, default=720)
@@ -195,11 +190,12 @@ def main(argv: list[str] | None = None) -> None:
   if args.no_render:
     return
 
-  print(f"rendering replay videos to {args.output_dir}")
+  output_dir = args.output_dir or args.data_dir
+  print(f"rendering replay videos to {output_dir}")
   for path in paths:
     out = _render_clip(
       path=path,
-      output_dir=args.output_dir,
+      output_dir=output_dir,
       width=args.width,
       height=args.height,
       stride=args.render_stride,

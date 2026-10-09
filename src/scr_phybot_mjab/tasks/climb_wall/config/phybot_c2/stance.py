@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import json
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_INITIAL_STATE
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_FOOT_TOES
 from scr_phybot_mjab.microspine.spec import ToeContact
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_INITIAL_STATE
 
 CLIMB_EE_BODY_NAMES = ("left_hand_spine", "right_hand_spine", "left_foot_spine", "right_foot_spine")
 """The four grip end-effectors, in the order of every per-EE tensor."""

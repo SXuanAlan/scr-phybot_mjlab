@@ -30,6 +30,7 @@ tmp_sharpa_render/
 # Raw bench data and rendered previews stay on disk, out of git.
 /data/microspine/raw/
 *.mp4
+src/scr_phybot_mjab/tasks/*/motions/*.png
 *.log
 
 # Vendored third-party bulk and large reference papers.

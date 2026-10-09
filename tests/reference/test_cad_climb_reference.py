@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 import scr_phybot_mjab.tasks  # noqa: F401
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
 from scr_phybot_mjab.microspine.empirical_limit_surface import EmpiricalLimitSurface
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_MOTION
 from scr_phybot_mjab.tools.climbing_reference import cad_cycle_audit as audit
 from scr_phybot_mjab.tools.climbing_reference.model import WallGeometry, build_reference_model
 
@@ -58,7 +58,7 @@ def test_eighty_degree_audit_rotates_contacts_but_keeps_real_gravity(reference):
 
 
 def test_corner80_asset_keeps_canonical_cad_poses_and_identifies_active_units(reference):
-  from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS80_MOTION
+  from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_CORNERS80_MOTION
 
   clip, *_ = reference
   variant = np.load(CAD_CLIMB_CORNERS80_MOTION, allow_pickle=True).item()

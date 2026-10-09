@@ -21,7 +21,7 @@ This front-loads the depth-vs-feasibility question before any RL training: sweep
 robot can hold without saturating.
 
 Usage:
-    python scripts/deploy/replay_pd_tracking.py --motion-file src/scr_phybot_mjab/assets/motions/squat.npy
+    python scripts/deploy/replay_pd_tracking.py --motion-file src/scr_phybot_mjab/tasks/squat/motions/squat.npy
 """
 
 from __future__ import annotations
@@ -32,13 +32,13 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_DEPLOY_TORQUE_LIMITS,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
   get_spec,
 )
+from scr_phybot_mjab.tasks.squat.motions import SQUAT_MOTION
 from scr_phybot_mjab.tools.paths import ARTIFACTS_DIR
 
 # Real-PD gains: nominal sim gains with the hip/knee damping override that the

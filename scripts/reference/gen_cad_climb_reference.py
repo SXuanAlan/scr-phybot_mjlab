@@ -17,8 +17,8 @@ from pathlib import Path
 
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_INITIAL_STATE, CAD_CLIMB_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_XML
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_INITIAL_STATE, CAD_CLIMB_MOTION
 from scr_phybot_mjab.tools.climbing_reference.cad_cycle import (
   project_to_pad_faces,
   solve_initial_stance,

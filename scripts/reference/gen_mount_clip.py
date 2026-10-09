@@ -8,7 +8,7 @@ is named ``end_hold`` so ``ClimbMotionClip.from_dict`` accepts it unchanged
 (everything before ``end_hold`` reads as one cycle, and the tail supplies
 the finite-difference velocity frame). ``step_height`` is 0.
 
-The committed clip, assets/motions/climb_mount_prologue_a80.npy, comes from
+The committed clip, tasks/climb_transition80/motions/climb_mount_prologue_a80.npy, comes from
 the command in its recipe file. In it the left hand takes a low rung and
 the right hand a middle rung while both feet stand on the floor; the right
 foot and then the left foot (a toe pivot) mount the wall on the hand welds;
@@ -34,7 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_MOTION
 from scr_phybot_mjab.tools.climbing_reference.mount import MountRecipe, generate_mount_clip
 
 

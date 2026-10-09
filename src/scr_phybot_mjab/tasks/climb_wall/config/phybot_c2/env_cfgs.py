@@ -16,7 +16,6 @@ from pathlib import Path
 
 from mjlab.envs import ManagerBasedRlEnvCfg
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_CORNERS60_MOTION, CAD_CLIMB_CORNERS80_MOTION, CAD_CLIMB_MOTION
 from scr_phybot_mjab.microspine.constraint import make_constraint_event_cfg
 from scr_phybot_mjab.tasks.climb_wall import mdp
 from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
@@ -28,6 +27,11 @@ from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
   climb_metrics,
   climb_reset_events,
   climb_terminations,
+)
+from scr_phybot_mjab.tasks.climb_wall.motions import (
+  CAD_CLIMB_CORNERS60_MOTION,
+  CAD_CLIMB_CORNERS80_MOTION,
+  CAD_CLIMB_MOTION,
 )
 
 from .commands import climb_commands

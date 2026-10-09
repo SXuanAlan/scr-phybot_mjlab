@@ -92,8 +92,10 @@ artifacts/      other generated outputs (ignored)
 - Raw microspine trials live in `data/microspine/raw/` and are not in git;
   `data/microspine/empirical_unit_v1/` records how the packaged unit model
   was fitted.
-- Every committed clip in `assets/motions/` has a `<clip>.recipe.txt` with the
-  command that regenerates it.
+- Each task keeps its reference clips in `tasks/<task>/motions/`. The climb
+  and mount clips carry a `<clip>.recipe.txt` with the command that
+  regenerates them; preview videos (`<clip>.mp4`) sit beside the clips, out
+  of git.
 - The clips record the hash of `assets/phybot_c2/xml/phybot_c2.xml`; change
   that file only together with regenerating every clip.
 - Logs, checkpoints, W&B runs and videos stay out of git.

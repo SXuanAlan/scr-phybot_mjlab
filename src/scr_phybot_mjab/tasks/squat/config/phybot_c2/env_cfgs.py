@@ -14,8 +14,8 @@ from __future__ import annotations
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 
-from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_ACTION_SCALE, PHYBOT_C2_POLICY_JOINT_NAMES
+from scr_phybot_mjab.tasks.squat.motions import SQUAT_MOTION
 
 from .commands import MOTION_COMMAND, squat_commands
 from .events import squat_events

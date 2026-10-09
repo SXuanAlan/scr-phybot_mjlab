@@ -6,11 +6,11 @@ from mjlab.envs import mdp as base_mdp
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
-from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_ACTION_SCALE
 from scr_phybot_mjab.tasks.common.phybot_c2 import FEET_GROUND_CONTACT_SENSOR, FOOT_SITE_NAMES, SELF_COLLISION_SENSOR
 from scr_phybot_mjab.tasks.common.rewards import energy, feet_lateral_distance, self_collision_cost
 from scr_phybot_mjab.tasks.squat import mdp
+from scr_phybot_mjab.tasks.squat.motions import SQUAT_MOTION
 
 from .commands import MOTION_COMMAND
 from .motion import ARM_JOINT_NAMES, LEG_JOINT_NAMES, WAIST_JOINT_NAMES, motion_action_limits

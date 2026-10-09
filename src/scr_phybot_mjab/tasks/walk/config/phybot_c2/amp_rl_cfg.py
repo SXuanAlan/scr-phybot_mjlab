@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 
 from mjlab.rl import RslRlModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
-from scr_phybot_mjab.assets.motions import MOTIONS_DIR
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
+from scr_phybot_mjab.tasks.walk.motions import AMP_MOTIONS_DIR
 
 
 @dataclass
 class AmpDatasetCfg:
-  amp_data_path: str = str(MOTIONS_DIR)
+  amp_data_path: str = str(AMP_MOTIONS_DIR)
   datasets: dict[str, float] = field(
     default_factory=lambda: {
       "c2_stand_zero": 4.0,

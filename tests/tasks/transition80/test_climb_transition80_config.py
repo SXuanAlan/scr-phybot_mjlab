@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 import torch
 
-from scr_phybot_mjab.assets.motions import CLIMB_MOUNT80_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import PHYBOT_C2_POLICY_JOINT_NAMES
 from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.commands import SPAWN_XY_NOISE, SPAWN_YAW_NOISE
 from scr_phybot_mjab.tasks.climb_transition80.config.phybot_c2.env_cfgs import phybot_c2_climb_transition80_env_cfg
@@ -32,6 +31,7 @@ from scr_phybot_mjab.tasks.climb_transition80.mdp.motion import (
   build_fk_tables,
   finite_difference_velocities,
 )
+from scr_phybot_mjab.tasks.climb_transition80.motions import CLIMB_MOUNT80_MOTION
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.env_cfgs import (
   phybot_c2_climb_wall_env_cfg,
 )

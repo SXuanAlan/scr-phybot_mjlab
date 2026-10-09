@@ -13,10 +13,11 @@ import numpy as np
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_POLICY_JOINT_NAMES as JOINTS,
 )
+from scr_phybot_mjab.tasks.brick.motions import BRICK_REFERENCE_MOTION
 
 __all__ = ("PHASE_NAMES", "REFERENCE_PATH", "load_reference")
 
-REFERENCE_PATH = Path(__file__).resolve().parents[2] / "assets/motions/brick_pick_place.npz"
+REFERENCE_PATH = BRICK_REFERENCE_MOTION
 PHASE_NAMES = ("reach", "engage", "lift", "carry", "place", "release", "stand")
 
 

@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (
   PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
@@ -23,6 +22,7 @@ from scr_phybot_mjab.tasks.squat.mdp import (
   SquatMotionCommandCfg,
   SquatMotionLoader,
 )
+from scr_phybot_mjab.tasks.squat.motions import SQUAT_MOTION
 
 _MOTION = SQUAT_MOTION
 

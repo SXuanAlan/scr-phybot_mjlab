@@ -11,11 +11,11 @@ from pathlib import Path
 import numpy as np
 
 import scr_phybot_mjab.tasks  # noqa: E402,F401
-from scr_phybot_mjab.assets.motions import MOTIONS_DIR
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
 )
+from scr_phybot_mjab.tasks.walk.motions import STAND_ZERO_MOTION
 
 
 def _smooth_jitter(
@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> None:
   parser.add_argument(
     "--output",
     type=Path,
-    default=MOTIONS_DIR / "c2_stand_zero.npy",
+    default=STAND_ZERO_MOTION,
   )
   parser.add_argument("--duration-s", type=float, default=15.0)
   parser.add_argument("--fps", type=float, default=50.0)

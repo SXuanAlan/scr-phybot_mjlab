@@ -31,8 +31,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
 "scr_phybot_mjab.assets.microspine" = ["*.npz"]
-"scr_phybot_mjab.assets.motions" = ["*.npy", "*.npz", "*.json", "*.txt"]
 "scr_phybot_mjab.assets.phybot_c2" = ["*.json", "*.xml", "xml/*.xml", "urdf/*.urdf", "new_meshes/*.stl", "new_meshes/*.STL"]
+"scr_phybot_mjab.tasks.brick.motions" = ["*.npz", "*.json"]
+"scr_phybot_mjab.tasks.climb_transition80.motions" = ["*.npy", "*.json", "*.txt"]
+"scr_phybot_mjab.tasks.climb_wall.motions" = ["*.npy", "*.json", "*.txt"]
+"scr_phybot_mjab.tasks.squat.motions" = ["*.npy"]
+"scr_phybot_mjab.tasks.walk.motions" = ["*.npy"]
 
 [tool.ruff]
 line-length = 120

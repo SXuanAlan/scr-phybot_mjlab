@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import CAD_CLIMB_MOTION as MOTION
+from scr_phybot_mjab.tasks.climb_wall.motions import CAD_CLIMB_MOTION as MOTION
 from scr_phybot_mjab.tools.climbing_reference.cad_cycle_audit import audit_clip
 from scr_phybot_mjab.tools.paths import CLIMB_REVIEW_DIR as OUT
 

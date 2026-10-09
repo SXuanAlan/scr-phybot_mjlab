@@ -8,10 +8,11 @@ Rules for changing this repository, for people and coding agents alike.
 - `src/scr_phybot_mjab/tasks/<task>/`: `config/phybot_c2/` says what the task
   is, one module per section, each built in its final form; `env_cfgs.py`
   composes them and holds `apply_play_overrides`. `mdp/` holds the per-step
-  terms. `tasks/common/` holds what several tasks share.
+  terms, `motions/` the task's reference clips with their recipes and preview
+  videos. `tasks/common/` holds what several tasks share.
 - `src/scr_phybot_mjab/microspine/` is the pad plant; `assets/` the robot,
-  wall, brick and motion clips; `tools/` offline code; `utils/` helpers for
-  scripts.
+  wall and brick; `tools/` offline code, the clip generators among it;
+  `utils/` helpers for scripts.
 - `scripts/` are thin command-line wrappers; `tests/` is split by domain, with
   the repository rules checked in `tests/conventions/`.
 - Retired code lives on in the local `archive/*` git tags (`git tag -l 'archive/*'`).

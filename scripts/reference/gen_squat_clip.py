@@ -38,13 +38,13 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from scr_phybot_mjab.assets.motions import SQUAT_MOTION
 from scr_phybot_mjab.assets.phybot_c2.phybot_c2_constants import (  # noqa: E402
   PHYBOT_C2_FOOT_SITES,
   PHYBOT_C2_POLICY_JOINT_NAMES,
   PHYBOT_C2_STANDING_JOINT_POS,
   get_spec,
 )
+from scr_phybot_mjab.tasks.squat.motions import SQUAT_MOTION
 
 # Standing base height: the lowest sole point sits on the floor in the -0.295
 # ankle pose (see DEFAULT_KEYFRAME / _WALK_STANDING_KEYFRAME, base z 0.726).

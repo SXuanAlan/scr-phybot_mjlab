@@ -31,7 +31,7 @@ hands off to this cycle.
 
 ## Reference and resets
 
-The main task imitates `assets/motions/climb_cad_empirical.npy`, the corner
+The main task imitates `tasks/climb_wall/motions/climb_cad_empirical.npy`, the corner
 tasks their `_corners_a60` / `_corners_a80` variants; the recipe next to each
 clip regenerates it. A cycle lasts 9 s and climbs 20 mm, and the velocity
 command follows that average along-wall rate. Training resets sample the

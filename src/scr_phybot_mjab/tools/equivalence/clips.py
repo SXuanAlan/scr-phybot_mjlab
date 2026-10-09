@@ -14,7 +14,8 @@ from pathlib import Path
 
 from scr_phybot_mjab.tools.equivalence.canonical import REPO_ROOT
 
-MOTIONS_DIR = REPO_ROOT / "src/scr_phybot_mjab/assets/motions"
+CLIMB_MOTIONS_DIR = REPO_ROOT / "src/scr_phybot_mjab/tasks/climb_wall/motions"
+MOUNT_MOTIONS_DIR = REPO_ROOT / "src/scr_phybot_mjab/tasks/climb_transition80/motions"
 _SINGLE_THREAD = {"OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}
 
 
@@ -26,7 +27,7 @@ class ClipJob:
 
 
 def clip_jobs() -> list[ClipJob]:
-  cad_climb = str(MOTIONS_DIR / "climb_cad_empirical.npy")
+  cad_climb = str(CLIMB_MOTIONS_DIR / "climb_cad_empirical.npy")
   jobs = [
     ClipJob(
       "climb_cad_empirical",
@@ -66,7 +67,7 @@ def clip_jobs() -> list[ClipJob]:
       "climb_mount_prologue_a80",
       "scripts/reference/gen_mount_clip.py",
       (
-        *recipe_args("climb_mount_prologue_a80", "scripts/reference/gen_mount_clip.py"),
+        *recipe_args(MOUNT_MOTIONS_DIR / "climb_mount_prologue_a80.recipe.txt", "scripts/reference/gen_mount_clip.py"),
         "--output",
         "{out}/climb_mount_prologue_a80.npy",
       ),
@@ -82,16 +83,16 @@ def clip_jobs() -> list[ClipJob]:
   return jobs
 
 
-def recipe_args(clip: str, script: str) -> tuple[str, ...]:
-  """Generator arguments recorded in ``<clip>.recipe.txt``, minus its ``--output``."""
-  for line in (MOTIONS_DIR / f"{clip}.recipe.txt").read_text().splitlines():
+def recipe_args(recipe: Path, script: str) -> tuple[str, ...]:
+  """Generator arguments recorded in a clip's recipe file, minus its ``--output``."""
+  for line in recipe.read_text().splitlines():
     tokens = shlex.split(line)
     if script in tokens:
       args = list(tokens[tokens.index(script) + 1 :])
       if "--output" in args:
         del args[args.index("--output") : args.index("--output") + 2]
       return tuple(args)
-  raise ValueError(f"No '{script}' command in the {clip} recipe")
+  raise ValueError(f"No '{script}' command in {recipe}")
 
 
 def run_clip_job(job: ClipJob, out_dir: Path, python: str) -> int:
