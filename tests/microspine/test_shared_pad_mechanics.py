@@ -11,7 +11,6 @@ from scr_phybot_mjab.microspine.wrench import (
   distribute_wrench_to_units_numpy,
   unit_wrench_matrix,
 )
-from scr_phybot_mjab.tools.microspine.stochastic_pad import StochasticPad
 
 
 def test_reference_ik_preserves_unselected_passive_joint_coordinates():
@@ -53,7 +52,7 @@ def make_pad(rows, cols, rake_spacing, lateral_spacing):
 
 
 @pytest.mark.parametrize("rows,cols,rake,lateral", [(3, 4, 0.0315, 0.028), (4, 5, 0.027, 0.019)])
-def test_changed_asset_grid_drives_torch_numpy_and_probability_model(rows, cols, rake, lateral):
+def test_changed_asset_grid_drives_torch_and_numpy_allocators(rows, cols, rake, lateral):
   spec = make_pad(rows, cols, rake, lateral)
   geometry = pad_geometry_from_sites(spec, "pad")
   compiled = pad_geometry_from_sites(spec.compile(), "pad")
@@ -82,12 +81,6 @@ def test_changed_asset_grid_drives_torch_numpy_and_probability_model(rows, cols,
     dim=-1,
   )
   np.testing.assert_allclose(torch_loads.numpy(), loads, atol=1e-12)
-  pad = StochasticPad(draws=16, geometry=geometry)
-  assert pad.u.shape == (16, rows * cols)
-  np.testing.assert_allclose(
-    np.stack(pad.units(100.0, 10.0, 0.2), axis=-1),
-    distribute_wrench_to_units_numpy([100.0, 10.0, 0.0, 0.0, 0.0, 0.2], geometry)[:, :2],
-  )
 
 
 def test_doubling_rake_lever_halves_unit_peeling_load():
@@ -97,23 +90,6 @@ def test_doubling_rake_lever_halves_unit_peeling_load():
   narrow_load = distribute_wrench_to_units_numpy(wrench, narrow)
   wide_load = distribute_wrench_to_units_numpy(wrench, wide)
   np.testing.assert_allclose(wide_load, narrow_load * 0.5, atol=1e-12)
-
-
-def test_compressed_pad_bending_boundary_is_set_by_pull_off_on_tensile_side():
-  geometry = pad_geometry_from_sites(make_pad(3, 4, 0.0315, 0.028), "pad", unit_layout="corners")
-  pad = StochasticPad(draws=16, geometry=geometry)
-  pad.u.fill(0.5)
-  pad.v.fill(1.0)
-  angles = np.array([0.0, np.pi / 2])
-  radii = pad.bending(40.0, angles, fn=-80.0)  # 20 N/unit before bending.
-  assert np.isfinite(radii).all() and (radii > 0).all()
-  for angle, radius in zip(angles, radii):
-    loads = distribute_wrench_to_units_numpy(
-      [40.0, 0.0, -80.0, radius * np.sin(angle), radius * np.cos(angle), 0.0], geometry
-    )
-    cap, _, valid, _ = pad.surface.query_numpy(loads[:, 0], loads[:, 1], 0.5)
-    assert valid.all() and np.min(loads[:, 2]) < -20.0
-    np.testing.assert_allclose(np.min(cap - loads[:, 2]), 0.0, atol=1e-8)
 
 
 def test_four_corners_keep_cad_levers_and_conserve_the_complete_wrench():

@@ -2,12 +2,6 @@
 
 from pathlib import Path
 
-CAT = {"ml": "#2a78d6", "mt": "#eb6834", "mn": "#1baf7a"}
-
-
-ORDINAL = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"]
-
-
 INK, SEC, MUT = "#0b0b0b", "#52514e", "#9b9a94"
 
 
