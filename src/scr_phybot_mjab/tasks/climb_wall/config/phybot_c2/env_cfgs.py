@@ -18,30 +18,24 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 
 from scr_phybot_mjab.microspine.constraint import make_constraint_event_cfg
 from scr_phybot_mjab.tasks.climb_wall import mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
-  DECIMATION,
-  MICROSPINE_AFFORDANCE_COMMAND,
-  MICROSPINE_GRIP_EVENT,
-  MOTION_COMMAND,
-  climb_curriculum,
-  climb_metrics,
-  climb_reset_events,
-  climb_terminations,
-)
 from scr_phybot_mjab.tasks.climb_wall.motions import (
   CAD_CLIMB_CORNERS60_MOTION,
   CAD_CLIMB_CORNERS80_MOTION,
   CAD_CLIMB_MOTION,
 )
 
-from .commands import climb_commands
+from .commands import MICROSPINE_AFFORDANCE_COMMAND, MOTION_COMMAND, climb_commands
+from .curricula import climb_curriculum
 from .domain_rand import DOMAIN_RAND_EVENTS, actor_obs_noise, domain_rand_events
+from .events import MICROSPINE_GRIP_EVENT, climb_reset_events
+from .metrics import climb_metrics
 from .microspine import climb_microspine_cfg
 from .observations import climb_observations
 from .rewards import climb_rewards
 from .robot import climb_actions, climb_robot_cfg
-from .scene import climb_scene, climb_sim, climb_viewer
+from .scene import DECIMATION, climb_scene, climb_sim, climb_viewer
 from .stance import climb_toe_contacts
+from .terminations import climb_terminations
 
 
 def phybot_c2_climb_wall_env_cfg(

@@ -11,13 +11,11 @@ from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.tasks.climb_wall import mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
-  MICROSPINE_AFFORDANCE_COMMAND,
-  MICROSPINE_GRIP_EVENT,
-  MOTION_COMMAND,
-  UNDESIRED_CONTACT_SENSOR,
-)
 from scr_phybot_mjab.tasks.common.phybot_c2 import policy_joint_cfg
+
+from .commands import MICROSPINE_AFFORDANCE_COMMAND, MOTION_COMMAND
+from .events import MICROSPINE_GRIP_EVENT
+from .scene import UNDESIRED_CONTACT_SENSOR
 
 
 def climb_rewards() -> dict[str, RewardTermCfg]:

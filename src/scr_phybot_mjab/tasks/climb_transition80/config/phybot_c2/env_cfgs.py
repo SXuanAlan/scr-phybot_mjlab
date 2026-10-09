@@ -17,20 +17,15 @@ from __future__ import annotations
 from mjlab.envs import ManagerBasedRlEnvCfg
 
 from scr_phybot_mjab.microspine.constraint import make_constraint_event_cfg
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
-  DECIMATION,
-  MICROSPINE_AFFORDANCE_COMMAND,
-  MICROSPINE_GRIP_EVENT,
-  MOTION_COMMAND,
-  climb_reset_events,
-)
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.commands import MICROSPINE_AFFORDANCE_COMMAND, MOTION_COMMAND
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.domain_rand import (
   DOMAIN_RAND_EVENTS,
   actor_obs_noise,
   domain_rand_events,
 )
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.events import MICROSPINE_GRIP_EVENT, climb_reset_events
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.robot import climb_actions, climb_robot_cfg
-from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.scene import climb_scene, climb_sim, climb_viewer
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.scene import DECIMATION, climb_scene, climb_sim, climb_viewer
 from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.stance import climb_toe_contacts
 
 from .commands import transition80_commands

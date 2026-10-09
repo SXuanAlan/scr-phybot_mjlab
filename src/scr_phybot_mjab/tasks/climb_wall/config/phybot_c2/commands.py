@@ -8,13 +8,16 @@ from mjlab.managers.command_manager import CommandTermCfg
 
 from scr_phybot_mjab.microspine.config import MicrospineAffordanceCfg, MicrospineCfg
 from scr_phybot_mjab.tasks.climb_wall import mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
-  MICROSPINE_AFFORDANCE_COMMAND,
-  MICROSPINE_CONTACT_SENSOR,
-  MICROSPINE_GRIP_EVENT,
-  MOTION_COMMAND,
-  VELOCITY_COMMAND,
-)
+
+from .events import MICROSPINE_GRIP_EVENT
+from .scene import MICROSPINE_CONTACT_SENSOR
+
+# Manager-key names, shared by every climb config and climb_transition80.
+# They are public: CLI override paths, saved run configs, wandb names and
+# scripts such as export_policy and play use them.
+VELOCITY_COMMAND = "climb_velocity"
+MOTION_COMMAND = "climb_motion"
+MICROSPINE_AFFORDANCE_COMMAND = "microspine_affordance"
 
 TRACKING_BODY_NAMES = (
   "torso",

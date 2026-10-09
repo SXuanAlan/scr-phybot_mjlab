@@ -36,7 +36,7 @@ def reward_weight(
   env_ids: torch.Tensor,
   reward_name: str,
   weight_stages: list[RewardWeightStage],
-  steps_per_iter: int = 96,  # climb_wall_env_cfg.STEPS_PER_ITER; every task passes it explicitly
+  steps_per_iter: int = 96,  # config/phybot_c2/curricula.STEPS_PER_ITER; every task passes it explicitly
 ) -> torch.Tensor:
   """Update a reward term's weight based on training iteration stages.
 
@@ -176,7 +176,7 @@ def wall_angle(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,
   angle_stages: list[WallAngleStage],
-  steps_per_iter: int = 96,  # climb_wall_env_cfg.STEPS_PER_ITER; every task passes it explicitly
+  steps_per_iter: int = 96,  # config/phybot_c2/curricula.STEPS_PER_ITER; every task passes it explicitly
   angle_jitter_deg: float = 0.0,
   jitter_below_deg: float = 90.0,
   wall_entity_name: str = "wall",

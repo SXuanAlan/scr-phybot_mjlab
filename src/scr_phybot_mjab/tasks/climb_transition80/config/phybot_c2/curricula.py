@@ -12,7 +12,8 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from scr_phybot_mjab.tasks.climb_transition80 import mdp
 from scr_phybot_mjab.tasks.climb_wall import mdp as climb_mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import MICROSPINE_AFFORDANCE_COMMAND, STEPS_PER_ITER
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.commands import MICROSPINE_AFFORDANCE_COMMAND
+from scr_phybot_mjab.tasks.climb_wall.config.phybot_c2.curricula import STEPS_PER_ITER
 
 from .schedules import (
   ANCHOR_POS_STAGES,

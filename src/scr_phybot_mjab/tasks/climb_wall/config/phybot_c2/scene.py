@@ -27,12 +27,14 @@ from scr_phybot_mjab.microspine.spec import (
   add_toe_contact_pairs,
   toe_geom_name,
 )
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
-  DECIMATION,
-  MICROSPINE_CONTACT_SENSOR,
-  TOE_CONTACT_SENSOR,
-  UNDESIRED_CONTACT_SENSOR,
-)
+
+# Sensor names are manager keys, public like the command names in commands.py.
+MICROSPINE_CONTACT_SENSOR = "microspine_wall_contact"
+TOE_CONTACT_SENSOR = "climb_toe_contact"
+UNDESIRED_CONTACT_SENSOR = "climb_undesired_contact"
+
+DECIMATION = 10
+"""Physics steps per policy step (0.002 s timestep, 50 Hz policy)."""
 
 
 def climb_scene(robot_cfg: EntityCfg, microspine_cfg: MicrospineCfg, toe_contacts: tuple[ToeContact, ...]) -> SceneCfg:

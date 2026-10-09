@@ -7,12 +7,6 @@ from mjlab.utils.noise import UniformNoiseCfg
 
 from scr_phybot_mjab.microspine.config import MicrospineCfg
 from scr_phybot_mjab.tasks.climb_wall import mdp
-from scr_phybot_mjab.tasks.climb_wall.climb_wall_env_cfg import (
-  MICROSPINE_AFFORDANCE_COMMAND,
-  MICROSPINE_GRIP_EVENT,
-  MOTION_COMMAND,
-  VELOCITY_COMMAND,
-)
 from scr_phybot_mjab.tasks.common.observations import projected_gravity_from_framequat_sensor
 from scr_phybot_mjab.tasks.common.phybot_c2 import (
   BASE_ANG_VEL_SENSOR,
@@ -20,6 +14,9 @@ from scr_phybot_mjab.tasks.common.phybot_c2 import (
   BASE_QUAT_SENSOR,
   policy_joint_cfg,
 )
+
+from .commands import MICROSPINE_AFFORDANCE_COMMAND, MOTION_COMMAND, VELOCITY_COMMAND
+from .events import MICROSPINE_GRIP_EVENT
 
 
 def proprio_terms() -> dict[str, ObservationTermCfg]:
