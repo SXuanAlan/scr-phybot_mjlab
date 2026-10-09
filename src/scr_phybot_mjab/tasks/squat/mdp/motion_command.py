@@ -38,7 +38,7 @@ __all__ = (
 class SquatMotionLoader:
   """Loads one standalone ``.npy`` squat clip and derives velocities.
 
-  The clip uses the AMP/motion schema (see ``scripts/reference/gen_squat_clip.py``): a dict
+  The clip uses the AMP/motion schema (see ``tools/squat_reference.py``): a dict
   with ``joints_list``, ``joint_positions`` (T, N), ``root_position`` (T, 3),
   ``root_quaternion`` (T, 4) in xyzw, ``foot_sites_list``, ``foot_positions``
   (T, 2, 3), and ``fps``.
